@@ -17,6 +17,7 @@ from giskardpy.utils.utils import suppress_stderr
 from semantic_world.connections import FixedConnection, PrismaticConnection, UnitVector, OmniDrive, ActiveConnection
 from semantic_world.geometry import Box, Scale, Color
 from semantic_world.prefixed_name import PrefixedName
+from semantic_world.robots import AbstractRobot, Manipulator
 from semantic_world.spatial_types.derivatives import Derivatives
 from semantic_world.views import ControlledConnections
 from semantic_world.world import World
@@ -283,32 +284,38 @@ class TestWorld:
         assert link_b == simple_two_arm_world.get_body_by_name('r_link_1')
 
     def test_group_pr2_hand(self, pr2_world: World):
-        pr2_world.register_group('r_hand', pr2_world.search_for_link_name('r_wrist_roll_link'))
-        assert set(pr2_world.groups['r_hand'].joint_names) == {
-            pr2_world.search_for_joint_name('r_gripper_palm_joint'),
-            pr2_world.search_for_joint_name('r_gripper_led_joint'),
-            pr2_world.search_for_joint_name('r_gripper_motor_accelerometer_joint'),
-            pr2_world.search_for_joint_name('r_gripper_tool_joint'),
-            pr2_world.search_for_joint_name('r_gripper_motor_slider_joint'),
-            pr2_world.search_for_joint_name('r_gripper_l_finger_joint'),
-            pr2_world.search_for_joint_name('r_gripper_r_finger_joint'),
-            pr2_world.search_for_joint_name('r_gripper_motor_screw_joint'),
-            pr2_world.search_for_joint_name('r_gripper_l_finger_tip_joint'),
-            pr2_world.search_for_joint_name('r_gripper_r_finger_tip_joint'),
-            pr2_world.search_for_joint_name('r_gripper_joint')}
-        assert set(pr2_world.groups['r_hand'].link_names_as_set) == {
-            pr2_world.search_for_link_name('r_wrist_roll_link'),
-            pr2_world.search_for_link_name('r_gripper_palm_link'),
-            pr2_world.search_for_link_name('r_gripper_led_frame'),
-            pr2_world.search_for_link_name('r_gripper_motor_accelerometer_link'),
-            pr2_world.search_for_link_name('r_gripper_tool_frame'),
-            pr2_world.search_for_link_name('r_gripper_motor_slider_link'),
-            pr2_world.search_for_link_name('r_gripper_motor_screw_link'),
-            pr2_world.search_for_link_name('r_gripper_l_finger_link'),
-            pr2_world.search_for_link_name('r_gripper_l_finger_tip_link'),
-            pr2_world.search_for_link_name('r_gripper_r_finger_link'),
-            pr2_world.search_for_link_name('r_gripper_r_finger_tip_link'),
-            pr2_world.search_for_link_name('r_gripper_l_finger_tip_frame')}
+        pr2 = AbstractRobot(name=PrefixedName('pr2'),
+                            _world=pr2_world,
+                            manipulators=[Manipulator(root=pr2_world.get_body_by_name('r_wrist_roll_link'),
+                                                      name=PrefixedName('r_hand'),
+                                                      tool_frame=pr2_world.get_body_by_name('r_gripper_tool_frame'))])
+        pr2_world.add_view(pr2)
+        view: AbstractRobot = pr2.manipulators[0]
+        assert set(view.connections) == {
+            pr2_world.get_connection_by_name('r_gripper_palm_joint'),
+            pr2_world.get_connection_by_name('r_gripper_led_joint'),
+            pr2_world.get_connection_by_name('r_gripper_motor_accelerometer_joint'),
+            pr2_world.get_connection_by_name('r_gripper_tool_joint'),
+            pr2_world.get_connection_by_name('r_gripper_motor_slider_joint'),
+            pr2_world.get_connection_by_name('r_gripper_l_finger_joint'),
+            pr2_world.get_connection_by_name('r_gripper_r_finger_joint'),
+            pr2_world.get_connection_by_name('r_gripper_motor_screw_joint'),
+            pr2_world.get_connection_by_name('r_gripper_l_finger_tip_joint'),
+            pr2_world.get_connection_by_name('r_gripper_r_finger_tip_joint'),
+            pr2_world.get_connection_by_name('r_gripper_joint')}
+        assert set(view.bodies) == {
+            pr2_world.get_body_by_name('r_wrist_roll_link'),
+            pr2_world.get_body_by_name('r_gripper_palm_link'),
+            pr2_world.get_body_by_name('r_gripper_led_frame'),
+            pr2_world.get_body_by_name('r_gripper_motor_accelerometer_link'),
+            pr2_world.get_body_by_name('r_gripper_tool_frame'),
+            pr2_world.get_body_by_name('r_gripper_motor_slider_link'),
+            pr2_world.get_body_by_name('r_gripper_motor_screw_link'),
+            pr2_world.get_body_by_name('r_gripper_l_finger_link'),
+            pr2_world.get_body_by_name('r_gripper_l_finger_tip_link'),
+            pr2_world.get_body_by_name('r_gripper_r_finger_link'),
+            pr2_world.get_body_by_name('r_gripper_r_finger_tip_link'),
+            pr2_world.get_body_by_name('r_gripper_l_finger_tip_frame')}
 
     def test_get_chain(self, pr2_world: World):
         with suppress_stderr():
