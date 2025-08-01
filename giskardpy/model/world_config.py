@@ -2,74 +2,31 @@ from __future__ import annotations
 
 import abc
 from abc import ABC
-from typing import Optional, Union
+from dataclasses import dataclass, field
+from typing import Optional
 
 import numpy as np
 
-from giskardpy.god_map import god_map
 from giskardpy.model.utils import robot_name_from_urdf_string
 from semantic_world.adapters.urdf import URDFParser
-from semantic_world.connections import Has1DOFState, Connection6DoF, OmniDrive
+from semantic_world.connections import Connection6DoF, OmniDrive
 from semantic_world.geometry import Color
 from semantic_world.prefixed_name import PrefixedName
-from semantic_world.robots import PR2
 from semantic_world.spatial_types.derivatives import Derivatives
 from semantic_world.world import World
 from semantic_world.world_entity import Body
 
 
+@dataclass
 class WorldConfig(ABC):
-    _world: World
-    default_color = Color(0.5, 0.5, 0.5, 1)
-
-    def __init__(self, register_on_god_map: bool = True):
-        self._world = World()
-        if register_on_god_map:
-            god_map.world = self.world
-
-    @property
-    def world(self) -> World:
-        return self._world
-
-    def set_defaults(self):
-        pass
+    world: World = field(default_factory=World)
+    default_color: Color = field(default_factory=lambda: Color(0.5, 0.5, 0.5, 1))
 
     @abc.abstractmethod
     def setup(self, *args, **kwargs):
         """
         Implement this method to configure the initial world using it's self. methods.
         """
-
-    @property
-    def robot_group_name(self) -> str:
-        return self.world.robot_name
-
-    def get_root_link_of_group(self, group_name: str) -> PrefixedName:
-        return self.world.views[group_name].root_link_name
-
-    def set_default_color(self, color: Color) -> None:
-        """
-        :param r: 0-1
-        :param g: 0-1
-        :param b: 0-1
-        :param a: 0-1
-        """
-        self.world.default_link_color = color
-
-    def add_robot_urdf(self,
-                       urdf: str,
-                       group_name: Optional[str] = None) -> str:
-        """
-        Add a robot urdf to the world.
-        :param urdf: robot urdf as string, not the path
-        :param group_name:
-        """
-        if group_name is None:
-            group_name = robot_name_from_urdf_string(urdf)
-        urdf_parser = URDFParser(urdf)
-        world_with_robot = urdf_parser.parse()
-        self.world.merge_world(world_with_robot)
-        return group_name
 
 
 class EmptyWorld(WorldConfig):
@@ -101,22 +58,16 @@ class WorldWithFixedRobot(WorldConfig):
         self.add_fixed_joint(parent_link=self.map_name, child_link=root_link_name)
 
 
+@dataclass
 class WorldWithOmniDriveRobot(WorldConfig):
-    map_name: PrefixedName
-    odom_link_name: PrefixedName
+    urdf: str = field(kw_only=True)
+    root_name: PrefixedName = field(default=PrefixedName('map'))
+    robot_name: PrefixedName = field(default=PrefixedName('robot'))
+    odom_body_name: PrefixedName = field(default=PrefixedName('odom'))
 
-    def __init__(self,
-                 urdf: str,
-                 map_name: str = 'map',
-                 odom_link_name: str = 'odom'):
-        super().__init__()
-        self.urdf = urdf
-        self.map_name = PrefixedName(map_name)
-        self.odom_link_name = PrefixedName(odom_link_name)
-
-    def setup(self, robot_name: Optional[str] = None):
-        map = Body(name=self.map_name)
-        odom = Body(name=self.odom_link_name)
+    def setup(self):
+        map = Body(name=self.root_name)
+        odom = Body(name=self.odom_body_name)
         localization = Connection6DoF(parent=map, child=odom, _world=self.world)
         self.world.add_connection(localization)
 
@@ -129,9 +80,6 @@ class WorldWithOmniDriveRobot(WorldConfig):
                          _world=self.world)
 
         self.world.merge_world(world_with_robot, odom)
-
-        PR2.from_world(world=self.world)
-
 
 class WorldWithDiffDriveRobot(WorldConfig):
     map_name: str
@@ -168,7 +116,7 @@ class WorldWithDiffDriveRobot(WorldConfig):
                                   translation_limits={
                                       Derivatives.velocity: 0.2,
                                       Derivatives.acceleration: np.inf,
-                                      Derivatives.jerk: None,
+                                      Derivatives.jerk: None
                                   },
                                   rotation_limits={
                                       Derivatives.velocity: 0.2,

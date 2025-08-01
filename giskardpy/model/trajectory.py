@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from collections import OrderedDict, defaultdict
+from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass, field
 from itertools import product
@@ -9,13 +9,13 @@ from threading import Lock
 from typing import Dict, Tuple, Optional, List
 
 import numpy as np
-from sortedcontainers import SortedDict
 from line_profiler import profile
+from sortedcontainers import SortedDict
 
-from semantic_world.prefixed_name import PrefixedName
 from giskardpy.god_map import god_map
 from giskardpy.middleware import get_middleware
 from giskardpy.utils.utils import cm_to_inch
+from semantic_world.prefixed_name import PrefixedName
 from semantic_world.spatial_types.derivatives import Derivatives
 from semantic_world.world_state import WorldState
 
