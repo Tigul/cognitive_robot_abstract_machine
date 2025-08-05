@@ -5,7 +5,7 @@ from typing import Optional, List, Union, Dict, DefaultDict, TypeVar
 import numpy as np
 
 import semantic_world.spatial_types.spatial_types as cas
-from giskardpy.data_types.data_types import LifeCycleState
+from giskardpy.motion_statechart.data_types import LifeCycleState
 from semantic_world.spatial_types.derivatives import Derivatives
 
 from giskardpy.data_types.exceptions import GoalInitalizationException, DuplicateNameException

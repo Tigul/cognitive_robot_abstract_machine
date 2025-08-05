@@ -1,10 +1,9 @@
-from typing import Dict, List, TypeVar, Generic, Set, Optional, Tuple
+from typing import Dict, List, TypeVar, Generic, Set, Optional
 
 import numpy as np
 
-from giskardpy.data_types.data_types import LifeCycleState, ObservationState
+from giskardpy.motion_statechart.data_types import LifeCycleState, ObservationState
 from giskardpy.data_types.exceptions import GoalInitalizationException
-from giskardpy.god_map import god_map
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 import semantic_world.spatial_types.spatial_types as cas
 from line_profiler import profile

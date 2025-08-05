@@ -5,13 +5,10 @@ from abc import ABC
 from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Optional
-from line_profiler import profile
-
-import numpy as np
 
 import semantic_world.spatial_types.spatial_types as cas
-from giskardpy.data_types.data_types import ObservationState
-from giskardpy.data_types.exceptions import GiskardException, MonitorInitalizationException
+from giskardpy.motion_statechart.data_types import ObservationState
+from giskardpy.data_types.exceptions import GiskardException
 from giskardpy.god_map import god_map
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from semantic_world.spatial_types.symbol_manager import symbol_manager

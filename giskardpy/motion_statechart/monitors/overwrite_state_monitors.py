@@ -6,12 +6,12 @@ from typing import Dict, Optional, Union, Type, Tuple
 from docutils.nodes import field
 
 import semantic_world.spatial_types.spatial_types as cas
-from giskardpy.data_types.data_types import ObservationState
+from giskardpy.motion_statechart.data_types import ObservationState
 from giskardpy.data_types.exceptions import GoalInitalizationException
 from giskardpy.god_map import god_map
 from giskardpy.motion_statechart.monitors.monitors import PayloadMonitor
 from giskardpy.utils.math import axis_angle_from_quaternion
-from semantic_world.connections import Has1DOFState, OmniDrive
+from semantic_world.connections import OmniDrive
 from semantic_world.prefixed_name import PrefixedName
 from semantic_world.world_entity import Connection
 

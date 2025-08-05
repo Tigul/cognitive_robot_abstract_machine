@@ -5,8 +5,6 @@ from functools import cached_property
 from typing import Optional, Union
 
 import semantic_world.spatial_types.spatial_types as cas
-from giskardpy.data_types.data_types import LifeCycleState
-from giskardpy.data_types.exceptions import GiskardException
 from giskardpy.god_map import god_map
 from giskardpy.utils.utils import string_shortener, quote_node_names
 

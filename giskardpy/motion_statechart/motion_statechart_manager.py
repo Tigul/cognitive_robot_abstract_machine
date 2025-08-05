@@ -9,7 +9,7 @@ import numpy as np
 from line_profiler import profile
 
 import semantic_world.spatial_types.spatial_types as cas
-from giskardpy.data_types.data_types import LifeCycleState, ObservationState
+from giskardpy.motion_statechart.data_types import LifeCycleState, ObservationState
 from giskardpy.data_types.exceptions import GiskardException, GoalInitalizationException
 from giskardpy.god_map import god_map
 from giskardpy.motion_statechart.goals.goal import Goal
