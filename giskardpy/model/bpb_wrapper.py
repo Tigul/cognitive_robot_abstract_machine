@@ -25,8 +25,8 @@ if not hasattr(pb, '__version__') or pb.__version__ != '1.0.0':
 
 def create_collision(pb_collision: pb.Collision, world: World) -> Collision:
     collision = Collision(
-        link_a=world.get_body_by_name(pb_collision.obj_a.name),
-        link_b=world.get_body_by_name(pb_collision.obj_b.name),
+        link_a=world.get_kinematic_structure_entity_by_name(pb_collision.obj_a.name),
+        link_b=world.get_kinematic_structure_entity_by_name(pb_collision.obj_b.name),
         contact_distance_input=pb_collision.contact_distance,
         map_P_pa=pb_collision.map_P_pa,
         map_P_pb=pb_collision.map_P_pb,
