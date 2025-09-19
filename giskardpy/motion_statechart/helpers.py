@@ -165,48 +165,48 @@ def compile_graph_node_state_updater(
         state_symbol = node.life_cycle_state_symbol
 
         not_started_transitions = cas.if_else(
-            condition=cas.is_ternary_true(node.logic3_start_condition),
-            if_result=LifeCycleState.running,
-            else_result=LifeCycleState.not_started,
+            condition=cas.is_trinary_true(node.logic3_start_condition),
+            if_result=cas.Expression(LifeCycleState.running),
+            else_result=cas.Expression(LifeCycleState.not_started),
         )
         running_transitions = cas.if_cases(
             cases=[
                 (
-                    cas.is_ternary_true(node.logic3_reset_condition),
-                    LifeCycleState.not_started,
+                    cas.is_trinary_true(node.logic3_reset_condition),
+                    cas.Expression(LifeCycleState.not_started),
                 ),
                 (
-                    cas.is_ternary_true(node.logic3_end_condition),
-                    LifeCycleState.succeeded,
+                    cas.is_trinary_true(node.logic3_end_condition),
+                    cas.Expression(LifeCycleState.succeeded),
                 ),
                 (
-                    cas.is_ternary_true(node.logic3_pause_condition),
-                    LifeCycleState.paused,
+                    cas.is_trinary_true(node.logic3_pause_condition),
+                    cas.Expression(LifeCycleState.paused),
                 ),
             ],
-            else_result=LifeCycleState.running,
+            else_result=cas.Expression(LifeCycleState.running),
         )
         pause_transitions = cas.if_cases(
             cases=[
                 (
-                    cas.is_ternary_true(node.logic3_reset_condition),
-                    LifeCycleState.not_started,
+                    cas.is_trinary_true(node.logic3_reset_condition),
+                    cas.Expression(LifeCycleState.not_started),
                 ),
                 (
-                    cas.is_ternary_true(node.logic3_end_condition),
-                    LifeCycleState.succeeded,
+                    cas.is_trinary_true(node.logic3_end_condition),
+                    cas.Expression(LifeCycleState.succeeded),
                 ),
                 (
-                    cas.is_ternary_false(node.logic3_pause_condition),
-                    LifeCycleState.running,
+                    cas.is_trinary_false(node.logic3_pause_condition),
+                    cas.Expression(LifeCycleState.running),
                 ),
             ],
-            else_result=LifeCycleState.paused,
+            else_result=cas.Expression(LifeCycleState.paused),
         )
         ended_transitions = cas.if_else(
-            condition=cas.is_ternary_true(node.logic3_reset_condition),
-            if_result=LifeCycleState.not_started,
-            else_result=LifeCycleState.succeeded,
+            condition=cas.is_trinary_true(node.logic3_reset_condition),
+            if_result=cas.Expression(LifeCycleState.not_started),
+            else_result=cas.Expression(LifeCycleState.succeeded),
         )
 
         state_machine = cas.if_eq_cases(

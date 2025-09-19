@@ -51,8 +51,10 @@ class AlignToPushDoor(Goal):
             name = f"{self.__class__.__name__}/{self.root}/{self.tip}"
         super().__init__(name=name)
 
-        root_T_tip = god_map.world.compose_fk_expression(self.root, self.tip)
-        root_T_door_expr = god_map.world.compose_fk_expression(
+        root_T_tip = god_map.world.compose_forward_kinematics_expression(
+            self.root, self.tip
+        )
+        root_T_door_expr = god_map.world.compose_forward_kinematics_expression(
             self.root, self.door_object
         )
         tip_V_tip_grasp_axis = cas.Vector3.from_iterable(self.tip_gripper_axis)

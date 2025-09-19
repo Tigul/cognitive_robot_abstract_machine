@@ -47,7 +47,9 @@ class Pointing(Task):
         )
         self.tip_V_pointing_axis.scale(1)
 
-        root_T_tip = god_map.world.compose_fk_expression(self.root, self.tip)
+        root_T_tip = god_map.world.compose_forward_kinematics_expression(
+            self.root, self.tip
+        )
         root_P_goal_point = symbol_manager.register_point3(
             name=f"{self.name}.root_P_goal_point",
             provider=lambda: self.root_P_goal_point,
@@ -75,8 +77,8 @@ class Pointing(Task):
             reference_velocity=self.max_velocity,
             weight=self.weight,
         )
-        self.observation_expression = cas.less_equal(
-            cas.angle_between_vector(root_V_pointing_axis, root_V_goal_axis), threshold
+        self.observation_expression = (
+            root_V_pointing_axis.angle_between(root_V_goal_axis) <= threshold
         )
 
 
@@ -118,7 +120,9 @@ class PointingCone(Task):
         )
         self.tip_V_pointing_axis.scale(1)
 
-        root_T_tip = god_map.world.compose_fk_expression(self.root, self.tip)
+        root_T_tip = god_map.world.compose_forward_kinematics_expression(
+            self.root, self.tip
+        )
         root_P_goal_point = symbol_manager.register_point3(
             name=f"{self.name}.root_P_goal_point",
             provider=lambda: self.root_P_goal_point,
@@ -138,8 +142,8 @@ class PointingCone(Task):
             "goal_point", root_P_goal_point, color=Color(0, 0, 1, 1)
         )
 
-        root_V_goal_axis_proj = cas.project_to_cone(
-            root_V_pointing_axis, root_V_goal_axis, cone_theta
+        root_V_goal_axis_proj = root_V_pointing_axis.project_to_cone(
+            root_V_goal_axis, cone_theta
         )
         root_V_goal_axis_proj.vis_frame = self.tip
         god_map.debug_expression_manager.add_debug_expression(
@@ -155,7 +159,6 @@ class PointingCone(Task):
             reference_velocity=self.max_velocity,
             weight=self.weight,
         )
-        self.observation_expression = cas.less_equal(
-            cas.angle_between_vector(root_V_pointing_axis, root_V_goal_axis_proj),
-            threshold,
+        self.observation_expression = (
+            root_V_pointing_axis.angle_between(root_V_goal_axis_proj) <= threshold
         )

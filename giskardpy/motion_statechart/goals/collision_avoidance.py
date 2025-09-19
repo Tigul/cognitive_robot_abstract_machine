@@ -370,7 +370,9 @@ class CollisionAvoidanceHint(Goal):
         link_b_hash = self.get_link_b_hash()
         actual_distance_capped = cas.max(actual_distance, 0)
 
-        root_T_a = god_map.world.compose_fk_expression(self.root_link, self.link_name)
+        root_T_a = god_map.world.compose_forward_kinematics_expression(
+            self.root_link, self.link_name
+        )
 
         spring_error = spring_threshold - actual_distance_capped
         spring_error = cas.max(spring_error, 0)

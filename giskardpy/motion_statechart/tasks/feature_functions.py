@@ -33,7 +33,9 @@ class FeatureFunctionGoal(Task):
             target_frame=self.tip, spatial_object=controlled_feature
         )
 
-        root_T_tip = god_map.world.compose_fk_expression(self.root, self.tip)
+        root_T_tip = god_map.world.compose_forward_kinematics_expression(
+            self.root, self.tip
+        )
         if isinstance(controlled_feature, cas.Point3):
             self.root_P_controlled_feature = root_T_tip.dot(tip_controlled_feature)
             god_map.debug_expression_manager.add_debug_expression(
@@ -95,8 +97,8 @@ class AlignPerpendicular(FeatureFunctionGoal):
             name=name,
         )
 
-        expr = cas.angle_between_vector(
-            self.root_V_reference_feature, self.root_V_controlled_feature
+        expr = self.root_V_reference_feature.angle_between(
+            self.root_V_controlled_feature
         )
 
         self.add_equality_constraint(
@@ -106,7 +108,7 @@ class AlignPerpendicular(FeatureFunctionGoal):
             task_expression=expr,
             name=f"{self.name}_constraint",
         )
-        self.observation_expression = cas.less(cas.abs(0 - expr), threshold)
+        self.observation_expression = cas.abs(0 - expr) < threshold
 
 
 class HeightGoal(FeatureFunctionGoal):
@@ -141,7 +143,7 @@ class HeightGoal(FeatureFunctionGoal):
         expr = cas.distance_projected_on_vector(
             self.root_P_controlled_feature,
             self.root_P_reference_feature,
-            cas.Vector3([0, 0, 1]),
+            cas.Vector3(0, 0, 1),
         )
 
         self.add_inequality_constraint(
@@ -212,8 +214,8 @@ class DistanceGoal(FeatureFunctionGoal):
             names=[f"{self.name}_extra1", f"{self.name}_extra2", f"{self.name}_extra3"],
         )
         self.observation_expression = cas.logic_and(
-            cas.if_less_eq(expr, upper_limit, 1, 0),
-            cas.if_greater_eq(expr, lower_limit, 1, 0),
+            cas.if_less_eq(expr, upper_limit, cas.Expression(1), cas.Expression(0)),
+            cas.if_greater_eq(expr, lower_limit, cas.Expression(1), cas.Expression(0)),
         )
 
 
@@ -246,8 +248,8 @@ class AngleGoal(FeatureFunctionGoal):
             name=name,
         )
 
-        expr = cas.angle_between_vector(
-            self.root_V_reference_feature, self.root_V_controlled_feature
+        expr = self.root_V_reference_feature.angle_between(
+            self.root_V_controlled_feature
         )
 
         self.add_inequality_constraint(

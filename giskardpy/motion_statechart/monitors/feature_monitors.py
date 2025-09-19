@@ -26,7 +26,9 @@ class FeatureMonitor(Monitor):
             target_frame=self.tip, spatial_object=controlled_feature
         )
 
-        root_T_tip = god_map.world.compose_fk_expression(self.root, self.tip)
+        root_T_tip = god_map.world.compose_forward_kinematics_expression(
+            self.root, self.tip
+        )
         if isinstance(controlled_feature, cas.Point3):
             self.root_P_controlled_feature = root_T_tip.dot(tip_controlled_feature)
         elif isinstance(controlled_feature, cas.Vector3):

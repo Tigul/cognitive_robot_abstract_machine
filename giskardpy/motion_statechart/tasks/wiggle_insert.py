@@ -52,7 +52,9 @@ class WiggleInsert(Task):
                                                                          hole_point
         """
         if hole_normal is None:
-            hole_normal = cas.Vector3().from_xyz(0, 0, -1, god_map.world.root_link_name)
+            hole_normal = cas.Vector3(
+                0, 0, -1, reference_frame=god_map.world.root_link_name
+            )
         self.root_link = root_link
         self.tip_link = tip_link
         self.hole_normal = hole_normal
@@ -91,14 +93,10 @@ class WiggleInsert(Task):
         self.center_pull_strength_vector = center_pull_strength_vector
 
         v1, v2 = self.calculate_vectors(self.hole_normal.to_np()[:3])
-        self.v1 = cas.Vector3().from_xyz(
-            *v1, reference_frame=hole_normal.reference_frame
-        )
-        self.v2 = cas.Vector3().from_xyz(
-            *v2, reference_frame=hole_normal.reference_frame
-        )
+        self.v1 = cas.Vector3(*v1, reference_frame=hole_normal.reference_frame)
+        self.v2 = cas.Vector3(*v2, reference_frame=hole_normal.reference_frame)
 
-        r_P_c = god_map.world.compose_fk_expression(
+        r_P_c = god_map.world.compose_forward_kinematics_expression(
             self.root_link, self.tip_link
         ).to_position()
         r_P_g = god_map.world.transform(
@@ -137,7 +135,9 @@ class WiggleInsert(Task):
             self.root_link, self.tip_link
         ).dot(tip_R_hole_normal)
 
-        r_T_c = god_map.world.compose_fk_expression(self.root_link, self.tip_link)
+        r_T_c = god_map.world.compose_forward_kinematics_expression(
+            self.root_link, self.tip_link
+        )
         r_R_c = r_T_c.to_rotation_matrix()
 
         self.add_rotation_goal_constraints(
@@ -160,8 +160,8 @@ class WiggleInsert(Task):
             name="tip_R_hole_normal", expression=tip_R_hole_normal
         )
 
-        dist = cas.euclidean_distance(r_P_c, r_P_g)
-        end = cas.less_equal(dist, threshold)
+        dist = r_P_c.euclidean_distance(r_P_g)
+        end = dist <= threshold
 
         self.observation_expression = end
 

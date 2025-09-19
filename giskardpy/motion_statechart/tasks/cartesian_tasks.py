@@ -44,13 +44,13 @@ class CartesianPosition(Task):
                 target_frame=self.root_link, spatial_object=goal_point
             )
         else:
-            root_T_x = god_map.world.compose_fk_expression(
+            root_T_x = god_map.world.compose_forward_kinematics_expression(
                 self.root_link, goal_point.reference_frame
             )
             root_P_goal = root_T_x.dot(goal_point)
             root_P_goal = self.update_expression_on_starting(root_P_goal)
 
-        r_P_c = god_map.world.compose_fk_expression(
+        r_P_c = god_map.world.compose_forward_kinematics_expression(
             self.root_link, self.tip_link
         ).to_position()
         self.add_point_goal_constraints(
@@ -96,8 +96,8 @@ class CartesianPosition(Task):
             ),
         )
 
-        distance_to_goal = cas.euclidean_distance(root_P_goal, r_P_c)
-        self.observation_expression = cas.less(distance_to_goal, threshold)
+        distance_to_goal = root_P_goal.euclidean_distance(r_P_c)
+        self.observation_expression = distance_to_goal < threshold
 
 
 class CartesianPositionStraight(Task):
@@ -129,16 +129,18 @@ class CartesianPositionStraight(Task):
                 target_frame=self.root_link, spatial_object=goal_point
             )
         else:
-            root_T_x = god_map.world.compose_fk_expression(
+            root_T_x = god_map.world.compose_forward_kinematics_expression(
                 self.root_link, goal_point.reference_frame
             )
             root_P_goal = root_T_x.dot(goal_point)
             root_P_goal = self.update_expression_on_starting(root_P_goal)
 
-        root_P_tip = god_map.world.compose_fk_expression(
+        root_P_tip = god_map.world.compose_forward_kinematics_expression(
             self.root_link, self.tip_link
         ).to_position()
-        t_T_r = god_map.world.compose_fk_expression(self.tip_link, self.root_link)
+        t_T_r = god_map.world.compose_forward_kinematics_expression(
+            self.tip_link, self.root_link
+        )
         tip_P_goal = t_T_r.dot(root_P_goal)
 
         # Create rotation matrix, which rotates the tip link frame
@@ -148,7 +150,7 @@ class CartesianPositionStraight(Task):
         tip_V_error = cas.Vector3(tip_P_goal)
         trans_error = tip_V_error.norm()
         # x-axis
-        tip_V_intermediate_error = cas.save_division(tip_V_error, trans_error)
+        tip_V_intermediate_error = tip_V_error.safe_division(trans_error)
         # y- and z-axis
         tip_V_intermediate_y = cas.Vector3(np.random.random((3,)))
         tip_V_intermediate_y.scale(1)
@@ -164,7 +166,11 @@ class CartesianPositionStraight(Task):
                     self.tip_link, self.root_link
                 )
             )
-            .dot(god_map.world.compose_fk_expression(self.root_link, self.tip_link))
+            .dot(
+                god_map.world.compose_forward_kinematics_expression(
+                    self.root_link, self.tip_link
+                )
+            )
         )
         expr_p = a_T_t.to_position()
         dist = (root_P_goal - root_P_tip).norm()
@@ -182,7 +188,7 @@ class CartesianPositionStraight(Task):
         god_map.debug_expression_manager.add_debug_expression(
             f"{self.name}/goal_point", root_P_goal, color=Color(0, 0, 1, 1)
         )
-        self.observation_expression = cas.less(dist, self.threshold)
+        self.observation_expression = dist < self.threshold
 
 
 class CartesianOrientation(Task):
@@ -218,13 +224,15 @@ class CartesianOrientation(Task):
                 target_frame=self.root_link, spatial_object=goal_orientation
             )
         else:
-            root_T_x = god_map.world.compose_fk_expression(
+            root_T_x = god_map.world.compose_forward_kinematics_expression(
                 self.root_link, goal_orientation.reference_frame
             )
             root_R_goal = root_T_x.dot(goal_orientation)
             root_R_goal = self.update_expression_on_starting(root_R_goal)
 
-        r_T_c = god_map.world.compose_fk_expression(self.root_link, self.tip_link)
+        r_T_c = god_map.world.compose_forward_kinematics_expression(
+            self.root_link, self.tip_link
+        )
         r_R_c = r_T_c.to_rotation_matrix()
         c_R_r_eval = god_map.world.compose_fk_evaluated_expression(
             self.tip_link, self.root_link
@@ -243,7 +251,7 @@ class CartesianOrientation(Task):
             if absolute:
                 point = point_of_debug_matrix
             else:
-                root_T_x = god_map.world.compose_fk_expression(
+                root_T_x = god_map.world.compose_forward_kinematics_expression(
                     self.root_link, point_of_debug_matrix.reference_frame
                 )
                 point = root_T_x.dot(point_of_debug_matrix)
@@ -260,8 +268,8 @@ class CartesianOrientation(Task):
         # god_map.debug_expression_manager.add_debug_expression(f'{self.name}/current_orientation',
         #                                                       debug_current_trans_matrix)
 
-        rotation_error = cas.rotational_error(r_R_c, root_R_goal)
-        self.observation_expression = cas.less(cas.abs(rotation_error), threshold)
+        rotation_error = r_R_c.rotational_error(root_R_goal)
+        self.observation_expression = cas.abs(rotation_error) < threshold
 
 
 @dataclass
@@ -323,7 +331,7 @@ class CartesianPose(Task):
             weight=self.weight,
         )
 
-        distance_to_goal = cas.euclidean_distance(root_P_goal, r_P_c)
+        distance_to_goal = root_P_goal.euclidean_distance(r_P_c)
 
         r_T_c = god_map.world.compose_forward_kinematics_expression(
             self.root_link, self.tip_link
@@ -344,10 +352,10 @@ class CartesianPose(Task):
         # god_map.debug_expression_manager.add_debug_expression(f'{self.name}/current_orientation',
         #                                                       debug_current_trans_matrix)
 
-        rotation_error = cas.rotational_error(r_R_c, root_R_goal)
+        rotation_error = r_R_c.rotational_error(root_R_goal)
         self.observation_expression = cas.logic_and(
-            cas.less(cas.abs(rotation_error), self.threshold),
-            cas.less(distance_to_goal, self.threshold),
+            cas.abs(rotation_error) < self.threshold,
+            distance_to_goal < self.threshold,
         )
 
 
@@ -373,7 +381,7 @@ class CartesianPositionVelocityLimit(Task):
         self.root_link = root_link
         self.tip_link = tip_link
         super().__init__(name=name)
-        r_P_c = god_map.world.compose_fk_expression(
+        r_P_c = god_map.world.compose_forward_kinematics_expression(
             self.root_link, self.tip_link
         ).to_position()
         self.add_translational_velocity_limit(
@@ -399,7 +407,7 @@ class CartesianRotationVelocityLimit(Task):
         self.weight = weight
         self.max_velocity = max_velocity
 
-        r_R_c = god_map.world.compose_fk_expression(
+        r_R_c = god_map.world.compose_forward_kinematics_expression(
             self.root_link, self.tip_link
         ).to_rotation_matrix()
 
@@ -430,7 +438,9 @@ class CartesianVelocityLimit(Task):
         self.root_link = root_link
         self.tip_link = tip_link
         super().__init__(name=name)
-        r_T_c = god_map.world.compose_fk_expression(self.root_link, self.tip_link)
+        r_T_c = god_map.world.compose_forward_kinematics_expression(
+            self.root_link, self.tip_link
+        )
         r_P_c = r_T_c.to_position()
         r_R_c = r_T_c.to_rotation_matrix()
         self.add_translational_velocity_limit(
@@ -467,7 +477,7 @@ class CartesianPositionVelocityTarget(Task):
         self.root_link = root_link
         self.tip_link = tip_link
         super().__init__(name=name)
-        r_P_c = god_map.world.compose_fk_expression(
+        r_P_c = god_map.world.compose_forward_kinematics_expression(
             self.root_link, self.tip_link
         ).to_position()
         god_map.debug_expression_manager.add_debug_expression(
@@ -517,23 +527,22 @@ class JustinTorsoLimitCart(Task):
         plot: bool = True,
     ):
         super().__init__(name=name, plot=plot)
-        torso_root_T_torso_tip = god_map.world.compose_fk_expression(
+        torso_root_T_torso_tip = god_map.world.compose_forward_kinematics_expression(
             root_link, tip_link
         )
-        torso_root_V_up = cas.Vector3((0, 0, 1))
+        torso_root_V_up = cas.Vector3(0, 0, 1)
         torso_root_V_up.reference_frame = root_link
         torso_root_V_up.vis_frame = root_link
 
-        torso_root_V_left = cas.Vector3((0, 1, 0))
+        torso_root_V_left = cas.Vector3(0, 1, 0)
         torso_root_V_left.reference_frame = root_link
         torso_root_V_left.vis_frame = root_link
 
         torso_root_P_torso_tip = torso_root_T_torso_tip.to_position()
 
-        distance, nearest = cas.distance_point_to_plane_signed(
-            frame_P_current=torso_root_P_torso_tip,
-            frame_V_v1=torso_root_V_left,
-            frame_V_v2=torso_root_V_up,
+        nearest, distance = torso_root_P_torso_tip.project_to_plane(
+            frame_V_plane_vector1=torso_root_V_left,
+            frame_V_plane_vector2=torso_root_V_up,
         )
         # distance = cas.distance_point_to_line(torso_root_P_torso_tip, cas.Point3((0, 0, 0)), torso_root_V_up)
 
@@ -553,4 +562,4 @@ class JustinTorsoLimitCart(Task):
             task_expression=distance,
             name=f"{name}/distance",
         )
-        self.observation_expression = cas.less_equal(distance, forward_distance)
+        self.observation_expression = distance <= forward_distance

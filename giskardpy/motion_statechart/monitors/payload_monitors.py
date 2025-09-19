@@ -13,18 +13,14 @@ from giskardpy.motion_statechart.monitors.monitors import PayloadMonitor, Monito
 class CheckMaxTrajectoryLength(Monitor):
     length: float
 
-    def __init__(self,
-                 name: str,
-                 length: float):
+    def __init__(self, name: str, length: float):
         super().__init__(name=name)
         self.length = length
-        self.observation_expression = cas.greater(god_map.time_symbol, self.length)
+        self.observation_expression = god_map.time_symbol > self.length
 
 
 class Print(PayloadMonitor):
-    def __init__(self,
-                 message: str,
-                 name: Optional[str] = None):
+    def __init__(self, message: str, name: Optional[str] = None):
         self.message = message
         super().__init__(name=name, run_call_in_thread=False)
 
@@ -36,12 +32,9 @@ class Print(PayloadMonitor):
 class Sleep(PayloadMonitor):
     start_time: float
 
-    def __init__(self,
-                 seconds: float,
-                 name: Optional[str] = None):
+    def __init__(self, seconds: float, name: Optional[str] = None):
         self.seconds = seconds
-        super().__init__(name=name,
-                         run_call_in_thread=False)
+        super().__init__(name=name, run_call_in_thread=False)
         self.start_time = None
 
     def __call__(self):
@@ -53,11 +46,12 @@ class Sleep(PayloadMonitor):
 class CollisionMatrixUpdater(PayloadMonitor):
     collision_matrix: Dict[Tuple[str, str], float]
 
-    def __init__(self,
-                 new_collision_matrix: Dict[Tuple[str, str], float],
-                 name: Optional[str] = None):
-        super().__init__(name=name,
-                         run_call_in_thread=False)
+    def __init__(
+        self,
+        new_collision_matrix: Dict[Tuple[str, str], float],
+        name: Optional[str] = None,
+    ):
+        super().__init__(name=name, run_call_in_thread=False)
         self.collision_matrix = new_collision_matrix
 
     @profile
@@ -69,11 +63,8 @@ class CollisionMatrixUpdater(PayloadMonitor):
 
 class PayloadAlternator(PayloadMonitor):
 
-    def __init__(self,
-                 mod: int = 2,
-                 name: Optional[str] = None):
-        super().__init__(name=name,
-                         run_call_in_thread=False)
+    def __init__(self, mod: int = 2, name: Optional[str] = None):
+        super().__init__(name=name, run_call_in_thread=False)
         self.mod = mod
 
     def __call__(self):

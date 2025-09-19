@@ -36,21 +36,23 @@ class DiffDriveTangentialToPoint(Task):
             )
             self.tip_V_pointing_axis.scale(1)
         else:
-            self.tip_V_pointing_axis = cas.Vector3((1, 0, 0))
+            self.tip_V_pointing_axis = cas.Vector3(1, 0, 0)
             self.tip_V_pointing_axis.reference_frame = self.tip
 
         map_P_center = cas.Point3(self.goal_point)
-        map_T_base = god_map.world.compose_fk_expression(self.root, self.tip)
+        map_T_base = god_map.world.compose_forward_kinematics_expression(
+            self.root, self.tip
+        )
         map_P_base = map_T_base.to_position()
         map_V_base_to_center = map_P_center - map_P_base
-        map_V_base_to_center = cas.scale(map_V_base_to_center, 1)
+        map_V_base_to_center = map_V_base_to_center.scale(1)
         map_V_up = cas.Expression([0, 0, 1, 0])
-        map_V_tangent = cas.cross(map_V_base_to_center, map_V_up)
+        map_V_tangent = map_V_base_to_center.cross(map_V_up)
         tip_V_pointing_axis = cas.Vector3(self.tip_V_pointing_axis)
         map_V_forward = map_T_base @ tip_V_pointing_axis
 
         if self.drive:
-            angle = cas.abs(cas.angle_between_vector(map_V_forward, map_V_tangent))
+            angle = cas.abs(map_V_forward.angle_between(map_V_tangent))
             self.add_equality_constraint(
                 reference_velocity=0.5,
                 equality_bound=-angle,
@@ -61,7 +63,7 @@ class DiffDriveTangentialToPoint(Task):
         else:
             # angle = cas.abs(cas.angle_between_vector(cas.vector3(1,0,0), map_V_tangent))
             map_R_goal = cas.RotationMatrix.from_vectors(
-                x=map_V_tangent, y=None, z=cas.Vector3((0, 0, 1))
+                x=map_V_tangent, y=None, z=cas.Vector3(0, 0, 1)
             )
             goal_angle = map_R_goal.to_angle(lambda axis: axis[2])
             map_R_base = map_T_base.to_rotation_matrix()
@@ -109,16 +111,18 @@ class KeepHandInWorkspace(Task):
             )
             self.map_V_pointing_axis.scale(1)
         else:
-            self.map_V_pointing_axis = cas.Vector3((1, 0, 0))
+            self.map_V_pointing_axis = cas.Vector3(1, 0, 0)
             self.map_V_pointing_axis.reference_frame = self.map_frame
 
         weight = WEIGHT_ABOVE_CA
         base_footprint_V_pointing_axis = cas.Vector3(self.map_V_pointing_axis)
-        map_T_base_footprint = god_map.world.compose_fk_expression(
+        map_T_base_footprint = god_map.world.compose_forward_kinematics_expression(
             self.map_frame, self.base_footprint
         )
         map_V_pointing_axis = map_T_base_footprint @ base_footprint_V_pointing_axis
-        map_T_tip = god_map.world.compose_fk_expression(self.map_frame, self.tip_link)
+        map_T_tip = god_map.world.compose_forward_kinematics_expression(
+            self.map_frame, self.tip_link
+        )
         map_V_tip = cas.Vector3(map_T_tip.to_position())
         map_V_tip.y = 0
         map_V_tip.z = 0
@@ -129,9 +133,7 @@ class KeepHandInWorkspace(Task):
         base_footprint_V_tip = map_P_tip - map_P_base_footprint
 
         map_V_tip.scale(1)
-        angle_error = cas.angle_between_vector(
-            base_footprint_V_tip, map_V_pointing_axis
-        )
+        angle_error = base_footprint_V_tip.angle_between(map_V_pointing_axis)
         self.add_inequality_constraint(
             reference_velocity=0.5,
             lower_error=-angle_error - 0.2,

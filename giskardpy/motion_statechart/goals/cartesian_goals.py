@@ -115,7 +115,7 @@ class DiffDriveBaseGoal(Goal):
         axis_start, angle_start = map_R_base_current.to_axis_angle()
         angle_start = cas.if_greater_zero(axis_start[2], angle_start, -angle_start)
 
-        map_T_base_footprint = god_map.world.compose_fk_expression(
+        map_T_base_footprint = god_map.world.compose_forward_kinematics_expression(
             self.map, self.base_footprint
         )
         map_P_base_footprint = map_T_base_footprint.to_position()

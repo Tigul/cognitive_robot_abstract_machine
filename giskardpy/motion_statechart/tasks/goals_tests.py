@@ -9,36 +9,39 @@ from semantic_world.spatial_types.symbol_manager import symbol_manager
 
 
 class DebugGoal(Task):
-    def __init__(self,
-                 name: Optional[str] = None):
+    def __init__(self, name: Optional[str] = None):
         if name is None:
             name = self.__class__.__name__
         super().__init__(name=name)
         q = cas.Quaternion(reference_frame=god_map.world.root_link_name)
-        god_map.debug_expression_manager.add_debug_expression('q', q)
+        god_map.debug_expression_manager.add_debug_expression("q", q)
 
-        p = cas.Point3((1, 0, 0), reference_frame=god_map.world.root_link_name)
-        god_map.debug_expression_manager.add_debug_expression('p', p)
+        p = cas.Point3(1, 0, 0, reference_frame=god_map.world.root_link_name)
+        god_map.debug_expression_manager.add_debug_expression("p", p)
 
-        pose = cas.TransformationMatrix.from_xyz_rpy(y=1, reference_frame=god_map.world.root_link_name)
-        god_map.debug_expression_manager.add_debug_expression('pose', pose)
+        pose = cas.TransformationMatrix.from_xyz_rpy(
+            y=1, reference_frame=god_map.world.root_link_name
+        )
+        god_map.debug_expression_manager.add_debug_expression("pose", pose)
 
-        v = cas.Vector3((1, 0, 0), reference_frame=god_map.world.root_link_name)
-        god_map.debug_expression_manager.add_debug_expression('v', v)
+        v = cas.Vector3(1, 0, 0, reference_frame=god_map.world.root_link_name)
+        god_map.debug_expression_manager.add_debug_expression("v", v)
 
-        r = cas.Quaternion(reference_frame=god_map.world.root_link_name).to_rotation_matrix()
-        god_map.debug_expression_manager.add_debug_expression('r', r)
+        r = cas.Quaternion(
+            reference_frame=god_map.world.root_link_name
+        ).to_rotation_matrix()
+        god_map.debug_expression_manager.add_debug_expression("r", r)
 
         e1 = cas.Expression(np.eye(3))
-        god_map.debug_expression_manager.add_debug_expression('e1', e1)
+        god_map.debug_expression_manager.add_debug_expression("e1", e1)
 
         e2 = cas.Expression(np.array([1, 2, 3]))
-        god_map.debug_expression_manager.add_debug_expression('e2', e2)
+        god_map.debug_expression_manager.add_debug_expression("e2", e2)
 
         t = god_map.time_symbol
-        god_map.debug_expression_manager.add_debug_expression('t', t)
+        god_map.debug_expression_manager.add_debug_expression("t", t)
 
-        god_map.debug_expression_manager.add_debug_expression('f', 23)
+        god_map.debug_expression_manager.add_debug_expression("f", 23)
 
 
 class CannotResolveSymbol(Task):
@@ -46,11 +49,13 @@ class CannotResolveSymbol(Task):
     def __init__(self, name: str, joint_name: str):
         super().__init__(name=name)
         self.data = {}
-        s = symbol_manager.register_symbol_provider('s', provider=lambda: self.data[2])
+        s = symbol_manager.register_symbol_provider("s", provider=lambda: self.data[2])
         joint_name = god_map.world.search_for_joint_name(joint_name)
         joint = god_map.world.joints[joint_name]
         joint_position = joint.get_symbol(Derivatives.position)
-        self.add_equality_constraint(reference_velocity=1,
-                                  equality_bound=1,
-                                  weight=1,
-                                  task_expression=s * joint_position)
+        self.add_equality_constraint(
+            reference_velocity=1,
+            equality_bound=1,
+            weight=1,
+            task_expression=s * joint_position,
+        )

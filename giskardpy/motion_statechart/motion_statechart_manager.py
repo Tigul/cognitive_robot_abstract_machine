@@ -227,14 +227,14 @@ class MotionStatechartManager:
     ) -> cas.Expression:
         if isinstance(node, ast.BoolOp):
             if isinstance(node.op, ast.And):
-                return cas.ternary_logic_and(
+                return cas.trinary_logic_and(
                     *[
                         self.parse_ast_expression(x, observation_state_symbols)
                         for x in node.values
                     ]
                 )
             elif isinstance(node.op, ast.Or):
-                return cas.ternary_logic_or(
+                return cas.trinary_logic_or(
                     *[
                         self.parse_ast_expression(x, observation_state_symbols)
                         for x in node.values
@@ -242,7 +242,7 @@ class MotionStatechartManager:
                 )
         elif isinstance(node, ast.UnaryOp):
             if isinstance(node.op, ast.Not):
-                return cas.ternary_logic_not(
+                return cas.trinary_logic_not(
                     self.parse_ast_expression(node.operand, observation_state_symbols)
                 )
         elif isinstance(node, ast.Constant):
@@ -291,7 +291,7 @@ class MotionStatechartManager:
                 monitor_life_cycle_expr,
                 goal_life_cycle_expr,
             ],
-            parameters=[
+            symbol_parameters=[
                 self.task_state.get_life_cycle_state_symbols(),
                 self.monitor_state.get_life_cycle_state_symbols(),
                 self.goal_state.get_life_cycle_state_symbols(),
@@ -322,7 +322,7 @@ class MotionStatechartManager:
 
         self.observation_state_updater = cas.CompiledFunctionWithViews(
             expressions=[task_obs_expr, monitor_obs_expr, goal_obs_expr],
-            parameters=[
+            symbol_parameters=[
                 god_map.world.get_world_state_symbols(),
                 self.task_state.get_life_cycle_state_symbols(),
                 self.monitor_state.get_life_cycle_state_symbols(),
@@ -356,7 +356,9 @@ class MotionStatechartManager:
         self.goal_state.init_states()
         self.log_states()
 
-    def get_node_from_state_expr(self, expr: cas.Expression) -> MotionStatechartNode:
+    def get_node_from_state_expr(
+        self, expr: Union[cas.Symbol, cas.Expression]
+    ) -> MotionStatechartNode:
         for task in self.task_state.nodes:
             if cas.is_true_symbol(task.observation_state_symbol == expr):
                 return task
@@ -425,7 +427,10 @@ class MotionStatechartManager:
                 a=node.life_cycle_state_symbol,
                 b_result_cases=[
                     (int(LifeCycleState.running), expression),
-                    (int(LifeCycleState.not_started), ObservationState.unknown),
+                    (
+                        int(LifeCycleState.not_started),
+                        cas.Expression(ObservationState.unknown),
+                    ),
                 ],
                 else_result=state_symbol,
             )
@@ -457,6 +462,9 @@ class MotionStatechartManager:
             return self.goal_state.register_expression_updater(
                 node=node, expression=expression
             )
+        raise NotImplementedError(
+            f"Cannot register expression updater for node type {type(node)}. Must be Task, Monitor or Goal."
+        )
 
     @profile
     def trigger_update_triggers(self):
@@ -481,7 +489,7 @@ class MotionStatechartManager:
 
         next_state, done, exception = self.evaluate_payload_monitors()
 
-        obs_result = self.observation_state_updater.fast_call(
+        obs_result = self.observation_state_updater(
             god_map.world.state.data,
             self.task_state.life_cycle_state,
             self.monitor_state.life_cycle_state,
@@ -501,7 +509,7 @@ class MotionStatechartManager:
             )
 
         # %% update life cycle state
-        life_cycle_result = self.life_cycle_updater.fast_call(
+        life_cycle_result = self.life_cycle_updater(
             self.task_state.life_cycle_state,
             self.monitor_state.life_cycle_state,
             self.goal_state.life_cycle_state,

@@ -69,7 +69,9 @@ class GraspBar(Task):
         tip_V_tip_grasp_axis = self.tip_grasp_axis
         root_P_bar_center = self.bar_center
 
-        root_T_tip = god_map.world.compose_fk_expression(self.root, self.tip)
+        root_T_tip = god_map.world.compose_forward_kinematics_expression(
+            self.root, self.tip
+        )
         root_V_tip_normal = root_T_tip @ tip_V_tip_grasp_axis
 
         self.add_vector_goal_constraints(
@@ -79,15 +81,15 @@ class GraspBar(Task):
             weight=self.weight,
         )
 
-        root_P_tip = god_map.world.compose_fk_expression(
+        root_P_tip = god_map.world.compose_forward_kinematics_expression(
             self.root, self.tip
         ).to_position()
 
         root_P_line_start = root_P_bar_center + root_V_bar_axis * self.bar_length / 2
         root_P_line_end = root_P_bar_center - root_V_bar_axis * self.bar_length / 2
 
-        dist, nearest = cas.distance_point_to_line_segment(
-            root_P_tip, root_P_line_start, root_P_line_end
+        dist, nearest = root_P_tip.distance_to_line_segment(
+            root_P_line_start, root_P_line_end
         )
 
         self.add_point_goal_constraints(
@@ -97,4 +99,4 @@ class GraspBar(Task):
             weight=self.weight,
         )
 
-        self.observation_expression = cas.less_equal(dist, threshold)
+        self.observation_expression = dist <= threshold

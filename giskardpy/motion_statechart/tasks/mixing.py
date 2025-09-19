@@ -30,7 +30,7 @@ class SpiralMixing(Task):
 
         super().__init__(name=name, plot=plot)
 
-        root_T_tip = god_map.world.compose_fk_expression(
+        root_T_tip = god_map.world.compose_forward_kinematics_expression(
             root_link=root_link, tip_link=tip_link
         )
         t = god_map.time_symbol
@@ -48,7 +48,7 @@ class SpiralMixing(Task):
         object_T_goal.y = y
         object_T_goal.z = z
 
-        root_T_object = god_map.world.compose_fk_expression(
+        root_T_object = god_map.world.compose_forward_kinematics_expression(
             root_link=root_link, tip_link=object_name
         )
         root_T_goal = root_T_object.dot(object_T_goal)
@@ -70,4 +70,4 @@ class SpiralMixing(Task):
             weight=weight,
         )
 
-        self.observation_expression = cas.greater(t, end_time)
+        self.observation_expression = t > end_time

@@ -351,7 +351,7 @@ class Weights(ProblemDataPart):
             linear_weight_gains=linear_weight_gains
         )
         if linear_weights is None:
-            linear_weights = cas.zeros(*weights.shape)
+            linear_weights = cas.Expression.zeros(*weights.shape)
         else:
             # as of now linear weights are only added for joints, therefore equality-, derivative- and inequality
             # weights are missing. Here the missing weights are filled in with zeroes.
@@ -1071,17 +1071,16 @@ class EqualityModel(ProblemDataPart):
                 ):
                     continue
                 J_vel = (
-                    cas.jacobian(
-                        expressions=expressions,
-                        symbols=self.get_free_variable_symbols(derivative),
+                    expressions.jacobian(
+                        symbols=self.get_free_variable_symbols(derivative)
                     )
                     * self.config.mpc_dt
                 )
                 missing_variables = self.config.max_derivative - derivative - 1
-                eye = cas.eye(self.config.prediction_horizon)[
+                eye = cas.Expression.eye(self.config.prediction_horizon)[
                     :-2, : self.config.prediction_horizon - missing_variables
                 ]
-                J_vel_limit_block = cas.kron(eye, J_vel)
+                J_vel_limit_block = eye.kron(J_vel)
                 parts.append(J_vel_limit_block)
 
             # constraint slack
@@ -1089,7 +1088,7 @@ class EqualityModel(ProblemDataPart):
             num_slack_variables = sum(
                 self.control_horizon for c in self.velocity_eq_constraints
             )
-            slack_model = cas.eye(num_slack_variables) * self.config.mpc_dt
+            slack_model = cas.Expression.eye(num_slack_variables) * self.config.mpc_dt
             return model, slack_model
         return cas.Expression(), cas.Expression()
 
@@ -1138,19 +1137,19 @@ class EqualityModel(ProblemDataPart):
             * self.config.prediction_horizon
             * max_derivative
         )
-        derivative_link_model = cas.zeros(num_rows, num_columns)
+        derivative_link_model = cas.Expression.zeros(num_rows, num_columns)
 
-        x_n = cas.eye(num_rows)
+        x_n = cas.Expression.eye(num_rows)
         derivative_link_model[:, : x_n.shape[0]] += x_n
 
-        xd_n = -cas.eye(num_rows) * self.config.mpc_dt
+        xd_n = -cas.Expression.eye(num_rows) * self.config.mpc_dt
         h_offset = self.number_of_free_variables * self.config.prediction_horizon
         derivative_link_model[:, h_offset:] += xd_n
 
         x_c_height = self.number_of_free_variables * (
             self.config.prediction_horizon - 1
         )
-        x_c = -cas.eye(x_c_height)
+        x_c = -cas.Expression.eye(x_c_height)
         offset_v = 0
         offset_h = 0
         for derivative in Derivatives.range(Derivatives.velocity, max_derivative - 1):
@@ -1203,11 +1202,11 @@ class EqualityModel(ProblemDataPart):
         """
         n_vel = self.number_of_free_variables * (self.config.prediction_horizon - 2)
         n_jerk = self.number_of_free_variables * self.config.prediction_horizon
-        model = cas.zeros(rows=n_jerk, columns=n_jerk + n_vel)
-        pre_previous = -cas.eye(n_vel)
+        model = cas.Expression.zeros(rows=n_jerk, columns=n_jerk + n_vel)
+        pre_previous = -cas.Expression.eye(n_vel)
         same = pre_previous
         previous = -2 * pre_previous
-        j_same = cas.eye(n_jerk) * self.config.mpc_dt**2
+        j_same = cas.Expression.eye(n_jerk) * self.config.mpc_dt**2
         model[: -self.number_of_free_variables * 2, :n_vel] += pre_previous
         model[
             self.number_of_free_variables : -self.number_of_free_variables, :n_vel
@@ -1256,15 +1255,12 @@ class EqualityModel(ProblemDataPart):
             and self.config.qp_formulation.has_explicit_jerk_variables
         ):
             if len(self.equality_constraints) > 0:
-                model = cas.zeros(
+                model = cas.Expression.zeros(
                     len(self.equality_constraints), self.number_of_non_slack_columns
                 )
                 J_eq = (
-                    cas.jacobian(
-                        expressions=cas.Expression(
-                            self.equality_constraint_expressions()
-                        ),
-                        symbols=self.get_free_variable_symbols(Derivatives.position),
+                    cas.Expression(self.equality_constraint_expressions()).jacobian(
+                        symbols=self.get_free_variable_symbols(Derivatives.position)
                     )
                     * self.config.mpc_dt
                 )
@@ -1288,21 +1284,19 @@ class EqualityModel(ProblemDataPart):
             else:
                 max_derivative = self.config.max_derivative
             if len(self.equality_constraints) > 0:
-                model = cas.zeros(
+                model = cas.Expression.zeros(
                     len(self.equality_constraints), self.number_of_non_slack_columns
                 )
                 for derivative in Derivatives.range(
                     Derivatives.position, max_derivative - 1
                 ):
                     J_eq = (
-                        cas.jacobian(
-                            expressions=cas.Expression(
-                                self.equality_constraint_expressions()
-                            ),
-                            symbols=self.get_free_variable_symbols(derivative),
+                        cas.Expression(self.equality_constraint_expressions()).jacobian(
+                            symbols=self.get_free_variable_symbols(derivative)
                         )
                         * self.config.mpc_dt
                     )
+
                     if (
                         self.config.qp_formulation.is_explicit
                         or not self.config.qp_formulation.is_mpc
@@ -1389,7 +1383,9 @@ class EqualityModel(ProblemDataPart):
 
         slack_model = cas.vstack(
             [
-                cas.zeros(derivative_link_model.shape[0], slack_model.shape[1]),
+                cas.Expression.zeros(
+                    derivative_link_model.shape[0], slack_model.shape[1]
+                ),
                 slack_model,
             ]
         )
@@ -1510,17 +1506,16 @@ class InequalityModel(ProblemDataPart):
                 ):
                     continue
                 J_vel = (
-                    cas.jacobian(
-                        expressions=expressions,
+                    expressions.jacobian(
                         symbols=self.get_free_variable_symbols(derivative),
                     )
                     * self.config.mpc_dt
                 )
                 missing_variables = self.config.max_derivative - derivative - 1
-                eye = cas.eye(self.config.prediction_horizon)[
+                eye = cas.Expression.eye(self.config.prediction_horizon)[
                     :-2, : self.config.prediction_horizon - missing_variables
                 ]
-                J_vel_limit_block = cas.kron(eye, J_vel)
+                J_vel_limit_block = eye.kron(J_vel)
                 parts.append(J_vel_limit_block)
 
             # constraint slack
@@ -1528,7 +1523,7 @@ class InequalityModel(ProblemDataPart):
             num_slack_variables = sum(
                 self.control_horizon for c in self.velocity_constraints
             )
-            slack_model = cas.eye(num_slack_variables) * self.config.mpc_dt
+            slack_model = cas.Expression.eye(num_slack_variables) * self.config.mpc_dt
             return model, slack_model
         return cas.Expression(), cas.Expression()
 
@@ -1546,32 +1541,30 @@ class InequalityModel(ProblemDataPart):
                 self.get_derivative_constraint_expressions(Derivatives.acceleration)
             )
             assert self.config.max_derivative >= Derivatives.jerk
-            model = cas.zeros(number_of_acc_rows, self.number_of_non_slack_columns)
+            model = cas.Expression.zeros(
+                number_of_acc_rows, self.number_of_non_slack_columns
+            )
             J_q = (
-                cas.jacobian(
-                    expressions=expressions,
+                expressions.jacobian(
                     symbols=self.get_free_variable_symbols(Derivatives.position),
                 )
                 * self.config.mpc_dt
             )
             Jd_q = (
-                cas.jacobian_dot(
-                    expressions=expressions,
+                expressions.jacobian_dot(
                     symbols=self.get_free_variable_symbols(Derivatives.position),
                     symbols_dot=self.get_free_variable_symbols(Derivatives.velocity),
                 )
                 * self.config.mpc_dt
             )
             J_qd = (
-                cas.jacobian(
-                    expressions=expressions,
+                expressions.jacobian(
                     symbols=self.get_free_variable_symbols(Derivatives.velocity),
                 )
                 * self.config.mpc_dt
             )
             Jd_qd = (
-                cas.jacobian_dot(
-                    expressions=expressions,
+                expressions.jacobian_dot(
                     symbols=self.get_free_variable_symbols(Derivatives.velocity),
                     symbols_dot=self.get_free_variable_symbols(
                         Derivatives.acceleration
@@ -1579,9 +1572,11 @@ class InequalityModel(ProblemDataPart):
                 )
                 * self.config.mpc_dt
             )
-            J_vel_block = cas.kron(cas.eye(self.config.prediction_horizon), Jd_q)
-            J_acc_block = cas.kron(cas.eye(self.config.prediction_horizon), J_q + Jd_qd)
-            J_jerk_block = cas.kron(cas.eye(self.config.prediction_horizon), J_qd)
+            J_vel_block = cas.Expression.eye(self.config.prediction_horizon).kron(Jd_q)
+            J_acc_block = cas.Expression.eye(self.config.prediction_horizon).kron(
+                J_q + Jd_qd
+            )
+            J_jerk_block = cas.Expression.eye(self.config.prediction_horizon).kron(J_qd)
             horizontal_offset = (
                 self.number_of_free_variables * self.config.prediction_horizon
             )
@@ -1602,7 +1597,7 @@ class InequalityModel(ProblemDataPart):
             num_slack_variables = sum(
                 self.control_horizon for c in self.acceleration_constraints
             )
-            slack_model = cas.eye(num_slack_variables) * self.config.mpc_dt
+            slack_model = cas.Expression.eye(num_slack_variables) * self.config.mpc_dt
             return model, slack_model
         return cas.Expression(), cas.Expression()
 
@@ -1622,14 +1617,11 @@ class InequalityModel(ProblemDataPart):
             and self.config.qp_formulation.has_explicit_jerk_variables
         ):
             if len(self.inequality_constraints) > 0:
-                model = cas.zeros(
+                model = cas.Expression.zeros(
                     len(self.inequality_constraints), self.number_of_non_slack_columns
                 )
                 J_neq = (
-                    cas.jacobian(
-                        expressions=cas.Expression(
-                            self.inequality_constraint_expressions()
-                        ),
+                    cas.Expression(self.inequality_constraint_expressions()).jacobian(
                         symbols=self.get_free_variable_symbols(Derivatives.position),
                     )
                     * self.config.mpc_dt
@@ -1654,17 +1646,14 @@ class InequalityModel(ProblemDataPart):
             else:
                 max_derivative = self.config.max_derivative
         if len(self.inequality_constraints) > 0:
-            model = cas.zeros(
+            model = cas.Expression.zeros(
                 len(self.inequality_constraints), self.number_of_non_slack_columns
             )
             for derivative in Derivatives.range(
                 Derivatives.position, max_derivative - 1
             ):
                 J_neq = (
-                    cas.jacobian(
-                        expressions=cas.Expression(
-                            self.inequality_constraint_expressions()
-                        ),
+                    cas.Expression(self.inequality_constraint_expressions()).jacobian(
                         symbols=self.get_free_variable_symbols(derivative),
                     )
                     * self.config.mpc_dt
@@ -1721,8 +1710,10 @@ class InequalityModel(ProblemDataPart):
         :return:
         """
         n_vel = self.number_of_free_variables * (self.config.prediction_horizon - 2)
-        model = cas.tri(n_vel) * self.config.mpc_dt
-        slack_model = cas.zeros(model.shape[0], self.number_ineq_slack_variables)
+        model = cas.Expression.tri(n_vel) * self.config.mpc_dt
+        slack_model = cas.Expression.zeros(
+            model.shape[0], self.number_ineq_slack_variables
+        )
         return model, slack_model
 
     def implicit_model(
@@ -1761,8 +1752,8 @@ class InequalityModel(ProblemDataPart):
         n_vel = self.number_of_free_variables * (self.config.prediction_horizon - 2)
         n_jerk = self.number_of_free_variables * (self.config.prediction_horizon)
         if max_derivative >= Derivatives.acceleration:
-            # previous = cas.eye(self.number_of_free_variables * (self.config.prediction_horizon)) / self.config.mpc_dt
-            # same = -cas.eye(self.number_of_free_variables * (self.config.prediction_horizon - 1)) / self.config.mpc_dt
+            # previous = cas.Expression.eye(self.number_of_free_variables * (self.config.prediction_horizon)) / self.config.mpc_dt
+            # same = -cas.Expression.eye(self.number_of_free_variables * (self.config.prediction_horizon - 1)) / self.config.mpc_dt
             # A_acc = previous
             # A_acc[self.number_of_free_variables:, :-self.number_of_free_variables] += same
             # rows_to_delete = []
@@ -1774,9 +1765,9 @@ class InequalityModel(ProblemDataPart):
             #         if (np.isinf(a_min) or cas.is_inf(a_min)) and (np.isinf(a_max) or cas.is_inf(a_max)):
             #             rows_to_delete.append(idx)
             # A_acc.remove(rows_to_delete, [])
-            model = cas.zeros(rows=n_jerk, columns=n_vel)
-            pre_previous = cas.eye(n_vel) / self.config.mpc_dt**2
-            previous = -2 * cas.eye(n_vel) / self.config.mpc_dt**2
+            model = cas.Expression.zeros(rows=n_jerk, columns=n_vel)
+            pre_previous = cas.Expression.eye(n_vel) / self.config.mpc_dt**2
+            previous = -2 * cas.Expression.eye(n_vel) / self.config.mpc_dt**2
             same = pre_previous
             model[: -self.number_of_free_variables * 2, :] += pre_previous
             model[
@@ -1785,7 +1776,9 @@ class InequalityModel(ProblemDataPart):
             model[self.number_of_free_variables * 2 :, :] += same
         else:
             model = cas.Expression()
-        slack_model = cas.zeros(model.shape[0], self.number_ineq_slack_variables)
+        slack_model = cas.Expression.zeros(
+            model.shape[0], self.number_ineq_slack_variables
+        )
         return model, slack_model
 
     @profile

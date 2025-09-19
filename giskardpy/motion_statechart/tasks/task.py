@@ -113,8 +113,8 @@ class Task(MotionStatechartNode):
             is_running = cas.if_eq(
                 self.life_cycle_state_symbol,
                 int(LifeCycleState.running),
-                if_result=1,
-                else_result=0,
+                if_result=cas.Expression(1),
+                else_result=cas.Expression(0),
             )
             constraint.quadratic_weight *= is_running
             output_constraints.append(constraint)
@@ -417,9 +417,9 @@ class Task(MotionStatechartNode):
         angle = cas.safe_acos(frame_V_current.dot(frame_V_goal))
         # avoid singularity by staying away from pi
         angle_limited = cas.min(cas.max(angle, -reference_velocity), reference_velocity)
-        angle_limited = cas.save_division(angle_limited, angle)
-        root_V_goal_normal_intermediate = cas.slerp(
-            frame_V_current, frame_V_goal, angle_limited
+        angle_limited = angle_limited.safe_division(angle)
+        root_V_goal_normal_intermediate = frame_V_current.slerp(
+            frame_V_goal, angle_limited
         )
 
         error = root_V_goal_normal_intermediate - frame_V_current
@@ -589,7 +589,7 @@ class Task(MotionStatechartNode):
         :param name:
         """
         trans_error = frame_P_current.norm()
-        trans_error = cas.if_eq_zero(trans_error, 0.01, trans_error)
+        trans_error = cas.if_eq_zero(trans_error, cas.Expression(0.01), trans_error)
         god_map.debug_expression_manager.add_debug_expression(
             "trans_error", trans_error
         )

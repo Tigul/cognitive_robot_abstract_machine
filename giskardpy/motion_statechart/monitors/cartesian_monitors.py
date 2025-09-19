@@ -22,8 +22,12 @@ class InWorldSpace(Monitor):
         self.tip_link = tip_link
         self.map = self.joint.parent_link_name
 
-        map_T_tip = god_map.world.compose_fk_expression(self.map, tip_link)
-        map_T_drive = god_map.world.compose_fk_expression(self.map, self.drive_link)
+        map_T_tip = god_map.world.compose_forward_kinematics_expression(
+            self.map, tip_link
+        )
+        map_T_drive = god_map.world.compose_forward_kinematics_expression(
+            self.map, self.drive_link
+        )
 
         # project to floor
         map_T_tip.z = 0
@@ -34,8 +38,8 @@ class InWorldSpace(Monitor):
             f"{self.name}/error", error
         )
         self.observation_expression = cas.logic_and(
-            cas.less_equal(cas.abs(error.x), xyz[0]),
-            cas.less_equal(cas.abs(error.y), xyz[1]),
+            cas.abs(error.x) <= xyz[0],
+            cas.abs(error.y) <= xyz[1],
         )
 
 
@@ -56,7 +60,7 @@ class PoseReached(Monitor):
                 target_frame=root_link, spatial_object=goal_pose
             )
         else:
-            root_T_x = god_map.world.compose_fk_expression(
+            root_T_x = god_map.world.compose_forward_kinematics_expression(
                 root_link, goal_pose.reference_frame
             )
             root_T_goal = root_T_x.dot(goal_pose)
@@ -64,17 +68,19 @@ class PoseReached(Monitor):
 
         # %% position error
         r_P_g = root_T_goal.to_position()
-        r_P_c = god_map.world.compose_fk_expression(root_link, tip_link).to_position()
-        distance_to_goal = cas.euclidean_distance(r_P_g, r_P_c)
-        position_reached = cas.less(distance_to_goal, position_threshold)
+        r_P_c = god_map.world.compose_forward_kinematics_expression(
+            root_link, tip_link
+        ).to_position()
+        distance_to_goal = r_P_g.euclidean_distance(r_P_c)
+        position_reached = distance_to_goal < position_threshold
 
         # %% orientation error
         r_R_g = root_T_goal.to_rotation_matrix()
-        r_R_c = god_map.world.compose_fk_expression(
+        r_R_c = god_map.world.compose_forward_kinematics_expression(
             root_link, tip_link
         ).to_rotation_matrix()
-        rotation_error = cas.rotational_error(r_R_c, r_R_g)
-        orientation_reached = cas.less(cas.abs(rotation_error), orientation_threshold)
+        rotation_error = r_R_c.rotational_error(r_R_g)
+        orientation_reached = cas.abs(rotation_error) < orientation_threshold
 
         self.observation_expression = cas.logic_and(
             position_reached, orientation_reached
@@ -97,13 +103,15 @@ class PositionReached(Monitor):
                 target_frame=root_link, spatial_object=goal_point
             )
         else:
-            root_P_x = god_map.world.compose_fk_expression(
+            root_P_x = god_map.world.compose_forward_kinematics_expression(
                 root_link, goal_point.reference_frame
             )
             root_P_goal = root_P_x.dot(goal_point)
             root_P_goal = self.update_expression_on_starting(root_P_goal)
 
-        r_P_c = god_map.world.compose_fk_expression(root_link, tip_link).to_position()
+        r_P_c = god_map.world.compose_forward_kinematics_expression(
+            root_link, tip_link
+        ).to_position()
         distance_to_goal = cas.euclidean_distance(root_P_goal, r_P_c)
         self.observation_expression = cas.less(distance_to_goal, threshold)
 
@@ -124,13 +132,13 @@ class OrientationReached(Monitor):
                 target_frame=root_link, spatial_object=goal_orientation
             )
         else:
-            root_T_x = god_map.world.compose_fk_expression(
+            root_T_x = god_map.world.compose_forward_kinematics_expression(
                 root_link, goal_orientation.reference_frame
             )
             root_R_goal = root_T_x.dot(goal_orientation)
             r_R_g = self.update_expression_on_starting(root_R_goal)
 
-        r_R_c = god_map.world.compose_fk_expression(
+        r_R_c = god_map.world.compose_forward_kinematics_expression(
             root_link, tip_link
         ).to_rotation_matrix()
         rotation_error = cas.rotational_error(r_R_c, r_R_g)
@@ -158,7 +166,9 @@ class PointingAt(Monitor):
             target_frame=self.tip, spatial_object=pointing_axis
         )
         tip_V_pointing_axis.scale(1)
-        root_T_tip = god_map.world.compose_fk_expression(self.root, self.tip)
+        root_T_tip = god_map.world.compose_forward_kinematics_expression(
+            self.root, self.tip
+        )
         root_P_tip = root_T_tip.to_position()
 
         root_V_pointing_axis = root_T_tip.dot(tip_V_pointing_axis)
@@ -196,7 +206,7 @@ class VectorsAligned(Monitor):
         )
         self.root_V_root_normal.scale(1)
 
-        root_R_tip = god_map.world.compose_fk_expression(
+        root_R_tip = god_map.world.compose_forward_kinematics_expression(
             self.root, self.tip
         ).to_rotation_matrix()
         root_V_tip_normal = root_R_tip.dot(self.tip_V_tip_normal)
@@ -220,7 +230,7 @@ class DistanceToLine(Monitor):
         self.root = root_link
         self.tip = tip_link
 
-        root_P_current = god_map.world.compose_fk_expression(
+        root_P_current = god_map.world.compose_forward_kinematics_expression(
             self.root, self.tip
         ).to_position()
         root_V_line_axis = god_map.world.transform(

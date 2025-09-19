@@ -30,7 +30,7 @@ class JointGoalReached(Monitor):
                 error = cas.shortest_angular_distance(current, goal)
             else:
                 error = goal - current
-            comparison_list.append(cas.less(cas.abs(error), threshold))
+            comparison_list.append(cas.abs(error) < threshold)
         expression = cas.logic_all(cas.Expression(comparison_list))
         super().__init__(name=name)
         self.observation_expression = expression
@@ -48,5 +48,5 @@ class JointPositionAbove(Monitor):
             raise GoalInitalizationException(
                 f"{self.__class__.__name__} does not support joints of type continuous."
             )
-        expression = cas.greater(current, threshold)
+        expression = current > threshold
         self.observation_expression = expression

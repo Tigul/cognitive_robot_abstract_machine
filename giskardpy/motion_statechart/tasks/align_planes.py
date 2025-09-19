@@ -59,7 +59,9 @@ class AlignPlanes(Task):
             )
         super().__init__(name=name)
 
-        root_R_tip = god_map.world.compose_fk_expression(self.root, self.tip)
+        root_R_tip = god_map.world.compose_forward_kinematics_expression(
+            self.root, self.tip
+        ).to_rotation_matrix()
         root_V_tip_normal = root_R_tip @ self.tip_V_tip_normal
         self.add_vector_goal_constraints(
             frame_V_current=root_V_tip_normal,
@@ -76,4 +78,6 @@ class AlignPlanes(Task):
             f"{self.name}/goal_normal", self.root_V_root_normal, color=Color(0, 0, 1, 1)
         )
 
-        self.observation_expression = cas.angle_between_vector(root_V_tip_normal, self.root_V_root_normal) <= threshold
+        self.observation_expression = (
+            root_V_tip_normal.angle_between(self.root_V_root_normal) <= threshold
+        )
