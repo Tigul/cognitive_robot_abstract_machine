@@ -109,7 +109,7 @@ class MotionGraphNodeStateManager(Generic[T]):
         for i, symbol in enumerate(expression.free_symbols()):
             old_symbols.append(symbol)
             new_symbols.append(self.get_substitution_key(node.name, symbol))
-        new_expression = cas.substitute(expression, old_symbols, new_symbols)
+        new_expression = expression.substitute(old_symbols, new_symbols)
         self.update_substitution_values(node.name, old_symbols)
         return new_expression
 

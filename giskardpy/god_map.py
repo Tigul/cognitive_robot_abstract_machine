@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING, List, Dict, Tuple
 
 from giskardpy.middleware import get_middleware
 from giskardpy.utils.utils import create_path
+from semantic_world.adapters.ros.world_synchronizer import ModelSynchronizer, StateSynchronizer
 from semantic_world.datastructures.prefixed_name import PrefixedName
 from semantic_world.spatial_types.symbol_manager import symbol_manager
 
@@ -33,6 +34,8 @@ class GodMap:
     # %% managers
     motion_statechart_manager: MotionStatechartManager
     debug_expression_manager: DebugExpressionManager
+    model_synchronizer: ModelSynchronizer
+    state_synchronizer: StateSynchronizer
 
     # %% controller datatypes
     time: float  # real/planning time in s
