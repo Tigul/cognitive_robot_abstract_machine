@@ -1,6 +1,4 @@
-import copy
 from collections import defaultdict
-from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Dict, Optional, List, Tuple
 import semantic_world.spatial_types.spatial_types as cas
@@ -63,10 +61,10 @@ class ExternalCA(Goal):
             self.root, self.main_body
         )
 
-        map_P_pa = map_T_a.dot(a_P_pa)
+        map_P_pa = cas.Vector3.from_iterable(map_T_a.dot(a_P_pa))
 
         # the position distance is not accurate, but the derivative is still correct
-        dist = map_V_n.dot(cas.Vector3(map_P_pa[0], map_P_pa[1], map_P_pa[2]))
+        dist = map_V_n @ map_P_pa
 
         qp_limits_for_lba = self.max_velocity * sample_period * self.control_horizon
 
@@ -102,7 +100,7 @@ class ExternalCA(Goal):
             buffer_zone_expr = cas.if_eq_cases(
                 a=actual_link_b_hash,
                 b_result_cases=b_result_cases,
-                else_result=self.buffer_zone_distance,
+                else_result=cas.Expression(self.buffer_zone_distance),
             )
         else:
             buffer_zone_expr = self.buffer_zone_distance
@@ -128,7 +126,7 @@ class ExternalCA(Goal):
         upper_slack = cas.if_greater(
             actual_distance,
             50,  # assuming that distance of unchecked closest points is 100
-            1e4,
+            cas.Expression(1e4),
             cas.max(0, upper_slack),
         )
 
@@ -148,7 +146,7 @@ class ExternalCA(Goal):
             cas.min(number_of_external_collisions, self.max_avoided_bodies)
         )
         distance_monitor = Monitor(name=f"collision distance {self.name}", _plot=False)
-        distance_monitor.observation_expression = cas.if_greater(actual_distance, 50, cas.BinaryTrue, cas.BinaryFalse)
+        distance_monitor.observation_expression = actual_distance > 50
         self.add_monitor(distance_monitor)
         task = Task(name=self.name + "/task", _plot=False)
         self.add_task(task)
@@ -227,9 +225,9 @@ class SelfCA(Goal):
 
         pb_V_n = self.get_contact_normal_in_b()
 
-        pb_P_pa = pb_T_b.dot(b_T_a).dot(a_P_pa)
+        pb_V_pa = cas.Vector3.from_iterable(pb_T_b @ b_T_a @ a_P_pa)
 
-        dist = pb_V_n.dot(cas.Vector3(pb_P_pa[0], pb_P_pa[1], pb_P_pa[2]))
+        dist = pb_V_n @ pb_V_pa
 
         qp_limits_for_lba = self.max_velocity * sample_period * self.control_horizon
 
@@ -252,7 +250,7 @@ class SelfCA(Goal):
         upper_slack = cas.if_greater(
             actual_distance,
             50,  # assuming that distance of unchecked closest points is 100
-            1e4,
+            cas.Expression(1e4),
             cas.max(0, upper_slack),
         )
 
@@ -260,7 +258,7 @@ class SelfCA(Goal):
             cas.min(number_of_self_collisions, self.max_avoided_bodies)
         )
         distance_monitor = Monitor(name=f"collision distance {self.name}", _plot=False)
-        distance_monitor.observation_expression = cas.if_greater(actual_distance, 50, cas.BinaryTrue, cas.BinaryFalse)
+        distance_monitor.observation_expression = actual_distance > 50
         self.add_monitor(distance_monitor)
         task = Task(name=self.name + "/task", _plot=False)
         self.add_task(task)
@@ -378,12 +376,14 @@ class CollisionAvoidanceHint(Goal):
         spring_weight = cas.if_eq(
             spring_threshold,
             max_threshold,
-            0,
+            cas.Expression(0),
             weight * (spring_error / (spring_threshold - max_threshold)) ** 2,
         )
 
-        weight = cas.if_less_eq(actual_distance, max_threshold, weight, spring_weight)
-        weight = cas.if_eq(link_b_hash, self.link_b_hash, weight, 0)
+        weight = cas.if_less_eq(
+            actual_distance, max_threshold, cas.Expression(weight), spring_weight
+        )
+        weight = cas.if_eq(link_b_hash, self.link_b_hash, weight, cas.Expression(0))
 
         root_V_avoidance_hint = cas.Vector3(self.avoidance_hint)
 
