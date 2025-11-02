@@ -22,7 +22,7 @@ class CheckMaxTrajectoryLength(Monitor):
 class Print(PayloadMonitor):
     message: str = ""
 
-    def compute_observation(self) -> Union[
+    def _compute_observation(self) -> Union[
         ObservationState.TrinaryFalse,
         ObservationState.TrinaryTrue,
         ObservationState.TrinaryUnknown,

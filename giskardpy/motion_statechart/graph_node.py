@@ -288,20 +288,49 @@ class Goal(MotionStatechartNode):
 
 @dataclass(eq=False, repr=False)
 class PayloadMonitor(Monitor, ABC):
+    """
+    A monitor which uses regular python code to compute an observation state.
+
+    Inherit from this class to implement a monitor that cannot be computed with a casadi expression.
+    Implement the _compute_observation method to compute and return the observation state.
+    .. warning:: Don't touch anything else in this class.
+    """
     observation_expression: cas.Expression = field(init=False)
 
     def __post_init__(self):
         super().__post_init__()
         self.observation_expression = cas.Expression(self)
 
-    @abstractmethod
     def compute_observation(
         self,
     ) -> Union[
         ObservationState.TrinaryFalse,
         ObservationState.TrinaryTrue,
         ObservationState.TrinaryUnknown,
-    ]: ...
+    ]:
+        """
+        Computes and returns the current observation state by calling _compute_observation.
+        Don't override this function.
+
+        :return: The computed observation state from the ObservationState enumeration.
+        :rtype: Union[ObservationState.TrinaryFalse, ObservationState.TrinaryTrue,
+                ObservationState.TrinaryUnknown]
+        """
+        return self._compute_observation()
+
+    @abstractmethod
+    def _compute_observation(
+        self,
+    ) -> Union[
+        ObservationState.TrinaryFalse,
+        ObservationState.TrinaryTrue,
+        ObservationState.TrinaryUnknown,
+    ]:
+        """
+        Override this function to compute the observation state, if it can't be done with a casadi expression.
+        .. warning:: This method must return essentially instantly and not block the main thread.
+        :return:
+        """
 
 
 @dataclass(eq=False, repr=False)
