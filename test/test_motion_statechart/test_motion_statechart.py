@@ -28,10 +28,14 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 def test_condition_to_str():
     msg = MotionStatechart(World())
-    node1 = TrueMonitor(name=PrefixedName("muh"), motion_statechart=msg)
-    node2 = TrueMonitor(name=PrefixedName("muh2"), motion_statechart=msg)
-    node3 = TrueMonitor(name=PrefixedName("muh3"), motion_statechart=msg)
-    end = EndMotion(name=PrefixedName("done"), motion_statechart=msg)
+    node1 = TrueMonitor(name=PrefixedName("muh"))
+    msg.add_node(node1)
+    node2 = TrueMonitor(name=PrefixedName("muh2"))
+    msg.add_node(node2)
+    node3 = TrueMonitor(name=PrefixedName("muh3"))
+    msg.add_node(node3)
+    end = EndMotion(name=PrefixedName("done"))
+    msg.add_node(end)
 
     end.start_condition = cas.trinary_logic_and(
         node1.observation_symbol,
@@ -45,9 +49,12 @@ def test_condition_to_str():
 
 def test_motion_statechart_to_dot():
     msg = MotionStatechart(World())
-    node1 = TrueMonitor(name=PrefixedName("muh"), motion_statechart=msg)
-    node2 = TrueMonitor(name=PrefixedName("muh2"), motion_statechart=msg)
-    end = EndMotion(name=PrefixedName("done"), motion_statechart=msg)
+    node1 = TrueMonitor(name=PrefixedName("muh"))
+    msg.add_node(node1)
+    node2 = TrueMonitor(name=PrefixedName("muh2"))
+    msg.add_node(node2)
+    end = EndMotion(name=PrefixedName("done"))
+    msg.add_node(end)
     node1.end_condition = node2.observation_symbol
     end.start_condition = cas.trinary_logic_and(
         node1.observation_symbol, node2.observation_symbol
@@ -63,10 +70,14 @@ def test_self_start_condition():
 def test_motion_statechart():
     msg = MotionStatechart(World())
 
-    node1 = TrueMonitor(name=PrefixedName("muh"), motion_statechart=msg)
-    node2 = TrueMonitor(name=PrefixedName("muh2"), motion_statechart=msg)
-    node3 = TrueMonitor(name=PrefixedName("muh3"), motion_statechart=msg)
-    end = EndMotion(name=PrefixedName("done"), motion_statechart=msg)
+    node1 = TrueMonitor(name=PrefixedName("muh"))
+    msg.add_node(node1)
+    node2 = TrueMonitor(name=PrefixedName("muh2"))
+    msg.add_node(node2)
+    node3 = TrueMonitor(name=PrefixedName("muh3"))
+    msg.add_node(node3)
+    end = EndMotion(name=PrefixedName("done"))
+    msg.add_node(end)
 
     node1.start_condition = cas.trinary_logic_or(
         node3.observation_symbol, node2.observation_symbol
@@ -133,19 +144,24 @@ def test_duplicate_name():
 
     with pytest.raises(ValueError):
         cas.Symbol(name=PrefixedName("muh"))
-        TrueMonitor(name=PrefixedName("muh"), motion_statechart=msg)
-        TrueMonitor(name=PrefixedName("muh"), motion_statechart=msg)
+        msg.add_node(TrueMonitor(name=PrefixedName("muh")))
+        msg.add_node(TrueMonitor(name=PrefixedName("muh")))
 
 
 def test_print():
     msg = MotionStatechart(World())
-    print_node1 = Print(name=PrefixedName("cow"), message="muh", motion_statechart=msg)
-    print_node2 = Print(name=PrefixedName("cow2"), message="muh", motion_statechart=msg)
+    print_node1 = Print(name=PrefixedName("cow"), message="muh")
+    msg.add_node(print_node1)
+    print_node2 = Print(name=PrefixedName("cow2"), message="muh")
+    msg.add_node(print_node2)
 
-    node1 = TrueMonitor(name=PrefixedName("muh"), motion_statechart=msg)
+    node1 = TrueMonitor(name=PrefixedName("muh"))
+    msg.add_node(node1)
+    end = EndMotion(name=PrefixedName("done"))
+    msg.add_node(end)
+
     node1.start_condition = print_node1.observation_symbol
     print_node2.start_condition = node1.observation_symbol
-    end = EndMotion(name=PrefixedName("done"), motion_statechart=msg)
     end.start_condition = print_node2.observation_symbol
     msg.compile()
 
@@ -226,10 +242,10 @@ def test_print():
 
 def test_cancel_motion():
     msg = MotionStatechart(World())
-    node1 = TrueMonitor(name=PrefixedName("muh"), motion_statechart=msg)
-    cancel = CancelMotion(
-        name=PrefixedName("done"), motion_statechart=msg, exception=Exception("test")
-    )
+    node1 = TrueMonitor(name=PrefixedName("muh"))
+    msg.add_node(node1)
+    cancel = CancelMotion(name=PrefixedName("done"), exception=Exception("test"))
+    msg.add_node(cancel)
     cancel.start_condition = node1.observation_symbol
 
     msg.compile()
@@ -259,10 +275,10 @@ def test_joint_goal():
 
     msg = MotionStatechart(world)
 
-    task1 = JointPositionList(
-        name=PrefixedName("task1"), goal_state={root_C_tip: 1}, motion_statechart=msg
-    )
-    end = EndMotion(name=PrefixedName("done"), motion_statechart=msg)
+    task1 = JointPositionList(name=PrefixedName("task1"), goal_state={root_C_tip: 1})
+    msg.add_node(task1)
+    end = EndMotion(name=PrefixedName("done"))
+    msg.add_node(end)
     end.start_condition = task1.observation_symbol
 
     msg.compile()
@@ -288,10 +304,14 @@ def test_joint_goal():
 
 def test_reset():
     msg = MotionStatechart(World())
-    node1 = TrueMonitor(name=PrefixedName("muh"), motion_statechart=msg)
-    node2 = TrueMonitor(name=PrefixedName("muh2"), motion_statechart=msg)
-    node3 = TrueMonitor(name=PrefixedName("muh3"), motion_statechart=msg)
-    end = EndMotion(name=PrefixedName("done"), motion_statechart=msg)
+    node1 = TrueMonitor(name=PrefixedName("muh"))
+    msg.add_node(node1)
+    node2 = TrueMonitor(name=PrefixedName("muh2"))
+    msg.add_node(node2)
+    node3 = TrueMonitor(name=PrefixedName("muh3"))
+    msg.add_node(node3)
+    end = EndMotion(name=PrefixedName("done"))
+    msg.add_node(end)
     node1.reset_condition = node2.observation_symbol
     node2.start_condition = node1.observation_symbol
     node3.start_condition = node2.observation_symbol
@@ -367,12 +387,15 @@ def test_reset():
 def test_nested_goals():
     msg = MotionStatechart(World())
 
-    node1 = TrueMonitor(name=PrefixedName("start"), motion_statechart=msg)
+    node1 = TrueMonitor(name=PrefixedName("start"))
+    msg.add_node(node1)
 
     # inner goal with two sub-nodes
-    inner = Goal(name=PrefixedName("inner"), motion_statechart=msg)
-    sub_node1 = TrueMonitor(name=PrefixedName("inner sub 1"), motion_statechart=msg)
-    sub_node2 = TrueMonitor(name=PrefixedName("inner sub 2"), motion_statechart=msg)
+    inner = Goal(name=PrefixedName("inner"))
+    sub_node1 = TrueMonitor(name=PrefixedName("inner sub 1"))
+    msg.add_node(sub_node1)
+    sub_node2 = TrueMonitor(name=PrefixedName("inner sub 2"))
+    msg.add_node(sub_node2)
     inner.add_node(sub_node1)
     inner.add_node(sub_node2)
     sub_node1.end_condition = sub_node1.observation_symbol
@@ -380,12 +403,14 @@ def test_nested_goals():
     inner.create_observation_expression = lambda: sub_node2.observation_symbol
 
     # outer goal that contains the inner goal as a node
-    outer = Goal(name=PrefixedName("outer"), motion_statechart=msg)
+    outer = Goal(name=PrefixedName("outer"))
+    msg.add_node(outer)
     outer.add_node(inner)
     outer.create_observation_expression = lambda: inner.observation_symbol
     outer.start_condition = node1.observation_symbol
 
-    end = EndMotion(name=PrefixedName("done nested"), motion_statechart=msg)
+    end = EndMotion(name=PrefixedName("done nested"))
+    msg.add_node(end)
     end.start_condition = outer.observation_symbol
 
     # compile and check initial states
@@ -535,10 +560,10 @@ def test_thread_payload_monitor_non_blocking_and_caching():
     msg = MotionStatechart(World())
     mon = _TestThreadMonitor(
         name=PrefixedName("thread_mon"),
-        motion_statechart=msg,
         delay=0.05,
         return_value=ObservationState.TrinaryTrue,
     )
+    msg.add_node(mon)
     # First call should be non-blocking and return Unknown until worker completes at least once
     start = time.perf_counter()
     val0 = mon.compute_observation()
@@ -555,11 +580,12 @@ def test_thread_payload_monitor_integration():
     msg = MotionStatechart(World())
     mon = _TestThreadMonitor(
         name=PrefixedName("thread_mon2"),
-        motion_statechart=msg,
         delay=0.03,
         return_value=ObservationState.TrinaryTrue,
     )
-    end = EndMotion(name=PrefixedName("done thread"), motion_statechart=msg)
+    msg.add_node(mon)
+    end = EndMotion(name=PrefixedName("done thread"))
+    msg.add_node(end)
     end.start_condition = mon.observation_symbol
 
     msg.compile()
@@ -590,11 +616,15 @@ def test_thread_payload_monitor_integration():
 def test_goal():
     msg = MotionStatechart(World())
 
-    node1 = TrueMonitor(name=PrefixedName("muh"), motion_statechart=msg)
+    node1 = TrueMonitor(name=PrefixedName("muh"))
+    msg.add_node(node1)
 
-    goal = Goal(name=PrefixedName("goal"), motion_statechart=msg)
-    sub_node1 = TrueMonitor(name=PrefixedName("sub muh1"), motion_statechart=msg)
-    sub_node2 = TrueMonitor(name=PrefixedName("sub muh2"), motion_statechart=msg)
+    goal = Goal(name=PrefixedName("goal"))
+    msg.add_node(goal)
+    sub_node1 = TrueMonitor(name=PrefixedName("sub muh1"))
+    goal.add_node(sub_node1)
+    sub_node2 = TrueMonitor(name=PrefixedName("sub muh2"))
+    goal.add_node(sub_node2)
     goal.add_node(sub_node1)
     goal.add_node(sub_node2)
     sub_node1.end_condition = sub_node1.observation_symbol
@@ -602,7 +632,8 @@ def test_goal():
     goal.create_observation_expression = lambda: sub_node2.observation_symbol
     goal.start_condition = node1.observation_symbol
 
-    end = EndMotion(name=PrefixedName("done"), motion_statechart=msg)
+    end = EndMotion(name=PrefixedName("done"))
+    msg.add_node(end)
     end.start_condition = goal.observation_symbol
 
     msg.compile()

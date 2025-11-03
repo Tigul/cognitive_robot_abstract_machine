@@ -284,10 +284,13 @@ class MotionStatechart:
     def add_node(self, node: MotionStatechartNode):
         if self.get_node_by_name(node.name):
             raise ValueError(f"Node {node.name} already exists.")
-        node._motion_statechart = self
+        node.motion_statechart = self
         node.index = self.rx_graph.add_node(node)
         self.life_cycle_state.grow()
         self.observation_state.grow()
+
+    def has_node(self, node: MotionStatechartNode) -> bool:
+        return any(self.get_node_by_name(node.name))
 
     def get_node_by_name(self, name: PrefixedName) -> List[MotionStatechartNode]:
         return [node for node in self.nodes if node.name == name]

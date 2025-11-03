@@ -125,7 +125,7 @@ class LifeCycleSymbol(cas.Symbol):
 class MotionStatechartNode(SubclassJSONSerializer):
     name: PrefixedName = field(kw_only=True)
 
-    motion_statechart: MotionStatechart = field(kw_only=True)
+    _motion_statechart: MotionStatechart = field(init=False)
     """
     Back reference to the motion statechart that owns this node.
     """
@@ -162,7 +162,18 @@ class MotionStatechartNode(SubclassJSONSerializer):
         self._pause_condition = TrinaryCondition.create_false(kind=TransitionKind.PAUSE)
         self._end_condition = TrinaryCondition.create_false(kind=TransitionKind.END)
         self._reset_condition = TrinaryCondition.create_false(kind=TransitionKind.RESET)
-        self.motion_statechart.add_node(self)
+
+    @property
+    def motion_statechart(self) -> MotionStatechart:
+        if not hasattr(self, "_motion_statechart"):
+            raise AttributeError(
+                f"Motion statechart not set for {self.__class__.__name__} {self.name}"
+            )
+        return self._motion_statechart
+
+    @motion_statechart.setter
+    def motion_statechart(self, motion_statechart: MotionStatechart) -> None:
+        self._motion_statechart = motion_statechart
 
     def build_common(self):
         """
@@ -313,9 +324,30 @@ class Goal(MotionStatechartNode):
     _plot_style: str = field(default="filled", kw_only=True)
     _plot_shape: str = field(default="none", kw_only=True)
 
+    @property
+    def motion_statechart(self) -> MotionStatechart:
+        if not hasattr(self, "_motion_statechart"):
+            raise AttributeError(
+                f"Motion statechart not set for {self.__class__.__name__} {self.name}"
+            )
+        return self._motion_statechart
+
+    @motion_statechart.setter
+    def motion_statechart(self, motion_statechart: MotionStatechart) -> None:
+        self._motion_statechart = motion_statechart
+        self._link_child_nodes_with_motion_statechart()
+
     def add_node(self, node: MotionStatechartNode) -> None:
         self.nodes.append(node)
         node.parent_node = self
+        self._link_child_nodes_with_motion_statechart()
+
+    def _link_child_nodes_with_motion_statechart(self) -> None:
+        if hasattr(self, "_motion_statechart"):
+            for node in self.nodes:
+                node.motion_statechart = self.motion_statechart
+                if not self.motion_statechart.has_node(node):
+                    self.motion_statechart.add_node(node)
 
     def arrange_in_sequence(self, nodes: List[MotionStatechartNode]) -> None:
         first_node = nodes[0]
