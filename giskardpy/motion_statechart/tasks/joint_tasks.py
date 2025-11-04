@@ -4,10 +4,11 @@ from typing import Optional, Dict, List, Tuple, Union
 import semantic_digital_twin.spatial_types.spatial_types as cas
 from giskardpy.data_types.exceptions import GoalInitalizationException
 from giskardpy.god_map import god_map
+from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.monitors.joint_monitors import JointGoalReached
-from giskardpy.motion_statechart.tasks.task import Task, WEIGHT_BELOW_CA
+from giskardpy.motion_statechart.tasks.task import Task
 from giskardpy.qp.constraint import BaseConstraint
-from giskardpy.qp.constraint_factory import ConstraintCollection
+from giskardpy.qp.constraint_collection import ConstraintCollection
 from giskardpy.utils.decorators import validated_dataclass
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.derivatives import Derivatives
@@ -23,7 +24,7 @@ from semantic_digital_twin.world_description.connections import (
 class JointPositionList(Task):
     goal_state: Dict[ActiveConnection1DOF, Union[int, float]] = field(kw_only=True)
     threshold: float = field(default=0.01, kw_only=True)
-    weight: float = field(default=WEIGHT_BELOW_CA, kw_only=True)
+    weight: float = field(default=DefaultWeights.WEIGHT_BELOW_CA, kw_only=True)
     max_velocity: float = field(default=1.0, kw_only=True)
 
     def build_common(self):
@@ -90,7 +91,7 @@ class MirrorJointPosition(Task):
 
     def __post_init__(self):
         if self.weight is None:
-            self.weight = WEIGHT_BELOW_CA
+            self.weight = DefaultWeights.WEIGHT_BELOW_CA
         if self.max_velocity is None:
             self.max_velocity = 1.0
         self.current_positions = []
@@ -143,7 +144,7 @@ class JointPositionLimitList(Task):
     lower_upper_limits: Dict[Union[PrefixedName, str], Tuple[float, float]] = field(
         kw_only=True
     )
-    weight: float = WEIGHT_BELOW_CA
+    weight: float = DefaultWeights.WEIGHT_BELOW_CA
     max_velocity: float = 1
 
     def __post_init__(self):
@@ -219,7 +220,7 @@ class JustinTorsoLimit(Task):
     connection: ActiveConnection = field(kw_only=True)
     lower_limit: Optional[float] = None
     upper_limit: Optional[float] = None
-    weight: float = WEIGHT_BELOW_CA
+    weight: float = DefaultWeights.WEIGHT_BELOW_CA
     max_velocity: float = 1
 
     def __post_init__(self):
@@ -263,7 +264,7 @@ class JustinTorsoLimit(Task):
 @validated_dataclass
 class JointVelocityLimit(Task):
     joints: List[ActiveConnection1DOF] = field(kw_only=True)
-    weight: float = WEIGHT_BELOW_CA
+    weight: float = DefaultWeights.WEIGHT_BELOW_CA
     max_velocity: float = 1
     hard: bool = False
 
@@ -308,7 +309,7 @@ class JointVelocityLimit(Task):
 class JointVelocity(Task):
     connections: List[ActiveConnection1DOF] = field(kw_only=True)
     vel_goal: float = field(kw_only=True)
-    weight: float = WEIGHT_BELOW_CA
+    weight: float = DefaultWeights.WEIGHT_BELOW_CA
     max_velocity: float = 1
     hard: bool = False
 
@@ -348,7 +349,7 @@ class UnlimitedJointGoal(Task):
             expr_current=connection_symbol,
             expr_goal=self.goal_position,
             reference_velocity=2,
-            weight=WEIGHT_BELOW_CA,
+            weight=DefaultWeights.WEIGHT_BELOW_CA,
         )
 
 
@@ -363,7 +364,7 @@ class AvoidJointLimits(Task):
     connection_list: Optional[List[ActiveConnection1DOF]] = None
     """list of joints for which AvoidSingleJointLimits will be called"""
 
-    weight: float = WEIGHT_BELOW_CA
+    weight: float = DefaultWeights.WEIGHT_BELOW_CA
 
     def __post_init__(self):
         if self.connection_list is None:

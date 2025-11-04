@@ -19,7 +19,7 @@ from typing_extensions import (
 import semantic_digital_twin.spatial_types.spatial_types as cas
 from giskardpy.motion_statechart.data_types import LifeCycleValues
 from giskardpy.qp.constraint import BaseConstraint
-from giskardpy.qp.constraint_factory import ConstraintCollection
+from giskardpy.qp.constraint_collection import ConstraintCollection
 from giskardpy.utils.utils import string_shortener
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.world import World

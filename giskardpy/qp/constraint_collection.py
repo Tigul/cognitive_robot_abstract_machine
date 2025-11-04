@@ -1,15 +1,14 @@
+from __future__ import annotations
 from dataclasses import dataclass, field
 
 import numpy as np
-from typing_extensions import List, Optional, Union
+from typing_extensions import List, Optional, Union, TYPE_CHECKING
 
 from giskardpy.data_types.exceptions import (
     GoalInitalizationException,
     DuplicateNameException,
 )
-from giskardpy.motion_statechart.data_types import LifeCycleValues
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode
-from giskardpy.motion_statechart.tasks.task import WEIGHT_BELOW_CA
+from giskardpy.motion_statechart.data_types import LifeCycleValues, DefaultWeights
 from giskardpy.qp.constraint import (
     EqualityConstraint,
     InequalityConstraint,
@@ -21,6 +20,8 @@ import semantic_digital_twin.spatial_types.spatial_types as cas
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.derivatives import Derivatives
 
+if TYPE_CHECKING:
+    from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 
 Large_Number = 1e4
 
@@ -195,7 +196,7 @@ class ConstraintCollection:
         expr_current: cas.SymbolicScalar,
         expr_goal: cas.ScalarData,
         reference_velocity: cas.ScalarData,
-        weight: cas.ScalarData = WEIGHT_BELOW_CA,
+        weight: cas.ScalarData = DefaultWeights.WEIGHT_BELOW_CA,
         name: Optional[PrefixedName] = None,
     ):
         """
@@ -216,7 +217,7 @@ class ConstraintCollection:
         expr_min: cas.ScalarData,
         expr_max: cas.ScalarData,
         reference_velocity: cas.ScalarData,
-        weight: cas.ScalarData = WEIGHT_BELOW_CA,
+        weight: cas.ScalarData = DefaultWeights.WEIGHT_BELOW_CA,
         name: Optional[PrefixedName] = None,
     ):
         """
@@ -238,7 +239,7 @@ class ConstraintCollection:
         frame_V_current: cas.Vector3,
         frame_V_goal: cas.Vector3,
         reference_velocity: cas.ScalarData,
-        weight: cas.ScalarData = WEIGHT_BELOW_CA,
+        weight: cas.ScalarData = DefaultWeights.WEIGHT_BELOW_CA,
         name: Optional[PrefixedName] = None,
     ):
         """

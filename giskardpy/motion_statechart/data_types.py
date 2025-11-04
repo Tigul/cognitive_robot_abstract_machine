@@ -19,10 +19,16 @@ class LifeCycleValues(IntEnum):
 class FloatEnum(float, Enum):
     """Enum where members are also (and must be) floats"""
 
-    pass
-
 
 class ObservationState(FloatEnum):
     false = cas.TrinaryFalse.to_np()[0]
     unknown = cas.TrinaryUnknown.to_np()[0]
     true = cas.TrinaryTrue.to_np()[0]
+
+
+class DefaultWeights(FloatEnum):
+    WEIGHT_MAX = 10000.0
+    WEIGHT_ABOVE_CA = 2500.0
+    WEIGHT_COLLISION_AVOIDANCE = 50.0
+    WEIGHT_BELOW_CA = 1.0
+    WEIGHT_MIN = 0.0
