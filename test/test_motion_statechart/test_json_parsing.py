@@ -5,7 +5,11 @@ import pytest
 from giskardpy.motion_statechart.data_types import LifeCycleValues
 from giskardpy.motion_statechart.graph_node import TrinaryCondition, EndMotion
 from giskardpy.motion_statechart.monitors.monitors import TrueMonitor
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from giskardpy.motion_statechart.motion_statechart import (
+    MotionStatechart,
+    LifeCycleState,
+    ObservationState,
+)
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
@@ -185,3 +189,19 @@ def test_executing_json_parsed_statechart():
     assert end_copy.observation_state == msc_copy.observation_state.TrinaryTrue
     assert task1_copy.life_cycle_state == LifeCycleValues.RUNNING
     assert end_copy.life_cycle_state == LifeCycleValues.RUNNING
+
+    life_cycle_json = msc_copy.life_cycle_state.to_json()
+    json_str = json.dumps(life_cycle_json)
+    life_cycle_json_copy = json.loads(json_str)
+    life_cycle_copy = LifeCycleState.from_json(
+        life_cycle_json_copy, motion_statechart=msc_copy
+    )
+    assert life_cycle_copy == msc_copy.life_cycle_state
+
+    observation_json = msc_copy.observation_state.to_json()
+    json_str = json.dumps(observation_json)
+    observation_json_copy = json.loads(json_str)
+    observation_copy = ObservationState.from_json(
+        observation_json_copy, motion_statechart=msc_copy
+    )
+    assert observation_copy == msc_copy.observation_state

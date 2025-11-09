@@ -30,10 +30,10 @@ from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.world import World
 
 
-@dataclass(repr=False)
-class State(MutableMapping[MotionStatechartNode, float]):
+@dataclass(repr=False, eq=False)
+class State(MutableMapping[MotionStatechartNode, float], SubclassJSONSerializer):
     motion_statechart: MotionStatechart
-    default_value: float
+    default_value: ClassVar[float] = field(init=False)
     data: np.ndarray = field(default_factory=lambda: np.array([], dtype=np.float64))
 
     def grow(self) -> None:
@@ -78,8 +78,18 @@ class State(MutableMapping[MotionStatechartNode, float]):
         """
         return State(
             motion_statechart=self.motion_statechart,
-            default_value=self.default_value,
             data=self.data.copy(),
+        )
+
+    def to_json(self) -> Dict[str, Any]:
+        return {**super().to_json(), "data": self.data.tolist()}
+
+    @classmethod
+    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
+        motion_statechart = kwargs["motion_statechart"]
+        return cls(
+            motion_statechart=motion_statechart,
+            data=np.array(data["data"], dtype=np.float64),
         )
 
     def __str__(self) -> str:
@@ -88,11 +98,14 @@ class State(MutableMapping[MotionStatechartNode, float]):
     def __repr__(self) -> str:
         return str(self)
 
+    def __eq__(self, other: Self) -> bool:
+        return str(self) == str(other)
 
-@dataclass(repr=False)
+
+@dataclass(repr=False, eq=False)
 class LifeCycleState(State):
 
-    default_value: float = LifeCycleValues.NOT_STARTED
+    default_value: ClassVar[float] = LifeCycleValues.NOT_STARTED
     _compiled_updater: cas.CompiledFunction = field(init=False)
 
     def compile(self):
@@ -174,13 +187,13 @@ class LifeCycleState(State):
         )
 
 
-@dataclass(repr=False)
+@dataclass(repr=False, eq=False)
 class ObservationState(State):
     TrinaryFalse: ClassVar[float] = float(cas.TrinaryFalse.to_np())
     TrinaryUnknown: ClassVar[float] = float(cas.TrinaryUnknown.to_np())
     TrinaryTrue: ClassVar[float] = float(cas.TrinaryTrue.to_np())
 
-    default_value: float = float(cas.TrinaryUnknown.to_np())
+    default_value: ClassVar[float] = float(cas.TrinaryUnknown.to_np())
 
     _compiled_updater: cas.CompiledFunction = field(init=False)
 
