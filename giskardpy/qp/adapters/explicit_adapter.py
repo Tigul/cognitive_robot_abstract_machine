@@ -63,31 +63,12 @@ class GiskardToExplicitQPAdapter(GiskardToQPAdapter):
             ]
         )
 
-        free_symbols = set(quadratic_weights.free_variables())
-        free_symbols.update(linear_weights.free_variables())
-        free_symbols.update(box_lower_constraints.free_variables())
-        free_symbols.update(box_upper_constraints.free_variables())
-        free_symbols.update(eq_matrix.free_variables())
-        free_symbols.update(eq_bounds.free_variables())
-        free_symbols.update(neq_matrix.free_variables())
-        free_symbols.update(neq_lower_bounds.free_variables())
-        free_symbols.update(neq_upper_bounds.free_variables())
-        for s in itertools.chain(
-            self.world_state_symbols,
-            self.life_cycle_symbols,
-            self.external_collision_symbols,
-            self.self_collision_symbols,
-        ):
-            if s in free_symbols:
-                free_symbols.remove(s)
-        # self.aux_symbols = list(free_symbols)
-
         self.free_symbols = [
             self.world_state_symbols,
             self.life_cycle_symbols,
             self.external_collision_symbols,
             self.self_collision_symbols,
-            # self.aux_symbols,
+            self.auxiliary_variables,
         ]
 
         self.eq_matrix_compiled = eq_matrix.compile(
@@ -146,20 +127,17 @@ class GiskardToExplicitQPAdapter(GiskardToQPAdapter):
         life_cycle_state: np.ndarray,
         external_collision_data: np.ndarray,
         self_collision_data: np.ndarray,
+        auxiliary_variables: np.ndarray,
     ) -> QPData:
-
-        eq_matrix_np_raw = self.eq_matrix_compiled(
+        args = [
             world_state,
             life_cycle_state,
             external_collision_data,
             self_collision_data,
-        )
-        neq_matrix_np_raw = self.neq_matrix_compiled(
-            world_state,
-            life_cycle_state,
-            external_collision_data,
-            self_collision_data,
-        )
+            auxiliary_variables,
+        ]
+        eq_matrix_np_raw = self.eq_matrix_compiled(*args)
+        neq_matrix_np_raw = self.neq_matrix_compiled(*args)
         (
             quadratic_weights_np_raw,
             linear_weights_np_raw,
@@ -168,12 +146,7 @@ class GiskardToExplicitQPAdapter(GiskardToQPAdapter):
             eq_bounds_np_raw,
             neq_lower_bounds_np_raw,
             neq_upper_bounds_np_raw,
-        ) = self.combined_vector_f(
-            world_state,
-            life_cycle_state,
-            external_collision_data,
-            self_collision_data,
-        )
+        ) = self.combined_vector_f(*args)
 
         self.qp_data_raw = QPData(
             quadratic_weights=quadratic_weights_np_raw,

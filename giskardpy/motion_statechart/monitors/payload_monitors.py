@@ -5,6 +5,7 @@ import numpy as np
 from line_profiler import profile
 
 from giskardpy.god_map import god_map
+from giskardpy.motion_statechart.context import BuildContext
 from giskardpy.motion_statechart.data_types import ObservationStateValues
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.motion_statechart import ObservationState
@@ -32,7 +33,7 @@ class Sleep(MotionStatechartNode):
     seconds: float
     start_time: Optional[float] = field(default=None, init=False)
 
-    def on_start(self):
+    def on_start(self, context: BuildContext):
         self.start_time = None
 
     def on_tick(self) -> Optional[float]:

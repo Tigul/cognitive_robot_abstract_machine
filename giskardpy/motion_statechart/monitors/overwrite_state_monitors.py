@@ -5,12 +5,11 @@ from typing import Optional, Type, Tuple
 
 import semantic_digital_twin.spatial_types.spatial_types as cas
 from giskardpy.data_types.exceptions import GoalInitalizationException
+from giskardpy.motion_statechart.context import BuildContext
 from giskardpy.motion_statechart.graph_node import (
     MotionStatechartNode,
-    BuildContext,
     NodeArtifacts,
 )
-from giskardpy.motion_statechart.motion_statechart import ObservationState
 from giskardpy.motion_statechart.tasks.joint_tasks import JointState
 from semantic_digital_twin.world_description.connections import (
     OmniDrive,
@@ -33,7 +32,7 @@ class SetSeedConfiguration(MotionStatechartNode):
     def build(self, context: BuildContext) -> NodeArtifacts:
         return NodeArtifacts(observation=cas.TrinaryTrue)
 
-    def on_start(self):
+    def on_start(self, context: BuildContext):
         for connection, value in self.seed_configuration.items():
             connection.position = value
 
@@ -57,10 +56,10 @@ class SetOdometry(MotionStatechartNode):
                 )
         return NodeArtifacts(observation=cas.TrinaryTrue)
 
-    def on_start(self):
+    def on_start(self, context: BuildContext):
         # TODO can we get rid of world reference?
         parent_T_pose_ref = cas.TransformationMatrix(
-            self.motion_statechart.world.compute_forward_kinematics_np(
+            self.motion_statechart.context.world.compute_forward_kinematics_np(
                 self.odom_connection.parent, self.base_pose.reference_frame
             )
         )

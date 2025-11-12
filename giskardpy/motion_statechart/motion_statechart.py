@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, InitVar
 from typing import Dict, Any
 
 import numpy as np
@@ -11,6 +11,10 @@ from typing_extensions import List, MutableMapping, ClassVar, Self, Type, Option
 
 import semantic_digital_twin.spatial_types.spatial_types as cas
 from giskardpy.data_types.exceptions import EmptyProblemException
+from giskardpy.motion_statechart.auxilary_variable_manager import (
+    AuxiliaryVariableManager,
+)
+from giskardpy.motion_statechart.context import BuildContext
 from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     ObservationStateValues,
@@ -24,7 +28,6 @@ from giskardpy.motion_statechart.graph_node import (
     GenericMotionStatechartNode,
     ObservationVariable,
     LifeCycleVariable,
-    BuildContext,
 )
 from giskardpy.motion_statechart.plotters.graphviz import MotionStatechartGraphviz
 from giskardpy.qp.constraint_collection import ConstraintCollection
@@ -222,13 +225,21 @@ class ObservationState(State):
             parameters=[
                 self.observation_symbols(),
                 self.life_cycle_symbols(),
-                self.motion_statechart.world.state.get_variables(),
+                self.motion_statechart.context.world.state.get_variables(),
+                self.motion_statechart.context.auxiliary_variable_manager.variables,
             ],
             sparse=False,
         )
 
-    def update_state(self, life_cycle_state: np.ndarray, world_state: np.ndarray):
-        self.data = self._compiled_updater(self.data, life_cycle_state, world_state)
+    def update_state(
+        self,
+        life_cycle_state: np.ndarray,
+        world_state: np.ndarray,
+        auxiliar_variables: np.ndarray,
+    ):
+        self.data = self._compiled_updater(
+            self.data, life_cycle_state, world_state, auxiliar_variables
+        )
 
 
 @dataclass(repr=False, eq=False)
@@ -320,11 +331,13 @@ class MotionStatechart(SubclassJSONSerializer):
         6. call is_end_motion() to check if the motion is done.
     """
 
-    world: World
+    world: InitVar[World]
     """
     Reference to the world, where the motion statechart is defined.
     Symbols to the degree of freedom of the world can be used by nodes.
     """
+
+    context: BuildContext = field(init=False)
 
     rx_graph: rx.PyDiGraph[MotionStatechartNode] = field(
         default_factory=lambda: rx.PyDAG(multigraph=True), init=False, repr=False
@@ -348,9 +361,12 @@ class MotionStatechart(SubclassJSONSerializer):
     control_cycle_counter: int = field(default=0, init=False)
     history: StateHistory = field(default_factory=StateHistory, init=False)
 
-    def __post_init__(self):
+    def __post_init__(self, world: World):
         self.life_cycle_state = LifeCycleState(self)
         self.observation_state = ObservationState(self)
+        self.context = BuildContext(
+            world=world, auxiliary_variable_manager=AuxiliaryVariableManager()
+        )
 
     @property
     def nodes(self) -> List[MotionStatechartNode]:
@@ -396,9 +412,8 @@ class MotionStatechart(SubclassJSONSerializer):
             self.rx_graph.add_edge(owner.index, parent_node.index, condition)
 
     def _build_nodes(self):
-        context = BuildContext(world=self.world)
         for node in self.nodes:
-            artifacts = node.build(context=context)
+            artifacts = node.build(context=self.context)
             node._constraint_collection = artifacts.constraints
             node._constraint_collection.link_to_motion_statechart_node(node)
             node._observation_expression = artifacts.observation
@@ -436,8 +451,8 @@ class MotionStatechart(SubclassJSONSerializer):
 
     def _compile_qp_controller(self, controller_config: QPControllerConfig):
         ordered_dofs = sorted(
-            self.world.active_degrees_of_freedom,
-            key=lambda dof: self.world.state._index[dof.name],
+            self.context.world.active_degrees_of_freedom,
+            key=lambda dof: self.context.world.state._index[dof.name],
         )
         constraint_collection = self._combine_constraint_collections_of_nodes()
         if len(constraint_collection.constraints) == 0:
@@ -448,8 +463,9 @@ class MotionStatechart(SubclassJSONSerializer):
             config=controller_config,
             degrees_of_freedom=ordered_dofs,
             constraint_collection=constraint_collection,
-            world_state_symbols=self.world.state.get_variables(),
+            world_state_symbols=self.context.world.state.get_variables(),
             life_cycle_variables=self.life_cycle_state.life_cycle_symbols(),
+            auxiliary_variables=self.context.auxiliary_variable_manager.variables,
         )
         if self.qp_controller.has_not_free_variables():
             raise EmptyProblemException(
@@ -458,7 +474,9 @@ class MotionStatechart(SubclassJSONSerializer):
 
     def _update_observation_state(self):
         self.observation_state.update_state(
-            self.life_cycle_state.data, self.world.state.data
+            self.life_cycle_state.data,
+            self.context.world.state.data,
+            self.context.auxiliary_variable_manager.resolve_auxiliary_variables(),
         )
         for node in self.nodes:
             if self.life_cycle_state[node] == LifeCycleValues.RUNNING:
@@ -487,7 +505,7 @@ class MotionStatechart(SubclassJSONSerializer):
                 case (_, LifeCycleValues.NOT_STARTED):
                     node.on_reset()
                 case (LifeCycleValues.NOT_STARTED, LifeCycleValues.RUNNING):
-                    node.on_start()
+                    node.on_start(context=self.context)
                 case (LifeCycleValues.RUNNING, LifeCycleValues.PAUSED):
                     node.on_pause()
                 case (LifeCycleValues.PAUSED, LifeCycleValues.RUNNING):
@@ -515,12 +533,13 @@ class MotionStatechart(SubclassJSONSerializer):
         if self.qp_controller is None:
             return
         next_cmd = self.qp_controller.get_cmd(
-            world_state=self.world.state.data,
+            world_state=self.context.world.state.data,
             life_cycle_state=self.life_cycle_state.data,
             external_collisions=np.array([], dtype=np.float64),
             self_collisions=np.array([], dtype=np.float64),
+            auxiliary_variables=self.context.auxiliary_variable_manager.resolve_auxiliary_variables(),
         )
-        self.world.apply_control_commands(
+        self.context.world.apply_control_commands(
             next_cmd,
             self.qp_controller.config.control_dt or self.qp_controller.config.mpc_dt,
             self.qp_controller.config.max_derivative,
@@ -559,7 +578,7 @@ class MotionStatechart(SubclassJSONSerializer):
     def to_json(self) -> Dict[str, Any]:
         self._add_transitions()
         result = super().to_json()
-        result["world_name"] = self.world.name
+        result["world_name"] = self.context.world.name
         result["nodes"] = [node.to_json() for node in self.nodes]
         result["unique_edges"] = [edge.to_json() for edge in self.unique_edges]
         return result

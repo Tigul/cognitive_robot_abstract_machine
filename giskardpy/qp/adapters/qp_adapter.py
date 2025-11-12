@@ -117,7 +117,7 @@ class ProblemDataPart(ABC):
         lbA <= Ax <= ubA
     """
 
-    free_variables: List[DegreeOfFreedom]
+    degrees_of_freedom: List[DegreeOfFreedom]
     constraint_collection: ConstraintCollection
     config: QPControllerConfig
 
@@ -128,7 +128,7 @@ class ProblemDataPart(ABC):
 
     @property
     def number_of_free_variables(self) -> int:
-        return len(self.free_variables)
+        return len(self.degrees_of_freedom)
 
     @property
     def number_ineq_slack_variables(self):
@@ -358,7 +358,7 @@ class Weights(ProblemDataPart):
         params = []
         weights = defaultdict(dict)  # maps order to joints
         for t in range(self.config.prediction_horizon):
-            for v in self.free_variables:
+            for v in self.degrees_of_freedom:
                 for derivative in Derivatives.range(
                     Derivatives.velocity, max_derivative
                 ):
@@ -461,7 +461,7 @@ class Weights(ProblemDataPart):
             params = []
             weights = defaultdict(dict)  # maps order to joints
             for t in range(self.config.prediction_horizon):
-                for v in self.free_variables:
+                for v in self.degrees_of_freedom:
                     for derivative in Derivatives.range(
                         Derivatives.velocity, self.config.max_derivative
                     ):
@@ -497,7 +497,10 @@ class Weights(ProblemDataPart):
 
     def get_free_variable_symbols(self, order: Derivatives) -> List[cas.FloatVariable]:
         return self._sorter(
-            {v.variables.position: v.variables.data[order] for v in self.free_variables}
+            {
+                v.variables.position: v.variables.data[order]
+                for v in self.degrees_of_freedom
+            }
         )[0]
 
 
@@ -530,7 +533,7 @@ class FreeVariableBounds(ProblemDataPart):
         max_derivative = self.config.max_derivative
         lb: DefaultDict[Derivatives, Dict[str, cas.ScalarData]] = defaultdict(dict)
         ub: DefaultDict[Derivatives, Dict[str, cas.ScalarData]] = defaultdict(dict)
-        for v in self.free_variables:
+        for v in self.degrees_of_freedom:
             if self.config.qp_formulation.has_explicit_pos_limits:
                 for t in range(self.config.prediction_horizon):
                     for derivative in Derivatives.range(
@@ -723,7 +726,7 @@ class EqualityBounds(ProblemDataPart):
         self, derivative: Derivatives
     ) -> Dict[str, cas.ScalarData]:
         last_values = {}
-        for v in self.free_variables:
+        for v in self.degrees_of_freedom:
             last_values[f"{v.name}/last_{derivative}"] = v.variables.data[derivative]
         return last_values
 
@@ -734,7 +737,7 @@ class EqualityBounds(ProblemDataPart):
                 self.config.max_derivative - derivative
             ):
                 continue  # this row is all zero in the model, because the system has to stop at 0 vel
-            for v in self.free_variables:
+            for v in self.degrees_of_freedom:
                 derivative_link[f"t{t:03}/{derivative}/{v.name}/link"] = 0
         return derivative_link
 
@@ -769,7 +772,7 @@ class EqualityBounds(ProblemDataPart):
         ):
             derivative_link = {}
             for t in range(self.config.prediction_horizon):
-                for v in self.free_variables:
+                for v in self.degrees_of_freedom:
                     name = f"t{t:03}/{Derivatives.jerk}/{v.name}/link"
                     if t == 0:
                         derivative_link[name] = (
@@ -873,7 +876,7 @@ class InequalityBounds(ProblemDataPart):
     ) -> Tuple[List[Dict[str, cas.Expression]], List[Dict[str, cas.Expression]]]:
         lb_acc, ub_acc = {}, {}
         lb_jerk, ub_jerk = {}, {}
-        for v in self.free_variables:
+        for v in self.degrees_of_freedom:
             lb_, ub_ = v.lower_limits.position, v.upper_limits.position
             for t in range(self.config.prediction_horizon - 2):
                 ptc = v.variables.position
@@ -886,7 +889,7 @@ class InequalityBounds(ProblemDataPart):
     ) -> Tuple[List[Dict[str, cas.Expression]], List[Dict[str, cas.Expression]]]:
         lb_acc, ub_acc = {}, {}
         lb_jerk, ub_jerk = {}, {}
-        for v in self.free_variables:
+        for v in self.degrees_of_freedom:
             if self.config.qp_formulation.has_explicit_pos_limits:
                 lb_, ub_ = v.lower_limits.jerk, v.upper_limits.jerk
             else:
@@ -1005,7 +1008,7 @@ class EqualityModel(ProblemDataPart):
         return self._sorter(
             {
                 v.variables.position.name: v.variables.data[derivative]
-                for v in self.free_variables
+                for v in self.degrees_of_freedom
             }
         )[0]
 
@@ -1405,7 +1408,7 @@ class InequalityModel(ProblemDataPart):
 
     @property
     def number_of_free_variables(self):
-        return len(self.free_variables)
+        return len(self.degrees_of_freedom)
 
     @property
     def number_of_non_slack_columns(self) -> int:
@@ -1437,7 +1440,7 @@ class InequalityModel(ProblemDataPart):
 
     @memoize
     def num_of_continuous_joints(self):
-        return len([v for v in self.free_variables if not v.has_position_limits()])
+        return len([v for v in self.degrees_of_freedom if not v.has_position_limits()])
 
     def inequality_constraint_expressions(self) -> List[cas.Expression]:
         return self._sorter(
@@ -1457,7 +1460,7 @@ class InequalityModel(ProblemDataPart):
         return self._sorter(
             {
                 v.variables.position.name: v.variables.data[order]
-                for v in self.free_variables
+                for v in self.degrees_of_freedom
             }
         )[0]
 
@@ -1843,8 +1846,9 @@ class GiskardToQPAdapter:
     life_cycle_symbols: List[cas.FloatVariable]
     external_collision_symbols: List[cas.FloatVariable]
     self_collision_symbols: List[cas.FloatVariable]
+    auxiliary_variables: List[cas.FloatVariable]
 
-    free_variables: List[DegreeOfFreedom]
+    degrees_of_freedom: List[DegreeOfFreedom]
     constraint_collection: ConstraintCollection
     config: QPControllerConfig
     sparse: bool = field(default=True)
@@ -1867,7 +1871,7 @@ class GiskardToQPAdapter:
 
     def __post_init__(self):
         kwargs = {
-            "free_variables": self.free_variables,
+            "degrees_of_freedom": self.degrees_of_freedom,
             "constraint_collection": self.constraint_collection,
             "config": self.config,
         }
@@ -1919,7 +1923,7 @@ class GiskardToQPAdapter:
 
     @property
     def num_free_variable_constraints(self) -> int:
-        return len(self.free_variables)
+        return len(self.degrees_of_freedom)
 
     @property
     def num_eq_slack_variables(self) -> int:
@@ -1959,6 +1963,7 @@ class GiskardToQPAdapter:
         life_cycle_state: np.ndarray,
         external_collision_data: np.ndarray,
         self_collision_data: np.ndarray,
+        auxiliary_variables: np.ndarray,
     ) -> QPData:
         raise NotImplementedError()
 

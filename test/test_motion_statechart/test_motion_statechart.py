@@ -24,13 +24,13 @@ from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
 from giskardpy.motion_statechart.monitors.payload_monitors import Print
 from giskardpy.motion_statechart.motion_statechart import (
     MotionStatechart,
-    ObservationState,
 )
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPose,
     CartesianOrientation,
 )
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
+from giskardpy.motion_statechart.tasks.pointing import Pointing
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import TransformationMatrix
@@ -994,3 +994,27 @@ def test_CartesianOrientation(pr2_world: World):
 
     fk = pr2_world.compute_forward_kinematics_np(root, tip)
     assert np.allclose(fk, tip_goal.to_np(), atol=cart_goal.threshold)
+
+
+def test_pointing(pr2_world: World):
+    tip = pr2_world.get_kinematic_structure_entity_by_name("r_gripper_tool_frame")
+    root = pr2_world.get_kinematic_structure_entity_by_name("odom_combined")
+
+    msc = MotionStatechart(pr2_world)
+
+    goal_point = cas.Point3(2, 0, 0, reference_frame=root)
+    pointing_axis = cas.Vector3.X(reference_frame=tip)
+
+    pointing = Pointing(
+        name=PrefixedName("pointing"),
+        root_link=root,
+        tip_link=tip,
+        goal_point=goal_point,
+        pointing_axis=pointing_axis,
+    )
+    msc.add_node(pointing)
+    end = EndMotion(name=PrefixedName("end"))
+    msc.add_node(end)
+    end.start_condition = pointing.observation_variable
+    msc.compile(QPControllerConfig.create_default_with_50hz())
+    msc.tick_until_end()

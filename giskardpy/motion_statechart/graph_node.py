@@ -19,6 +19,7 @@ from typing_extensions import (
 )
 
 import semantic_digital_twin.spatial_types.spatial_types as cas
+from giskardpy.motion_statechart.context import BuildContext
 from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     ObservationStateValues,
@@ -240,11 +241,6 @@ class LifeCycleVariable(cas.FloatVariable):
 
 
 @dataclass
-class BuildContext:
-    world: World
-
-
-@dataclass
 class DebugExpression:
     name: str
     expression: (
@@ -383,7 +379,7 @@ class MotionStatechartNode(SubclassJSONSerializer):
         :return: An optional observation state overwrite
         """
 
-    def on_start(self):
+    def on_start(self, context: BuildContext):
         """
         Triggered when the node transitions from NOT_STARTED to RUNNING.
         """

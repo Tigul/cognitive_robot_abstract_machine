@@ -7,8 +7,9 @@ from typing_extensions import Self
 import semantic_digital_twin.spatial_types.spatial_types as cas
 from giskardpy.data_types.exceptions import GoalInitalizationException
 from giskardpy.god_map import god_map
+from giskardpy.motion_statechart.context import BuildContext
 from giskardpy.motion_statechart.data_types import DefaultWeights
-from giskardpy.motion_statechart.graph_node import NodeArtifacts, BuildContext
+from giskardpy.motion_statechart.graph_node import NodeArtifacts
 from giskardpy.motion_statechart.monitors.joint_monitors import JointGoalReached
 from giskardpy.motion_statechart.tasks.task import Task
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName

@@ -370,6 +370,7 @@ class QPController:
     constraint_collection: ConstraintCollection
     world_state_symbols: List[cas.FloatVariable]
     life_cycle_variables: List[cas.FloatVariable]
+    auxiliary_variables: List[cas.FloatVariable]
 
     qp_adapter: GiskardToQPAdapter = field(default=None, init=False)
     qp_solver: QPSolver = field(default=None, init=False)
@@ -392,9 +393,10 @@ class QPController:
         self.qp_adapter = self.qp_solver.required_adapter_type(
             world_state_symbols=self.world_state_symbols,
             life_cycle_symbols=self.life_cycle_variables,
+            auxiliary_variables=self.auxiliary_variables,
             external_collision_symbols=[],
             self_collision_symbols=[],
-            free_variables=self.active_dofs,
+            degrees_of_freedom=self.active_dofs,
             constraint_collection=self.constraint_collection,
             config=self.config,
         )
@@ -449,6 +451,7 @@ class QPController:
         life_cycle_state: np.ndarray,
         external_collisions: np.ndarray,
         self_collisions: np.ndarray,
+        auxiliary_variables: np.ndarray,
     ) -> np.ndarray:
         """
         Uses substitutions for each symbol to compute the next commands for each joint.
@@ -459,6 +462,7 @@ class QPController:
                 life_cycle_state,
                 external_collisions,
                 self_collisions,
+                auxiliary_variables,
             )
             try:
                 self.xdot_full = self.qp_solver.solver_call(qp_data.filtered)
