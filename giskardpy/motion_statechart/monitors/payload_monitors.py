@@ -1,14 +1,14 @@
+import time
 from dataclasses import field, dataclass
-from typing import Dict, Tuple, Union, Optional
+from typing import Dict, Tuple, Optional
 
 import numpy as np
 from line_profiler import profile
 
 from giskardpy.god_map import god_map
-from giskardpy.motion_statechart.context import BuildContext, ExecutionContext
+from giskardpy.motion_statechart.context import ExecutionContext
 from giskardpy.motion_statechart.data_types import ObservationStateValues
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
-from giskardpy.motion_statechart.motion_statechart import ObservationState
 
 
 @dataclass
@@ -62,18 +62,23 @@ class PayloadAlternator(MotionStatechartNode):
 
 
 @dataclass
-class Counter(MotionStatechartNode):
-    number: int
-    counter: int = field(default=0, init=False)
+class CountSeconds(MotionStatechartNode):
+    """
+    This node counts X seconds and then turns True.
+    Only counts while in state RUNNING.
+    """
 
-    def __call__(self):
-        if self.state == ObservationState.unknown:
-            self.counter = 0
-        if self.counter >= self.number:
-            self.state = ObservationState.true
-        else:
-            self.state = ObservationState.false
-        self.counter += 1
+    seconds: float = field(kw_only=True)
+    _start_time: float = field(init=False)
+
+    def on_tick(self, context: ExecutionContext) -> Optional[ObservationStateValues]:
+        difference = time.time() - self._start_time
+        if difference >= self.seconds:
+            return ObservationStateValues.TRUE
+        return None
+
+    def on_start(self, context: ExecutionContext):
+        self._start_time = time.time()
 
 
 @dataclass

@@ -1,3 +1,4 @@
+import json
 import time
 from dataclasses import dataclass
 
@@ -7,7 +8,7 @@ import pytest
 import semantic_digital_twin.spatial_types.spatial_types as cas
 from conftest import box_bot_world
 from giskardpy.executor import Executor
-from giskardpy.model.collision_matrix_manager import CollisionViewRequest
+from giskardpy.model.collision_matrix_manager import CollisionRequest
 from giskardpy.model.collision_world_syncer import CollisionCheckerLib
 from giskardpy.motion_statechart.binding_policy import GoalBindingPolicy
 from giskardpy.motion_statechart.data_types import (
@@ -27,7 +28,11 @@ from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetSeedConfiguration,
     SetOdometry,
 )
-from giskardpy.motion_statechart.monitors.payload_monitors import Print, Pulse
+from giskardpy.motion_statechart.monitors.payload_monitors import (
+    Print,
+    Pulse,
+    CountSeconds,
+)
 from giskardpy.motion_statechart.motion_statechart import (
     MotionStatechart,
 )
@@ -44,9 +49,16 @@ from giskardpy.motion_statechart.test_nodes.test_nodes import (
     TestNestedGoal,
 )
 from giskardpy.qp.qp_controller_config import QPControllerConfig
+from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
+    KinematicStructureEntityKwargsTracker,
+)
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import TransformationMatrix
 from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
+from semantic_digital_twin.spatial_types.spatial_types import (
+    trinary_logic_and,
+    trinary_logic_not,
+)
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
     RevoluteConnection,
@@ -1222,7 +1234,7 @@ def test_collision_avoidance(box_bot_world):
 
     collision_avoidance = CollisionAvoidance(
         name=PrefixedName("ca"),
-        collision_entries=[CollisionViewRequest.avoid_all_collision()],
+        collision_entries=[CollisionRequest.avoid_all_collision()],
     )
     msc.add_node(collision_avoidance)
 
@@ -1230,15 +1242,23 @@ def test_collision_avoidance(box_bot_world):
     msc.add_node(end)
     end.start_condition = cart_goal.observation_variable
 
+    json_data = msc.to_json()
+    json_str = json.dumps(json_data)
+    new_json_data = json.loads(json_str)
+
+    tracker = KinematicStructureEntityKwargsTracker.from_world(box_bot_world)
+    kwargs = tracker.create_kwargs()
+    msc_copy = MotionStatechart.from_json(new_json_data, **kwargs)
+
     kin_sim = Executor(
-        motion_statechart=msc,
+        motion_statechart=msc_copy,
         world=box_bot_world,
         controller_config=QPControllerConfig.create_default_with_50hz(),
         collision_checker=CollisionCheckerLib.bpb,
     )
     kin_sim.compile()
 
-    msc.draw("muh.pdf")
+    msc_copy.draw("muh.pdf")
     with pytest.raises(TimeoutError):
         kin_sim.tick_until_end(500)
         kin_sim.collision_scene.check_collisions()
@@ -1248,3 +1268,37 @@ def test_collision_avoidance(box_bot_world):
         .contact_distance
     )
     assert contact_distance > 0.049
+
+
+def test_counting():
+    msc = MotionStatechart()
+    seconds = 3
+    counter = CountSeconds(name=PrefixedName("counter"), seconds=seconds)
+    msc.add_node(counter)
+
+    node1 = Pulse(name=PrefixedName("node1"))
+    node1.start_condition = counter.observation_variable
+    msc.add_node(node1)
+
+    end = EndMotion(name=PrefixedName("end"))
+    msc.add_node(end)
+
+    counter.reset_condition = node1.observation_variable
+
+    end.start_condition = trinary_logic_and(
+        counter.observation_variable, trinary_logic_not(node1.observation_variable)
+    )
+
+    kin_sim = Executor(
+        motion_statechart=msc,
+        world=World(),
+    )
+    kin_sim.compile()
+
+    current_time = time.time()
+
+    kin_sim.tick_until_end(1_000_000)
+    msc.draw("muh.pdf")
+
+    actual = time.time() - current_time
+    assert np.isclose(actual, seconds * 2, rtol=0.01)
