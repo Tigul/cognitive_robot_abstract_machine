@@ -74,7 +74,7 @@ class Pointing(Task):
         return artifacts
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class PointingCone(Task):
     """
     Will orient pointing_axis at goal_point with a cone-shaped tolerance region.
@@ -90,11 +90,11 @@ class PointingCone(Task):
     pointing_axis: cas.Vector3 = field(kw_only=True)
     """the axis of tip_link that will be used for pointing"""
 
-    cone_theta: float = 0.0
+    cone_theta: float = field(default=0.0, kw_only=True)
     """Slack cone region in radians"""
-    max_velocity: float = 0.3
-    threshold: float = 0.01
-    weight: float = DefaultWeights.WEIGHT_BELOW_CA
+    max_velocity: float = field(default=0.3, kw_only=True)
+    threshold: float = field(default=0.01, kw_only=True)
+    weight: float = field(default=DefaultWeights.WEIGHT_BELOW_CA, kw_only=True)
 
     def build(self, context: BuildContext) -> NodeArtifacts:
         artifacts = NodeArtifacts()
