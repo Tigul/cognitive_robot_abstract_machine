@@ -61,6 +61,7 @@ from giskardpy.motion_statechart.test_nodes.test_nodes import (
 from giskardpy.qp.exceptions import HardConstraintsViolatedException
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from giskardpy.utils.math import angle_between_vector
+from semantic_digital_twin.adapters.viz_marker import VizMarkerPublisher
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     KinematicStructureEntityKwargsTracker,
 )
@@ -421,7 +422,7 @@ def test_joint_goal():
         )
         world.add_degree_of_freedom(dof)
         root_C_tip = RevoluteConnection(
-            parent=root, child=tip, axis=cas.Vector3.Z(), dof_name=dof.name
+            parent=root, child=tip, axis=cas.Vector3.Z(), dof_id=dof.id
         )
         world.add_connection(root_C_tip)
 
@@ -430,7 +431,7 @@ def test_joint_goal():
         )
         world.add_degree_of_freedom(dof)
         root_C_tip2 = RevoluteConnection(
-            parent=root, child=tip2, axis=cas.Vector3.Z(), dof_name=dof.name
+            parent=root, child=tip2, axis=cas.Vector3.Z(), dof_id=dof.id
         )
         world.add_connection(root_C_tip2)
 
@@ -1680,7 +1681,7 @@ class TestOpenClose:
             )
             pr2_world.add_degree_of_freedom(dof)
             root_T_door = RevoluteConnection(
-                dof_name=dof.name,
+                dof_id=dof.id,
                 parent=pr2_world.root,
                 child=door_world.root,
                 axis=-cas.Vector3.Z(),
