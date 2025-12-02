@@ -764,12 +764,12 @@ def test_order_by(handles_and_containers_world):
 
 
 def test_sum(handles_and_containers_world):
-    hieghts = [1, 2, 3, 4, 5]
-    hieghts_var = let(int, domain=hieghts)
-    query = an(entity(hieghts_var).sum())
+    heights = [1, 2, 3, 4, 5]
+    heights_var = let(int, domain=heights)
+    query = an(entity(heights_var).sum())
     results = list(query.evaluate())
     assert len(results) == 1
-    assert results[0] == sum(hieghts)
+    assert results[0] == sum(heights)
 
 
 def test_limit(handles_and_containers_world):
