@@ -32,4 +32,4 @@ jobs:
         run: |
           source /opt/ros/overlay_ws/install/setup.bash
           source /opt/ros/cram-env/bin/activate
-          python -m pytest -sv test/${{ inputs.lib }}_test
+          python -m pytest -sv cognitive_robot_abstract_machine/test/${{ inputs.lib }}_test
