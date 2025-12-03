@@ -46,6 +46,9 @@ class MotionExecutor:
         """
         Executes the constructed motion state chart in the given world.
         """
+        # If there are no motions to construct an msc, return
+        if len(self.motions) == 0:
+            return
         if ProcessModuleManager.execution_type == ExecutionType.SIMULATED:
             self._execute_for_simulation()
         elif ProcessModuleManager.execution_type == ExecutionType.REAL:
@@ -62,7 +65,7 @@ class MotionExecutor:
             ),
         )
         executor.compile(self.motion_state_chart)
-        executor.tick_until_end(timeout=2000)
+        executor.tick_until_end(timeout=10000)
 
     def _execute_for_real(self):
         from giskardpy_ros.python_interface.python_interface import GiskardWrapper

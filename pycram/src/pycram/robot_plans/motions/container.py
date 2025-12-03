@@ -55,6 +55,7 @@ class ClosingMotion(BaseMotion):
         pm_manager = ProcessModuleManager().get_manager(self.robot_view)
         return pm_manager.close().execute(self)
 
+    @property
     def _motion_chart(self):
         tip = ViewManager().get_end_effector_view(self.arm, self.robot_view).tool_frame
         return Close(tip_link=tip, environment_link=self.object_part)
