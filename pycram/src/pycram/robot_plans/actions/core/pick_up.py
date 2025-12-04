@@ -1,18 +1,17 @@
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import timedelta
+
+from typing_extensions import Union, Optional, Type, Any, Iterable
 
 from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.world_description.world_entity import Body
-from typing_extensions import Union, Optional, Type, Any, Iterable
-
 from ...motions.gripper import MoveGripperMotion, MoveTCPMotion
 from ....config.action_conf import ActionConfig
 from ....datastructures.enums import (
     Arms,
-    Grasp,
     GripperState,
     MovementType,
     FindBodyInRegionMethod,
@@ -24,8 +23,8 @@ from ....failures import ObjectNotGraspedError
 from ....failures import ObjectNotInGraspingArea
 from ....has_parameters import has_parameters
 from ....language import SequentialPlan
-from ....robot_description import EndEffectorDescription, ViewManager
-from ....robot_description import RobotDescription, KinematicChainDescription
+from ....robot_description import RobotDescription
+from ....robot_description import ViewManager
 from ....robot_plans.actions.base import ActionDescription
 from ....utils import translate_pose_along_local_axis
 
@@ -34,14 +33,14 @@ logger = logging.getLogger(__name__)
 
 @has_parameters
 @dataclass
-class ReachToPickUpAction(ActionDescription):
+class ReachAction(ActionDescription):
     """
     Let the robot reach a specific pose.
     """
 
-    object_designator: Body
+    target_pose: PoseStamped
     """
-    Object designator_description describing the object that should be picked up
+    Pose that should be reached.
     """
 
     arm: Arms
@@ -52,6 +51,11 @@ class ReachToPickUpAction(ActionDescription):
     grasp_description: GraspDescription
     """
     The grasp description that should be used for picking up the object
+    """
+
+    object_designator: Body = None
+    """
+    Object designator_description describing the object that should be picked up
     """
 
     _pre_perform_callbacks = []
@@ -68,7 +72,7 @@ class ReachToPickUpAction(ActionDescription):
 
         target_pose = self.grasp_description.get_grasp_pose(
             end_effector, self.object_designator
-        )
+        ) if self.object_designator else self.target_pose
         target_pre_pose = translate_pose_along_local_axis(
             target_pose,
             end_effector.front_facing_axis.to_np()[:3],
@@ -76,38 +80,23 @@ class ReachToPickUpAction(ActionDescription):
         )
 
         SequentialPlan(
-            self.context, MoveGripperMotion(motion=GripperState.OPEN, gripper=self.arm)
-        ).perform()
-
-        self.move_gripper_to_pose(target_pre_pose)
-
-        self.move_gripper_to_pose(target_pose, MovementType.STRAIGHT_CARTESIAN)
-
-    def move_gripper_to_pose(
-        self,
-        pose: PoseStamped,
-        movement_type: MovementType = MovementType.CARTESIAN,
-        add_vis_axis: bool = True,
-    ):
-        """
-        Move the gripper to a specific pose.
-
-        :param pose: The pose to go to.
-        :param movement_type: The type of movement that should be performed.
-        :param add_vis_axis: If a visual axis should be added to the world.
-        """
-        SequentialPlan(
             self.context,
             MoveTCPMotion(
-                pose,
+                target_pre_pose,
+                self.arm,
+                allow_gripper_collision=False
+            ),
+            MoveTCPMotion(
+                target_pose,
                 self.arm,
                 allow_gripper_collision=False,
-                movement_type=movement_type,
-            ),
+                movement_type=MovementType.CARTESIAN
+            )
+
         ).perform()
 
     def validate(
-        self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None
+            self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None
     ):
         """
         Check if object is contained in the gripper such that it can be grasped and picked up.
@@ -115,9 +104,9 @@ class ReachToPickUpAction(ActionDescription):
         fingers_link_names = self.arm_chain.end_effector.fingers_link_names
         if fingers_link_names:
             if not is_body_between_fingers(
-                self.object_designator,
-                fingers_link_names,
-                method=FindBodyInRegionMethod.MultiRay,
+                    self.object_designator,
+                    fingers_link_names,
+                    method=FindBodyInRegionMethod.MultiRay,
             ):
                 raise ObjectNotInGraspingArea(
                     self.object_designator,
@@ -132,16 +121,18 @@ class ReachToPickUpAction(ActionDescription):
 
     @classmethod
     def description(
-        cls,
-        object_designator: Union[Iterable[Body], Body],
-        arm: Union[Iterable[Arms], Arms] = None,
-        grasp_description: Union[Iterable[GraspDescription], GraspDescription] = None,
-    ) -> PartialDesignator[Type[ReachToPickUpAction]]:
+            cls,
+            target_pose: Union[Iterable[PoseStamped], PoseStamped],
+            arm: Union[Iterable[Arms], Arms] = None,
+            grasp_description: Union[Iterable[GraspDescription], GraspDescription] = None,
+            object_designator: Union[Iterable[Body], Body] = None,
+    ) -> PartialDesignator[Type[ReachAction]]:
         return PartialDesignator(
-            ReachToPickUpAction,
-            object_designator=object_designator,
+            ReachAction,
+            target_pose=target_pose,
             arm=arm,
             grasp_description=grasp_description,
+            object_designator=object_designator
         )
 
 
@@ -178,8 +169,10 @@ class PickUpAction(ActionDescription):
     def execute(self) -> None:
         SequentialPlan(
             self.context,
-            ReachToPickUpActionDescription(
-                self.object_designator, self.arm, self.grasp_description
+            MoveGripperMotion(motion=GripperState.OPEN, gripper=self.arm),
+            ReachActionDescription(
+                target_pose=PoseStamped.from_spatial_type(self.object_designator.global_pose),
+                object_designator=self.object_designator, arm=self.arm, grasp_description=self.grasp_description
             ),
             MoveGripperMotion(motion=GripperState.CLOSE, gripper=self.arm),
         ).perform()
@@ -204,7 +197,7 @@ class PickUpAction(ActionDescription):
         ).perform()
 
     def validate(
-        self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None
+            self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None
     ):
         """
         Check if picked up object is in contact with the gripper.
@@ -216,10 +209,10 @@ class PickUpAction(ActionDescription):
 
     @classmethod
     def description(
-        cls,
-        object_designator: Union[Iterable[Body], Body],
-        arm: Union[Iterable[Arms], Arms] = None,
-        grasp_description: Union[Iterable[GraspDescription], GraspDescription] = None,
+            cls,
+            object_designator: Union[Iterable[Body], Body],
+            arm: Union[Iterable[Arms], Arms] = None,
+            grasp_description: Union[Iterable[GraspDescription], GraspDescription] = None,
     ) -> PartialDesignator[Type[PickUpAction]]:
         return PartialDesignator(
             PickUpAction,
@@ -274,7 +267,7 @@ class GraspingAction(ActionDescription):
         ).perform()
 
     def validate(
-        self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None
+            self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None
     ):
         body = self.object_designator
         contact_links = body.get_contact_points_with_body(World.robot).get_all_bodies()
@@ -287,12 +280,12 @@ class GraspingAction(ActionDescription):
 
     @classmethod
     def description(
-        cls,
-        object_designator: Union[Iterable[Body], Body],
-        arm: Union[Iterable[Arms], Arms] = None,
-        prepose_distance: Union[
-            Iterable[float], float
-        ] = ActionConfig.grasping_prepose_distance,
+            cls,
+            object_designator: Union[Iterable[Body], Body],
+            arm: Union[Iterable[Arms], Arms] = None,
+            prepose_distance: Union[
+                Iterable[float], float
+            ] = ActionConfig.grasping_prepose_distance,
     ) -> PartialDesignator[Type[GraspingAction]]:
         return PartialDesignator(
             GraspingAction,
@@ -302,6 +295,6 @@ class GraspingAction(ActionDescription):
         )
 
 
-ReachToPickUpActionDescription = ReachToPickUpAction.description
+ReachActionDescription = ReachAction.description
 PickUpActionDescription = PickUpAction.description
 GraspingActionDescription = GraspingAction.description
