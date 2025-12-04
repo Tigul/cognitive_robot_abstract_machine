@@ -11,6 +11,7 @@ import trimesh
 from .pipeline import Step
 from ..world import World
 from ..world_description.geometry import TriangleMesh, Shape, Mesh
+from ..world_description.shape_collection import ShapeCollection
 from ..world_description.world_entity import Body
 
 
@@ -61,7 +62,7 @@ class MeshDecomposer(Step, ABC):
         """
         ...
 
-    def apply_to_shape(self, shape: Shape) -> List[Shape]:
+    def apply_to_shape(self, shape: Shape) -> ShapeCollection:
         """
         Apply the mesh decomposition to a given shape.
         If the shape is a Mesh, it will be decomposed into multiple TriangleMesh objects.
@@ -73,7 +74,7 @@ class MeshDecomposer(Step, ABC):
         else:
             new_geometry.append(shape)
 
-        return new_geometry
+        return ShapeCollection(new_geometry)
 
     def apply_to_body(self, body: Body) -> Body:
         """
