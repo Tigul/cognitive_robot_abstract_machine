@@ -77,7 +77,7 @@ class MotionExecutor:
             executor.tick_until_end(timeout=2000)
         except TimeoutError as e:
             failed_nodes = [
-                node if node.life_cycle_state == LifeCycleValues.FAILED else None
+                node if node.life_cycle_state != LifeCycleValues.DONE else None
                 for node in self.motion_state_chart.nodes
             ]
             logger.error(f"Failed Nodes: {failed_nodes}")

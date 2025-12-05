@@ -1,16 +1,12 @@
 from dataclasses import dataclass
 from typing import Optional, List
 
-from Cython.Shadow import returns
-
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
-    CartesianPosition,
     CartesianPose,
 )
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
 from semantic_digital_twin.world_description.world_entity import Body
-
 from .base import BaseMotion
 from ...datastructures.enums import (
     Arms,
@@ -20,10 +16,7 @@ from ...datastructures.enums import (
 )
 from ...datastructures.grasp import GraspDescription
 from ...datastructures.pose import PoseStamped
-from ...failure_handling import try_motion
-from ...failures import ToolPoseNotReachedError
 from ...joint_state import JointStateManager
-from ...process_module import ProcessModuleManager
 from ...robot_description import ViewManager
 from ...utils import translate_pose_along_local_axis
 
