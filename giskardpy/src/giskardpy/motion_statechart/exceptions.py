@@ -14,24 +14,26 @@ if TYPE_CHECKING:
     )
 
 
+@dataclass
 class MotionStatechartError(Exception):
-    pass
+    reason: str
+
+    def __post_init__(self):
+        super().__init__(self.reason)
 
 
 @dataclass
 class NodeInitializationError(MotionStatechartError):
     node: MotionStatechartNode
-    reason: str
+    reason: str = field(init=False)
 
     def __post_init__(self):
-        super().__init__(
-            f'Failed to initialize Goal "{self.node.unique_name}". Reason: {self.reason}'
-        )
+        self.reason = f'Failed to initialize Goal "{self.node.unique_name}". Reason: {self.reason}'
+        super().__post_init__()
 
 
 class EmptyMotionStatechartError(MotionStatechartError):
-    def __init__(self):
-        super().__init__("MotionStatechart is empty.")
+    reason: str = field(default="MotionStatechart is empty.", init=False)
 
 
 @dataclass
@@ -60,31 +62,32 @@ class EndMotionInGoalError(NodeInitializationError):
 @dataclass
 class NodeNotFoundError(MotionStatechartError):
     name: str
+    reason: str = field(init=False)
 
     def __post_init__(self):
-        super().__init__(f"Node '{self.name}' not found in MotionStatechart.")
+        self.reason = f"Node '{self.name}' not found in MotionStatechart."
+        super().__post_init__()
 
 
 @dataclass
 class NotInMotionStatechartError(MotionStatechartError):
     name: str
+    reason: str = field(init=False)
 
     def __post_init__(self):
-        super().__init__(
-            f"Operation can't be performed because node '{self.name}' does not belong to a MotionStatechart."
-        )
+        self.reason = f"Operation can't be performed because node '{self.name}' does not belong to a MotionStatechart."
+        super().__post_init__()
 
 
 @dataclass
 class InvalidConditionError(MotionStatechartError):
     condition: TrinaryCondition
     new_expression: Expression
-    reason: str
+    reason: str = field(init=False)
 
     def __post_init__(self):
-        super().__init__(
-            f'Invalid {self.condition.kind.name} condition of node "{self.condition.owner.unique_name}": "{self.new_expression}". Reason: "{self.reason}"'
-        )
+        self.reason = f'Invalid {self.condition.kind.name} condition of node "{self.condition.owner.unique_name}": "{self.new_expression}". Reason: "{self.reason}"'
+        super().__post_init__()
 
 
 @dataclass
@@ -120,7 +123,6 @@ def serialize_exception(obj: Exception) -> Dict[str, Any]:
 
 
 def deserialize_exception(data: Dict[str, Any], **kwargs) -> Exception:
-
     return Exception(data["value"])
 
 
