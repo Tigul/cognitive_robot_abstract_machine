@@ -735,7 +735,7 @@ class UnificationDict(UserDict):
     A dictionary which maps all expressions that are on a single variable to the original variable id.
     """
 
-    def __getitem__(self, key: CanBehaveLikeAVariable[T]) -> T:
+    def __getitem__(self, key: Selectable[T]) -> T:
         key = key._id_expression_map_[key._var_._id_]
         return super().__getitem__(key)
 

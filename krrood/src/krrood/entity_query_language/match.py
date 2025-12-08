@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from functools import cached_property
 
-from typing_extensions import Optional, Type, Dict, Any, List, Union, Self, Iterable, Set
+import typing_extensions
+from typing_extensions import Optional, Type, Dict, Any, List, Union, Self, Iterable, Set, ClassVar
 
 from krrood.entity_query_language.symbolic import Exists, ResultQuantifier, An, DomainType, Variable, Flatten
 from .entity import (
@@ -18,6 +20,7 @@ from .entity import (
 )
 from .failures import NoneWrappedFieldError
 from .predicate import HasType
+from .rxnode import RWXNode, ColorLegend
 from .symbolic import (
     CanBehaveLikeAVariable,
     Attribute,
@@ -47,6 +50,55 @@ class Quantifier:
 
     def apply(self, expr: QueryObjectDescriptor) -> Union[ResultQuantifier[T], T]:
         return self.type_(_child_=expr, **self.kwargs)
+
+
+
+@dataclass
+class MatchExpression(Selectable, ABC):
+    """
+    Base class for all match expressions.
+
+    Match expressions are structured in a graph that is a higher level representation for the entity query graph.
+    """
+
+    _selected_variables_: List[Selectable] = field(
+        init=False, default_factory=list
+    )
+    """
+    A list of selected attributes.
+    """
+
+    def _set_as_selected_(self):
+        if not isinstance(self._root_, Match):
+            raise ValueError("MatchExpression must be part of a Match instance.")
+        self._root_._update_selected_variables_(self._var_)
+
+    def _update_selected_variables_(self, variable: Selectable):
+        """
+        Update the selected variables of the match by adding the given variable to the root Match selected variables.
+        """
+        if hash(variable) not in map(hash, self._root_._selected_variables_):
+            self._root_._selected_variables_.append(variable)
+
+    def __getattr__(self, item):
+        if self._attr_assignment_ is None or (item not in self._attr_assignment_.assigned_value._attributes_):
+            attr = Attribute(_child_=self._var_, _attr_name_=item, _owner_class_=self._var_._type_)
+            return AttributeAssignedMatch(self._original_match_, _attr_=attr)
+        return AttributeAssignedMatch(self._attr_assignment_.assigned_value,
+                                      self._attr_assignment_.assigned_value._attributes_[item])
+
+    def _evaluate__(self, sources: Optional[Dict[int, Any]] = None, parent: Optional[SymbolicExpression] = None) -> \
+            Iterable[OperationResult]:
+        self._eval_parent_ = parent
+        yield from self._var_._evaluate__(sources, self)
+
+    @property
+    def _name_(self) -> str:
+        return self._var_._name_
+
+    def _all_variable_instances_(self) -> List[Variable]:
+        return self._var_._all_variable_instances_
+
 
 
 @dataclass
@@ -82,12 +134,6 @@ class Match(Selectable[T]):
     _conditions_: List[ConditionType] = field(init=False, default_factory=list)
     """
     The conditions that define the match.
-    """
-    _selected_variables_: List[CanBehaveLikeAVariable] = field(
-        init=False, default_factory=list
-    )
-    """
-    A list of selected attributes.
     """
     _parent_match_: Optional[Match] = field(init=False, default=None)
     """
@@ -212,13 +258,6 @@ class Match(Selectable[T]):
 
         if not self._type_:
             self._type_ = self._variable_._type_
-
-    def _update_selected_variables_(self, variable: CanBehaveLikeAVariable):
-        """
-        Update the selected variables of the match by adding the given variable to the root Match selected variables.
-        """
-        if hash(variable) not in map(hash, self._root_match_._selected_variables_):
-            self._root_match_._selected_variables_.append(variable)
 
     @property
     def _root_match_(self) -> Match:
