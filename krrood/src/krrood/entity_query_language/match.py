@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from functools import cached_property
 
-from typing_extensions import Optional, Type, Dict, Any, List, Union, Self, Iterable, Generic
+from typing_extensions import Optional, Type, Dict, Any, List, Union, Self, Iterable, Generic, Callable
 
 from .entity import (
     ConditionType,
@@ -33,7 +33,7 @@ from .symbolic import (
     Variable,
     Flatten,
     Exists,
-    DomainType, ResultProcessor
+    DomainType, ResultProcessor, OrderByParams
 )
 from .utils import is_iterable, T
 
@@ -149,6 +149,18 @@ class AbstractMatchExpression(Generic[T], ABC):
     """
     A dictionary mapping attribute names to their corresponding AttributeMatch instances.
     """
+    _order_by: Optional[OrderByParams] = field(default=None, init=False)
+    """
+    Parameters for ordering the results of the query object descriptor.
+    """
+    _distinct: bool = field(init=False, default=False)
+    """
+    Whether to get distinct results or not.
+    """
+    _distinct_on: List[Selectable] = field(init=False, default_factory=list)
+    """
+    List of variables that need to be distinct together as a combination.
+    """
 
     def __post_init__(self):
         self.node = RWXNode(self.name, data=self)
@@ -189,6 +201,31 @@ class AbstractMatchExpression(Generic[T], ABC):
 
     def where(self, *conditions: ConditionType):
         self.conditions.extend(conditions)
+        return self
+
+    def order_by(self, variable: Selectable, descending: bool = False, key: Optional[Callable] = None) -> Self:
+        """
+        Order the results by the given variable, using the given key function in descending or ascending order.
+
+        :param variable: The variable to order by.
+        :param descending: Whether to order the results in descending order.
+        :param key: A function to extract the key from the variable value.
+        """
+        self._order_by = OrderByParams(variable, descending, key)
+        return self
+
+    def distinct(
+            self,
+            *on: Selectable[T],
+    ) -> Self:
+        """
+        Apply distinctness constraint to the query object descriptor results.
+
+        :param on: The variables to be used for distinctness.
+        :return: This query object descriptor.
+        """
+        self._distinct = True
+        self._distinct_on = list(on)
         return self
 
     @property
@@ -353,6 +390,10 @@ class Match(AbstractMatchExpression[T]):
             if not self.selected_variables:
                 self.selected_variables.append(self.variable)
             query_descriptor = entity(self.selected_variables[0], *self.conditions)
+        if self._distinct:
+            query_descriptor = query_descriptor.distinct(*self._distinct_on)
+        if self._order_by:
+            query_descriptor._order_by = self._order_by
         return self.result_processor_data.apply(query_descriptor)
 
     @property
@@ -559,17 +600,18 @@ def select(
     """
     if not variables:
         raise ValueError("select() requires at least one variable to be provided.")
+    if isinstance(variables[0], SelectableMatchExpression):
+        root = variables[0]._match_expression_.root
+    else:
+        root = variables[0].root
     for variable in variables:
         if isinstance(variable, SelectableMatchExpression):
-            variable._match_expression_.set_as_selected()
+            root.update_selected_variables(variable._match_expression_.variable)
         elif isinstance(variable, AbstractMatchExpression):
-            variable.set_as_selected()
+            root.update_selected_variables(variable.variable)
         else:
             raise WrongSelectableType(type(variable), [SelectableMatchExpression, AbstractMatchExpression])
-    if isinstance(variables[0], SelectableMatchExpression):
-        return variables[0]._match_expression_.root
-    else:
-        return variables[0].root
+    return root
 
 
 def entity_matching(

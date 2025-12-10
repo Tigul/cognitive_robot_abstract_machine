@@ -178,3 +178,42 @@ def test_unquantified_match_error(handles_and_containers_world):
     container = matching(Container).from_(world.bodies)
     with pytest.raises(UnquantifiedMatchError):
         container.size
+
+
+def test_distinct_entity():
+    names = ["Handle1", "Handle1", "Handle2", "Container1", "Container1", "Container3"]
+    body_name = a(matching(str).from_(names))
+    body_name = select(body_name).where(
+            body_name.startswith("Handle"),
+        ).distinct()
+    results = list(body_name.evaluate())
+    assert len(results) == 2
+
+
+def test_distinct_set_of():
+    handle_names = ["Handle1", "Handle1", "Handle2"]
+    container_names = ["Container1", "Container1", "Container3"]
+    handle_name = a(matching(str).from_(handle_names))
+    container_name = a(matching(str).from_(container_names))
+    query = select(handle_name, container_name).distinct()
+    results = list(query.evaluate())
+    assert len(results) == 4
+    assert set(tuple(r.values()) for r in results) == {
+        (handle_names[0], container_names[0]),
+        (handle_names[0], container_names[2]),
+        (handle_names[2], container_names[0]),
+        (handle_names[2], container_names[2]),
+    }
+
+
+def test_distinct_on():
+    handle_names = ["Handle1", "Handle1", "Handle2"]
+    container_names = ["Container1", "Container1", "Container3"]
+    handle_name = let(str, domain=handle_names)
+    container_name = let(str, domain=container_names)
+    query = a(set_of((handle_name, container_name)).distinct(handle_name))
+    results = list(query.evaluate())
+    assert len(results) == 2
+    assert set(tuple(r.values()) for r in results) == {
+        (handle_names[0], container_names[0]),
+        (handle_names[2], container_names[0]),}

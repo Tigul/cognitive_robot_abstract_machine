@@ -151,6 +151,7 @@ class CannotProcessResultOfGivenChildType(UsageError):
     """
     The unsupported child type.
     """
+
     def __post_init__(self):
         self.message = (f"The child type {self.unsupported_child_type} cannot have its results processed"
                         f" during evaluation because it doesn't implement the `_process_result_` method.")
@@ -270,6 +271,7 @@ class InvalidChildType(UsageError):
             f"The child type {self.invalid_child_type} is not valid. It must be a subclass of {self.correct_child_types}"
         )
         super().__post_init__()
+
 
 @dataclass
 class InvalidEntityType(InvalidChildType):
