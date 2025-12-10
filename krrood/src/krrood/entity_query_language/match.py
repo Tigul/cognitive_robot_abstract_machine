@@ -73,7 +73,8 @@ class SelectableMatchExpression(CanBehaveLikeAVariable[T]):
 
     def __post_init__(self):
         """
-        This is to avoid running __post_init__ of C
+        This is to avoid running __post_init__ of the BaseClass CanBehaveLikeAVariable and to set _var_, _node_, and
+        _id_ manually from the match_expression.
         """
         self._var_ = self._match_expression_.variable
         self._node_ = self._var_._node_
@@ -86,9 +87,12 @@ class SelectableMatchExpression(CanBehaveLikeAVariable[T]):
         return self._match_expression_.evaluate()
 
     def __getattr__(self, item):
-        if item not in self._attribute_match_expressions_:
+        if item not in self._match_expression_.attribute_matches:
             attr = Attribute(_child_=self._var_, _attr_name_=item, _owner_class_=self._match_expression_.type)
             attribute_expression = AttributeMatch(parent=self._match_expression_, attr_name=item, variable=attr)
+            self._match_expression_.attribute_matches[item] = attribute_expression
+        if item not in self._attribute_match_expressions_:
+            attribute_expression = self._match_expression_.attribute_matches[item]
             selectable_attribute_expression = SelectableMatchExpression(_match_expression_=attribute_expression)
             self._attribute_match_expressions_[item] = selectable_attribute_expression
         return self._attribute_match_expressions_[item]
@@ -139,6 +143,10 @@ class AbstractMatchExpression(Generic[T], ABC):
     node: Optional[RWXNode] = field(init=False, default=None)
     """
     The RWXNode representing the match expression in the match query graph.
+    """
+    attribute_matches: Dict[str, AttributeMatch] = field(init=False, default_factory=dict)
+    """
+    A dictionary mapping attribute names to their corresponding AttributeMatch instances.
     """
 
     def __post_init__(self):
@@ -273,6 +281,7 @@ class Match(AbstractMatchExpression[T]):
             attr_match = AttributeMatch(
                 parent=self, attr_name=attr_name, assigned_value=attr_assigned_value
             )
+            self.attribute_matches[attr_name] = attr_match
             if attr_match.is_an_unresolved_match:
                 attr_match.resolve(self)
                 self.conditions.extend(attr_match.conditions)
