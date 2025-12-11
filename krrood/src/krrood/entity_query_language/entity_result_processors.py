@@ -118,6 +118,5 @@ def _apply_result_processor(
     if isinstance(variable, Match):
         return variable.apply_result_processor(result_processor, **result_processor_kwargs)
     elif isinstance(variable, SelectableMatchExpression):
-        variable._match_expression_.root.apply_result_processor(result_processor, **result_processor_kwargs)
-        return variable._match_expression_
+        return variable._match_expression_.apply_result_processor(result_processor, **result_processor_kwargs)
     return result_processor(_child_=variable, **result_processor_kwargs)

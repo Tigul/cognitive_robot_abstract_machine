@@ -52,7 +52,7 @@ class ResultProcessorData:
     The keyword arguments to pass to the result processor.
     """
 
-    def apply(self, expr: QueryObjectDescriptor) -> Union[ResultProcessor[T], T]:
+    def apply(self, expr: Selectable[T]) -> Union[ResultProcessor[T], T]:
         return self.type_(_child_=expr, **self.kwargs)
 
 
@@ -176,12 +176,6 @@ class AbstractMatchExpression(Generic[T], ABC):
     """
     The result processor data to be applied to the match expression.
     """
-    selected_variables: List[Selectable] = field(
-        init=False, default_factory=list
-    )
-    """
-    A list of selected attributes.
-    """
     selectable_match: Optional[SelectableMatchExpression] = field(init=False, default=None)
     """
     The selectable match expression of this match.
@@ -192,26 +186,13 @@ class AbstractMatchExpression(Generic[T], ABC):
         if self.parent:
             self.node.parent = self.parent.node
 
-    @property
+    @cached_property
+    @abstractmethod
     def expression(self) -> Union[ResultQuantifier[T], T]:
         """
         Return the entity expression corresponding to the match query.
         """
-        if not self.variable:
-            self.resolve()
-        if len(self.selected_variables) > 1:
-            query_descriptor = set_of(self.selected_variables, *self.conditions)
-        else:
-            if self.selected_variables:
-                variable = self.selected_variables[0]
-            else:
-                variable = self.variable
-            query_descriptor = entity(variable, *self.conditions)
-        if self._distinct:
-            query_descriptor = query_descriptor.distinct(*self._distinct_on)
-        if self._order_by:
-            query_descriptor._order_by = self._order_by
-        return self.result_processor_data.apply(query_descriptor)
+        ...
 
     def apply_result_processor(
             self, result_processor: Type[ResultProcessor[T]], **result_processor_kwargs
@@ -248,47 +229,6 @@ class AbstractMatchExpression(Generic[T], ABC):
         if self.variable is None:
             return None
         return self.variable._type_
-
-    def set_as_selected(self):
-        if not isinstance(self.root, Match):
-            raise ValueError("MatchExpression must be part of a Match instance.")
-        self.root.update_selected_variables(self.variable)
-
-    def update_selected_variables(self, variable: Selectable):
-        """
-        Update the selected variables of the match by adding the given variable to the root Match selected variables.
-        """
-        if hash(variable) not in map(hash, self.root.selected_variables):
-            self.root.selected_variables.append(variable)
-
-    def where(self, *conditions: ConditionType):
-        self.conditions.extend(conditions)
-        return self
-
-    def order_by(self, variable: Selectable, descending: bool = False, key: Optional[Callable] = None) -> Self:
-        """
-        Order the results by the given variable, using the given key function in descending or ascending order.
-
-        :param variable: The variable to order by.
-        :param descending: Whether to order the results in descending order.
-        :param key: A function to extract the key from the variable value.
-        """
-        self._order_by = OrderByParams(variable, descending, key)
-        return self
-
-    def distinct(
-            self,
-            *on: Selectable[T],
-    ) -> Self:
-        """
-        Apply distinctness constraint to the query object descriptor results.
-
-        :param on: The variables to be used for distinctness.
-        :return: This query object descriptor.
-        """
-        self._distinct = True
-        self._distinct_on = list(on)
-        return self
 
     @property
     def root(self) -> Match:
@@ -337,6 +277,16 @@ class Match(AbstractMatchExpression[T]):
         """
         self.kwargs = kwargs
         return self
+
+    @cached_property
+    def expression(self) -> Union[ResultQuantifier[T], T]:
+        """
+        Return the entity expression corresponding to the match query.
+        """
+        if not self.variable:
+            self.resolve()
+        query_descriptor = entity(self.variable, *self.conditions)
+        return self.result_processor_data.apply(query_descriptor)
 
     def __getattr__(self, item):
         """
@@ -450,6 +400,15 @@ class AttributeMatch(AbstractMatchExpression[T]):
     """
     The flattened attribute if the attribute is an iterable and has been flattened.
     """
+
+    @cached_property
+    def expression(self) -> Union[ResultQuantifier[T], T]:
+        """
+        Return the entity expression corresponding to the match query.
+        """
+        if not self.variable:
+            self.resolve()
+        return self.result_processor_data.apply(self.variable)
 
     def resolve(self, parent_match: Optional[Match] = None,):
         """
@@ -586,6 +545,62 @@ class AttributeMatch(AbstractMatchExpression[T]):
 
     def __str__(self):
         return self.name
+
+
+@dataclass(eq=False)
+class Select(AbstractMatchExpression[T]):
+    selected_variables: List[Selectable]
+    """
+    A list of selected variables.
+    """
+
+    @cached_property
+    def expression(self) -> Union[ResultQuantifier[T], T]:
+        if len(self.selected_variables) > 1:
+            query_descriptor = set_of(self.selected_variables, *self.conditions)
+        else:
+            query_descriptor = entity(self.selected_variables[0], *self.conditions)
+        if self._distinct:
+            query_descriptor = query_descriptor.distinct(*self._distinct_on)
+        if self._order_by:
+            query_descriptor._order_by = self._order_by
+        return self.result_processor_data.apply(query_descriptor)
+
+    def resolve(self, *args, **kwargs):
+        pass
+
+    def where(self, *conditions: ConditionType) -> Self:
+        self.conditions.extend(conditions)
+        return self
+
+    def order_by(self, variable: Selectable, descending: bool = False, key: Optional[Callable] = None) -> Self:
+        """
+        Order the results by the given variable, using the given key function in descending or ascending order.
+
+        :param variable: The variable to order by.
+        :param descending: Whether to order the results in descending order.
+        :param key: A function to extract the key from the variable value.
+        """
+        self._order_by = OrderByParams(variable, descending, key)
+        return self
+
+    def distinct(
+            self,
+            *on: Selectable[T],
+    ) -> Self:
+        """
+        Apply distinctness constraint to the query object descriptor results.
+
+        :param on: The variables to be used for distinctness.
+        :return: This query object descriptor.
+        """
+        self._distinct = True
+        self._distinct_on = list(on)
+        return self
+
+    @property
+    def name(self) -> str:
+        return f"Select({','.join(map(str, self.selected_variables))})"
 
 
 def matching(
