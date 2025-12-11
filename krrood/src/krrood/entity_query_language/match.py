@@ -85,7 +85,7 @@ class SelectableMatchExpression(CanBehaveLikeAVariable[T]):
         """
         Evaluate the match expression and return the result.
         """
-        return self._match_expression_.evaluate()
+        return self._match_expression_.expression.evaluate()
 
     def __getattr__(self, name):
         # Prevent debugger/private attribute lookups from being interpreted as symbolic attributes
@@ -94,7 +94,7 @@ class SelectableMatchExpression(CanBehaveLikeAVariable[T]):
                 f"{self.__class__.__name__} object has no attribute {name}"
             )
         if name not in self._match_expression_.attribute_matches:
-            attr = Attribute(_child_=self._var_, _attr_name_=name, _owner_class_=self._match_expression_.type)
+            attr = getattr(self._match_expression_.expression, name)
             attribute_expression = AttributeMatch(parent=self._match_expression_, attr_name=name, variable=attr)
             self._match_expression_.attribute_matches[name] = attribute_expression
         if name not in self._selectable_attribute_matches_:
@@ -172,11 +172,62 @@ class AbstractMatchExpression(Generic[T], ABC):
     """
     List of variables that need to be distinct together as a combination.
     """
+    result_processor_data: Optional[ResultProcessorData] = field(init=False, default_factory=lambda: ResultProcessorData(An))
+    """
+    The result processor data to be applied to the match expression.
+    """
+    selected_variables: List[Selectable] = field(
+        init=False, default_factory=list
+    )
+    """
+    A list of selected attributes.
+    """
+    selectable_match: Optional[SelectableMatchExpression] = field(init=False, default=None)
+    """
+    The selectable match expression of this match.
+    """
 
     def __post_init__(self):
         self.node = RWXNode(self.name, data=self)
         if self.parent:
             self.node.parent = self.parent.node
+
+    @property
+    def expression(self) -> Union[ResultQuantifier[T], T]:
+        """
+        Return the entity expression corresponding to the match query.
+        """
+        if not self.variable:
+            self.resolve()
+        if len(self.selected_variables) > 1:
+            query_descriptor = set_of(self.selected_variables, *self.conditions)
+        else:
+            if self.selected_variables:
+                variable = self.selected_variables[0]
+            else:
+                variable = self.variable
+            query_descriptor = entity(variable, *self.conditions)
+        if self._distinct:
+            query_descriptor = query_descriptor.distinct(*self._distinct_on)
+        if self._order_by:
+            query_descriptor._order_by = self._order_by
+        return self.result_processor_data.apply(query_descriptor)
+
+    def apply_result_processor(
+            self, result_processor: Type[ResultProcessor[T]], **result_processor_kwargs
+    ) -> Union[ResultProcessor[T], T]:
+        """
+        Record the result processor to be applied to the result of the match.
+        """
+        self.result_processor_data = ResultProcessorData(result_processor, result_processor_kwargs)
+        self.resolve()
+        if self.selectable_match is None:
+            self.selectable_match = SelectableMatchExpression(_match_expression_=self)
+        return self.selectable_match
+
+    @abstractmethod
+    def resolve(self, *args, **kwargs):
+        ...
 
     @property
     @abstractmethod
@@ -272,23 +323,9 @@ class Match(AbstractMatchExpression[T]):
     """
     The keyword arguments to match against.
     """
-    result_processor_data: Optional[ResultProcessorData] = field(init=False, default_factory=lambda: ResultProcessorData(An))
-    """
-    The result processor data to be applied to the match expression.
-    """
-    selected_variables: List[Selectable] = field(
-        init=False, default_factory=list
-    )
-    """
-    A list of selected attributes.
-    """
     resolved: bool = field(init=False, default=False)
     """
     Whether the match is resolved or not.
-    """
-    selectable_match: Optional[SelectableMatchExpression] = field(init=False, default=None)
-    """
-    The selectable match expression of this match.
     """
 
     def __call__(self, **kwargs) -> Union[Self, T, CanBehaveLikeAVariable[T]]:
@@ -308,18 +345,6 @@ class Match(AbstractMatchExpression[T]):
         if item.startswith("__"):
             raise AttributeError(item)
         raise UnquantifiedMatchError(self)
-
-    def apply_result_processor(
-            self, result_processor: Type[ResultProcessor[T]], **result_processor_kwargs
-    ) -> Union[ResultProcessor[T], T]:
-        """
-        Record the result processor to be applied to the result of the match.
-        """
-        self.result_processor_data = ResultProcessorData(result_processor, result_processor_kwargs)
-        self.resolve()
-        if self.selectable_match is None:
-            self.selectable_match = SelectableMatchExpression(_match_expression_=self)
-        return self.selectable_match
 
     def from_(self, domain: DomainType):
         """
@@ -389,25 +414,6 @@ class Match(AbstractMatchExpression[T]):
         return self.expression.evaluate()
 
     @property
-    def expression(self) -> Union[ResultQuantifier[T], T]:
-        """
-        Return the entity expression corresponding to the match query.
-        """
-        if not self.variable:
-            self.resolve()
-        if len(self.selected_variables) > 1:
-            query_descriptor = set_of(self.selected_variables, *self.conditions)
-        else:
-            if not self.selected_variables:
-                self.selected_variables.append(self.variable)
-            query_descriptor = entity(self.selected_variables[0], *self.conditions)
-        if self._distinct:
-            query_descriptor = query_descriptor.distinct(*self._distinct_on)
-        if self._order_by:
-            query_descriptor._order_by = self._order_by
-        return self.result_processor_data.apply(query_descriptor)
-
-    @property
     def name(self) -> str:
         return f"Match({self.type})"
 
@@ -445,13 +451,15 @@ class AttributeMatch(AbstractMatchExpression[T]):
     The flattened attribute if the attribute is an iterable and has been flattened.
     """
 
-    def resolve(self, parent_match: Match):
+    def resolve(self, parent_match: Optional[Match] = None,):
         """
         Resolve the attribute assignment by creating the conditions and applying the necessary mappings
         to the attribute.
 
         :param parent_match: The parent match of the attribute assignment.
         """
+        if self.variable is not None:
+            return
         possibly_flattened_attr = self.attribute
         if self.attribute._is_iterable_ and (
                 self.assigned_value.kwargs or self.is_type_filter_needed
@@ -493,7 +501,7 @@ class AttributeMatch(AbstractMatchExpression[T]):
                 self.attribute._is_iterable_
                 and self.is_iterable_value
                 and not (
-                isinstance(self.assigned_value, Match) and self.assigned_value.universal
+                isinstance(self.assigned_value, AbstractMatchExpression) and self.assigned_value.universal
         )
         ):
             self.flattened_attribute = flatten(self.attribute)
@@ -501,7 +509,7 @@ class AttributeMatch(AbstractMatchExpression[T]):
         else:
             condition = self.attribute == self.assigned_variable
 
-        if isinstance(self.assigned_value, Match) and self.assigned_value.existential:
+        if isinstance(self.assigned_value, AbstractMatchExpression) and self.assigned_value.existential:
             condition = exists(self.attribute, condition)
 
         return condition
@@ -513,7 +521,7 @@ class AttributeMatch(AbstractMatchExpression[T]):
         """
         return (
             self.assigned_value.variable
-            if isinstance(self.assigned_value, Match)
+            if isinstance(self.assigned_value, AbstractMatchExpression)
             else self.assigned_value
         )
 
@@ -537,7 +545,7 @@ class AttributeMatch(AbstractMatchExpression[T]):
         :return: True if the value is an unresolved Match instance, else False.
         """
         return (
-                isinstance(self.assigned_value, Match) and not self.assigned_value.variable
+                isinstance(self.assigned_value, AbstractMatchExpression) and not self.assigned_value.variable
         )
 
     @cached_property
@@ -547,12 +555,12 @@ class AttributeMatch(AbstractMatchExpression[T]):
         """
         if isinstance(self.assigned_value, Selectable):
             return self.assigned_value._is_iterable_
-        elif not isinstance(self.assigned_value, Match) and is_iterable(
+        elif not isinstance(self.assigned_value, AbstractMatchExpression) and is_iterable(
                 self.assigned_value
         ):
             return True
         elif (
-                isinstance(self.assigned_value, Match)
+                isinstance(self.assigned_value, AbstractMatchExpression)
                 and self.assigned_value.variable._is_iterable_
         ):
             return True
