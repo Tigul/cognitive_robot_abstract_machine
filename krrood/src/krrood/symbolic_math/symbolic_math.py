@@ -576,6 +576,60 @@ class FloatVariable(SymbolicType):
         """
         return _np.nan
 
+    def __bool__(self) -> bool:
+        """
+        Python's default behavior would be to return True, because the object is not None.
+        We don't want that, given that constant Expressions are properly evaluated.
+        """
+        raise HasFreeVariablesError(self.free_variables())
+
+    def __add__(self, other: Scalar | FloatVariable) -> Scalar:
+        return Scalar.from_casadi_sx(self.casadi_sx + other.casadi_sx)
+
+    def __sub__(self, other: Scalar | FloatVariable) -> Scalar:
+        return Scalar.from_casadi_sx(self.casadi_sx - other.casadi_sx)
+
+    def __mul__(self, other: Scalar | FloatVariable) -> Scalar:
+        return Scalar.from_casadi_sx(self.casadi_sx * other.casadi_sx)
+
+    def __truediv__(self, other: Scalar | FloatVariable) -> Scalar:
+        return Scalar.from_casadi_sx(self.casadi_sx / other.casadi_sx)
+
+    def __pow__(self, other: Scalar | FloatVariable) -> Scalar:
+        return Scalar.from_casadi_sx(self.casadi_sx**other.casadi_sx)
+
+    def __floordiv__(self, other: Scalar | FloatVariable) -> Scalar:
+        return Scalar.from_casadi_sx(_ca.floor(self.casadi_sx / other.casadi_sx))
+
+    def __mod__(self, other: Scalar | FloatVariable) -> Scalar:
+        return fmod(self, other)
+
+    # %% Boolean operations
+    def __invert__(self) -> Scalar:
+        return Scalar.from_casadi_sx(~self.casadi_sx)
+
+    def __and__(self, other: Scalar | FloatVariable) -> Scalar:
+        return Scalar.from_casadi_sx(self.casadi_sx & other.casadi_sx)
+
+    def __or__(self, other: Scalar | FloatVariable) -> Scalar:
+        return Scalar.from_casadi_sx(self.casadi_sx | other.casadi_sx)
+
+    # %% Comparison operations
+    def __eq__(self, other: Scalar | FloatVariable) -> Scalar:
+        return Scalar.from_casadi_sx(self.casadi_sx.__eq__(other.casadi_sx))
+
+    def __le__(self, other: Scalar | FloatVariable) -> Scalar:
+        return Scalar.from_casadi_sx(self.casadi_sx.__le__(other.casadi_sx))
+
+    def __lt__(self, other: Scalar | FloatVariable) -> Scalar:
+        return Scalar.from_casadi_sx(self.casadi_sx.__lt__(other.casadi_sx))
+
+    def __ge__(self, other: Scalar | FloatVariable) -> Scalar:
+        return Scalar.from_casadi_sx(self.casadi_sx.__ge__(other.casadi_sx))
+
+    def __gt__(self, other: Scalar | FloatVariable) -> Scalar:
+        return Scalar.from_casadi_sx(self.casadi_sx.__gt__(other.casadi_sx))
+
 
 @_dataclasses.dataclass(eq=False)
 class Expression(SymbolicType):
@@ -1177,6 +1231,13 @@ class Matrix(Expression):
         return result
 
 
+def _create_return_type(input_type: SymbolicType) -> _te.Type[SymbolicType]:
+    if isinstance(input_type, (FloatVariable, int, float, bool, _IntEnum)):
+        return Scalar
+    else:
+        return type(input_type)
+
+
 def create_float_variables(
     names: _te.Union[_te.List[str], int],
 ) -> _te.List[FloatVariable]:
@@ -1229,11 +1290,11 @@ def abs(x: SymbolicType) -> Expression:
 
 
 def max(x: Scalar, y: Scalar) -> Scalar:
-    return type(x).from_casadi_sx(_ca.fmax(x.casadi_sx, y.casadi_sx))
+    return _create_return_type(x).from_casadi_sx(_ca.fmax(x.casadi_sx, y.casadi_sx))
 
 
 def min(x: Scalar, y: Scalar) -> Scalar:
-    return type(x).from_casadi_sx(_ca.fmin(x.casadi_sx, y.casadi_sx))
+    return _create_return_type(x).from_casadi_sx(_ca.fmin(x.casadi_sx, y.casadi_sx))
 
 
 def limit(
@@ -1247,7 +1308,7 @@ def dot(e1: Expression, e2: Expression) -> Expression:
 
 
 def fmod(a: GenericSymbolicType, b: Scalar) -> GenericSymbolicType:
-    return type(a).from_casadi_sx(_ca.fmod(to_sx(a), to_sx(b)))
+    return _create_return_type(a).from_casadi_sx(_ca.fmod(to_sx(a), to_sx(b)))
 
 
 def sum(*expressions: ScalarData) -> Expression:
@@ -1255,11 +1316,11 @@ def sum(*expressions: ScalarData) -> Expression:
 
 
 def floor(x: GenericSymbolicType) -> GenericSymbolicType:
-    return type(x).from_casadi_sx(_ca.floor(to_sx(x)))
+    return _create_return_type(x).from_casadi_sx(_ca.floor(to_sx(x)))
 
 
 def ceil(x: GenericSymbolicType) -> GenericSymbolicType:
-    return type(x).from_casadi_sx(_ca.ceil(to_sx(x)))
+    return _create_return_type(x).from_casadi_sx(_ca.ceil(to_sx(x)))
 
 
 def sign(x: ScalarData) -> Expression:
@@ -1632,12 +1693,6 @@ def trinary_logic_to_str(expression: Expression) -> str:
 # %% ifs
 
 
-def _create_return_type_for_if(if_result) -> _te.Type[SymbolicType]:
-    if isinstance(if_result, (int, float, FloatVariable)):
-        return Expression
-    return type(if_result)
-
-
 def if_else(
     condition: ScalarData,
     if_result: GenericSymbolicType,
@@ -1657,7 +1712,7 @@ def if_else(
         else_result = Expression(data=else_result)
     if_result_sx = to_sx(if_result)
     else_result_sx = to_sx(else_result)
-    return_type = _create_return_type_for_if(if_result)
+    return_type = _create_return_type(if_result)
     return return_type.from_casadi_sx(
         _ca.if_else(condition, if_result_sx, else_result_sx)
     )
@@ -1817,7 +1872,7 @@ def if_eq_cases(
         b_sx = to_sx(b)
         b_result_sx = to_sx(b_result)
         result_sx = _ca.if_else(_ca.eq(a_sx, b_sx), b_result_sx, result_sx)
-    return _create_return_type_for_if(a).from_casadi_sx(result_sx)
+    return _create_return_type(a).from_casadi_sx(result_sx)
 
 
 def if_cases(
@@ -1838,7 +1893,7 @@ def if_cases(
         case = to_sx(cases[i][0])
         case_result = to_sx(cases[i][1])
         result_sx = _ca.if_else(case, case_result, result_sx)
-    return _create_return_type_for_if(else_result).from_casadi_sx(result_sx)
+    return _create_return_type(else_result).from_casadi_sx(result_sx)
 
 
 def if_less_eq_cases(
@@ -1862,7 +1917,7 @@ def if_less_eq_cases(
         b_sx = to_sx(b_result_cases[i][0])
         b_result_sx = to_sx(b_result_cases[i][1])
         result_sx = _ca.if_else(_ca.le(a_sx, b_sx), b_result_sx, result_sx)
-    return _create_return_type_for_if(a).from_casadi_sx(result_sx)
+    return _create_return_type(a).from_casadi_sx(result_sx)
 
 
 # %% type hints

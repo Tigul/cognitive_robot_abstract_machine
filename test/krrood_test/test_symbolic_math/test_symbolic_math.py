@@ -116,7 +116,7 @@ class TestIfElse:
                 result = if_function(c, if_result, else_result)
                 result_type = type(result)
                 if isinstance(if_result, cas.FloatVariable):
-                    assert result_type == cas.Expression
+                    assert result_type == cas.Scalar
                     continue
                 assert isinstance(
                     result, result_type
@@ -141,7 +141,7 @@ class TestIfElse:
                 result = if_function(a, b, if_result, else_result)
                 result_type = type(result)
                 if isinstance(if_result, cas.FloatVariable):
-                    assert result_type == cas.Expression
+                    assert result_type == cas.Scalar
                     continue
                 assert isinstance(
                     result, result_type
@@ -292,31 +292,52 @@ class TestIfElse:
 class TestFloatVariable:
     def test_bool_casting(self):
         v = cas.FloatVariable(name="v")
-        v2 = cas.FloatVariable(name="v2")
-        v3 = cas.FloatVariable(name="v3")
+        with pytest.raises(HasFreeVariablesError):
+            bool(v)
 
-        # simple casting cases of constants
-        assert cas.BinaryTrue
-        assert not cas.BinaryFalse
+    def test_float_casting(self):
+        v = cas.FloatVariable(name="v")
+        with pytest.raises(TypeError):
+            # noinspection PyTypeChecker
+            float(v)
 
-        # "and" and "or" are smart and will simply const True/False away.
-        assert not (v and cas.BinaryFalse)
-        assert v or cas.BinaryTrue
+    def test_arithmetic_operations(self):
+        operators = [
+            operator.add,
+            operator.sub,
+            operator.mul,
+            operator.truediv,
+            operator.pow,
+            operator.floordiv,
+            operator.mod,
+        ]
+        s1 = cas.FloatVariable(name="muh")
+        s2 = cas.FloatVariable(name="kikariki")
+        for op in operators:
+            result = op(s1, s2)
+            assert isinstance(result, cas.Scalar), f"{op.__name__} result is not Scalar"
+            f = result.compile()
+            assert f.call_with_kwargs(muh=1, kikariki=2) == op(
+                1, 2
+            ), f"{op.__name__} result is wrong"
 
-        # the == calls __eq__ which returns an expression.
-        assert v == v
-        assert v != v2
-
-        # "in" is calling __eq__ which creates, e.g., v == v, bool casting of eq works and will return False for first eq and True for second
-        assert v2 in [v, v2, v3]
-        assert v not in [v2, v3]
-
-        # const logical expressions can be evaluated
-        assert cas.Expression(10) > cas.Expression(5)
-
-        # here bool is called on v and returns it if it is True, otherwise it would return v2
-        # this is the "normal" behavior for python objects
-        assert (v or v2) == v
+    def test_comparison_operations(self):
+        operators = [
+            operator.eq,
+            operator.lt,
+            operator.le,
+            operator.gt,
+            operator.ge,
+        ]
+        s1 = cas.FloatVariable(name="muh")
+        s2 = cas.FloatVariable(name="kikariki")
+        for op in operators:
+            result = op(s1, s2)
+            assert isinstance(result, cas.Scalar), f"{op.__name__} result is not Scalar"
+            f = result.compile()
+            assert f.call_with_kwargs(muh=1, kikariki=2) == op(
+                1, 2
+            ), f"{op.__name__} result is wrong"
 
     def test_back_reference(self):
         v = cas.FloatVariable(name="asdf")
@@ -342,129 +363,6 @@ class TestFloatVariable:
         s1 = cas.FloatVariable(name="s1")
         with pytest.raises(HasFreeVariablesError):
             s1.to_np()
-
-    def test_add(self):
-        s = cas.FloatVariable(name="muh")
-        # int float addition is fine
-        assert isinstance(s + 1, cas.Expression)
-        assert isinstance(1 + s, cas.Expression)
-        assert isinstance(s + 1.0, cas.Expression)
-        assert isinstance(1.0 + s, cas.Expression)
-
-        assert isinstance(s + s, cas.Expression)
-
-        e = cas.Expression(data=1)
-        assert isinstance(e + s, cas.Expression)
-        assert isinstance(s + e, cas.Expression)
-
-    def test_sub(self):
-        s = cas.FloatVariable(name="muh")
-        # int float addition is fine
-        assert isinstance(s - 1, cas.Expression)
-        assert isinstance(1 - s, cas.Expression)
-        assert isinstance(s - 1.0, cas.Expression)
-        assert isinstance(1.0 - s, cas.Expression)
-
-        assert isinstance(s - s, cas.Expression)
-
-        e = cas.Expression(data=1)
-        assert isinstance(e - s, cas.Expression)
-        assert isinstance(s - e, cas.Expression)
-
-    def test_mul(self):
-        s = cas.FloatVariable(name="muh")
-        # int float addition is fine
-        assert isinstance(s * 1, cas.Expression)
-        assert isinstance(1 * s, cas.Expression)
-        assert isinstance(s * 1.0, cas.Expression)
-        assert isinstance(1.0 * s, cas.Expression)
-
-        assert isinstance(s * s, cas.Expression)
-
-        e = cas.Expression()
-        assert isinstance(e * s, cas.Expression)
-        assert isinstance(s * e, cas.Expression)
-
-    def test_truediv(self):
-        s = cas.FloatVariable(name="muh")
-        # int float addition is fine
-        assert isinstance(s / 1, cas.Expression)
-        assert isinstance(1 / s, cas.Expression)
-        assert isinstance(s / 1.0, cas.Expression)
-        assert isinstance(1.0 / s, cas.Expression)
-
-        assert isinstance(s / s, cas.Expression)
-
-        e = cas.Expression(data=1)
-        assert isinstance(e / s, cas.Expression)
-        assert isinstance(s / e, cas.Expression)
-
-    def test_lt(self):
-        s = cas.FloatVariable(name="muh")
-        # int float addition is fine
-        assert isinstance(s < 1, cas.Expression)
-        assert isinstance(1 < s, cas.Expression)
-        assert isinstance(s < 1.0, cas.Expression)
-        assert isinstance(1.0 < s, cas.Expression)
-
-        assert isinstance(s < s, cas.Expression)
-
-        e = cas.Expression(data=1)
-        assert isinstance(e < s, cas.Expression)
-        assert isinstance(s < e, cas.Expression)
-
-    def test_pow(self):
-        s = cas.FloatVariable(name="muh")
-        # int float addition is fine
-        assert isinstance(s**1, cas.Expression)
-        assert isinstance(1**s, cas.Expression)
-        assert isinstance(s**1.0, cas.Expression)
-        assert isinstance(1.0**s, cas.Expression)
-
-        assert isinstance(s**s, cas.Expression)
-
-        e = cas.Expression()
-        assert isinstance(e**s, cas.Expression)
-        assert isinstance(s**e, cas.Expression)
-
-    def test_simple_math(self):
-        s = cas.FloatVariable(name="muh")
-        e = s + s
-        assert isinstance(e, cas.Expression)
-        e = s - s
-        assert isinstance(e, cas.Expression)
-        e = s * s
-        assert isinstance(e, cas.Expression)
-        e = s / s
-        assert isinstance(e, cas.Expression)
-        e = s**s
-        assert isinstance(e, cas.Expression)
-
-    def test_comparisons(self):
-        s = cas.FloatVariable(name="muh")
-        e = s > s
-        assert isinstance(e, cas.Expression)
-        e = s >= s
-        assert isinstance(e, cas.Expression)
-        e = s < s
-        assert isinstance(e, cas.Expression)
-        e = s <= s
-        assert isinstance(e, cas.Expression)
-        e = s == s
-        assert isinstance(e, cas.Expression)
-
-    def test_logic(self):
-        s1 = cas.FloatVariable(name="s1")
-        s2 = cas.FloatVariable(name="s2")
-        s3 = cas.FloatVariable(name="s3")
-        e = s1 | s2
-        assert isinstance(e, cas.Expression)
-        e = s1 & s2
-        assert isinstance(e, cas.Expression)
-        e = ~s1
-        assert isinstance(e, cas.Expression)
-        e = s1 & (s2 | ~s3)
-        assert isinstance(e, cas.Expression)
 
     def test_hash(self):
         s = cas.FloatVariable(name="muh")
