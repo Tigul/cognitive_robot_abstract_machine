@@ -75,7 +75,7 @@ class CompiledFunction:
     parameter substitution automatically.
     """
 
-    expression: SymbolicType
+    expression: SymbolicMathType
     """
     The symbolic expression to compile.
     """
@@ -387,7 +387,7 @@ class CompiledFunctionWithViews:
 
 
 @_dataclasses.dataclass(eq=False)
-class SymbolicType(Symbol):
+class SymbolicMathType(Symbol):
     """
     A wrapper around CasADi's _ca.SX, with better usability
     """
@@ -592,7 +592,7 @@ class SymbolicType(Symbol):
 
 
 @_dataclasses.dataclass(eq=False)
-class FloatVariable(SymbolicType):
+class FloatVariable(SymbolicMathType):
     """
     A symbolic expression representing a single float variable.
     No matrix and no numbers.
@@ -751,7 +751,7 @@ class FloatVariable(SymbolicType):
 
 
 @_dataclasses.dataclass(eq=False)
-class Expression(SymbolicType):
+class Expression(SymbolicMathType):
     """
     Represents symbolic expressions with rich mathematical capabilities, including matrix
     operations, derivatives, and manipulation of symbolic representations.
@@ -774,10 +774,10 @@ class Expression(SymbolicType):
                 NumericalScalar,
                 NumericalVector,
                 NumericalMatrix,
-                SymbolicType,
+                SymbolicMathType,
                 _te.Iterable[FloatVariable],
-                _te.Iterable[SymbolicType],
-                _te.Iterable[_te.Iterable[SymbolicType]],
+                _te.Iterable[SymbolicMathType],
+                _te.Iterable[_te.Iterable[SymbolicMathType]],
             ]
         ]
     ] = None
@@ -798,7 +798,7 @@ class Expression(SymbolicType):
             return
         if isinstance(data, _ca.SX):
             self.casadi_sx = data
-        elif isinstance(data, SymbolicType):
+        elif isinstance(data, SymbolicMathType):
             self.casadi_sx = data.casadi_sx
         elif isinstance(data, _te.Iterable):
             self._from_iterable(data)
@@ -1548,7 +1548,7 @@ class Matrix(Expression):
         return Matrix(_ca.kron(m1, m2))
 
 
-def _create_return_type(input_type: SymbolicType) -> _te.Type[SymbolicType]:
+def _create_return_type(input_type: SymbolicMathType) -> _te.Type[SymbolicMathType]:
     if isinstance(input_type, (FloatVariable, int, float, bool, _IntEnum)):
         return Scalar
     else:
@@ -1561,12 +1561,12 @@ def to_sx(
         | NumericalVector
         | NumericalMatrix
         | _te.Iterable[FloatVariable]
-        | SymbolicType
+        | SymbolicMathType
     ),
 ) -> _ca.SX:
     if isinstance(data, _ca.SX):
         return data
-    if isinstance(data, SymbolicType):
+    if isinstance(data, SymbolicMathType):
         return _copy.copy(data.casadi_sx)
     if isinstance(data, NumericalScalar):
         return _ca.SX(data)
@@ -2200,7 +2200,7 @@ MatrixData = NumericalMatrix | Matrix
 
 GenericSymbolicType = _te.TypeVar(
     "GenericSymbolicType",
-    bound=SymbolicType,
+    bound=SymbolicMathType,
 )
 
 GenericVectorOrMatrixType = _te.TypeVar(

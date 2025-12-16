@@ -11,7 +11,7 @@ import semantic_digital_twin.spatial_types.spatial_types as cas
 from .reference_implementations import shortest_angular_distance
 
 all_expressions_float_np = Union[
-    cas.SymbolicType, float, np.ndarray, Iterable[float], Iterable[Iterable[float]]
+    cas.SymbolicMathType, float, np.ndarray, Iterable[float], Iterable[Iterable[float]]
 ]
 
 

@@ -25,7 +25,7 @@ if TYPE_CHECKING:
         WorldEntity,
         KinematicStructureEntity,
     )
-    from .spatial_types.spatial_types import FloatVariable, SymbolicType
+    from .spatial_types.spatial_types import FloatVariable, SymbolicMathType
 
 
 @dataclass
@@ -194,7 +194,7 @@ class NotJsonSerializable(JSONSerializationError): ...
 
 @dataclass
 class SpatialTypeNotJsonSerializable(NotJsonSerializable):
-    spatial_object: SymbolicType
+    spatial_object: SymbolicMathType
 
     def __post_init__(self):
         super().__init__(
