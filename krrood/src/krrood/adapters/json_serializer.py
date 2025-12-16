@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import enum
 import importlib
 import uuid
 from dataclasses import dataclass, field
@@ -113,7 +114,7 @@ class JSONSerializableTypeRegistry(metaclass=SingletonMeta):
     Signature of functions must be like `SubclassJSONSerializer.to_json`
     """
 
-    _deserializers: Dict[Type, Callable[[Dict[str, Any]], Any]] = field(
+    _deserializers: Dict[Type, Callable[[Dict[str, Any], Type], Any]] = field(
         default_factory=dict
     )
     """
@@ -146,6 +147,10 @@ class JSONSerializableTypeRegistry(metaclass=SingletonMeta):
         :param type_class: The object to get the serializer for
         :return: The serializer function or None if not registered
         """
+
+        if issubclass(type_class, enum.Enum):
+            return self._serializers.get(enum.Enum)
+
         return self._serializers.get(type_class)
 
     def get_deserializer(
@@ -157,6 +162,10 @@ class JSONSerializableTypeRegistry(metaclass=SingletonMeta):
         :param type_class: The class to get the deserializer for
         :return: The deserializer function or None if not registered
         """
+
+        if issubclass(type_class, enum.Enum):
+            return self._deserializers.get(enum.Enum)
+
         return self._deserializers.get(type_class)
 
 
@@ -228,7 +237,7 @@ class SubclassJSONSerializer:
         if not registered_json_deserializer:
             raise ClassNotDeserializableError(target_cls)
 
-        return registered_json_deserializer(data, **kwargs)
+        return registered_json_deserializer(data, clazz=target_cls, **kwargs)
 
 
 def from_json(data: Dict[str, Any], **kwargs) -> Union[SubclassJSONSerializer, Any]:
@@ -281,15 +290,42 @@ def serialize_uuid(obj: uuid.UUID) -> Dict[str, Any]:
     }
 
 
-def deserialize_uuid(data: Dict[str, Any]) -> uuid.UUID:
+def deserialize_uuid(data: Dict[str, Any], clazz: Type[uuid.UUID]) -> uuid.UUID:
     """
     Deserialize a UUID from a JSON dictionary.
 
     :param data: Dictionary containing the UUID value
     :return: The deserialized UUID
     """
-    return uuid.UUID(data["value"])
+    return clazz(data["value"])
 
 
 # Register UUID with the type registry
 JSONSerializableTypeRegistry().register(uuid.UUID, serialize_uuid, deserialize_uuid)
+
+
+# %% Enum serialization functions
+def serialize_enum(obj: enum.Enum) -> Dict[str, Any]:
+    """
+    Serialize an enum to a JSON-compatible dictionary.
+
+    :param obj: The enum to serialize
+    :return: Dictionary with enum information
+    """
+    return {
+        JSON_TYPE_NAME: get_full_class_name(type(obj)),
+        "value": obj.name,
+    }
+
+
+def deserialize_enum(data: Dict[str, Any], clazz: Type[enum.Enum]) -> enum.Enum:
+    """
+    Deserialize an Enum element from a JSON dictionary.
+
+    :param data: Dictionary containing the enum information
+    :return: The enum value
+    """
+    return clazz[data["value"]]
+
+
+JSONSerializableTypeRegistry().register(enum.Enum, serialize_enum, deserialize_enum)

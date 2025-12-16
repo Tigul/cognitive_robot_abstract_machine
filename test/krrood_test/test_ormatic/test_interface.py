@@ -616,6 +616,7 @@ def test_multiple_inheritance(session, database):
 def test_list_of_enum(session, database):
     obj = ListOfEnum([TestEnum.OPTION_A, TestEnum.OPTION_B, TestEnum.OPTION_C])
     dao = to_dao(obj)
+    print(dao)
     session.add(dao)
     session.commit()
 
