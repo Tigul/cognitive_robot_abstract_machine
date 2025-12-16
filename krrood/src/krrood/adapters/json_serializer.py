@@ -314,7 +314,7 @@ def serialize_enum(obj: enum.Enum) -> Dict[str, Any]:
     """
     return {
         JSON_TYPE_NAME: get_full_class_name(type(obj)),
-        "value": obj.name,
+        "name": obj.name,
     }
 
 
@@ -325,7 +325,7 @@ def deserialize_enum(data: Dict[str, Any], clazz: Type[enum.Enum]) -> enum.Enum:
     :param data: Dictionary containing the enum information
     :return: The enum value
     """
-    return clazz[data["value"]]
+    return clazz[data["name"]]
 
 
 JSONSerializableTypeRegistry().register(enum.Enum, serialize_enum, deserialize_enum)
