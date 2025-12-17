@@ -180,7 +180,7 @@ def test_generated_semantic_annotations(kitchen_world):
         for v in found_semantic_annotations
         if isinstance(v, HasCaseAsMainBody)
     ]
-    assert len(drawer_container_names) == 14
+    assert len(drawer_container_names) == 19
 
 
 @pytest.mark.order("second_to_last")
@@ -198,7 +198,7 @@ def test_apartment_semantic_annotations(apartment_world):
         for v in found_semantic_annotations
         if isinstance(v, HasCaseAsMainBody)
     ]
-    assert len(drawer_container_names) == 19
+    assert len(drawer_container_names) == 27
 
 
 def fit_rules_and_assert_semantic_annotations(

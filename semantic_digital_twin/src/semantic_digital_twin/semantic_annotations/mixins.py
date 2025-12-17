@@ -315,7 +315,7 @@ class HasRootRegion(SemanticAnnotation, ABC):
         return self_instance
 
 
-@dataclass
+@dataclass(eq=False)
 class HasActiveConnection(ABC):
 
     @classmethod
@@ -814,12 +814,9 @@ class HasSupportingSurface(HasRootBody, ABC):
     A semantic annotation that represents a supporting surface.
     """
 
-    supporting_surface: Region = field(init=False)
+    supporting_surface: Region = field(init=False, default=None)
 
-    def __post_init__(self):
-        self.recalculate_supporting_surface()
-
-    def recalculate_supporting_surface(
+    def calculate_supporting_surface(
         self,
         upward_threshold: float = 0.95,
         clearance_threshold: float = 0.5,
