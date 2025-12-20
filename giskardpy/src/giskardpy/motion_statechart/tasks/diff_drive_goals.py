@@ -3,7 +3,7 @@ from __future__ import division
 from dataclasses import dataclass
 from typing import Optional
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.graph_node import Task
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
@@ -55,7 +55,7 @@ class DiffDriveTangentialToPoint(Task):
         map_V_forward = map_T_base @ tip_V_pointing_axis
 
         if self.drive:
-            angle = cas.abs(map_V_forward.angle_between(map_V_tangent))
+            angle = sm.abs(map_V_forward.angle_between(map_V_tangent))
             self.add_equality_constraint(
                 reference_velocity=0.5,
                 equality_bound=-angle,
@@ -70,10 +70,10 @@ class DiffDriveTangentialToPoint(Task):
             goal_angle = map_R_goal.to_angle(lambda axis: axis[2])
             map_R_base = map_T_base.to_rotation_matrix()
             axis, map_current_angle = map_R_base.to_axis_angle()
-            map_current_angle = cas.if_greater_zero(
+            map_current_angle = sm.if_greater_zero(
                 axis[2], map_current_angle, -map_current_angle
             )
-            angle_error = cas.shortest_angular_distance(map_current_angle, goal_angle)
+            angle_error = sm.shortest_angular_distance(map_current_angle, goal_angle)
             self.add_equality_constraint(
                 reference_velocity=0.5,
                 equality_bound=angle_error,

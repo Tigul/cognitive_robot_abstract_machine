@@ -2,7 +2,7 @@ from __future__ import division
 
 from dataclasses import dataclass, field
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.context import BuildContext
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.graph_node import Goal, NodeArtifacts
@@ -71,7 +71,7 @@ class CartesianPoseStraight(Goal):
         obs_expressions = []
         for task in self.tasks:
             obs_expressions.append(task.observation_expression)
-        self.observation_expression = cas.logic_all(*obs_expressions)
+        self.observation_expression = sm.logic_all(*obs_expressions)
 
 
 @dataclass

@@ -8,9 +8,13 @@ from uuid import UUID
 import numpy as np
 import rustworkx.visit
 
-from krrood.symbolic_math.symbolic_math import CompiledFunction, Matrix
+from krrood.symbolic_math.symbolic_math import (
+    CompiledFunction,
+    Matrix,
+    VariableParameters,
+)
 from ..datastructures.types import NpMatrix4x4
-from ..spatial_types import spatial_types as cas
+from ..spatial_types import HomogeneousTransformationMatrix
 from ..spatial_types.math import inverse_frame
 from ..utils import copy_lru_cache
 from ..world_description.world_entity import Connection, KinematicStructureEntity
@@ -46,14 +50,14 @@ class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
 
     def __init__(self, world: World):
         self.world = world
-        self.child_body_to_fk_expr: Dict[UUID, cas.HomogeneousTransformationMatrix] = {
-            self.world.root.id: cas.HomogeneousTransformationMatrix()
+        self.child_body_to_fk_expr: Dict[UUID, HomogeneousTransformationMatrix] = {
+            self.world.root.id: HomogeneousTransformationMatrix()
         }
         self.tf: Dict[Tuple[UUID, UUID], Matrix] = OrderedDict()
 
     def recompile(self):
-        self.child_body_to_fk_expr: Dict[UUID, cas.HomogeneousTransformationMatrix] = {
-            self.world.root.id: cas.HomogeneousTransformationMatrix()
+        self.child_body_to_fk_expr: Dict[UUID, HomogeneousTransformationMatrix] = {
+            self.world.root.id: HomogeneousTransformationMatrix()
         }
         self.tf: Dict[Tuple[UUID, UUID], Matrix] = OrderedDict()
         self.world._travel_branch(self.world.root, self)
@@ -94,9 +98,13 @@ class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
             collision_fks.append(self.child_body_to_fk_expr[body.id])
         collision_fks = Matrix.vstack(collision_fks)
         params = [v.variables.position for v in self.world.degrees_of_freedom]
-        self.compiled_all_fks = all_fks.compile(parameters=[params])
-        self.compiled_collision_fks = collision_fks.compile(parameters=[params])
-        self.compiled_tf = tf.compile(parameters=[params])
+        self.compiled_all_fks = all_fks.compile(
+            parameters=VariableParameters.from_lists(params)
+        )
+        self.compiled_collision_fks = collision_fks.compile(
+            parameters=VariableParameters.from_lists(params)
+        )
+        self.compiled_tf = tf.compile(parameters=VariableParameters.from_lists(params))
         self.idx_start = {
             body.id: i * 4
             for i, body in enumerate(self.world.kinematic_structure_entities)
@@ -125,7 +133,7 @@ class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
     @copy_lru_cache()
     def compose_expression(
         self, root: KinematicStructureEntity, tip: KinematicStructureEntity
-    ) -> cas.HomogeneousTransformationMatrix:
+    ) -> HomogeneousTransformationMatrix:
         """
         :param root: The root KinematicStructureEntity in the kinematic chain.
             It determines the starting point of the forward kinematics calculation.
@@ -134,7 +142,7 @@ class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
         :return: An expression representing the computed forward kinematics of the tip KinematicStructureEntity relative to the root KinematicStructureEntity.
         """
 
-        fk = cas.HomogeneousTransformationMatrix()
+        fk = HomogeneousTransformationMatrix()
         root_chain, tip_chain = self.world.compute_split_chain_of_connections(root, tip)
         connection: Connection
         for connection in root_chain:
@@ -148,7 +156,7 @@ class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
 
     def compute(
         self, root: KinematicStructureEntity, tip: KinematicStructureEntity
-    ) -> cas.HomogeneousTransformationMatrix:
+    ) -> HomogeneousTransformationMatrix:
         """
         Compute the forward kinematics from the root KinematicStructureEntity to the tip KinematicStructureEntity.
 
@@ -159,7 +167,7 @@ class ForwardKinematicsManager(rustworkx.visit.DFSVisitor):
         :param tip: Tip KinematicStructureEntity to which the kinematics are computed.
         :return: Transformation matrix representing the relative pose of the tip KinematicStructureEntity with respect to the root KinematicStructureEntity.
         """
-        return cas.HomogeneousTransformationMatrix(
+        return HomogeneousTransformationMatrix(
             data=self.compute_np(root, tip), reference_frame=root
         )
 

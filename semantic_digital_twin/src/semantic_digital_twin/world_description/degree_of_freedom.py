@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 
 from typing_extensions import Dict, Any
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from krrood.adapters.json_serializer import SubclassJSONSerializer, from_json
 from .world_entity import WorldEntityWithID
 from ..datastructures.prefixed_name import PrefixedName
@@ -14,7 +14,7 @@ from ..spatial_types.derivatives import Derivatives, DerivativeMap
 
 
 @dataclass(eq=False, init=False)
-class PositionVariable(cas.FloatVariable):
+class PositionVariable(sm.FloatVariable):
     """
     Describes the position of a degree of freedom.
     """
@@ -31,7 +31,7 @@ class PositionVariable(cas.FloatVariable):
 
 
 @dataclass(eq=False)
-class VelocityVariable(cas.FloatVariable):
+class VelocityVariable(sm.FloatVariable):
     """
     Describes the velocity of a degree of freedom.
     """
@@ -48,7 +48,7 @@ class VelocityVariable(cas.FloatVariable):
 
 
 @dataclass(eq=False)
-class AccelerationVariable(cas.FloatVariable):
+class AccelerationVariable(sm.FloatVariable):
     """
     Describes the acceleration of a degree of freedom.
     """
@@ -65,7 +65,7 @@ class AccelerationVariable(cas.FloatVariable):
 
 
 @dataclass(eq=False)
-class JerkVariable(cas.FloatVariable):
+class JerkVariable(sm.FloatVariable):
     """
     Describes the jerk of a degree of freedom.
     """
@@ -97,7 +97,7 @@ class DegreeOfFreedom(WorldEntityWithID, SubclassJSONSerializer):
     Lower and upper bounds for each derivative
     """
 
-    variables: DerivativeMap[cas.FloatVariable] = field(
+    variables: DerivativeMap[sm.FloatVariable] = field(
         default_factory=DerivativeMap, init=False
     )
     """
@@ -194,7 +194,7 @@ class DegreeOfFreedom(WorldEntityWithID, SubclassJSONSerializer):
         :param new_upper_limits: A mapping of new upper limits for the specified derivatives.
             If a new upper limit is None, no change is applied for that derivative.
         """
-        if not isinstance(self.variables.position, cas.FloatVariable):
+        if not isinstance(self.variables.position, sm.FloatVariable):
             raise UsageError(
                 message="Cannot overwrite limits of mimic DOFs, use .raw_dof._overwrite_dof_limits instead."
             )

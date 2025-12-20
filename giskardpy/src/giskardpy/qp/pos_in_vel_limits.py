@@ -6,11 +6,10 @@ from line_profiler import profile
 from typing_extensions import Tuple
 
 import giskardpy.utils.math as gm
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.utils.decorators import memoize
 from krrood.symbolic_math.symbolic_math import FloatVariable, Scalar, Vector
 from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
-import krrood.symbolic_math.symbolic_math as sm
 
 
 def shifted_velocity_profile(
@@ -25,18 +24,18 @@ def shifted_velocity_profile(
         vel_result = np.concatenate([vel_profile[x + 1 :], np.zeros(x + 1)])
         acc_result = np.concatenate([acc_profile[x + 1 :], np.zeros(x + 1)])
         if condition > 0:
-            vel_if_cases.append((condition, cas.Vector(vel_result)))
-            acc_if_cases.append((condition, cas.Vector(acc_result)))
+            vel_if_cases.append((condition, sm.Vector(vel_result)))
+            acc_if_cases.append((condition, sm.Vector(acc_result)))
     vel_if_cases.append(
-        (2 * vel_if_cases[-1][0] - vel_if_cases[-2][0], cas.Vector(vel_profile))
+        (2 * vel_if_cases[-1][0] - vel_if_cases[-2][0], sm.Vector(vel_profile))
     )
     default_vel_profile = np.full(vel_profile.shape[0], vel_profile[0])
 
     shifted_vel_profile = sm.if_less_eq_cases(
-        distance, vel_if_cases, cas.Vector(default_vel_profile)
+        distance, vel_if_cases, sm.Vector(default_vel_profile)
     )
     shifted_acc_profile = sm.if_less_eq_cases(
-        distance, acc_if_cases, cas.Vector(acc_profile)
+        distance, acc_if_cases, sm.Vector(acc_profile)
     )
     return shifted_vel_profile, shifted_acc_profile
 
@@ -202,10 +201,10 @@ def b_profile(
             sm.min(Scalar(0), pos_error_ub / dt), -Scalar(one_step_change_)
         )
         one_step_change_ub = sm.limit(one_step_change_ub, -vel_limit, vel_limit)
-        pos_vel_profile_lb[0] = cas.if_greater(
+        pos_vel_profile_lb[0] = sm.if_greater(
             pos_error_lb, 0, one_step_change_lb, copy(pos_vel_profile_lb[0])
         )
-        pos_vel_profile_ub[0] = cas.if_less(
+        pos_vel_profile_ub[0] = sm.if_less(
             pos_error_ub, 0, one_step_change_ub, copy(pos_vel_profile_ub[0])
         )
 
@@ -214,13 +213,13 @@ def b_profile(
         # skip first when lower or upper position limit are violated
         skip_first = sm.logic_or(pos_vel_profile_lb[0] >= 0, pos_vel_profile_ub[0] <= 0)
     else:
-        goal_profile = cas.Vector.zeros(ph)
-        pos_vel_profile_ub = cas.Vector.ones(ph) * vel_limit
+        goal_profile = sm.Vector.zeros(ph)
+        pos_vel_profile_ub = sm.Vector.ones(ph) * vel_limit
         pos_vel_profile_lb = -pos_vel_profile_ub
         skip_first = 0
 
-    acc_profile = cas.Vector.ones(pos_vel_profile_ub.shape[0]) * acc_limit
-    jerk_profile = cas.Vector.ones(pos_vel_profile_ub.shape[0]) * jerk_limit
+    acc_profile = sm.Vector.ones(pos_vel_profile_ub.shape[0]) * acc_limit
+    jerk_profile = sm.Vector.ones(pos_vel_profile_ub.shape[0]) * jerk_limit
 
     # vel and acc profile for slowing down asap
     proj_vel_profile, proj_acc_profile, _ = compute_slowdown_asap_vel_profile(
@@ -258,17 +257,17 @@ def b_profile(
     jerk_profile[0] = sm.if_else(
         special_jerk_limits,
         sm.max(Scalar(jerk_limit), sm.abs(proj_jerk_profile_violated[0])),
-        cas.Scalar(jerk_limit),
+        sm.Scalar(jerk_limit),
     )
     jerk_profile[1] = sm.if_else(
         special_jerk_limits,
         sm.max(Scalar(jerk_limit), sm.abs(proj_jerk_profile_violated[1])),
-        cas.Scalar(jerk_limit),
+        sm.Scalar(jerk_limit),
     )
     jerk_profile[2] = sm.if_else(
         special_jerk_limits,
         sm.max(Scalar(jerk_limit), sm.abs(proj_jerk_profile_violated[2])),
-        cas.Scalar(jerk_limit),
+        sm.Scalar(jerk_limit),
     )
 
     lb_profile = sm.concatenate(pos_vel_profile_lb, -acc_profile, -jerk_profile)

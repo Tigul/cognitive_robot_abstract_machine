@@ -4,7 +4,7 @@ from typing import Optional
 
 import numpy as np
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.graph_node import Task
 from semantic_digital_twin.spatial_types import Point3, Vector3, RotationMatrix
@@ -107,7 +107,7 @@ class WiggleInsert(Task):
         angle = symbol_manager.get_expr(
             self.ref_str + angle_function,
             input_type_hint=float,
-            output_type_hint=cas.FloatVariable,
+            output_type_hint=sm.FloatVariable,
         )
 
         tip_V_hole_normal = context.world.transform(

@@ -5,16 +5,14 @@ import logging
 from dataclasses import dataclass, field
 from functools import cached_property
 
-from line_profiler.explicit_profiler import profile
-from typing_extensions import Dict, Any, Self, Optional, List, Iterator
-
 import numpy as np
 from random_events.product_algebra import Event, SimpleEvent
-from krrood.adapters.json_serializer import SubclassJSONSerializer
 from trimesh import Trimesh
 from trimesh.util import concatenate
+from typing_extensions import Dict, Any, Self, Optional, List, Iterator
 from typing_extensions import TYPE_CHECKING
 
+from krrood.adapters.json_serializer import SubclassJSONSerializer
 from .geometry import Shape, BoundingBox
 from ..datastructures.variables import SpatialVariables
 from ..spatial_types import HomogeneousTransformationMatrix, Point3
@@ -237,7 +235,6 @@ class BoundingBoxCollection(ShapeCollection):
             self.reference_frame,
         )
 
-    @profile
     @classmethod
     def from_simple_event(
         cls,

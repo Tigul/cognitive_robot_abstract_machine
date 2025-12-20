@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.graph_node import Goal
 from giskardpy.motion_statechart.graph_node import Task
@@ -60,7 +60,7 @@ class PrePushDoor(Goal):
             self.door_object, self.tip_link
         )
         door_P_tip = door_Pose_tip.to_position()
-        dist, door_P_nearest = cas.distance_point_to_plane(
+        dist, door_P_nearest = sm.distance_point_to_plane(
             door_P_tip, door_V_v2, door_V_v1
         )
 

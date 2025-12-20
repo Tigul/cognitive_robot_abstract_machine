@@ -9,7 +9,7 @@ from typing import Tuple, List, Union, Dict, TYPE_CHECKING, DefaultDict, Optiona
 import numpy as np
 from line_profiler import profile
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.qp.exceptions import (
     InfeasibleException,
     VelocityLimitUnreachableException,
@@ -155,7 +155,7 @@ class ProblemDataPart(ABC):
     @abc.abstractmethod
     def construct_expression(
         self,
-    ) -> Tuple[cas.Matrix, cas.Matrix]:
+    ) -> Tuple[sm.Matrix, sm.Matrix]:
         pass
 
     @property
@@ -174,7 +174,7 @@ class ProblemDataPart(ABC):
     def jerk_constraints(self) -> List[DerivativeInequalityConstraint]:
         return self.get_derivative_constraints(Derivatives.jerk)
 
-    def _sorter(self, *args: dict) -> Tuple[List[cas.SymbolicScalar], np.ndarray]:
+    def _sorter(self, *args: dict) -> Tuple[List[sm.SymbolicScalar], np.ndarray]:
         """
         Sorts every arg dict individually and then appends all of them.
         :arg args: a bunch of dicts
@@ -194,8 +194,8 @@ class ProblemDataPart(ABC):
         return [x for x, _ in sorted(param.items())]
 
     def _remove_columns_columns_where_variables_are_zero(
-        self, free_variable_model: cas.Matrix, max_derivative: Derivatives
-    ) -> cas.Matrix:
+        self, free_variable_model: sm.Matrix, max_derivative: Derivatives
+    ) -> sm.Matrix:
         if np.prod(free_variable_model.shape) == 0:
             return free_variable_model
         column_ids = []
@@ -213,7 +213,7 @@ class ProblemDataPart(ABC):
     @profile
     def velocity_limit(
         self, v: DegreeOfFreedom, max_derivative: Derivatives
-    ) -> Tuple[cas.Vector, cas.Vector]:
+    ) -> Tuple[sm.Vector, sm.Vector]:
         lower_limits = DerivativeMap()
         upper_limits = DerivativeMap()
 
@@ -228,7 +228,7 @@ class ProblemDataPart(ABC):
         lower_limits.velocity = v.lower_limits.velocity
         upper_limits.velocity = v.upper_limits.velocity
         if self.config.prediction_horizon == 1:
-            return cas.Vector([lower_limits.velocity]), cas.Vector(
+            return sm.Vector([lower_limits.velocity]), sm.Vector(
                 [upper_limits.velocity]
             )
 
@@ -304,22 +304,22 @@ class Weights(ProblemDataPart):
 
     def linear_f(
         self,
-        current_position: cas.FloatVariable,
+        current_position: sm.FloatVariable,
         limit: float,
         target_value: float,
         a: float = 10,
         exp: float = 2,
-    ) -> Tuple[cas.Scalar, float]:
-        f = cas.abs(current_position * a) ** exp
-        x_offset = cas.solve_for(f, target_value)
-        return (cas.abs(current_position + x_offset - limit) * a) ** exp, x_offset
+    ) -> Tuple[sm.Scalar, float]:
+        f = sm.abs(current_position * a) ** exp
+        x_offset = sm.solve_for(f, target_value)
+        return (sm.abs(current_position + x_offset - limit) * a) ** exp, x_offset
 
     @profile
     def construct_expression(
         self,
         quadratic_weight_gains: List[QuadraticWeightGain] = None,
         linear_weight_gains: List[LinearWeightGain] = None,
-    ) -> Tuple[cas.Vector, cas.Vector]:
+    ) -> Tuple[sm.Vector, sm.Vector]:
         quadratic_weight_gains = quadratic_weight_gains or []
         linear_weight_gains = linear_weight_gains or []
         components = []
@@ -333,22 +333,22 @@ class Weights(ProblemDataPart):
         components.append(self.inequality_weight_expressions())
         components.extend(self.derivative_weight_expressions())
         weights, _ = self._sorter(*components)
-        weights = cas.Vector(weights)
+        weights = sm.Vector(weights)
         linear_weights = self.linear_weights_expression(
             linear_weight_gains=linear_weight_gains
         )
         if linear_weights is None:
-            linear_weights = cas.Vector.zeros(weights.shape[0])
+            linear_weights = sm.Vector.zeros(weights.shape[0])
         else:
             # as of now linear weights are only added for joints, therefore equality-, derivative- and inequality
             # weights are missing. Here the missing weights are filled in with zeroes.
             linear_weights, _ = self._sorter(*linear_weights)
-            linear_weights = cas.Matrix(linear_weights)
-            linear_weights = cas.vstack(
+            linear_weights = sm.Matrix(linear_weights)
+            linear_weights = sm.vstack(
                 [linear_weights]
-                + [cas.Scalar(0)] * (weights.shape[0] - linear_weights.shape[0])
+                + [sm.Scalar(0)] * (weights.shape[0] - linear_weights.shape[0])
             )
-        return cas.Vector(weights), linear_weights
+        return sm.Vector(weights), linear_weights
 
     @profile
     def free_variable_weights_expression(
@@ -411,7 +411,7 @@ class Weights(ProblemDataPart):
 
         return weight * (1 / limit) ** 2
 
-    def derivative_weight_expressions(self) -> List[Dict[str, cas.Scalar]]:
+    def derivative_weight_expressions(self) -> List[Dict[str, sm.Scalar]]:
         params = []
         for d in Derivatives.range(Derivatives.velocity, self.config.max_derivative):
             derivative_constr_weights = {}
@@ -425,7 +425,7 @@ class Weights(ProblemDataPart):
             params.append(derivative_constr_weights)
         return params
 
-    def eq_derivative_weight_expressions(self) -> List[Dict[str, cas.Scalar]]:
+    def eq_derivative_weight_expressions(self) -> List[Dict[str, sm.Scalar]]:
         params = []
         for d in Derivatives.range(Derivatives.velocity, self.config.max_derivative):
             derivative_constr_weights = {}
@@ -495,7 +495,7 @@ class Weights(ProblemDataPart):
             return params
         return None
 
-    def get_free_variable_symbols(self, order: Derivatives) -> List[cas.FloatVariable]:
+    def get_free_variable_symbols(self, order: Derivatives) -> List[sm.FloatVariable]:
         return self._sorter(
             {
                 v.variables.position: v.variables.data[order]
@@ -528,11 +528,11 @@ class FreeVariableBounds(ProblemDataPart):
     @profile
     def free_variable_bounds(
         self,
-    ) -> Tuple[List[Dict[str, cas.ScalarData]], List[Dict[str, cas.ScalarData]]]:
+    ) -> Tuple[List[Dict[str, sm.ScalarData]], List[Dict[str, sm.ScalarData]]]:
         # if self.config.qp_formulation in [ControllerMode.explicit, ControllerMode.explicit_no_acc]:
         max_derivative = self.config.max_derivative
-        lb: DefaultDict[Derivatives, Dict[str, cas.ScalarData]] = defaultdict(dict)
-        ub: DefaultDict[Derivatives, Dict[str, cas.ScalarData]] = defaultdict(dict)
+        lb: DefaultDict[Derivatives, Dict[str, sm.ScalarData]] = defaultdict(dict)
+        ub: DefaultDict[Derivatives, Dict[str, sm.ScalarData]] = defaultdict(dict)
         for v in self.degrees_of_freedom:
             if self.config.qp_formulation.has_explicit_pos_limits:
                 for t in range(self.config.prediction_horizon):
@@ -593,7 +593,7 @@ class FreeVariableBounds(ProblemDataPart):
 
     def derivative_slack_limits(
         self, derivative: Derivatives
-    ) -> Tuple[Dict[str, cas.Scalar], Dict[str, cas.Scalar]]:
+    ) -> Tuple[Dict[str, sm.Scalar], Dict[str, sm.Scalar]]:
         lower_slack = {}
         upper_slack = {}
         for t in range(self.config.prediction_horizon):
@@ -605,7 +605,7 @@ class FreeVariableBounds(ProblemDataPart):
 
     def eq_derivative_slack_limits(
         self, derivative: Derivatives
-    ) -> Tuple[Dict[str, cas.Scalar], Dict[str, cas.Scalar]]:
+    ) -> Tuple[Dict[str, sm.Scalar], Dict[str, sm.Scalar]]:
         lower_slack = {}
         upper_slack = {}
         for t in range(self.config.prediction_horizon):
@@ -642,7 +642,7 @@ class FreeVariableBounds(ProblemDataPart):
     @profile
     def construct_expression(
         self,
-    ) -> Tuple[cas.Vector, cas.Vector]:
+    ) -> Tuple[sm.Vector, sm.Vector]:
         # derivative model
         lb_params, ub_params = self.free_variable_bounds()
         num_free_variables = sum(len(x) for x in lb_params)
@@ -698,7 +698,7 @@ class FreeVariableBounds(ProblemDataPart):
 
         neq_slack_start = eq_slack_stop
         self.names_neq_slack = self.names_slack[neq_slack_start:]
-        return cas.Vector(lb), cas.Vector(ub)
+        return sm.Vector(lb), sm.Vector(ub)
 
 
 @dataclass
@@ -716,7 +716,7 @@ class EqualityBounds(ProblemDataPart):
     names_derivative_links: np.ndarray = field(default=None)
     evaluated: bool = field(default=True)
 
-    def equality_constraint_bounds(self) -> Dict[str, cas.Scalar]:
+    def equality_constraint_bounds(self) -> Dict[str, sm.Scalar]:
         return {
             f"{c.name}": c.capped_bound(self.config.mpc_dt, self.control_horizon)
             for c in self.constraint_collection.eq_constraints
@@ -724,13 +724,13 @@ class EqualityBounds(ProblemDataPart):
 
     def last_derivative_values(
         self, derivative: Derivatives
-    ) -> Dict[str, cas.ScalarData]:
+    ) -> Dict[str, sm.ScalarData]:
         last_values = {}
         for v in self.degrees_of_freedom:
             last_values[f"{v.name}/last_{derivative}"] = v.variables.data[derivative]
         return last_values
 
-    def derivative_links(self, derivative: Derivatives) -> Dict[str, cas.ScalarData]:
+    def derivative_links(self, derivative: Derivatives) -> Dict[str, sm.ScalarData]:
         derivative_link = {}
         for t in range(self.config.prediction_horizon - 1):
             if t >= self.config.prediction_horizon - (
@@ -743,7 +743,7 @@ class EqualityBounds(ProblemDataPart):
 
     def eq_derivative_constraint_bounds(
         self, derivative: Derivatives
-    ) -> Dict[str, cas.Vector]:
+    ) -> Dict[str, sm.Vector]:
         bound = {}
         for t in range(self.config.prediction_horizon):
             for c in self.get_eq_derivative_constraints(derivative):
@@ -754,7 +754,7 @@ class EqualityBounds(ProblemDataPart):
     @profile
     def construct_expression(
         self,
-    ) -> cas.Vector:
+    ) -> sm.Vector:
         """
         explicit no acc
         -vc - ac*dt = -v0 + j0*dt**2
@@ -813,7 +813,7 @@ class EqualityBounds(ProblemDataPart):
         bounds, self.names = self._sorter(*bounds)
         self.names_derivative_links = self.names[:num_derivative_links]
         # self.names_equality_constraints = self.names[num_derivative_links:]
-        return cas.Vector(bounds)
+        return sm.Vector(bounds)
 
 
 @dataclass
@@ -835,7 +835,7 @@ class InequalityBounds(ProblemDataPart):
 
     def derivative_constraint_bounds(
         self, derivative: Derivatives
-    ) -> Tuple[Dict[str, cas.Vector], Dict[str, cas.Vector]]:
+    ) -> Tuple[Dict[str, sm.Vector], Dict[str, sm.Vector]]:
         lower = {}
         upper = {}
         for t in range(self.config.prediction_horizon):
@@ -873,7 +873,7 @@ class InequalityBounds(ProblemDataPart):
 
     def implicit_pos_model_limits(
         self,
-    ) -> Tuple[List[Dict[str, cas.Vector]], List[Dict[str, cas.Vector]]]:
+    ) -> Tuple[List[Dict[str, sm.Vector]], List[Dict[str, sm.Vector]]]:
         lb_acc, ub_acc = {}, {}
         lb_jerk, ub_jerk = {}, {}
         for v in self.degrees_of_freedom:
@@ -886,7 +886,7 @@ class InequalityBounds(ProblemDataPart):
 
     def implicit_model_limits(
         self,
-    ) -> Tuple[List[Dict[str, cas.Vector]], List[Dict[str, cas.Vector]]]:
+    ) -> Tuple[List[Dict[str, sm.Vector]], List[Dict[str, sm.Vector]]]:
         lb_acc, ub_acc = {}, {}
         lb_jerk, ub_jerk = {}, {}
         for v in self.degrees_of_freedom:
@@ -944,9 +944,9 @@ class InequalityBounds(ProblemDataPart):
     @profile
     def construct_expression(
         self,
-    ) -> Tuple[cas.Vector, cas.Vector]:
-        lb_params: List[Dict[str, cas.Vector]] = []
-        ub_params: List[Dict[str, cas.Vector]] = []
+    ) -> Tuple[sm.Vector, sm.Vector]:
+        lb_params: List[Dict[str, sm.Vector]] = []
+        ub_params: List[Dict[str, sm.Vector]] = []
 
         # derivative model
         if self.config.qp_formulation.has_explicit_pos_limits:
@@ -983,7 +983,7 @@ class InequalityBounds(ProblemDataPart):
             num_derivative_constraints + num_neq_constraints :
         ]
 
-        return cas.Vector(lbA), cas.Vector(ubA)
+        return sm.Vector(lbA), sm.Vector(ubA)
 
 
 @dataclass
@@ -997,14 +997,14 @@ class EqualityModel(ProblemDataPart):
         equality_constraint_bounds
     """
 
-    def equality_constraint_expressions(self) -> List[cas.Matrix]:
+    def equality_constraint_expressions(self) -> List[sm.Matrix]:
         return self._sorter(
             {c.name: c.expression for c in self.constraint_collection.eq_constraints}
         )[0]
 
     def get_free_variable_symbols(
         self, derivative: Derivatives
-    ) -> List[cas.FloatVariable]:
+    ) -> List[sm.FloatVariable]:
         return self._sorter(
             {
                 v.variables.position.name: v.variables.data[derivative]
@@ -1021,7 +1021,7 @@ class EqualityModel(ProblemDataPart):
             }
         )[0]
 
-    def velocity_constraint_model(self) -> Tuple[cas.Matrix, cas.Matrix]:
+    def velocity_constraint_model(self) -> Tuple[sm.Matrix, sm.Matrix]:
         """
         model
         |   t1   |   t2   |   t3   |   t1   |   t2   |   t3   |   t1   |   t2   |   t3   | prediction horizon
@@ -1049,7 +1049,7 @@ class EqualityModel(ProblemDataPart):
             self.config.prediction_horizon - 2
         )
         if number_of_vel_rows > 0:
-            expressions = cas.Matrix(
+            expressions = sm.Matrix(
                 self.get_eq_derivative_constraint_expressions(Derivatives.velocity)
             )
             parts = []
@@ -1073,20 +1073,20 @@ class EqualityModel(ProblemDataPart):
                     * self.config.mpc_dt
                 )
                 missing_variables = self.config.max_derivative - derivative - 1
-                eye = cas.Matrix.eye(self.config.prediction_horizon)[
+                eye = sm.Matrix.eye(self.config.prediction_horizon)[
                     :-2, : self.config.prediction_horizon - missing_variables
                 ]
                 J_vel_limit_block = eye.kron(J_vel)
                 parts.append(J_vel_limit_block)
 
             # constraint slack
-            model = cas.hstack(parts)
+            model = sm.hstack(parts)
             num_slack_variables = sum(
                 self.control_horizon for c in self.velocity_eq_constraints
             )
-            slack_model = cas.Matrix.eye(num_slack_variables) * self.config.mpc_dt
+            slack_model = sm.Matrix.eye(num_slack_variables) * self.config.mpc_dt
             return model, slack_model
-        return cas.Matrix(), cas.Matrix()
+        return sm.Matrix(), sm.Matrix()
 
     @property
     def number_of_non_slack_columns(self) -> int:
@@ -1105,7 +1105,7 @@ class EqualityModel(ProblemDataPart):
         return result
 
     @profile
-    def derivative_link_model(self, max_derivative: Derivatives) -> cas.Matrix:
+    def derivative_link_model(self, max_derivative: Derivatives) -> sm.Matrix:
         """
         Layout for prediction horizon 5
         Slots are matrices of |controlled variables| x |controlled variables|
@@ -1133,19 +1133,19 @@ class EqualityModel(ProblemDataPart):
             * self.config.prediction_horizon
             * max_derivative
         )
-        derivative_link_model = cas.Matrix.zeros(num_rows, num_columns)
+        derivative_link_model = sm.Matrix.zeros(num_rows, num_columns)
 
-        x_n = cas.Matrix.eye(num_rows)
+        x_n = sm.Matrix.eye(num_rows)
         derivative_link_model[:, : x_n.shape[0]] += x_n
 
-        xd_n = -cas.Matrix.eye(num_rows) * self.config.mpc_dt
+        xd_n = -sm.Matrix.eye(num_rows) * self.config.mpc_dt
         h_offset = self.number_of_free_variables * self.config.prediction_horizon
         derivative_link_model[:, h_offset:] += xd_n
 
         x_c_height = self.number_of_free_variables * (
             self.config.prediction_horizon - 1
         )
-        x_c = -cas.Matrix.eye(x_c_height)
+        x_c = -sm.Matrix.eye(x_c_height)
         offset_v = 0
         offset_h = 0
         for derivative in Derivatives.range(Derivatives.velocity, max_derivative - 1):
@@ -1161,7 +1161,7 @@ class EqualityModel(ProblemDataPart):
         return derivative_link_model
 
     @profile
-    def derivative_link_model_no_acc(self, max_derivative: Derivatives) -> cas.Matrix:
+    def derivative_link_model_no_acc(self, max_derivative: Derivatives) -> sm.Matrix:
         """
         Layout for prediction horizon 5
         Slots are matrices of |controlled variables| x |controlled variables|
@@ -1196,11 +1196,11 @@ class EqualityModel(ProblemDataPart):
         """
         n_vel = self.number_of_free_variables * (self.config.prediction_horizon - 2)
         n_jerk = self.number_of_free_variables * self.config.prediction_horizon
-        model = cas.Matrix.zeros(rows=n_jerk, columns=n_jerk + n_vel)
-        pre_previous = -cas.Matrix.eye(n_vel)
+        model = sm.Matrix.zeros(rows=n_jerk, columns=n_jerk + n_vel)
+        pre_previous = -sm.Matrix.eye(n_vel)
         same = pre_previous
         previous = -2 * pre_previous
-        j_same = cas.Matrix.eye(n_jerk) * self.config.mpc_dt**2
+        j_same = sm.Matrix.eye(n_jerk) * self.config.mpc_dt**2
         model[: -self.number_of_free_variables * 2, :n_vel] += pre_previous
         model[
             self.number_of_free_variables : -self.number_of_free_variables, :n_vel
@@ -1210,8 +1210,8 @@ class EqualityModel(ProblemDataPart):
         return model
 
     def _remove_rows_columns_where_variables_are_zero(
-        self, derivative_link_model: cas.Matrix
-    ) -> cas.Matrix:
+        self, derivative_link_model: sm.Matrix
+    ) -> sm.Matrix:
         if np.prod(derivative_link_model.shape) == 0:
             return derivative_link_model
         row_ids = []
@@ -1229,7 +1229,7 @@ class EqualityModel(ProblemDataPart):
         return derivative_link_model
 
     @profile
-    def equality_constraint_model(self) -> Tuple[cas.Matrix, cas.Matrix]:
+    def equality_constraint_model(self) -> Tuple[sm.Matrix, sm.Matrix]:
         """
         |   t1   |   t2   |   t1   |   t2   |   t1   |   t2   |   t1   |   t2   | prediction horizon
         |v1 v2 v3|v1 v2 v3|a1 a2 a3|a1 a2 a3|j1 j2 j3|j1 j2 j3|s1 s2 s3|s1 s2 s3| free variables / slack
@@ -1249,17 +1249,17 @@ class EqualityModel(ProblemDataPart):
             and self.config.qp_formulation.has_explicit_jerk_variables
         ):
             if len(self.constraint_collection.eq_constraints) > 0:
-                model = cas.Matrix.zeros(
+                model = sm.Matrix.zeros(
                     len(self.constraint_collection.eq_constraints),
                     self.number_of_non_slack_columns,
                 )
                 J_eq = (
-                    cas.Matrix(self.equality_constraint_expressions()).jacobian(
+                    sm.Matrix(self.equality_constraint_expressions()).jacobian(
                         variables=self.get_free_variable_symbols(Derivatives.position)
                     )
                     * self.config.mpc_dt
                 )
-                J_hstack = cas.hstack(
+                J_hstack = sm.hstack(
                     [J_eq for _ in range(self.config.prediction_horizon - 2)]
                 )
                 # set jacobian entry to 0 if control horizon shorter than prediction horizon
@@ -1267,7 +1267,7 @@ class EqualityModel(ProblemDataPart):
                 model[:, horizontal_offset * 0 : horizontal_offset * 1] = J_hstack
 
                 # slack variable for total error
-                slack_model = cas.Matrix.diag(
+                slack_model = sm.Matrix.diag(
                     [
                         self.config.mpc_dt
                         for _ in self.constraint_collection.eq_constraints
@@ -1280,7 +1280,7 @@ class EqualityModel(ProblemDataPart):
             else:
                 max_derivative = self.config.max_derivative
             if len(self.constraint_collection.eq_constraints) > 0:
-                model = cas.Matrix.zeros(
+                model = sm.Matrix.zeros(
                     len(self.constraint_collection.eq_constraints),
                     self.number_of_non_slack_columns,
                 )
@@ -1288,7 +1288,7 @@ class EqualityModel(ProblemDataPart):
                     Derivatives.position, max_derivative - 1
                 ):
                     J_eq = (
-                        cas.Matrix(self.equality_constraint_expressions()).jacobian(
+                        sm.Matrix(self.equality_constraint_expressions()).jacobian(
                             variables=self.get_free_variable_symbols(derivative)
                         )
                         * self.config.mpc_dt
@@ -1298,7 +1298,7 @@ class EqualityModel(ProblemDataPart):
                         self.config.qp_formulation.is_explicit
                         or not self.config.qp_formulation.is_mpc
                     ):
-                        J_hstack = cas.hstack(
+                        J_hstack = sm.hstack(
                             [J_eq for _ in range(self.config.prediction_horizon)]
                         )
                         horizontal_offset = J_hstack.shape[1]
@@ -1309,7 +1309,7 @@ class EqualityModel(ProblemDataPart):
                             * (derivative + 1),
                         ] = J_hstack
                     else:
-                        J_hstack = cas.hstack(
+                        J_hstack = sm.hstack(
                             [J_eq for _ in range(self.config.prediction_horizon - 2)]
                         )
                         horizontal_offset = J_hstack.shape[1]
@@ -1318,21 +1318,21 @@ class EqualityModel(ProblemDataPart):
                         )
 
                 # slack variable for total error
-                slack_model = cas.Matrix.diag(
+                slack_model = sm.Matrix.diag(
                     [
                         self.config.mpc_dt
                         for _ in self.constraint_collection.eq_constraints
                     ]
                 )
                 return model, slack_model
-        return cas.Matrix(), cas.Matrix()
+        return sm.Matrix(), sm.Matrix()
 
     @profile
     def construct_expression(
         self,
-    ) -> Tuple[cas.Matrix, cas.Matrix]:
+    ) -> Tuple[sm.Matrix, sm.Matrix]:
         max_derivative = Derivatives.velocity
-        derivative_link_model = cas.Matrix()
+        derivative_link_model = sm.Matrix()
         if self.config.qp_formulation.is_mpc:
             if self.config.qp_formulation.is_explicit:
                 max_derivative = self.config.max_derivative
@@ -1374,14 +1374,14 @@ class EqualityModel(ProblemDataPart):
 
         if len(model_parts) == 0:
             # if there are no eq constraints, make an empty matrix with the right columns to prevent stacking issues
-            model = cas.Matrix(np.empty((0, self.number_of_non_slack_columns)))
+            model = sm.Matrix(np.empty((0, self.number_of_non_slack_columns)))
         else:
-            model = cas.vstack(model_parts)
-        slack_model = cas.diag_stack(slack_model_parts)
+            model = sm.vstack(model_parts)
+        slack_model = sm.diag_stack(slack_model_parts)
 
-        slack_model = cas.vstack(
+        slack_model = sm.vstack(
             [
-                cas.Matrix.zeros(derivative_link_model.shape[0], slack_model.shape[1]),
+                sm.Matrix.zeros(derivative_link_model.shape[0], slack_model.shape[1]),
                 slack_model,
             ]
         )
@@ -1434,7 +1434,7 @@ class InequalityModel(ProblemDataPart):
     def num_of_continuous_joints(self):
         return len([v for v in self.degrees_of_freedom if not v.has_position_limits()])
 
-    def inequality_constraint_expressions(self) -> List[cas.Matrix]:
+    def inequality_constraint_expressions(self) -> List[sm.Matrix]:
         return self._sorter(
             {c.name: c.expression for c in self.constraint_collection.neq_constraints}
         )[0]
@@ -1456,7 +1456,7 @@ class InequalityModel(ProblemDataPart):
             }
         )[0]
 
-    def velocity_constraint_model(self) -> Tuple[cas.Matrix, cas.Matrix]:
+    def velocity_constraint_model(self) -> Tuple[sm.Matrix, sm.Matrix]:
         """
         model
         |   t1   |   t2   |   t3   |   t1   |   t2   |   t3   |   t1   |   t2   |   t3   | prediction horizon
@@ -1484,7 +1484,7 @@ class InequalityModel(ProblemDataPart):
             self.config.prediction_horizon - 2
         )
         if number_of_vel_rows > 0:
-            expressions = cas.Matrix(
+            expressions = sm.Matrix(
                 self.get_derivative_constraint_expressions(Derivatives.velocity)
             )
             parts = []
@@ -1508,22 +1508,22 @@ class InequalityModel(ProblemDataPart):
                     * self.config.mpc_dt
                 )
                 missing_variables = self.config.max_derivative - derivative - 1
-                eye = cas.Matrix.eye(self.config.prediction_horizon)[
+                eye = sm.Matrix.eye(self.config.prediction_horizon)[
                     :-2, : self.config.prediction_horizon - missing_variables
                 ]
                 J_vel_limit_block = eye.kron(J_vel)
                 parts.append(J_vel_limit_block)
 
             # constraint slack
-            model = cas.hstack(parts)
+            model = sm.hstack(parts)
             num_slack_variables = sum(
                 self.control_horizon for c in self.velocity_constraints
             )
-            slack_model = cas.Matrix.eye(num_slack_variables) * self.config.mpc_dt
+            slack_model = sm.Matrix.eye(num_slack_variables) * self.config.mpc_dt
             return model, slack_model
-        return cas.Matrix(), cas.Matrix()
+        return sm.Matrix(), sm.Matrix()
 
-    def acceleration_constraint_model(self) -> Tuple[cas.Matrix, cas.Matrix]:
+    def acceleration_constraint_model(self) -> Tuple[sm.Matrix, sm.Matrix]:
         """
         same structure as vel constraint model
         task acceleration = Jd_q * qd + (J_q + Jd_qd) * qdd + J_qd * qddd
@@ -1533,11 +1533,11 @@ class InequalityModel(ProblemDataPart):
             len(self.acceleration_constraints) * self.config.prediction_horizon
         )
         if number_of_acc_rows > 0:
-            expressions = cas.Matrix(
+            expressions = sm.Matrix(
                 self.get_derivative_constraint_expressions(Derivatives.acceleration)
             )
             assert self.config.max_derivative >= Derivatives.jerk
-            model = cas.Matrix.zeros(
+            model = sm.Matrix.zeros(
                 number_of_acc_rows, self.number_of_non_slack_columns
             )
             J_q = (
@@ -1568,11 +1568,11 @@ class InequalityModel(ProblemDataPart):
                 )
                 * self.config.mpc_dt
             )
-            J_vel_block = cas.Matrix.eye(self.config.prediction_horizon).kron(Jd_q)
-            J_acc_block = cas.Matrix.eye(self.config.prediction_horizon).kron(
+            J_vel_block = sm.Matrix.eye(self.config.prediction_horizon).kron(Jd_q)
+            J_acc_block = sm.Matrix.eye(self.config.prediction_horizon).kron(
                 J_q + Jd_qd
             )
-            J_jerk_block = cas.Matrix.eye(self.config.prediction_horizon).kron(J_qd)
+            J_jerk_block = sm.Matrix.eye(self.config.prediction_horizon).kron(J_qd)
             horizontal_offset = (
                 self.number_of_free_variables * self.config.prediction_horizon
             )
@@ -1593,14 +1593,14 @@ class InequalityModel(ProblemDataPart):
             num_slack_variables = sum(
                 self.control_horizon for c in self.acceleration_constraints
             )
-            slack_model = cas.Matrix.eye(num_slack_variables) * self.config.mpc_dt
+            slack_model = sm.Matrix.eye(num_slack_variables) * self.config.mpc_dt
             return model, slack_model
-        return cas.Matrix(), cas.Matrix()
+        return sm.Matrix(), sm.Matrix()
 
     @profile
     def inequality_constraint_model(
         self, max_derivative: Derivatives
-    ) -> Tuple[cas.Matrix, cas.Matrix]:
+    ) -> Tuple[sm.Matrix, sm.Matrix]:
         """
         |   t1   |   t2   |   t1   |   t2   |   t1   |   t2   |   t1   |   t2   | prediction horizon
         |v1 v2 v3|v1 v2 v3|a1 a2 a3|a1 a2 a3|j1 j2 j3|j1 j2 j3|s1 s2 s3|s1 s2 s3| free variables / slack
@@ -1613,17 +1613,17 @@ class InequalityModel(ProblemDataPart):
             and self.config.qp_formulation.has_explicit_jerk_variables
         ):
             if len(self.constraint_collection.neq_constraints) > 0:
-                model = cas.Matrix.zeros(
+                model = sm.Matrix.zeros(
                     len(self.constraint_collection.neq_constraints),
                     self.number_of_non_slack_columns,
                 )
                 J_neq = (
-                    cas.Matrix(self.inequality_constraint_expressions()).jacobian(
+                    sm.Matrix(self.inequality_constraint_expressions()).jacobian(
                         variables=self.get_free_variable_symbols(Derivatives.position),
                     )
                     * self.config.mpc_dt
                 )
-                J_hstack = cas.hstack(
+                J_hstack = sm.hstack(
                     [J_neq for _ in range(self.config.prediction_horizon - 2)]
                 )
                 # set jacobian entry to 0 if control horizon shorter than prediction horizon
@@ -1631,7 +1631,7 @@ class InequalityModel(ProblemDataPart):
                 model[:, horizontal_offset * 0 : horizontal_offset * 1] = J_hstack
 
                 # slack variable for total error
-                slack_model = cas.Matrix.diag(
+                slack_model = sm.Matrix.diag(
                     [
                         self.config.mpc_dt
                         for _ in self.constraint_collection.neq_constraints
@@ -1644,7 +1644,7 @@ class InequalityModel(ProblemDataPart):
             else:
                 max_derivative = self.config.max_derivative
         if len(self.constraint_collection.neq_constraints) > 0:
-            model = cas.Matrix.zeros(
+            model = sm.Matrix.zeros(
                 len(self.constraint_collection.neq_constraints),
                 self.number_of_non_slack_columns,
             )
@@ -1652,7 +1652,7 @@ class InequalityModel(ProblemDataPart):
                 Derivatives.position, max_derivative - 1
             ):
                 J_neq = (
-                    cas.Matrix(self.inequality_constraint_expressions()).jacobian(
+                    sm.Matrix(self.inequality_constraint_expressions()).jacobian(
                         variables=self.get_free_variable_symbols(derivative),
                     )
                     * self.config.mpc_dt
@@ -1661,7 +1661,7 @@ class InequalityModel(ProblemDataPart):
                     self.config.qp_formulation.is_explicit
                     or not self.config.qp_formulation.is_mpc
                 ):
-                    J_hstack = cas.hstack(
+                    J_hstack = sm.hstack(
                         [J_neq for _ in range(self.config.prediction_horizon)]
                     )
                     horizontal_offset = J_hstack.shape[1]
@@ -1672,20 +1672,20 @@ class InequalityModel(ProblemDataPart):
                         * (derivative + 1),
                     ] = J_hstack
                 else:
-                    J_hstack = cas.hstack(
+                    J_hstack = sm.hstack(
                         [J_neq for _ in range(self.config.prediction_horizon - 2)]
                     )
                     horizontal_offset = J_hstack.shape[1]
                     model[:, horizontal_offset * 0 : horizontal_offset * 1] = J_hstack
 
             # slack variable for total error
-            slack_model = cas.Matrix.diag(
+            slack_model = sm.Matrix.diag(
                 [self.config.mpc_dt for _ in self.constraint_collection.neq_constraints]
             )
             return model, slack_model
-        return cas.Matrix(), cas.Matrix()
+        return sm.Matrix(), sm.Matrix()
 
-    def implicit_pos_limits(self) -> Tuple[cas.Matrix, cas.Matrix]:
+    def implicit_pos_limits(self) -> Tuple[sm.Matrix, sm.Matrix]:
         """
         pk = pk-1 + vk*dt
             p0 = pc + v0*dt
@@ -1707,13 +1707,13 @@ class InequalityModel(ProblemDataPart):
         :return:
         """
         n_vel = self.number_of_free_variables * (self.config.prediction_horizon - 2)
-        model = cas.Matrix.tri(n_vel) * self.config.mpc_dt
-        slack_model = cas.Matrix.zeros(model.shape[0], self.number_ineq_slack_variables)
+        model = sm.Matrix.tri(n_vel) * self.config.mpc_dt
+        slack_model = sm.Matrix.zeros(model.shape[0], self.number_ineq_slack_variables)
         return model, slack_model
 
     def implicit_model(
         self, max_derivative: Derivatives
-    ) -> Tuple[cas.Matrix, cas.Matrix]:
+    ) -> Tuple[sm.Matrix, sm.Matrix]:
         """
         ak = (vk - vk-1)/dt
         jk = (vk - 2vk-1 + vk-2)/dt**2
@@ -1747,9 +1747,9 @@ class InequalityModel(ProblemDataPart):
         n_vel = self.number_of_free_variables * (self.config.prediction_horizon - 2)
         n_jerk = self.number_of_free_variables * (self.config.prediction_horizon)
         if max_derivative >= Derivatives.acceleration:
-            model = cas.Matrix.zeros(rows=n_jerk, columns=n_vel)
-            pre_previous = cas.Matrix.eye(n_vel) / self.config.mpc_dt**2
-            previous = -2 * cas.Matrix.eye(n_vel) / self.config.mpc_dt**2
+            model = sm.Matrix.zeros(rows=n_jerk, columns=n_vel)
+            pre_previous = sm.Matrix.eye(n_vel) / self.config.mpc_dt**2
+            previous = -2 * sm.Matrix.eye(n_vel) / self.config.mpc_dt**2
             same = pre_previous
             model[: -self.number_of_free_variables * 2, :] += pre_previous
             model[
@@ -1757,14 +1757,14 @@ class InequalityModel(ProblemDataPart):
             ] += previous
             model[self.number_of_free_variables * 2 :, :] += same
         else:
-            model = cas.Matrix()
-        slack_model = cas.Matrix.zeros(model.shape[0], self.number_ineq_slack_variables)
+            model = sm.Matrix()
+        slack_model = sm.Matrix.zeros(model.shape[0], self.number_ineq_slack_variables)
         return model, slack_model
 
     @profile
     def construct_expression(
         self,
-    ) -> Tuple[cas.Matrix, cas.Matrix]:
+    ) -> Tuple[sm.Matrix, sm.Matrix]:
         model_parts = []
         slack_model_parts = []
 
@@ -1781,8 +1781,8 @@ class InequalityModel(ProblemDataPart):
         else:
             max_derivative = self.config.max_derivative
             derivative_model, derivative_model_slack = (
-                cas.Matrix(),
-                cas.Matrix(),
+                sm.Matrix(),
+                sm.Matrix(),
             )
 
         inequality_model, inequality_slack_model = self.inequality_constraint_model(
@@ -1803,18 +1803,18 @@ class InequalityModel(ProblemDataPart):
             model_parts.append(inequality_model)
             slack_model_parts.append(inequality_slack_model)
 
-        combined_model = cas.vstack(model_parts)
-        combined_slack_model = cas.diag_stack(slack_model_parts)
+        combined_model = sm.vstack(model_parts)
+        combined_slack_model = sm.diag_stack(slack_model_parts)
         return combined_model, combined_slack_model
 
 
 @dataclass
 class GiskardToQPAdapter:
-    world_state_symbols: List[cas.FloatVariable]
-    life_cycle_symbols: List[cas.FloatVariable]
-    external_collision_symbols: List[cas.FloatVariable]
-    self_collision_symbols: List[cas.FloatVariable]
-    auxiliary_variables: List[cas.FloatVariable]
+    world_state_symbols: List[sm.FloatVariable]
+    life_cycle_symbols: List[sm.FloatVariable]
+    external_collision_symbols: List[sm.FloatVariable]
+    self_collision_symbols: List[sm.FloatVariable]
+    auxiliary_variables: List[sm.FloatVariable]
 
     degrees_of_freedom: List[DegreeOfFreedom]
     constraint_collection: ConstraintCollection
@@ -1911,17 +1911,17 @@ class GiskardToQPAdapter:
 
     def general_qp_to_specific_qp(
         self,
-        quadratic_weights: cas.Vector,
-        linear_weights: cas.Vector,
-        box_lower_constraints: cas.Vector,
-        box_upper_constraints: cas.Vector,
-        eq_matrix_dofs: cas.Matrix,
-        eq_matrix_slack: cas.Matrix,
-        eq_bounds: cas.Vector,
-        neq_matrix_dofs: cas.Matrix,
-        neq_matrix_slack: cas.Matrix,
-        neq_lower_bounds: cas.Vector,
-        neq_upper_bounds: cas.Vector,
+        quadratic_weights: sm.Vector,
+        linear_weights: sm.Vector,
+        box_lower_constraints: sm.Vector,
+        box_upper_constraints: sm.Vector,
+        eq_matrix_dofs: sm.Matrix,
+        eq_matrix_slack: sm.Matrix,
+        eq_bounds: sm.Vector,
+        neq_matrix_dofs: sm.Matrix,
+        neq_matrix_slack: sm.Matrix,
+        neq_lower_bounds: sm.Vector,
+        neq_upper_bounds: sm.Vector,
     ):
         raise NotImplementedError()
 

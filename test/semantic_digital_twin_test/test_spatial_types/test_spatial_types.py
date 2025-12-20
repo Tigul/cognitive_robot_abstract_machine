@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from krrood.symbolic_math.exceptions import (
     UnsupportedOperationError,
     WrongDimensionsError,
@@ -102,8 +102,8 @@ class TestRotationMatrix:
             Pose(),
         ]
         does_not_work = [
-            cas.FloatVariable(name="s"),
-            cas.Scalar(1),
+            sm.FloatVariable(name="s"),
+            sm.Scalar(1),
             Point3(x=1, y=1, z=1),
             Quaternion(),
         ]
@@ -125,7 +125,7 @@ class TestRotationMatrix:
         assert np.allclose(R.z_vector(), R_ref[:, 2])
 
     def test_create_RotationMatrix(self):
-        s = cas.FloatVariable(name="s")
+        s = sm.FloatVariable(name="s")
         r = RotationMatrix.from_rpy(1, 2, s)
         r = RotationMatrix.from_rpy(1, 2, 3)
         assert isinstance(r, RotationMatrix)
@@ -418,7 +418,7 @@ class TestRotationMatrix:
 
     def test_symbolic_operations(self):
         """Test operations with symbolic expressions"""
-        angle_sym = cas.FloatVariable(name="theta")
+        angle_sym = sm.FloatVariable(name="theta")
 
         # Create symbolic rotation
         r_sym = RotationMatrix.from_axis_angle(Vector3.Z(), angle_sym)
@@ -532,8 +532,8 @@ class TestPoint3:
 
     def test_init(self):
         l = [1, 2, 3]
-        s = cas.FloatVariable(name="s")
-        e = cas.Scalar(1)
+        s = sm.FloatVariable(name="s")
+        e = sm.Scalar(1)
         v = Vector3(x=1, y=1, z=1)
         p = Point3(x=l[0], y=l[1], z=l[2])
         r = RotationMatrix()
@@ -557,7 +557,7 @@ class TestPoint3:
     @pytest.mark.parametrize("condition", bool_values)
     def test_if_greater_zero(self, condition):
         if_result, else_result = Point3(1, 2, 3), Point3(4, 5, 6)
-        actual = cas.if_greater_zero(condition, if_result, else_result)
+        actual = sm.if_greater_zero(condition, if_result, else_result)
         expected = if_result if condition > 0 else else_result
         assert np.allclose(actual, expected)
 
@@ -566,7 +566,7 @@ class TestPoint3:
         p1 = Point3(x=1, y=2, z=3)
         p2 = Point3(x=4, y=5, z=6)
         v = Vector3(x=1, y=1, z=1)
-        s = cas.FloatVariable(name="s")
+        s = sm.FloatVariable(name="s")
 
         # Test Point + Vector = Point (translate point by vector)
         result = p1 + v
@@ -598,12 +598,12 @@ class TestPoint3:
 
         # Test Point.norm() = scalar (distance from origin)
         result5 = p1.norm()
-        assert isinstance(result5, cas.SymbolicMathType)
+        assert isinstance(result5, sm.SymbolicMathType)
         expected_norm = np.sqrt(1**2 + 2**2 + 3**2)
         assert np.allclose(result5, expected_norm)
 
         # Test operations with symbolic expressions
-        x = cas.FloatVariable(name="x")
+        x = sm.FloatVariable(name="x")
         p_symbolic = Point3(x, y=2, z=3)
         result6 = p_symbolic + v
         assert isinstance(result6, Point3)
@@ -684,7 +684,7 @@ class TestPoint3:
             RotationMatrix(),
             Quaternion(),
             HomogeneousTransformationMatrix(),
-            cas.FloatVariable(name="s"),
+            sm.FloatVariable(name="s"),
             Pose(),
         ]
         for other in does_not_work:
@@ -699,7 +699,7 @@ class TestPoint3:
             RotationMatrix(),
             Quaternion(),
             HomogeneousTransformationMatrix(),
-            cas.FloatVariable(name="s"),
+            sm.FloatVariable(name="s"),
             Pose(),
         ]
         for other in does_not_work:
@@ -714,7 +714,7 @@ class TestPoint3:
             RotationMatrix(),
             Quaternion(),
             HomogeneousTransformationMatrix(),
-            cas.FloatVariable(name="s"),
+            sm.FloatVariable(name="s"),
             Pose(),
         ]
         for other in does_not_work:
@@ -729,7 +729,7 @@ class TestPoint3:
             RotationMatrix(),
             Quaternion(),
             HomogeneousTransformationMatrix(),
-            cas.FloatVariable(name="s"),
+            sm.FloatVariable(name="s"),
             Pose(),
         ]
         for other in does_not_work:
@@ -744,7 +744,7 @@ class TestPoint3:
             RotationMatrix(),
             Quaternion(),
             HomogeneousTransformationMatrix(),
-            cas.FloatVariable(name="s"),
+            sm.FloatVariable(name="s"),
             Pose(),
         ]
         for other in does_not_work:
@@ -850,7 +850,7 @@ class TestPoint3:
 
     def test_symbolic_operations(self):
         """Test operations with symbolic expressions"""
-        x, y, z = cas.create_float_variables(["x", "y", "z"])
+        x, y, z = sm.create_float_variables(["x", "y", "z"])
         p_symbolic = Point3(x=x, y=y, z=z)
         p_numeric = Point3(x=1, y=2, z=3)
 
@@ -881,8 +881,8 @@ class TestVector3:
 
     def test_init(self):
         l = [1, 2, 3]
-        s = cas.FloatVariable(name="s")
-        e = cas.Scalar(1)
+        s = sm.FloatVariable(name="s")
+        e = sm.Scalar(1)
         v = Vector3(x=1, y=1, z=1)
         p = Point3(x=1, y=1, z=1)
         r = RotationMatrix()
@@ -931,7 +931,7 @@ class TestVector3:
     @pytest.mark.parametrize("if_nan", unit_vectors3)
     def test_save_division(self, nominator, denominator, if_nan):
         nominator_expr = Vector3.from_iterable(nominator)
-        denominator_expr = cas.Scalar(data=denominator)
+        denominator_expr = sm.Scalar(data=denominator)
         if_nan_expr = Vector3.from_iterable(if_nan)
         result = nominator_expr.safe_division(denominator_expr, if_nan_expr)
         if denominator == 0:
@@ -1036,7 +1036,7 @@ class TestVector3:
             RotationMatrix(),
             Quaternion(),
             HomogeneousTransformationMatrix(),
-            cas.FloatVariable(name="s"),
+            sm.FloatVariable(name="s"),
             Pose(),
         ]
         for other in does_not_work:
@@ -1052,7 +1052,7 @@ class TestVector3:
             RotationMatrix(),
             Quaternion(),
             HomogeneousTransformationMatrix(),
-            cas.FloatVariable(name="s"),
+            sm.FloatVariable(name="s"),
             Pose(),
         ]
         for other in does_not_work:
@@ -1098,7 +1098,7 @@ class TestVector3:
             RotationMatrix(),
             Quaternion(),
             HomogeneousTransformationMatrix(),
-            cas.FloatVariable(name="s"),
+            sm.FloatVariable(name="s"),
             Pose(),
         ]
         for other in does_not_work:
@@ -1135,9 +1135,9 @@ class TestVector3:
     def test_compilation_and_execution(self):
         """Test that Vector3 operations compile and execute correctly"""
         v1 = Vector3(
-            x=cas.FloatVariable(name="x"),
-            y=cas.FloatVariable(name="y"),
-            z=cas.FloatVariable(name="z"),
+            x=sm.FloatVariable(name="x"),
+            y=sm.FloatVariable(name="y"),
+            z=sm.FloatVariable(name="z"),
         )
         v2 = Vector3(x=1, y=2, z=3)
 
@@ -1252,8 +1252,8 @@ class TestTransformationMatrix:
             Point3(x=1, y=1, z=1),
         ]
         does_not_work = [
-            cas.FloatVariable(name="s"),
-            cas.Scalar(1),
+            sm.FloatVariable(name="s"),
+            sm.Scalar(1),
             Quaternion(),
         ]
 
@@ -1276,7 +1276,7 @@ class TestTransformationMatrix:
         assert np.allclose(r1, r2)
 
     def test_dot(self):
-        s = cas.FloatVariable(name="x")
+        s = sm.FloatVariable(name="x")
         m1 = HomogeneousTransformationMatrix()
         m2 = HomogeneousTransformationMatrix.from_xyz_rpy(x=s)
         m1.dot(m2)
@@ -1639,9 +1639,9 @@ class TestTransformationMatrix:
 
     def test_symbolic_operations(self):
         """Test operations with symbolic expressions"""
-        x_sym = cas.FloatVariable(name="x")
-        y_sym = cas.FloatVariable(name="y")
-        angle_sym = cas.FloatVariable(name="theta")
+        x_sym = sm.FloatVariable(name="x")
+        y_sym = sm.FloatVariable(name="y")
+        angle_sym = sm.FloatVariable(name="theta")
 
         # Create symbolic transformation
         t_sym = HomogeneousTransformationMatrix.from_xyz_rpy(

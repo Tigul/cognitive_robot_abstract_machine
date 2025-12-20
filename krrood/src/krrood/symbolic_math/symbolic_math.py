@@ -88,15 +88,41 @@ class VariableParameters:
         return tuple(v for g in self.groups for v in g.variables)
 
     @classmethod
-    def from_lists(cls, groups: List[List[FloatVariable]]) -> VariableParameters:
-        return cls(groups=tuple(VariableGroup(tuple(g)) for g in groups))
+    def from_lists(cls, *args: List[FloatVariable]) -> VariableParameters:
+        """
+        Creates a new instance of VariableParameters from multiple lists.
+
+        :param args: A variable number of lists, where each list contains
+            FloatVariable instances.
+        :return: A new instance of VariableParameters created from the provided lists.
+        """
+        return cls(groups=tuple(VariableGroup(tuple(g)) for g in args))
+
+    def to_casadi_parameters(self) -> List[ca.SX]:
+        casadi_parameters = []
+        if len(self) > 0:
+            # create an array for each VariableGroup
+            casadi_parameters = [to_sx(list(group.variables)) for group in self.groups]
+        return casadi_parameters
 
 
-class _DenseLayout:
+@dataclass
+class _Layout(ABC):
+    compiled: CompiledFunction
+
+    def is_empty_result(self) -> bool:
+        return len(self.compiled.expression) == 0
+
+    @abstractmethod
+    def compile(self, casadi_parameters: List[ca.SX]) -> None: ...
+
+    @abstractmethod
+    def setup_output(self) -> None: ...
+
+
+@dataclass
+class _DenseLayout(_Layout):
     """Strategy for dense compiled function setup."""
-
-    def __init__(self, compiled: CompiledFunction) -> None:
-        self.compiled = compiled
 
     def compile(self, casadi_parameters: List[ca.SX]) -> None:
         self.compiled.expression.casadi_sx = ca.densify(
@@ -119,11 +145,9 @@ class _DenseLayout:
         self.compiled._function_buffer.set_res(0, memoryview(self.compiled._out))
 
 
-class _SparseLayout:
+@dataclass
+class _SparseLayout(_Layout):
     """Strategy for sparse compiled function setup."""
-
-    def __init__(self, compiled: "CompiledFunction") -> None:
-        self.compiled = compiled
 
     def compile(self, casadi_parameters: List[ca.SX]) -> None:
         self.compiled.expression.casadi_sx = ca.sparsify(
@@ -168,13 +192,17 @@ class CompiledFunction:
     """
     The symbolic expression to compile.
     """
-    variable_parameters: Optional[VariableParameters | List[List[FloatVariable]]] = None
+    variable_parameters: Optional[VariableParameters] = None
     """
     The input parameters for the compiled symbolic expression.
     """
     sparse: bool = False
     """
     Whether to return a sparse matrix or a dense numpy matrix
+    """
+    _layout: _Layout = field(init=False)
+    """
+    The layout strategy to use for the compiled function.
     """
 
     _compiled_casadi_function: ca.Function = field(init=False)
@@ -204,16 +232,6 @@ class CompiledFunction:
             else:
                 vp = VariableParameters(groups=(VariableGroup(tuple(free_vars)),))
             self.variable_parameters = vp
-        elif isinstance(self.variable_parameters, VariableParameters):
-            # already normalized
-            pass
-        else:
-            # Provided as list of lists; convert to immutable representation
-            vp = VariableParameters.from_lists(self.variable_parameters)
-            # Treat single empty group as no-parameter case (backward compatibility for [[]])
-            if len(vp.groups) == 1 and len(vp.groups[0].variables) == 0:
-                vp = VariableParameters(groups=tuple())
-            self.variable_parameters = vp
 
         # Validate variables
         self._validate_variables()
@@ -223,7 +241,7 @@ class CompiledFunction:
             return
 
         self._setup_compiled_function()
-        self._setup_output_buffer()
+        self._layout.setup_output()
         if len(self.variable_parameters) == 0:
             self._setup_constant_result()
 
@@ -264,24 +282,8 @@ class CompiledFunction:
         """
         Setup the CasADi compiled function.
         """
-        casadi_parameters = []
-        if len(self.variable_parameters) > 0:
-            # create an array for each VariableGroup
-            casadi_parameters = [
-                to_sx(list(group.variables))
-                for group in self.variable_parameters.groups
-            ]
-
-        # Strategy-based compilation to remove duplicate sparse/dense logic
         self._layout = _SparseLayout(self) if self.sparse else _DenseLayout(self)
-        self._layout.compile(casadi_parameters)
-
-    def _setup_output_buffer(self) -> None:
-        """
-        Setup the output buffer for the compiled function.
-        """
-        # Delegate to selected layout to avoid duplicated sparse/dense code
-        self._layout.setup_output()
+        self._layout.compile(self.variable_parameters.to_casadi_parameters())
 
     def _setup_constant_result(self) -> None:
         """
@@ -366,7 +368,7 @@ class CompiledFunctionWithViews:
     The list of expressions to be compiled.
     """
 
-    variable_parameters: List[List[FloatVariable]]
+    parameters: VariableParameters
     """
     The input parameters for the compiled symbolic expression.
     """
@@ -389,7 +391,7 @@ class CompiledFunctionWithViews:
     def __post_init__(self):
         combined_expression = Matrix.vstack(self.expressions)
         self.compiled_function = combined_expression.compile(
-            parameters=self.variable_parameters, sparse=False
+            parameters=self.parameters, sparse=False
         )
         slices = []
         start = 0
@@ -548,7 +550,7 @@ class SymbolicMathType(ABC):
 
     def compile(
         self,
-        parameters: Optional[VariableParameters | List[List[FloatVariable]]] = None,
+        parameters: Optional[VariableParameters] = None,
         sparse: bool = False,
     ) -> CompiledFunction:
         """
@@ -569,7 +571,9 @@ class SymbolicMathType(ABC):
         Substitutes the free variables in this expression using their `resolve` method and compute the result.
         :return: The evaluated value of this expression.
         """
-        f = self.compile([self.free_variables()], sparse=False)
+        f = self.compile(
+            VariableParameters.from_lists(self.free_variables()), sparse=False
+        )
         return f(
             np.array([s.resolve() for s in self.free_variables()], dtype=np.float64)
         )

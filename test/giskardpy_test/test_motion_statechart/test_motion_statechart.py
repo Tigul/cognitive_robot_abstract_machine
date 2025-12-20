@@ -7,7 +7,6 @@ from typing import Type
 import numpy as np
 import pytest
 
-import semantic_digital_twin.spatial_types.spatial_types as cas
 from giskardpy.data_types.exceptions import DuplicateNameException
 from giskardpy.executor import Executor, SimulationPacer
 from giskardpy.model.collision_matrix_manager import CollisionRequest
@@ -98,6 +97,8 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Hand
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
     Vector3,
+    Point3,
+    RotationMatrix,
 )
 from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
 from semantic_digital_twin.world import World
@@ -412,7 +413,7 @@ def test_joint_goal():
         )
         world.add_degree_of_freedom(dof)
         root_C_tip = RevoluteConnection(
-            parent=root, child=tip, axis=cas.Vector3.Z(), dof_id=dof.id
+            parent=root, child=tip, axis=Vector3.Z(), dof_id=dof.id
         )
         world.add_connection(root_C_tip)
 
@@ -421,7 +422,7 @@ def test_joint_goal():
         )
         world.add_degree_of_freedom(dof)
         root_C_tip2 = RevoluteConnection(
-            parent=root, child=tip2, axis=cas.Vector3.Z(), dof_id=dof.id
+            parent=root, child=tip2, axis=Vector3.Z(), dof_id=dof.id
         )
         world.add_connection(root_C_tip2)
 
@@ -1228,9 +1229,7 @@ class TestCartesianTasks:
         tip = pr2_world.get_kinematic_structure_entity_by_name("base_footprint")
         root = pr2_world.get_kinematic_structure_entity_by_name("odom_combined")
 
-        tip_goal = cas.RotationMatrix.from_axis_angle(
-            cas.Vector3.Z(), 4.0, reference_frame=tip
-        )
+        tip_goal = RotationMatrix.from_axis_angle(Vector3.Z(), 4.0, reference_frame=tip)
 
         msc = MotionStatechart()
         cart_goal = CartesianOrientation(
@@ -1255,8 +1254,8 @@ class TestCartesianTasks:
         tip = pr2_world.get_kinematic_structure_entity_by_name("base_footprint")
         root = pr2_world.get_kinematic_structure_entity_by_name("odom_combined")
 
-        tip_goal1 = cas.Point3(-0.2, 0, 0, reference_frame=tip)
-        tip_goal2 = cas.Point3(0.2, 0, 0, reference_frame=tip)
+        tip_goal1 = Point3(-0.2, 0, 0, reference_frame=tip)
+        tip_goal2 = Point3(0.2, 0, 0, reference_frame=tip)
 
         msc = MotionStatechart()
         cart_goal1 = CartesianPosition(
@@ -1300,8 +1299,8 @@ class TestCartesianTasks:
         tip = pr2_world.get_kinematic_structure_entity_by_name("base_footprint")
         root = pr2_world.get_kinematic_structure_entity_by_name("odom_combined")
 
-        tip_goal1 = cas.Point3(-0.2, 0, 0, reference_frame=tip)
-        tip_goal2 = cas.Point3(0.2, 0, 0, reference_frame=tip)
+        tip_goal1 = Point3(-0.2, 0, 0, reference_frame=tip)
+        tip_goal2 = Point3(0.2, 0, 0, reference_frame=tip)
 
         msc = MotionStatechart()
         cart_goal1 = CartesianPosition(
@@ -1343,11 +1342,11 @@ class TestCartesianTasks:
         tip = pr2_world.get_kinematic_structure_entity_by_name("base_footprint")
         root = pr2_world.get_kinematic_structure_entity_by_name("odom_combined")
 
-        tip_rot1 = cas.RotationMatrix.from_axis_angle(
-            cas.Vector3.Z(), np.pi / 6, reference_frame=tip
+        tip_rot1 = RotationMatrix.from_axis_angle(
+            Vector3.Z(), np.pi / 6, reference_frame=tip
         )
-        tip_rot2 = cas.RotationMatrix.from_axis_angle(
-            cas.Vector3.Z(), -np.pi / 6, reference_frame=tip
+        tip_rot2 = RotationMatrix.from_axis_angle(
+            Vector3.Z(), -np.pi / 6, reference_frame=tip
         )
 
         msc = MotionStatechart()
@@ -1390,11 +1389,11 @@ class TestCartesianTasks:
         tip = pr2_world.get_kinematic_structure_entity_by_name("base_footprint")
         root = pr2_world.get_kinematic_structure_entity_by_name("odom_combined")
 
-        tip_rot1 = cas.RotationMatrix.from_axis_angle(
-            cas.Vector3.Z(), np.pi / 6, reference_frame=tip
+        tip_rot1 = RotationMatrix.from_axis_angle(
+            Vector3.Z(), np.pi / 6, reference_frame=tip
         )
-        tip_rot2 = cas.RotationMatrix.from_axis_angle(
-            cas.Vector3.Z(), -np.pi / 6, reference_frame=tip
+        tip_rot2 = RotationMatrix.from_axis_angle(
+            Vector3.Z(), -np.pi / 6, reference_frame=tip
         )
 
         msc = MotionStatechart()
@@ -1437,7 +1436,7 @@ class TestCartesianTasks:
         tip = pr2_world.get_kinematic_structure_entity_by_name("base_footprint")
         root = pr2_world.get_kinematic_structure_entity_by_name("odom_combined")
 
-        goal_point = cas.Point3(0.1, 0, 0, reference_frame=tip)
+        goal_point = Point3(0.1, 0, 0, reference_frame=tip)
 
         msc = MotionStatechart()
         cart_straight = CartesianPositionStraight(
@@ -1466,8 +1465,8 @@ def test_pointing(pr2_world: World):
 
     msc = MotionStatechart()
 
-    goal_point = cas.Point3(2, 0, 0, reference_frame=root)
-    pointing_axis = cas.Vector3.X(reference_frame=tip)
+    goal_point = Point3(2, 0, 0, reference_frame=root)
+    pointing_axis = Vector3.X(reference_frame=tip)
 
     pointing = Pointing(
         root_link=root,
@@ -1493,8 +1492,8 @@ def test_pointing_cone(pr2_world: World):
 
     msc = MotionStatechart()
 
-    goal_point = cas.Point3(-1, 0, 5, reference_frame=root)
-    pointing_axis = cas.Vector3.X(tip)
+    goal_point = Point3(-1, 0, 5, reference_frame=root)
+    pointing_axis = Vector3.X(tip)
     cone_theta = radians(20)
     pointing_cone = PointingCone(
         root_link=root,
@@ -1523,7 +1522,7 @@ def test_pointing_cone(pr2_world: World):
 
     root_P_goal = pr2_world.transform(target_frame=root, spatial_object=goal_point)
     tip_origin_in_root = pr2_world.transform(
-        target_frame=root, spatial_object=cas.Point3(0, 0, 0, reference_frame=tip)
+        target_frame=root, spatial_object=Point3(0, 0, 0, reference_frame=tip)
     )
     root_V_goal_axis = root_P_goal - tip_origin_in_root
     root_V_goal_axis.scale(1)
@@ -1546,8 +1545,8 @@ def test_align_planes(pr2_world: World):
 
     msc = MotionStatechart()
 
-    goal_normal = cas.Vector3.X(reference_frame=root)
-    tip_normal = cas.Vector3.Y(reference_frame=tip)
+    goal_normal = Vector3.X(reference_frame=root)
+    tip_normal = Vector3.Y(reference_frame=tip)
 
     align_planes = AlignPlanes(
         root_link=root, tip_link=tip, goal_normal=goal_normal, tip_normal=tip_normal
@@ -1597,8 +1596,8 @@ def test_angle_goal(pr2_world: World):
 
     msc = MotionStatechart()
 
-    tip_vector = cas.Vector3.Y(reference_frame=tip)
-    reference_vector = cas.Vector3.X(reference_frame=root)
+    tip_vector = Vector3.Y(reference_frame=tip)
+    reference_vector = Vector3.X(reference_frame=root)
 
     lower_angle = radians(30)
     upper_angle = radians(32)
@@ -1685,13 +1684,13 @@ class TestVelocityTasks:
             goal = CartesianPosition(
                 root_link=root,
                 tip_link=tip,
-                goal_point=cas.Point3(1, 0, 0, reference_frame=tip),
+                goal_point=Point3(1, 0, 0, reference_frame=tip),
             )
         else:
             goal = CartesianOrientation(
                 root_link=root,
                 tip_link=tip,
-                goal_orientation=cas.RotationMatrix.from_rpy(
+                goal_orientation=RotationMatrix.from_rpy(
                     yaw=np.pi / 2, reference_frame=tip
                 ),
             )
@@ -1724,7 +1723,7 @@ class TestVelocityTasks:
         tip = pr2_world.get_kinematic_structure_entity_by_name("base_footprint")
         root = pr2_world.get_kinematic_structure_entity_by_name("odom_combined")
 
-        point = cas.Point3(1, 0, 0, reference_frame=tip)
+        point = Point3(1, 0, 0, reference_frame=tip)
         position_goal = CartesianPosition(
             root_link=root, tip_link=tip, goal_point=point
         )
@@ -1759,7 +1758,7 @@ class TestVelocityTasks:
         tip = pr2_world.get_kinematic_structure_entity_by_name("base_footprint")
         root = pr2_world.get_kinematic_structure_entity_by_name("odom_combined")
 
-        rotation = cas.RotationMatrix.from_rpy(yaw=np.pi / 2, reference_frame=tip)
+        rotation = RotationMatrix.from_rpy(yaw=np.pi / 2, reference_frame=tip)
         orientation = CartesianOrientation(
             root_link=root, tip_link=tip, goal_orientation=rotation
         )
@@ -2091,7 +2090,7 @@ class TestOpenClose:
                 dof_id=dof.id,
                 parent=pr2_world.root,
                 child=door_world.root,
-                axis=-cas.Vector3.Z(),
+                axis=-Vector3.Z(),
                 parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=1.5, z=1, yaw=np.pi, reference_frame=pr2_world.root
                 ),
@@ -2323,11 +2322,11 @@ def test_constraint_collection(pr2_world: World):
     tip = pr2_world.get_kinematic_structure_entity_by_name("r_gripper_tool_frame")
     root = pr2_world.get_kinematic_structure_entity_by_name("odom_combined")
 
-    expr = cas.Vector3.X(tip).angle_between(cas.Vector3.Y(root))
+    expr = Vector3.X(tip).angle_between(Vector3.Y(root))
 
     col.add_point_goal_constraints(
-        frame_P_current=cas.Point3(0, 0, 0, reference_frame=tip),
-        frame_P_goal=cas.Point3(0, 0, 0, reference_frame=tip),
+        frame_P_current=Point3(0, 0, 0, reference_frame=tip),
+        frame_P_goal=Point3(0, 0, 0, reference_frame=tip),
         reference_velocity=0.1,
         weight=DefaultWeights.WEIGHT_BELOW_CA,
     )

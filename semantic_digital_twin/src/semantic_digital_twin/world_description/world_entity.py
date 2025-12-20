@@ -9,7 +9,6 @@ from copy import deepcopy
 from dataclasses import dataclass, field
 from dataclasses import fields
 from functools import lru_cache
-from typing import ClassVar
 from uuid import UUID, uuid4
 
 import numpy as np
@@ -25,6 +24,7 @@ from typing_extensions import (
     Dict,
     Any,
     Self,
+    ClassVar,
 )
 from typing_extensions import List, Optional, TYPE_CHECKING, Tuple
 from typing_extensions import Set
@@ -45,7 +45,6 @@ from ..adapters.world_entity_kwargs_tracker import (
 )
 from ..datastructures.prefixed_name import PrefixedName
 from ..exceptions import ReferenceFrameMismatchError
-from ..spatial_types import spatial_types as cas
 from ..spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
     Point3,
@@ -1018,7 +1017,7 @@ class Connection(WorldEntity, SubclassJSONSerializer):
         return hash((self.parent, self.child))
 
     @property
-    def origin(self) -> cas.HomogeneousTransformationMatrix:
+    def origin(self) -> HomogeneousTransformationMatrix:
         """
         :return: The relative transform between the parent and child frame.
         """

@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 import numpy as np
 from typing_extensions import List, Optional, Union, TYPE_CHECKING, Set
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.data_types.exceptions import (
     DuplicateNameException,
 )
@@ -87,23 +87,23 @@ class ConstraintCollection:
 
     def link_to_motion_statechart_node(self, node: MotionStatechartNode):
         for constraint in self._constraints:
-            is_running = cas.if_eq(
+            is_running = sm.if_eq(
                 node.life_cycle_variable,
                 LifeCycleValues.RUNNING,
-                if_result=cas.Scalar(1),
-                else_result=cas.Scalar(0),
+                if_result=sm.Scalar(1),
+                else_result=sm.Scalar(0),
             )
             constraint.quadratic_weight *= is_running
 
     def add_equality_constraint(
         self,
-        task_expression: cas.SymbolicScalar,
-        equality_bound: cas.ScalarData,
-        weight: cas.ScalarData,
-        reference_velocity: cas.ScalarData,
+        task_expression: sm.SymbolicScalar,
+        equality_bound: sm.ScalarData,
+        weight: sm.ScalarData,
+        reference_velocity: sm.ScalarData,
         name: Optional[str] = None,
-        lower_slack_limit: cas.ScalarData = -Large_Number,
-        upper_slack_limit: cas.ScalarData = Large_Number,
+        lower_slack_limit: sm.ScalarData = -Large_Number,
+        upper_slack_limit: sm.ScalarData = Large_Number,
     ):
         """
         Add a task constraint to the motion problem. This should be used for most constraints.
@@ -143,14 +143,14 @@ class ConstraintCollection:
 
     def add_inequality_constraint(
         self,
-        reference_velocity: cas.ScalarData,
-        lower_error: cas.ScalarData,
-        upper_error: cas.ScalarData,
-        weight: cas.ScalarData,
-        task_expression: cas.SymbolicScalar,
+        reference_velocity: sm.ScalarData,
+        lower_error: sm.ScalarData,
+        upper_error: sm.ScalarData,
+        weight: sm.ScalarData,
+        task_expression: sm.SymbolicScalar,
         name: Optional[str] = None,
-        lower_slack_limit: cas.ScalarData = -Large_Number,
-        upper_slack_limit: cas.ScalarData = Large_Number,
+        lower_slack_limit: sm.ScalarData = -Large_Number,
+        upper_slack_limit: sm.ScalarData = Large_Number,
     ):
         """
         Add a task constraint to the motion problem. This should be used for most constraints.
@@ -194,8 +194,8 @@ class ConstraintCollection:
         self,
         frame_P_current: Point3,
         frame_P_goal: Point3,
-        reference_velocity: cas.ScalarData,
-        weight: cas.ScalarData,
+        reference_velocity: sm.ScalarData,
+        weight: sm.ScalarData,
         name: Optional[str] = None,
     ):
         """
@@ -220,10 +220,10 @@ class ConstraintCollection:
 
     def add_position_constraint(
         self,
-        expr_current: cas.SymbolicScalar,
-        expr_goal: cas.ScalarData,
-        reference_velocity: cas.ScalarData,
-        weight: cas.ScalarData = DefaultWeights.WEIGHT_BELOW_CA,
+        expr_current: sm.SymbolicScalar,
+        expr_goal: sm.ScalarData,
+        reference_velocity: sm.ScalarData,
+        weight: sm.ScalarData = DefaultWeights.WEIGHT_BELOW_CA,
         name: Optional[str] = None,
     ):
         """
@@ -241,11 +241,11 @@ class ConstraintCollection:
 
     def add_position_range_constraint(
         self,
-        expr_current: cas.SymbolicScalar,
-        expr_min: cas.ScalarData,
-        expr_max: cas.ScalarData,
-        reference_velocity: cas.ScalarData,
-        weight: cas.ScalarData = DefaultWeights.WEIGHT_BELOW_CA,
+        expr_current: sm.SymbolicScalar,
+        expr_min: sm.ScalarData,
+        expr_max: sm.ScalarData,
+        reference_velocity: sm.ScalarData,
+        weight: sm.ScalarData = DefaultWeights.WEIGHT_BELOW_CA,
         name: Optional[str] = None,
     ):
         """
@@ -267,8 +267,8 @@ class ConstraintCollection:
         self,
         frame_V_current: Vector3,
         frame_V_goal: Vector3,
-        reference_velocity: cas.ScalarData,
-        weight: cas.ScalarData = DefaultWeights.WEIGHT_BELOW_CA,
+        reference_velocity: sm.ScalarData,
+        weight: sm.ScalarData = DefaultWeights.WEIGHT_BELOW_CA,
         name: Optional[str] = None,
     ):
         """
@@ -281,9 +281,9 @@ class ConstraintCollection:
         :param name:
         """
 
-        angle = cas.safe_acos(frame_V_current.dot(frame_V_goal))
+        angle = sm.safe_acos(frame_V_current.dot(frame_V_goal))
         # avoid singularity by staying away from pi
-        angle_limited = cas.min(cas.max(angle, -reference_velocity), reference_velocity)
+        angle_limited = sm.min(sm.max(angle, -reference_velocity), reference_velocity)
         angle_limited = angle_limited.safe_division(angle)
         root_V_goal_normal_intermediate = frame_V_current.slerp(
             frame_V_goal, angle_limited
@@ -303,8 +303,8 @@ class ConstraintCollection:
         self,
         frame_R_current: RotationMatrix,
         frame_R_goal: RotationMatrix,
-        reference_velocity: cas.ScalarData,
-        weight: cas.ScalarData,
+        reference_velocity: sm.ScalarData,
+        weight: sm.ScalarData,
         name: Optional[str] = None,
     ):
         """
@@ -324,7 +324,7 @@ class ConstraintCollection:
         frame_R_current = frame_R_current.dot(hack)
         q_actual = frame_R_current.to_quaternion()
         q_goal = frame_R_goal.to_quaternion()
-        q_goal = cas.if_less(q_goal.dot(q_actual), 0, -q_goal, q_goal)
+        q_goal = sm.if_less(q_goal.dot(q_actual), 0, -q_goal, q_goal)
         q_error = q_actual.diff(q_goal)
 
         # w is redundant
@@ -339,14 +339,14 @@ class ConstraintCollection:
 
     def add_velocity_constraint(
         self,
-        lower_velocity_limit: Union[cas.ScalarData, List[cas.ScalarData]],
-        upper_velocity_limit: Union[cas.ScalarData, List[cas.ScalarData]],
-        weight: cas.ScalarData,
-        task_expression: cas.SymbolicScalar,
-        velocity_limit: cas.ScalarData,
+        lower_velocity_limit: Union[sm.ScalarData, List[sm.ScalarData]],
+        upper_velocity_limit: Union[sm.ScalarData, List[sm.ScalarData]],
+        weight: sm.ScalarData,
+        task_expression: sm.SymbolicScalar,
+        velocity_limit: sm.ScalarData,
         name: Optional[str] = None,
-        lower_slack_limit: Union[cas.ScalarData, List[cas.ScalarData]] = -Large_Number,
-        upper_slack_limit: Union[cas.ScalarData, List[cas.ScalarData]] = Large_Number,
+        lower_slack_limit: Union[sm.ScalarData, List[sm.ScalarData]] = -Large_Number,
+        upper_slack_limit: Union[sm.ScalarData, List[sm.ScalarData]] = Large_Number,
     ):
         """
         Add a velocity constraint. Internally, this will be converted into multiple constraints, to ensure that the
@@ -377,13 +377,13 @@ class ConstraintCollection:
 
     def add_velocity_eq_constraint(
         self,
-        velocity_goal: Union[cas.ScalarData, List[cas.ScalarData]],
-        weight: cas.ScalarData,
-        task_expression: cas.SymbolicScalar,
-        velocity_limit: cas.ScalarData,
+        velocity_goal: Union[sm.ScalarData, List[sm.ScalarData]],
+        weight: sm.ScalarData,
+        task_expression: sm.SymbolicScalar,
+        velocity_limit: sm.ScalarData,
         name: Optional[str] = None,
-        lower_slack_limit: Union[cas.ScalarData, List[cas.ScalarData]] = -Large_Number,
-        upper_slack_limit: Union[cas.ScalarData, List[cas.ScalarData]] = Large_Number,
+        lower_slack_limit: Union[sm.ScalarData, List[sm.ScalarData]] = -Large_Number,
+        upper_slack_limit: Union[sm.ScalarData, List[sm.ScalarData]] = Large_Number,
     ):
         """
         Add a velocity constraint. Internally, this will be converted into multiple constraints, to ensure that the
@@ -412,12 +412,12 @@ class ConstraintCollection:
 
     def add_velocity_eq_constraint_vector(
         self,
-        velocity_goals: Union[cas.ScalarScalar, Vector3, Point3, List[cas.ScalarData]],
+        velocity_goals: Union[sm.ScalarScalar, Vector3, Point3, List[sm.ScalarData]],
         reference_velocities: Union[
-            cas.ScalarScalar, Vector3, Point3, List[cas.ScalarData]
+            sm.ScalarScalar, Vector3, Point3, List[sm.ScalarData]
         ],
-        weights: Union[cas.ScalarScalar, Vector3, Point3, List[cas.ScalarData]],
-        task_expression: Union[cas.Scalar, Vector3, Point3, List[cas.SymbolicScalar]],
+        weights: Union[sm.ScalarScalar, Vector3, Point3, List[sm.ScalarData]],
+        task_expression: Union[sm.Scalar, Vector3, Point3, List[sm.SymbolicScalar]],
         names: List[str],
     ):
         for i in range(len(velocity_goals)):
@@ -435,9 +435,9 @@ class ConstraintCollection:
     def add_translational_velocity_limit(
         self,
         frame_P_current: Point3,
-        max_velocity: cas.ScalarData,
-        weight: cas.ScalarData,
-        max_violation: cas.ScalarData = np.inf,
+        max_velocity: sm.ScalarData,
+        weight: sm.ScalarData,
+        max_violation: sm.ScalarData = np.inf,
         name: Optional[str] = None,
     ):
         """
@@ -451,7 +451,7 @@ class ConstraintCollection:
         """
 
         trans_error = frame_P_current.norm()
-        trans_error = cas.if_eq_zero(trans_error, cas.Scalar(0.01), trans_error)
+        trans_error = sm.if_eq_zero(trans_error, sm.Scalar(0.01), trans_error)
         self.add_velocity_constraint(
             upper_velocity_limit=max_velocity,
             lower_velocity_limit=-max_velocity,
@@ -466,9 +466,9 @@ class ConstraintCollection:
     def add_rotational_velocity_limit(
         self,
         frame_R_current: RotationMatrix,
-        max_velocity: cas.ScalarData,
-        weight: cas.ScalarData,
-        max_violation: cas.ScalarData = Large_Number,
+        max_velocity: sm.ScalarData,
+        weight: sm.ScalarData,
+        max_violation: sm.ScalarData = Large_Number,
         name: Optional[str] = None,
     ):
         """

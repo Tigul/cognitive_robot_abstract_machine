@@ -3,7 +3,7 @@ from __future__ import division
 from dataclasses import field, dataclass
 from typing import Optional, Type, Tuple
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.exceptions import NodeInitializationError
 from giskardpy.motion_statechart.context import BuildContext, ExecutionContext
 from giskardpy.motion_statechart.graph_node import (
@@ -30,7 +30,7 @@ class SetSeedConfiguration(MotionStatechartNode):
     seed_configuration: JointState = field(kw_only=True)
 
     def build(self, context: BuildContext) -> NodeArtifacts:
-        return NodeArtifacts(observation=cas.Scalar.const_true())
+        return NodeArtifacts(observation=sm.Scalar.const_true())
 
     def on_start(self, context: ExecutionContext):
         # TODO does notify state change too often
@@ -58,7 +58,7 @@ class SetOdometry(MotionStatechartNode):
                     node=self,
                     reason="Multiple drive joint found in world, please set 'group_name'",
                 )
-        return NodeArtifacts(observation=cas.Scalar.const_true())
+        return NodeArtifacts(observation=sm.Scalar.const_true())
 
     def on_start(self, context: ExecutionContext):
         parent_T_pose_ref = HomogeneousTransformationMatrix(

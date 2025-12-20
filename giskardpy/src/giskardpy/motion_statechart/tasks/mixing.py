@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPosition,
@@ -36,8 +36,8 @@ class SpiralMixing(Task):
         h = self.upward_increment * t
 
         object_T_goal = HomogeneousTransformationMatrix()
-        x = r * cas.cos(a)
-        y = r * cas.sin(a)
+        x = r * sm.cos(a)
+        y = r * sm.sin(a)
         z = h
 
         object_T_goal.x = x

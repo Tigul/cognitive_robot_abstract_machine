@@ -9,8 +9,12 @@ from scipy.spatial.transform import Rotation
 
 from ..datastructures.prefixed_name import PrefixedName
 from ..exceptions import WorldEntityNotFoundError
-from ..spatial_types import HomogeneousTransformationMatrix, RotationMatrix, Point3
-from ..spatial_types import spatial_types as cas
+from ..spatial_types import (
+    HomogeneousTransformationMatrix,
+    RotationMatrix,
+    Point3,
+    Vector3,
+)
 from ..spatial_types.derivatives import DerivativeMap
 from ..world import World, Body
 from ..world_description.connection_properties import JointDynamics
@@ -368,7 +372,7 @@ class MJCFParser:
                 )
             else:
                 joint_to_child_body_transform = child_body_to_joint_transform.inverse()
-                joint_axis = cas.Vector3(
+                joint_axis = Vector3(
                     mujoco_joint.axis[0],
                     mujoco_joint.axis[1],
                     mujoco_joint.axis[2],

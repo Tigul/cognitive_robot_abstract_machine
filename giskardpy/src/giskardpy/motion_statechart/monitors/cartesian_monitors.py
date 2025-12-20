@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import List
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from semantic_digital_twin.spatial_types import (
     Point3,
@@ -37,9 +37,9 @@ class InWorldSpace(MotionStatechartNode):
         error = map_T_tip.to_position() - map_T_drive.to_position()
         error.vis_frame = self.drive_link
         context.context.add_debug_expression(f"{self.name}/error", error)
-        self.observation_expression = cas.logic_and(
-            cas.abs(error.x) <= self.xyz[0],
-            cas.abs(error.y) <= self.xyz[1],
+        self.observation_expression = sm.logic_and(
+            sm.abs(error.x) <= self.xyz[0],
+            sm.abs(error.y) <= self.xyz[1],
         )
 
 
@@ -78,9 +78,9 @@ class PoseReached(MotionStatechartNode):
             self.root_link, self.tip_link
         ).to_rotation_matrix()
         rotation_error = r_R_c.rotational_error(r_R_g)
-        orientation_reached = cas.abs(rotation_error) < self.orientation_threshold
+        orientation_reached = sm.abs(rotation_error) < self.orientation_threshold
 
-        self.observation_expression = cas.logic_and(
+        self.observation_expression = sm.logic_and(
             position_reached, orientation_reached
         )
 
@@ -136,7 +136,7 @@ class OrientationReached(MotionStatechartNode):
             self.root_link, self.tip_link
         ).to_rotation_matrix()
         rotation_error = r_R_c.rotational_error(r_R_g)
-        self.observation_expression = cas.abs(rotation_error) < self.threshold
+        self.observation_expression = sm.abs(rotation_error) < self.threshold
 
 
 @dataclass
@@ -167,7 +167,7 @@ class PointingAt(MotionStatechartNode):
             frame_P_line_point=root_P_tip,
             frame_V_line_direction=root_V_pointing_axis,
         )
-        expr = cas.abs(distance) < self.threshold
+        expr = sm.abs(distance) < self.threshold
         self.observation_expression = expr
 
 
@@ -222,7 +222,7 @@ class DistanceToLine(MotionStatechartNode):
         root_P_line_start = root_P_center + root_V_line_axis * (self.line_length / 2)
         root_P_line_end = root_P_center - root_V_line_axis * (self.line_length / 2)
 
-        distance, closest_point = cas.distance_point_to_line_segment(
+        distance, closest_point = sm.distance_point_to_line_segment(
             frame_P_current=root_P_current,
             frame_P_line_start=root_P_line_start,
             frame_P_line_end=root_P_line_end,

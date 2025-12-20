@@ -5,7 +5,7 @@ from typing import Optional
 
 import numpy as np
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.graph_node import Goal
 from giskardpy.motion_statechart.graph_node import Task
@@ -83,7 +83,7 @@ class InsertCylinder(Goal):
             weight=self.weight,
         )
         root_V_cylinder_z.vis_frame = self.tip
-        tilt_task.observation_expression = cas.abs(tilt_error - self.tilt) <= 0.01
+        tilt_task.observation_expression = sm.abs(tilt_error - self.tilt) <= 0.01
 
         init_done = f"{reach_top} and {tilt_task}"
 

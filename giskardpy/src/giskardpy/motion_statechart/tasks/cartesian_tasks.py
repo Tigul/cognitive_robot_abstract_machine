@@ -4,8 +4,7 @@ from typing import Optional, ClassVar
 import numpy as np
 from typing_extensions import List
 
-import krrood.symbolic_math.symbolic_math as cas
-from giskardpy.motion_statechart import auxilary_variable_manager
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.binding_policy import (
     GoalBindingPolicy,
     ForwardKinematicsBinding,
@@ -26,9 +25,7 @@ from semantic_digital_twin.spatial_types import (
     RotationMatrix,
     HomogeneousTransformationMatrix,
 )
-from semantic_digital_twin.spatial_types.derivatives import Derivatives
 from semantic_digital_twin.world_description.degree_of_freedom import PositionVariable
-from semantic_digital_twin.world_description.geometry import Color
 from semantic_digital_twin.world_description.world_entity import (
     Body,
     KinematicStructureEntity,
@@ -325,7 +322,7 @@ class CartesianOrientation(Task):
 
         # Success condition: rotation error below threshold
         rotation_error = root_R_current.rotational_error(root_R_goal)
-        artifacts.observation = cas.abs(rotation_error) < self.threshold
+        artifacts.observation = sm.abs(rotation_error) < self.threshold
         return artifacts
 
     def on_start(self, context: ExecutionContext):
@@ -454,8 +451,8 @@ class CartesianPose(Task):
         )
 
         rotation_error = root_R_current.rotational_error(root_R_goal)
-        artifacts.observation = cas.logic_and(
-            cas.abs(rotation_error) < self.threshold,
+        artifacts.observation = sm.logic_and(
+            sm.abs(rotation_error) < self.threshold,
             distance_to_goal < self.threshold,
         )
 
@@ -575,7 +572,7 @@ class CartesianRotationVelocityLimit(Task):
         angle_velocities = [v.dof.variables.velocity for v in angle_variables]
         angle_dot = angle.total_derivative(angle_variables, angle_velocities)
 
-        artifacts.observation = cas.abs(angle_dot) <= self.max_angular_velocity
+        artifacts.observation = sm.abs(angle_dot) <= self.max_angular_velocity
 
         return artifacts
 
@@ -662,7 +659,7 @@ class CartesianPositionVelocityTarget(Task):
             self.root_link, self.tip_link
         ).to_position()
         self.add_velocity_eq_constraint_vector(
-            velocity_goals=cas.Vector([self.x_vel, self.y_vel, self.z_vel]),
+            velocity_goals=sm.Vector([self.x_vel, self.y_vel, self.z_vel]),
             task_expression=r_P_c,
             reference_velocities=[
                 CartesianPosition.default_reference_velocity,

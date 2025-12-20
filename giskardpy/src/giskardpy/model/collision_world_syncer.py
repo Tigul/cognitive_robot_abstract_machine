@@ -8,7 +8,7 @@ from typing import List, Dict, Optional, Tuple, Set
 import numpy as np
 from line_profiler import profile
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.model.collision_matrix_manager import CollisionMatrixManager
 from giskardpy.model.collisions import NullCollisionDetector, Collisions
 from giskardpy.motion_statechart.auxilary_variable_manager import (
@@ -101,7 +101,7 @@ class CollisionWorldSynchronizer:
     def reset_cache(self):
         self.collision_detector.reset_cache()
 
-    def get_external_collision_symbol(self) -> List[cas.FloatVariable]:
+    def get_external_collision_symbol(self) -> List[sm.FloatVariable]:
         symbols = []
         for body, max_idx in self.external_monitored_links.items():
             for idx in range(max_idx + 1):
@@ -228,7 +228,7 @@ class CollisionWorldSynchronizer:
             idx, self.self_monitored_links.get((body_a, body_b), 0)
         )
 
-    def get_self_collision_symbol(self) -> List[cas.FloatVariable]:
+    def get_self_collision_symbol(self) -> List[sm.FloatVariable]:
         symbols = []
         for (link_a, link_b), max_idx in self.self_monitored_links.items():
             for idx in range(max_idx + 1):

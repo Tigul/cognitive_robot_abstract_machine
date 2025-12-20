@@ -3,7 +3,7 @@ from __future__ import division
 from dataclasses import field, dataclass
 from typing import Union
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.context import BuildContext
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.graph_node import Task, NodeArtifacts, DebugExpression
@@ -116,7 +116,7 @@ class AlignPerpendicular(FeatureFunctionGoal):
             task_expression=expr,
             name=f"{self.name}_constraint",
         )
-        self.observation_expression = cas.abs(0 - expr) < self.threshold
+        self.observation_expression = sm.abs(0 - expr) < self.threshold
 
 
 @dataclass
@@ -155,9 +155,9 @@ class HeightGoal(FeatureFunctionGoal):
             task_expression=expr,
             name=f"{self.name}_constraint",
         )
-        self.observation_expression = cas.logic_and(
-            cas.if_less_eq(expr, self.upper_limit, 1, 0),
-            cas.if_greater_eq(expr, self.lower_limit, 1, 0),
+        self.observation_expression = sm.logic_and(
+            sm.if_less_eq(expr, self.upper_limit, 1, 0),
+            sm.if_greater_eq(expr, self.lower_limit, 1, 0),
         )
 
 
@@ -206,9 +206,9 @@ class DistanceGoal(FeatureFunctionGoal):
             task_expression=root_V_diff[:3],
             names=[f"{self.name}_extra1", f"{self.name}_extra2", f"{self.name}_extra3"],
         )
-        self.observation_expression = cas.logic_and(
-            cas.if_less_eq(expr, self.upper_limit, cas.Scalar(1), cas.Scalar(0)),
-            cas.if_greater_eq(expr, self.lower_limit, cas.Scalar(1), cas.Scalar(0)),
+        self.observation_expression = sm.logic_and(
+            sm.if_less_eq(expr, self.upper_limit, sm.Scalar(1), sm.Scalar(0)),
+            sm.if_greater_eq(expr, self.lower_limit, sm.Scalar(1), sm.Scalar(0)),
         )
 
 
@@ -251,9 +251,9 @@ class AngleGoal(FeatureFunctionGoal):
             name=f"{self.name}_constraint",
         )
 
-        artifacts.observation = cas.logic_and(
-            cas.if_less_eq(expr, self.upper_angle, 1, 0),
-            cas.if_greater_eq(expr, self.lower_angle, 1, 0),
+        artifacts.observation = sm.logic_and(
+            sm.if_less_eq(expr, self.upper_angle, 1, 0),
+            sm.if_greater_eq(expr, self.lower_angle, 1, 0),
         )
 
         return artifacts

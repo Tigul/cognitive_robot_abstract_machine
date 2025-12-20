@@ -3,18 +3,18 @@ from typing import Union, Iterable
 import numpy as np
 from numpy import pi
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from .reference_implementations import shortest_angular_distance
 
 all_expressions_float_np = Union[
-    cas.SymbolicMathType, float, np.ndarray, Iterable[float], Iterable[Iterable[float]]
+    sm.SymbolicMathType, float, np.ndarray, Iterable[float], Iterable[Iterable[float]]
 ]
 
 
 def compare_axis_angle(
     actual_angle: all_expressions_float_np,
     actual_axis: all_expressions_float_np,
-    expected_angle: cas.ScalarData,
+    expected_angle: sm.ScalarData,
     expected_axis: all_expressions_float_np,
 ):
     try:

@@ -1,7 +1,7 @@
 from dataclasses import field, dataclass
 from typing import Union
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from semantic_digital_twin.spatial_types import Point3, Vector3
 from semantic_digital_twin.world_description.world_entity import Body
@@ -51,7 +51,7 @@ class HeightMonitor(FeatureMonitor):
         distance = (
             self.root_P_controlled_feature - self.root_P_reference_feature
         ) @ Vector3.Z()
-        expr = cas.logic_and(
+        expr = sm.logic_and(
             distance >= self.lower_limit,
             distance <= self.upper_limit,
         )
@@ -70,7 +70,7 @@ class PerpendicularMonitor(FeatureMonitor):
         super().__post_init__()
 
         expr = self.root_V_reference_feature[:3] @ self.root_V_controlled_feature[:3]
-        self.observation_expression = cas.abs(expr) <= self.threshold
+        self.observation_expression = sm.abs(expr) <= self.threshold
 
 
 @dataclass
@@ -88,7 +88,7 @@ class DistanceMonitor(FeatureMonitor):
         root_V_diff = self.root_P_controlled_feature - self.root_P_reference_feature
         root_V_diff[2] = 0.0
         distance = root_V_diff.norm()
-        self.observation_expression = cas.logic_and(
+        self.observation_expression = sm.logic_and(
             distance >= self.lower_limit,
             distance <= self.upper_limit,
         )
@@ -106,9 +106,9 @@ class AngleMonitor(FeatureMonitor):
         self.controlled_feature = self.tip_vector
         super().__post_init__()
 
-        expr = cas.angle_between_vector(
+        expr = sm.angle_between_vector(
             self.root_V_reference_feature, self.root_V_controlled_feature
         )
-        self.observation_expression = cas.logic_and(
-            cas.greater(expr, self.lower_angle), cas.less(expr, self.upper_angle)
+        self.observation_expression = sm.logic_and(
+            sm.greater(expr, self.lower_angle), sm.less(expr, self.upper_angle)
         )

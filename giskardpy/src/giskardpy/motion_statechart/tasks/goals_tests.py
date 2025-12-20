@@ -2,7 +2,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.graph_node import Task
 from semantic_digital_twin.spatial_types import (
     Point3,
@@ -33,10 +33,10 @@ class DebugGoal(Task):
         r = Quaternion(reference_frame=context.world.root).to_rotation_matrix()
         context.add_debug_expression("r", r)
 
-        e1 = cas.Matrix.eye(3)
+        e1 = sm.Matrix.eye(3)
         context.add_debug_expression("e1", e1)
 
-        e2 = cas.Vector(np.array([1, 2, 3]))
+        e2 = sm.Vector(np.array([1, 2, 3]))
         context.add_debug_expression("e2", e2)
 
         t = context.time_symbol

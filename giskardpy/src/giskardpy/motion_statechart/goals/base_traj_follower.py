@@ -4,7 +4,7 @@ from dataclasses import field, dataclass
 
 from line_profiler import profile
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.graph_node import Goal
 from giskardpy.motion_statechart.graph_node import Task
@@ -38,7 +38,7 @@ class BaseTrajFollower(Goal):
         t: int,
         free_variable_name: PrefixedName,
         derivative: Derivatives = Derivatives.position,
-    ) -> cas.FloatVariable:
+    ) -> sm.FloatVariable:
         expr = (
             f"god_map.trajectory.get_exact({t})['{free_variable_name}'][{derivative}]"
         )
@@ -50,7 +50,7 @@ class BaseTrajFollower(Goal):
         free_variable_name: PrefixedName,
         start_t: float,
         derivative: Derivatives = Derivatives.position,
-    ) -> cas.Scalar:
+    ) -> sm.Scalar:
         time = context.time_symbol
         b_result_cases = []
         for t in range(self.trajectory_length):
@@ -58,7 +58,7 @@ class BaseTrajFollower(Goal):
             eq_result = self.x_symbol(t, free_variable_name, derivative)
             b_result_cases.append((b, eq_result))
             # FIXME if less eq cases behavior changed
-        return cas.if_less_eq_cases(
+        return sm.if_less_eq_cases(
             a=time + start_t,
             b_result_cases=b_result_cases,
             else_result=self.x_symbol(
@@ -172,7 +172,7 @@ class BaseTrajFollower(Goal):
         rotation_goal = self.current_traj_point(self.joint.yaw.name, t_in_s)
         rotation_current = self.joint.yaw.variables.position
         error = (
-            cas.shortest_angular_distance(rotation_current, rotation_goal)
+            sm.shortest_angular_distance(rotation_current, rotation_goal)
             / context.qp_controller.mpc_dt
         )
         return error

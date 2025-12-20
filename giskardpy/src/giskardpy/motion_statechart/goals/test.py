@@ -2,7 +2,7 @@ from __future__ import division
 
 from dataclasses import dataclass, field
 
-import krrood.symbolic_math.symbolic_math as cas
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.graph_node import Goal, CancelMotion
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
@@ -131,8 +131,8 @@ class Cutting(Goal):
         self.add_task(move_right)
 
         self.arrange_in_sequence([cut_down, cut_up, move_right])
-        self.observation_expression = cas.if_else(
-            move_right.observation_state_symbol == cas.TrinaryTrue,
-            cas.TrinaryTrue,
-            cas.TrinaryFalse,
+        self.observation_expression = sm.if_else(
+            move_right.observation_state_symbol == sm.TrinaryTrue,
+            sm.TrinaryTrue,
+            sm.TrinaryFalse,
         )

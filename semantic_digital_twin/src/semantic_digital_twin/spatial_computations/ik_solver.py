@@ -9,7 +9,13 @@ import numpy as np
 from typing_extensions import Dict, TYPE_CHECKING, List, Tuple
 
 import krrood.symbolic_math.symbolic_math as sm
-from krrood.symbolic_math.symbolic_math import Vector, FloatVariable, Matrix, Scalar
+from krrood.symbolic_math.symbolic_math import (
+    Vector,
+    FloatVariable,
+    Matrix,
+    Scalar,
+    VariableParameters,
+)
 from ..spatial_types import HomogeneousTransformationMatrix, RotationMatrix, Vector3
 from ..world_description.degree_of_freedom import DegreeOfFreedom
 
@@ -394,11 +400,15 @@ class QPProblem:
         """Compile all symbolic expressions into functions."""
         variable_args = [self.active_variables, self.passive_variables]
 
-        self.l_f = self.l.compile(variable_args)
-        self.u_f = self.u.compile(variable_args)
-        self.A_f = self.A.compile(variable_args)
-        self.quadratic_weights_f = self.quadratic_weights.compile(variable_args)
-        self.linear_weights_f = self.linear_weights.compile(variable_args)
+        self.l_f = self.l.compile(VariableParameters.from_lists(*variable_args))
+        self.u_f = self.u.compile(VariableParameters.from_lists(*variable_args))
+        self.A_f = self.A.compile(VariableParameters.from_lists(*variable_args))
+        self.quadratic_weights_f = self.quadratic_weights.compile(
+            VariableParameters.from_lists(*variable_args)
+        )
+        self.linear_weights_f = self.linear_weights.compile(
+            VariableParameters.from_lists(*variable_args)
+        )
 
     def evaluate_at_state(self, solver_state) -> QPMatrices:
         """Evaluate QP matrices at the current solver state."""
