@@ -470,7 +470,7 @@ class SymbolicMathType(ABC):
         return result_list
 
     def is_scalar(self) -> bool:
-        return self.shape == (1, 1)
+        return self._casadi_sx.is_scalar()
 
     def __array__(self):
         return self.to_np()
@@ -514,7 +514,7 @@ class SymbolicMathType(ABC):
         return [FloatVariable._registry[s] for s in ca.symvar(self.casadi_sx)]
 
     def is_constant(self) -> bool:
-        return len(self.free_variables()) == 0
+        return self.casadi_sx.is_constant()
 
     def to_np(self) -> np.ndarray:
         """
@@ -523,12 +523,15 @@ class SymbolicMathType(ABC):
         """
         if not self.is_constant():
             raise HasFreeVariablesError(self.free_variables())
-        if self.shape[0] == self.shape[1] == 0:
-            return np.eye(0)
-        elif self.casadi_sx.shape[0] == 1 or self.casadi_sx.shape[1] == 1:
-            return np.array(ca.evalf(self.casadi_sx)).ravel()
-        else:
-            return np.array(ca.evalf(self.casadi_sx))
+
+        dm = ca.DM(self.casadi_sx)
+        out = dm.full()  # numpy.ndarray (2-D)
+
+        if out.shape[0] == 1 or out.shape[1] == 1:
+            # CasADi uses column-major internally; preserve that on flatten
+            return out.ravel(order="F")
+
+        return out
 
     def to_list(self) -> list:
         """
@@ -863,16 +866,7 @@ class Scalar(SymbolicMathType):
     def __float__(self):
         if not self.is_constant():
             raise HasFreeVariablesError(self.free_variables())
-        value = self.to_np()
-        if isinstance(value, np.ndarray):
-            if value.shape == ():
-                return float(value)  # 0-D array
-            if value.size == 1:
-                return float(value.item())  # 1 element array
-            raise TypeError(
-                "only 0-dimensional arrays can be converted to Python scalars"
-            )
-        return float(value)
+        return float(self._casadi_sx)
 
     def hessian(self, variables: Iterable[FloatVariable]) -> Matrix:
         """
