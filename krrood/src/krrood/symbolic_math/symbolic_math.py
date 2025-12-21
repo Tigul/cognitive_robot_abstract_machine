@@ -530,6 +530,14 @@ class SymbolicMathType(ABC):
         else:
             return np.array(ca.evalf(self.casadi_sx))
 
+    def to_list(self) -> list:
+        """
+        Converts the symbolic expression into a nested Python list, like numpy.tolist.
+
+        The expression must be constant; otherwise a HasFreeVariablesError is raised.
+        """
+        return self.to_np().tolist()
+
     def safe_division(
         self,
         other: GenericSymbolicType,
@@ -1404,6 +1412,16 @@ class Matrix(SymbolicMathType):
         """
         assert self.shape[0] == self.shape[1]
         return Matrix(ca.inv(self.casadi_sx))
+
+    def flatten(self) -> Vector:
+        """
+        Returns a row-major flattened Vector, matching numpy.ndarray.flatten(order='C').
+        """
+        rows, cols = self.shape
+        if rows == 0 or cols == 0:
+            return Vector([])
+        flat = ca.reshape(self.casadi_sx.T, rows * cols, 1)
+        return Vector.from_casadi_sx(flat)
 
     def kron(self, other: Matrix) -> Self:
         """

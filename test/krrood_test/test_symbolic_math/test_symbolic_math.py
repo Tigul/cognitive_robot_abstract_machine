@@ -896,6 +896,16 @@ class TestScalar:
 
 
 class TestVector:
+    def test_vector_to_list(self):
+        data = np.array([1.0, 2.0, 3.5])
+        v = sm.Vector(data)
+        assert v.to_list() == data.tolist()
+
+    def test_to_list_raises_on_variables(self):
+        v = sm.Vector([sm.FloatVariable(name="a"), 2.0])
+        with pytest.raises(HasFreeVariablesError):
+            _ = v.to_list()
+
     def test_leq_on_array(self):
         a = sm.Vector(np.array([1, 2, 3, 4]))
         b = sm.Vector(np.array([2, 2, 2, 2]))
@@ -1079,6 +1089,30 @@ class TestVector:
 
 
 class TestMatrix:
+    @pytest.mark.parametrize("shape", [(1, 1), (1, 5), (3, 1), (2, 3), (4, 4)])
+    def test_matrix_flatten_matches_numpy(self, shape):
+        data = np.arange(shape[0] * shape[1]).reshape(shape)
+        m = sm.Matrix(data)
+        flat = m.flatten()
+        np_flat = data.flatten()
+        # Values should match exactly
+        assert np.allclose(np.array(flat), np_flat)
+        # Shape should be (n,1) like Vector
+        assert flat.shape == (np_flat.size, 1)
+
+    def test_flatten_empty(self):
+        data = np.eye(0)
+        m = sm.Matrix(data)
+        flat = m.flatten()
+        assert isinstance(flat, sm.Vector)
+        assert flat.shape == (0, 0) or flat.shape == (0, 1)  # allow empty handling
+        assert np.size(np.array(flat)) == 0
+
+    def test_matrix_to_list(self):
+        data = np.arange(12).reshape((3, 4))
+        m = sm.Matrix(data)
+        assert m.to_list() == data.tolist()
+
     def test_filter2(self):
         e_np = np.arange(16) * 2
         e_np = e_np.reshape((4, 4))
