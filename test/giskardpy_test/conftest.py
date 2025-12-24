@@ -5,7 +5,7 @@ from typing_extensions import Self
 
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.abstract_robot import AbstractRobot
-from semantic_digital_twin.spatial_types import Vector3, TransformationMatrix
+from semantic_digital_twin.spatial_types import Vector3, HomogeneousTransformationMatrix
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
     OmniDrive,
@@ -89,7 +89,9 @@ def box_bot_world():
         env_connection = FixedConnection(
             parent=body,
             child=environment,
-            parent_T_connection_expression=TransformationMatrix.from_xyz_rpy(1),
+            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                1
+            ),
         )
         world.add_connection(env_connection)
         BoxBot.from_world(world)

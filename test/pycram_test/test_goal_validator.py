@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from jaxlib.weakref_lru_cache import weakref_lru_cache
 
-from semantic_digital_twin.spatial_types import TransformationMatrix
+from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 
 from pycram.tf_transformations import quaternion_from_euler
 from typing_extensions import Optional, List
@@ -35,14 +35,14 @@ from pycram.validation.goal_validator import (
 @pytest.fixture
 def goal_validator_world(immutable_model_world):
     world, robot_view, context = immutable_model_world
-    robot_view.root.parent_connection.origin = TransformationMatrix.from_xyz_quaternion(
+    robot_view.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_quaternion(
         0, 0, 0
     )
     world.get_body_by_name("milk.stl").parent_connection.origin = (
-        TransformationMatrix.from_xyz_quaternion(2.2, 2, 1)
+        HomogeneousTransformationMatrix.from_xyz_quaternion(2.2, 2, 1)
     )
     world.get_body_by_name("breakfast_cereal.stl").parent_connection.origin = (
-        TransformationMatrix.from_xyz_quaternion(2.2, 1.8, 1)
+        HomogeneousTransformationMatrix.from_xyz_quaternion(2.2, 1.8, 1)
     )
     world.notify_state_change()
     return world, robot_view, context
@@ -77,7 +77,7 @@ def validate_pose_goal(goal_validator, world):
     assert goal_validator.current_error.tolist()[0] == pytest.approx(0.5, abs=0.001)
     assert goal_validator.current_error.tolist()[1] == pytest.approx(0, abs=0.001)
     world.get_body_by_name("milk.stl").parent_connection.origin = (
-        TransformationMatrix.from_xyz_rpy(2.5, 2.4, 1, reference_frame=world.root)
+        HomogeneousTransformationMatrix.from_xyz_rpy(2.5, 2.4, 1, reference_frame=world.root)
     )
     assert (
         PoseStamped.from_spatial_type(world.get_body_by_name("milk.stl").global_pose)
@@ -115,9 +115,9 @@ def validate_position_goal(goal_validator, world):
     goal_validator.register_goal(cereal_goal_position)
     assert not (goal_validator.goal_achieved)
     assert goal_validator.actual_percentage_of_goal_achieved == 0
-    assert float(goal_validator.current_error) == pytest.approx(0.8)
+    assert float(goal_validator.current_error[0]) == pytest.approx(0.8)
     world.get_body_by_name("breakfast_cereal.stl").parent_connection.origin = (
-        TransformationMatrix.from_xyz_rpy(3, 1.8, 1, reference_frame=world.root)
+        HomogeneousTransformationMatrix.from_xyz_rpy(3, 1.8, 1, reference_frame=world.root)
     )
     assert (
         PoseStamped.from_spatial_type(
@@ -158,7 +158,7 @@ def validate_orientation_goal(goal_validator, world):
     assert goal_validator.actual_percentage_of_goal_achieved == 0
     assert goal_validator.current_error == [np.pi / 2]
     world.get_body_by_name("breakfast_cereal.stl").parent_connection.origin = (
-        TransformationMatrix.from_xyz_quaternion(
+        HomogeneousTransformationMatrix.from_xyz_quaternion(
             quat_x=cereal_goal_orientation[0],
             quat_y=cereal_goal_orientation[1],
             quat_z=cereal_goal_orientation[2],
@@ -505,7 +505,7 @@ def validate_list_of_positions_goal(goal_validator, world):
     for percent in [0.5, 1]:
         current_position_goal = [0.0, 1.0 * percent, 0.0]
         world.get_body_by_name("base_footprint").parent_connection.origin = (
-            TransformationMatrix.from_xyz_rpy(*current_position_goal)
+            HomogeneousTransformationMatrix.from_xyz_rpy(*current_position_goal)
         )
         assert np.allclose(
             PoseStamped.from_spatial_type(
@@ -578,7 +578,7 @@ def validate_list_of_orientations_goal(goal_validator, world):
     for percent in [0.5, 1]:
         current_orientation_goal = orientation_goal * percent
         world.get_body_by_name("base_footprint").parent_connection.origin = (
-            TransformationMatrix.from_xyz_rpy(
+            HomogeneousTransformationMatrix.from_xyz_rpy(
                 pitch=current_orientation_goal[0],
                 roll=current_orientation_goal[1],
                 yaw=current_orientation_goal[2],

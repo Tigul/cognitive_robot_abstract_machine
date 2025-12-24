@@ -21,7 +21,7 @@ from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
-from semantic_digital_twin.spatial_types import TransformationMatrix
+from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.utils import rclpy_installed, tracy_installed
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
@@ -68,12 +68,12 @@ The structure of fixtures in this conftest:
 
 """
 
-
-def pytest_configure(conf):
-    logging.getLogger("pycram").setLevel(logging.DEBUG)
-    logging.getLogger("giskardpy").setLevel(logging.DEBUG)
-    logging.getLogger("krrood").setLevel(logging.DEBUG)
-    logging.getLogger("semantic_digital_twin").setLevel(logging.DEBUG)
+#
+# def pytest_configure(conf):
+#     logging.getLogger("pycram").setLevel(logging.DEBUG)
+#     logging.getLogger("giskardpy").setLevel(logging.DEBUG)
+#     logging.getLogger("krrood").setLevel(logging.DEBUG)
+#     logging.getLogger("semantic_digital_twin").setLevel(logging.DEBUG)
 
 
 @pytest.fixture(autouse=True, scope="function")
@@ -221,13 +221,13 @@ def apartment_world_setup():
     ).parse()
     apartment_world.merge_world_at_pose(
         milk_world,
-        TransformationMatrix.from_xyz_rpy(
+        HomogeneousTransformationMatrix.from_xyz_rpy(
             2.37, 2, 1.05, reference_frame=apartment_world.root
         ),
     )
     apartment_world.merge_world_at_pose(
         cereal_world,
-        TransformationMatrix.from_xyz_rpy(
+        HomogeneousTransformationMatrix.from_xyz_rpy(
             2.37, 1.8, 1.05, reference_frame=apartment_world.root
         ),
     )
@@ -258,14 +258,14 @@ def simple_apartment_setup():
         box_1_connection = FixedConnection(
             parent=world.root,
             child=box,
-            parent_T_connection_expression=TransformationMatrix.from_xyz_rpy(
+            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
                 2, 0, 0.5, reference_frame=world.root
             ),
         )
         box_2_connection = FixedConnection(
             parent=root,
             child=box_2,
-            parent_T_connection_expression=TransformationMatrix.from_xyz_rpy(
+            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
                 -2, 0, 0.5
             ),
         )
@@ -290,24 +290,28 @@ def simple_apartment_setup():
         wall_1_connection = FixedConnection(
             parent=root,
             child=wall1,
-            parent_T_connection_expression=TransformationMatrix.from_xyz_rpy(0, -4, 1),
+            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                0, -4, 1
+            ),
         )
         wall_2_connection = FixedConnection(
             parent=root,
             child=wall2,
-            parent_T_connection_expression=TransformationMatrix.from_xyz_rpy(0, 4, 1),
+            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                0, 4, 1
+            ),
         )
         wall_3_connection = FixedConnection(
             parent=root,
             child=wall3,
-            parent_T_connection_expression=TransformationMatrix.from_xyz_rpy(
+            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
                 -4, 0, 1, yaw=np.pi / 2
             ),
         )
         wall_4_connection = FixedConnection(
             parent=root,
             child=wall4,
-            parent_T_connection_expression=TransformationMatrix.from_xyz_rpy(
+            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
                 4, 0, 1, yaw=np.pi / 2
             ),
         )
@@ -330,7 +334,7 @@ def simple_apartment_setup():
         )
     ).parse()
     world.merge_world_at_pose(
-        milk_world, TransformationMatrix.from_xyz_rpy(-1.7, 0, 1.07)
+        milk_world, HomogeneousTransformationMatrix.from_xyz_rpy(-1.7, 0, 1.07)
     )
     return world
 
@@ -358,7 +362,7 @@ def pr2_apartment_world(pr2_world_setup, apartment_world_setup):
 
     apartment_copy.merge_world_at_pose(
         pr2_copy,
-        TransformationMatrix.from_xyz_quaternion(
+        HomogeneousTransformationMatrix.from_xyz_quaternion(
             1.3, 2, 0, reference_frame=apartment_copy.root
         ),
     )
@@ -381,7 +385,7 @@ def hsr_apartment_world(hsr_world_setup, apartment_world_setup):
     hsr_copy = deepcopy(hsr_world_setup)
 
     apartment_copy.merge_world_at_pose(
-        hsr_copy, TransformationMatrix.from_xyz_rpy(1.5, 2, 0)
+        hsr_copy, HomogeneousTransformationMatrix.from_xyz_rpy(1.5, 2, 0)
     )
 
     robot_view = HSRB.from_world(hsr_copy)

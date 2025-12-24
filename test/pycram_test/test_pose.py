@@ -7,8 +7,8 @@ import numpy as np
 from pycram.datastructures.pose import (
     PoseStamped,
     TransformStamped,
-    Quaternion,
-    Vector3,
+    PyCramQuaternion,
+    PyCramVector3,
     AxisIdentifier,
 )
 
@@ -38,18 +38,18 @@ def test_pose_edit(immutable_model_world):
     world, robot_view, context = immutable_model_world
     p = PoseStamped.from_list([3, 4, 5], [0, 1, 0, 0], world.root)
 
-    p.position = Vector3(1, 1, 1)
+    p.position = PyCramVector3(1, 1, 1)
     assert p.position.to_list() == [1, 1, 1]
     p.position.x = 2
     assert p.position.to_list() == [2, 1, 1]
-    p.position = Vector3(3, 3, 3)
+    p.position = PyCramVector3(3, 3, 3)
     assert p.position.to_list() == [3, 3, 3]
 
-    p.orientation = Quaternion(0, 0, 0, 1)
+    p.orientation = PyCramQuaternion(0, 0, 0, 1)
     assert p.orientation.to_list() == [0, 0, 0, 1]
     p.orientation.x = 1
     assert p.orientation.to_list() == [1, 0, 0, 1]
-    p.orientation = Quaternion(0, 0, 1, 0)
+    p.orientation = PyCramQuaternion(0, 0, 1, 0)
     assert p.orientation.to_list() == [0, 0, 1, 0]
 
 
@@ -78,18 +78,18 @@ def test_transform_edit(immutable_model_world):
     test_body = world.get_body_by_name("milk.stl")
     t = TransformStamped.from_list([3, 2, 1], [0, 1, 0, 0], world.root, test_body)
 
-    t.translation = Vector3(2, 2, 2)
+    t.translation = PyCramVector3(2, 2, 2)
     assert t.translation.to_list() == [2, 2, 2]
     t.translation.x = 3
     assert t.translation.to_list() == [3, 2, 2]
-    t.translation = Vector3(1, 1, 1)
+    t.translation = PyCramVector3(1, 1, 1)
     assert t.translation.to_list() == [1, 1, 1]
 
-    t.rotation = Quaternion(1, 0, 0, 0)
+    t.rotation = PyCramQuaternion(1, 0, 0, 0)
     assert t.rotation.to_list() == [1, 0, 0, 0]
     t.rotation.y = 1
     assert t.rotation.to_list() == [1, 1, 0, 0]
-    t.rotation = Quaternion(0, 0, 0, 1)
+    t.rotation = PyCramQuaternion(0, 0, 0, 1)
     assert t.rotation.to_list() == [0, 0, 0, 1]
 
 

@@ -23,7 +23,7 @@ from pycram.datastructures.enums import (
     GripperState,
 )
 from pycram.datastructures.grasp import GraspDescription
-from pycram.datastructures.pose import Pose, PoseStamped
+from pycram.datastructures.pose import PyCramPose, PoseStamped
 from pycram.designator import NamedObject
 from pycram.language import SequentialPlan, ParallelPlan
 from pycram.orm.ormatic_interface import *
@@ -114,47 +114,13 @@ def test_simple_plan(immutable_model_world):
         plan.perform()
     return plan
 
-
-#
-# def plan(world):
-#     test_world = deepcopy(world)
-#     test_robot = PR2.from_world(test_world)
-#     with simulated_robot:
-#         plan = SequentialPlan(
-#             Context.from_world(test_world),
-#             NavigateActionDescription(
-#                 PoseStamped.from_list([1.6, 1.9, 0], [0, 0, 0, 1], test_world.root),
-#                 True,
-#             ),
-#             MoveTorsoActionDescription(TorsoState.HIGH),
-#             PickUpActionDescription(
-#                 NamedObject("milk.stl"),
-#                 Arms.LEFT,
-#                 GraspDescription(
-#                     ApproachDirection.FRONT, VerticalAlignment.NoAlignment, False
-#                 ),
-#             ),
-#             PlaceActionDescription(
-#                 NamedObject("milk.stl"),
-#                 [
-#                     PoseStamped.from_list(
-#                         [2.3, 2.2, 1], [0, 0, 0, 1], test_world.root
-#                     )
-#                 ],
-#                 [Arms.LEFT],
-#             ),
-#         )
-#         plan.perform()
-#     return plan
-
-
 def test_pose(database, test_simple_plan):
     session = database
     plan = test_simple_plan
     dao = to_dao(plan)
     session.add(dao)
     session.commit()
-    result = session.scalars(select(PoseDAO)).all()
+    result = session.scalars(select(PyCramPoseDAO)).all()
     assert len(result) > 0
     assert all([r.position is not None and r.orientation is not None for r in result])
 
@@ -187,10 +153,10 @@ def test_pose_vs_pose_stamped(database, test_simple_plan):
     session.add(dao)
     session.commit()
     pose_stamped_result = session.scalars(select(PoseStampedDAO)).all()
-    pose_result = session.scalars(select(PoseDAO)).all()
+    pose_result = session.scalars(select(PyCramPoseDAO)).all()
     poses_from_pose_stamped_results = session.scalars(
-        select(PoseDAO).where(
-            PoseDAO.database_id.in_([r.pose_id for r in pose_stamped_result])
+        select(PyCramPoseDAO).where(
+            PyCramPoseDAO.database_id.in_([r.pose_id for r in pose_stamped_result])
         )
     ).all()
     assert all([r.pose is not None for r in pose_stamped_result])
@@ -204,7 +170,7 @@ def test_pose_vs_pose_stamped(database, test_simple_plan):
 def test_pose_creation(database, test_simple_plan):
     session = database
     plan = test_simple_plan
-    pose = Pose()
+    pose = PyCramPose()
     pose.position.x = 1.0
     pose.position.y = 2.0
     pose.position.z = 3.0
@@ -221,14 +187,13 @@ def test_pose_creation(database, test_simple_plan):
     session.commit()
 
     with session.bind.connect() as conn:
-        raw_pose = conn.execute(text("SELECT * FROM PoseDAO")).fetchall()
+        raw_pose = conn.execute(text("SELECT * FROM PyCramPoseDAO")).fetchall()
 
-    pose_result = session.scalars(select(PoseDAO)).first()
+    pose_result = session.scalars(select(PyCramPoseDAO)).first()
     assert pose_result.position.x == 1.0
     assert pose_result.position.y == 2.0
     assert pose_result.position.z == 3.0
     assert pose_result.database_id == raw_pose[0][0]
-
 
 # ORM Action Designator Tests
 

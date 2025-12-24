@@ -7,7 +7,7 @@ from random_events.variable import Continuous
 #  import plotly.graph_objects as go
 from random_events.product_algebra import Event, SimpleEvent
 from random_events.interval import *
-from semantic_digital_twin.spatial_types import TransformationMatrix
+from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 
 from pycram.costmaps import (
     OccupancyCostmap,
@@ -24,11 +24,11 @@ import plotly.graph_objects as go
 
 def test_attachment_exclusion(immutable_model_world):
     world, robot_view, context = immutable_model_world
-    robot_view.root.parent_connection.origin = TransformationMatrix.from_xyz_rpy(
+    robot_view.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         -1.5, 1, 0, reference_frame=world.root
     )
     world.get_body_by_name("milk.stl").parent_connection.origin = (
-        TransformationMatrix.from_xyz_rpy(-1.8, 1, 1, reference_frame=world.root)
+        HomogeneousTransformationMatrix.from_xyz_rpy(-1.8, 1, 1, reference_frame=world.root)
     )
 
     test_world = deepcopy(world)
