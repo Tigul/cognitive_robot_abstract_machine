@@ -964,6 +964,11 @@ class QueryObjectDescriptor(SymbolicExpression[T], ABC):
             results_gen: Iterable[Dict[int, Any]],
         ) -> Iterable[Dict[int, Any]]:
             for res in results_gen:
+                for i, id_ in enumerate(on_ids):
+                    if id_ in res:
+                        continue
+                    var_value = on[i]._evaluate__(copy(res), parent=self)
+                    res[id_] = next(var_value).value
                 bindings = (
                     res if not on else {k: v for k, v in res.items() if k in on_ids}
                 )
@@ -1265,7 +1270,9 @@ class Variable(CanBehaveLikeAVariable[T]):
         else:
             raise VariableCannotBeEvaluated(self)
 
-    def _iterator_over_domain_values_(self, sources: Dict[int, Any]) -> Iterable[OperationResult]:
+    def _iterator_over_domain_values_(
+        self, sources: Dict[int, Any]
+    ) -> Iterable[OperationResult]:
         """
         Iterate over the values in the variable's domain, yielding OperationResult instances.
 
@@ -1336,14 +1343,18 @@ class Variable(CanBehaveLikeAVariable[T]):
             values.update(d.bindings)
         return self._build_operation_result_and_update_truth_value_(values)
 
-    def _build_operation_result_and_update_truth_value_(self, bindings: Dict[int, Any]) -> OperationResult:
+    def _build_operation_result_and_update_truth_value_(
+        self, bindings: Dict[int, Any]
+    ) -> OperationResult:
         """
         Build an OperationResult instance and update the truth value based on the bindings.
 
         :param bindings: The bindings of the result.
         :return: The OperationResult instance with updated truth value.
         """
-        if isinstance(self._parent_, LogicalOperator) or (self is self._conditions_root_):
+        if isinstance(self._parent_, LogicalOperator) or (
+            self is self._conditions_root_
+        ):
             self._is_false_ = not bool(bindings[self._id_])
         else:
             self._is_false_ = False
