@@ -35,11 +35,6 @@ from .test_eql.conf.world.doors_and_drawers import DoorsAndDrawersWorld
 from .test_eql.conf.world.handles_and_containers import (
     HandlesAndContainersWorld,
 )
-from semantic_digital_twin.world_description.world_entity import Body
-from semantic_digital_twin.world_description.connections import (
-    FixedConnection,
-    PrismaticConnection,
-)
 
 
 def generate_sqlalchemy_interface():

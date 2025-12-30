@@ -167,6 +167,24 @@ vectorswithpropertymappeddao_vectors_association = Table(
 )
 
 
+class SymbolDAO(Base, DataAccessObject[krrood.entity_query_language.predicate.Symbol]):
+
+    __tablename__ = "SymbolDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    polymorphic_type: Mapped[str] = mapped_column(
+        String(255), nullable=False, use_existing_column=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_on": "polymorphic_type",
+        "polymorphic_identity": "SymbolDAO",
+    }
+
+
 class BodyDAO(
     SymbolDAO,
     DataAccessObject[semantic_digital_twin.world_description.world_entity.Body],
@@ -574,24 +592,6 @@ class PrismaticConnectionDAO(
     __mapper_args__ = {
         "polymorphic_identity": "PrismaticConnectionDAO",
         "inherit_condition": database_id == SymbolDAO.database_id,
-    }
-
-
-class SymbolDAO(Base, DataAccessObject[krrood.entity_query_language.predicate.Symbol]):
-
-    __tablename__ = "SymbolDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        Integer, primary_key=True, use_existing_column=True
-    )
-
-    polymorphic_type: Mapped[str] = mapped_column(
-        String(255), nullable=False, use_existing_column=True
-    )
-
-    __mapper_args__ = {
-        "polymorphic_on": "polymorphic_type",
-        "polymorphic_identity": "SymbolDAO",
     }
 
 
