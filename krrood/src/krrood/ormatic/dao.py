@@ -81,15 +81,15 @@ class DataAccessObjectState(Generic[_WorkItemT], abc.ABC):
     Cache for converted objects to prevent duplicates and handle circular references.
     """
 
-    queue: deque[_WorkItemT] = field(default_factory=deque)
+    work_items: deque[_WorkItemT] = field(default_factory=deque)
     """
-    Queue of work items to be processed.
+    Deque of work items to be processed.
     """
 
     @abc.abstractmethod
-    def add_to_queue(self, *args: Any, **kwargs: Any) -> None:
+    def push_work_item(self, *args: Any, **kwargs: Any) -> None:
         """
-        Add a new work item to the processing queue.
+        Add a new work item to the processing work_items.
 
         :param args: Positional arguments for the work item.
         :param kwargs: Keyword arguments for the work item.
@@ -154,20 +154,20 @@ class ToDataAccessObjectState(DataAccessObjectState[ToDataAccessObjectWorkItem])
     Dictionary that prevents objects from being garbage collected.
     """
 
-    def add_to_queue(
+    def push_work_item(
         self,
         source_object: Any,
         dao_instance: DataAccessObject,
         alternative_base: Optional[Type[DataAccessObject]] = None,
     ):
         """
-        Add a new work item to the processing queue.
+        Add a new work item to the processing work_items.
 
         :param source_object: The object being converted.
         :param dao_instance: The DAO instance being populated.
         :param alternative_base: Base class for alternative mapping, if any.
         """
-        self.queue.append(
+        self.work_items.append(
             ToDataAccessObjectWorkItem(
                 dao_instance=dao_instance,
                 source_object=source_object,
@@ -259,14 +259,14 @@ class FromDataAccessObjectState(DataAccessObjectState[FromDataAccessObjectWorkIt
         """
         self.initialized_ids.add(id(dao_instance))
 
-    def add_to_queue(self, dao_instance: DataAccessObject, domain_object: Any):
+    def push_work_item(self, dao_instance: DataAccessObject, domain_object: Any):
         """
-        Add a new work item to the processing queue.
+        Add a new work item to the processing work_items.
 
         :param dao_instance: The DAO instance being converted.
         :param domain_object: The domain object being populated.
         """
-        self.queue.append(
+        self.work_items.append(
             FromDataAccessObjectWorkItem(
                 dao_instance=dao_instance, domain_object=domain_object
             )
@@ -354,7 +354,7 @@ class DataAccessObject(HasGeneric[T]):
 
     1. **Domain to DAO (to_dao)**:
        Converts a domain object into its DAO representation. It uses an iterative
-       BFS approach with a queue to traverse the object graph, allocating DAOs and
+       BFS approach with a queue of work items to traverse the object graph, allocating DAOs and
        populating their columns and relationships.
 
     2. **DAO to Domain (from_dao)**:
@@ -466,9 +466,9 @@ class DataAccessObject(HasGeneric[T]):
                 state.register(resolved_source, result)
 
         # Phase 3: Queueing & Processing
-        is_entry_call = len(state.queue) == 0
+        is_entry_call = len(state.work_items) == 0
         alternative_base = cls._find_alternative_mapping_base()
-        state.add_to_queue(resolved_source, result, alternative_base)
+        state.push_work_item(resolved_source, result, alternative_base)
 
         if is_entry_call:
             cls._process_to_dao_queue(state)
@@ -478,12 +478,15 @@ class DataAccessObject(HasGeneric[T]):
     @classmethod
     def _process_to_dao_queue(cls, state: ToDataAccessObjectState) -> None:
         """
-        Process the queue for converting objects to DAOs.
+        Process the work items for converting objects to DAOs.
 
-        :param state: The conversion state containing the queue.
+        This uses a Breadth-First Search (BFS) approach by processing the deque
+        as a FIFO queue (popleft).
+
+        :param state: The conversion state containing the work_items.
         """
-        while state.queue:
-            work_item = state.queue.popleft()
+        while state.work_items:
+            work_item = state.work_items.popleft()
             if work_item.alternative_base is not None:
                 work_item.dao_instance.fill_dao_if_subclass_of_alternative_mapping(
                     source_object=work_item.source_object,
@@ -735,7 +738,7 @@ class DataAccessObject(HasGeneric[T]):
 
         # Queue for filling
         alternative_base = dao_clazz._find_alternative_mapping_base()
-        state.add_to_queue(mapped_object, result, alternative_base)
+        state.push_work_item(mapped_object, result, alternative_base)
 
         return result
 
@@ -761,13 +764,14 @@ class DataAccessObject(HasGeneric[T]):
             discovery_order = []
             if not state.has(self):
                 self._allocate_uninitialized_and_memoize(state)
-            state.add_to_queue(self, state.get(self))
+            state.push_work_item(self, state.get(self))
 
             # Phase 1: Discovery (DFS)
             state.discovery_mode = True
             try:
-                while state.queue:
-                    work_item = state.queue.pop()
+                while state.work_items:
+                    # Use pop() to treat the deque as a stack (LIFO) for DFS
+                    work_item = state.work_items.pop()
                     discovery_order.append(work_item)
                     work_item.dao_instance._fill_from_dao(
                         work_item.domain_object, state
@@ -792,7 +796,7 @@ class DataAccessObject(HasGeneric[T]):
         # Not the entry call (called during discovery or filling)
         if not state.has(self):
             domain_object = self._allocate_uninitialized_and_memoize(state)
-            state.add_to_queue(self, domain_object)
+            state.push_work_item(self, domain_object)
         return state.get(self)
 
     def _fill_from_dao(self, domain_object: T, state: FromDataAccessObjectState) -> T:
@@ -1113,6 +1117,10 @@ class DataAccessObject(HasGeneric[T]):
         if not self.uses_alternative_mapping(base_clazz):
             return {}
 
+        # The cache key uses id(self) because synthetic parent DAOs are only valid
+        # for the lifetime of this specific DAO instance and are scoped to the
+        # current conversion state to ensure identity consistency between discovery
+        # and filling phases.
         cache_key = (id(self), base_clazz)
         if cache_key not in state.synthetic_parent_daos:
             state.synthetic_parent_daos[cache_key] = self._create_filled_parent_dao(
