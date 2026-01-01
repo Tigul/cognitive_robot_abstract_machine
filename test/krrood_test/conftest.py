@@ -15,6 +15,7 @@ from krrood.class_diagrams.class_diagram import ClassDiagram
 from krrood.entity_query_language.predicate import (
     HasTypes,
     HasType,
+    Symbol,
 )
 from krrood.entity_query_language.symbol_graph import SymbolGraph
 from krrood.ormatic.alternative_mappings import *  # type: ignore
@@ -22,7 +23,7 @@ from krrood.ormatic.ormatic import ORMatic
 from krrood.ormatic.utils import classes_of_module, create_engine
 from krrood.ormatic.utils import drop_database
 from krrood.utils import recursive_subclasses
-from .dataset import example_classes
+from .dataset import example_classes, semantic_world_like_classes
 from .dataset.example_classes import (
     PhysicalObject,
     NotMappedParent,
@@ -56,6 +57,7 @@ def generate_sqlalchemy_interface():
     }
     all_classes |= set(classes_of_module(krrood.entity_query_language.symbol_graph))
     all_classes |= set(classes_of_module(example_classes))
+    all_classes |= set(classes_of_module(semantic_world_like_classes))
     all_classes |= {Symbol}
 
     # remove classes that don't need persistence
