@@ -1,29 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, TYPE_CHECKING, List, Tuple
+from typing import Dict, TYPE_CHECKING, List
 
 import matplotlib.pyplot as plt
 import numpy as np
 from mpl_toolkits.axes_grid1 import make_axes_locatable, axes_size
 
-from giskardpy.middleware import get_middleware
-from giskardpy.motion_statechart.context import ExecutionContext
-from giskardpy.motion_statechart.data_types import (
-    LifeCycleValues,
-    ObservationStateValues,
-)
-from giskardpy.motion_statechart.graph_node import Goal, MotionStatechartNode
-from giskardpy.motion_statechart.plotters.styles import (
-    LiftCycleStateToColor,
-    ObservationStateToColor,
-)
-from giskardpy.utils.utils import create_path
+from .styles import LiftCycleStateToColor, ObservationStateToColor
+from ..context import ExecutionContext
+from ..data_types import LifeCycleValues, ObservationStateValues
+from ..graph_node import Goal, MotionStatechartNode
+from ...middleware import get_middleware
+from ...utils.utils import create_path
 
 if TYPE_CHECKING:
-    from giskardpy.motion_statechart.motion_statechart import (
-        MotionStatechart,
-    )
+    from ..motion_statechart import MotionStatechart
 
 
 @dataclass
@@ -121,7 +113,7 @@ class HistoryGanttChartPlotter:
 
         ordered_nodes = self._sort_nodes_by_parents()
 
-        ax_main, ax_final = self._build_subplots(ordered_nodes=ordered_nodes)
+        ax_main, ax_final = self._build_subplots(ordered_nodes)
 
         for node_idx, node in enumerate(ordered_nodes):
             self._plot_lifecycle_bar(axis=ax_main, node=node, node_idx=node_idx)
