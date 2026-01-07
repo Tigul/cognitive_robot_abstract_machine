@@ -8,6 +8,7 @@ import rclpy
 from pycram.datastructures.dataclasses import Context
 
 from semantic_digital_twin.adapters.viz_marker import VizMarkerPublisher
+from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.robots.pr2 import PR2
 
 
@@ -49,4 +50,21 @@ def mutable_simple_pr2_world(simple_pr2_world_setup):
     world, robot_view, context = simple_pr2_world_setup
     copy_world = deepcopy(world)
     robot_view = world.get_semantic_annotations_by_type(PR2)[0]
-    return world, robot_view, Context(copy_world, robot_view)
+    return copy_world, robot_view, Context(copy_world, robot_view)
+
+
+@pytest.fixture
+def immutable_simple_hsr_world(simple_hsr_world_setup):
+    world, robot_view, context = simple_hsr_world_setup
+    state = deepcopy(world.state.data)
+    robot_view = world.get_semantic_annotations_by_type(HSRB)[0]
+    yield world, robot_view, Context(world, robot_view)
+    world.state.data = state
+
+
+@pytest.fixture
+def mutable_simple_hsr_world(simple_hsr_world_setup):
+    world, robot_view, context = simple_hsr_world_setup
+    copy_world = deepcopy(world)
+    robot_view = world.get_semantic_annotations_by_type(HSRB)[0]
+    return copy_world, robot_view, Context(copy_world, robot_view)

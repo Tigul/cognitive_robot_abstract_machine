@@ -391,6 +391,16 @@ def hsr_apartment_world(hsr_world_setup, apartment_world_setup):
     return apartment_copy, robot_view, Context(hsr_copy, robot_view)
 
 
+@pytest.fixture(scope="session")
+def simple_hsr_world_setup(hsr_world_setup, simple_apartment_setup):
+    hsr_world = deepcopy(hsr_world_setup)
+    apartment_world = deepcopy(simple_apartment_setup)
+
+    apartment_world.merge_world(hsr_world)
+    robot_view = HSRB.from_world(apartment_world)
+    return apartment_world, robot_view, Context(hsr_world, robot_view)
+
+
 ###############################
 ######## World with reset #####
 ###############################
