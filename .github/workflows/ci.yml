@@ -21,6 +21,7 @@ jobs:
           - lib: semantic_digital_twin
           - lib: pycram
           - lib: random_events
+          - lib: probabilistic_model
     uses: ./.github/workflows/ci_reusable.yml
     with:
       lib: ${{ matrix.lib }}
