@@ -30,7 +30,7 @@ from semantic_digital_twin.world_description.connections import (
     PrismaticConnection,
 )
 from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
-from semantic_digital_twin.world_description.world_entity import Body
+from semantic_digital_twin.world_description.world_entity import Body, Region
 
 
 def create_dummy_world(w: Optional[World] = None) -> World:
@@ -40,10 +40,14 @@ def create_dummy_world(w: Optional[World] = None) -> World:
 
     id1 = deterministic_uuid("id1")
     id2 = deterministic_uuid("id2")
+    id3 = deterministic_uuid("id3")
     if w is None:
         w = World()
     b1 = Body(name=PrefixedName("b1"), id=id1)
     b2 = Body(name=PrefixedName("b2"), id=id2)
+
+    r1 = Region(name=PrefixedName("r1"), id=id3)
+
     with w.modify_world():
         x_dof = DegreeOfFreedom(name=PrefixedName("x"), id=deterministic_uuid("x_dof"))
         w.add_degree_of_freedom(x_dof)
@@ -82,6 +86,7 @@ def create_dummy_world(w: Optional[World] = None) -> World:
                 qw_id=qw_dof.id,
             )
         )
+        w.add_connection(FixedConnection(parent=w.root, child=r1))
     return w
 
 
@@ -166,7 +171,7 @@ def test_model_reload(rclpy_node):
 
     synchronizer_1.publish_reload_model()
     time.sleep(1.0)
-    assert len(w2.kinematic_structure_entities) == 2
+    assert len(w2.kinematic_structure_entities) == 3
 
     query = session1.scalars(select(WorldMappingDAO)).all()
     assert len(query) == 1
@@ -489,6 +494,70 @@ def test_compute_state_changes_nan_handling(rclpy_node):
     s.previous_world_state_data[0] = np.nan
     assert s.compute_state_changes() == {}
     s.close()
+
+
+def test_sync_region(rclpy_node):
+    w1 = World(name="w1")
+    w2 = World(name="w2")
+
+    synchronizer_1 = ModelSynchronizer(
+        node=rclpy_node,
+        world=w1,
+    )
+    synchronizer_2 = ModelSynchronizer(
+        node=rclpy_node,
+        world=w2,
+    )
+    state_synch = StateSynchronizer(world=w1, node=rclpy_node)
+    state_synch2 = StateSynchronizer(world=w2, node=rclpy_node)
+    r1 = Region(name=PrefixedName("r1"))
+    with w1.modify_world():
+        w1.add_kinematic_structure_entity(r1)
+        w1.add_connection(
+            FixedConnection(child=r1, parent=Region(name=PrefixedName("r2")))
+        )
+
+    time.sleep(1)
+
+    assert len(w2.kinematic_structure_entities) == 2
+    assert w2.kinematic_structure_entities[0].name == PrefixedName("r1")
+    assert type(w2.kinematic_structure_entities[0]) == Region
+
+
+def test_sync_ids(rclpy_node):
+    w1 = World(name="w1")
+    w2 = World(name="w2")
+
+    synchronizer_1 = ModelSynchronizer(
+        node=rclpy_node,
+        world=w1,
+    )
+    synchronizer_2 = ModelSynchronizer(
+        node=rclpy_node,
+        world=w2,
+    )
+    state_synch = StateSynchronizer(world=w1, node=rclpy_node)
+    state_synch2 = StateSynchronizer(world=w2, node=rclpy_node)
+
+    b1 = Body(name=PrefixedName("b1"))
+    b2 = Body(name=PrefixedName("b2"))
+    r1 = Region(name=PrefixedName("r1"))
+
+    with w1.modify_world():
+        w1.add_body(b1)
+        w1.add_body(b2)
+        c1 = Connection6DoF.create_with_dofs(parent=b1, child=b2, world=w1)
+        w1.add_connection(c1)
+        w1.add_connection(FixedConnection(parent=b1, child=r1))
+
+    time.sleep(1)
+
+    assert len(w1.kinematic_structure_entities) == len(w2.kinematic_structure_entities)
+
+    for kse1, ks2 in zip(
+        w1.kinematic_structure_entities, w2.kinematic_structure_entities
+    ):
+        assert kse1.id == ks2.id
 
 
 if __name__ == "__main__":
