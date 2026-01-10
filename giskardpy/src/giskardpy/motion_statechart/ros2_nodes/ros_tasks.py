@@ -25,8 +25,8 @@ logger = logging.getLogger(__name__)
 
 
 Action = TypeVar("Action")
-Action_Goal = TypeVar("Action_Goal")
-Action_Result = TypeVar("Action_Result")
+ActionGoal = TypeVar("ActionGoal")
+ActionResult = TypeVar("ActionResult")
 ActionFeedback = TypeVar("ActionFeedback")
 
 
@@ -34,7 +34,7 @@ ActionFeedback = TypeVar("ActionFeedback")
 class ActionServerTask(
     MotionStatechartNode,
     ABC,
-    Generic[Action, Action_Goal, Action_Result, ActionFeedback],
+    Generic[Action, ActionGoal, ActionResult, ActionFeedback],
 ):
     """
     Abstract base class for tasks that call a ROS2 action server.
@@ -55,12 +55,12 @@ class ActionServerTask(
     ROS action client, is created in `build`.
     """
 
-    _msg: Action_Goal = field(init=False, default=None)
+    _msg: ActionGoal = field(init=False, default=None)
     """
     ROS message to send to the action server.
     """
 
-    _result: Action_Result = field(init=False, default=None)
+    _result: ActionResult = field(init=False, default=None)
     """
     ROS action server result.
     """
