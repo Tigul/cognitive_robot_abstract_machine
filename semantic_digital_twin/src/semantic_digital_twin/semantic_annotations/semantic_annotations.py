@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 from abc import ABC
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterable, Optional, Self
 
+import numpy as np
+from numpy._typing import NDArray
 from random_events.interval import closed
 from random_events.product_algebra import SimpleEvent
 from typing_extensions import List, Type
@@ -37,8 +39,8 @@ from ..world_description.connections import (
     FixedConnection,
 )
 from ..world_description.degree_of_freedom import DegreeOfFreedomLimits
-from ..world_description.geometry import Scale
-from ..world_description.shape_collection import BoundingBoxCollection
+from ..world_description.geometry import Scale, TriangleMesh
+from ..world_description.shape_collection import BoundingBoxCollection, ShapeCollection
 from ..world_description.world_entity import (
     SemanticAnnotation,
     Body,
@@ -205,9 +207,18 @@ class Slider(HasRootBody):
 
 
 @dataclass(eq=False)
+class EntryWay(Aperture): ...
+
+
+@dataclass(eq=False)
 class Door(HasHandle, HasHinge):
     """
     A door is a physical entity that has covers an opening, has a movable body and a handle.
+    """
+
+    entry_way: EntryWay = field(init=False)
+    """
+    The entry way of the door.
     """
 
     @classmethod
@@ -234,9 +245,55 @@ class Door(HasHandle, HasHinge):
         collision = bounding_box_collection.as_shapes()
         door_body.collision = collision
         door_body.visual = collision
-        return cls._create_with_connection_in_world(
+        door = cls._create_with_connection_in_world(
             FixedConnection, name, world, door_body, world_root_T_self
         )
+
+        entry_way_name = PrefixedName(name.name + "entry_way", name.prefix)
+        entry_way_region_name = PrefixedName(
+            name.name + "entry_way_region", name.prefix
+        )
+        entry_way_region = Region(
+            name=entry_way_region_name,
+            area=ShapeCollection([TriangleMesh(mesh=door.root.combined_mesh)]),
+        )
+        entry_way = EntryWay(name=entry_way_name, root=entry_way_region)
+        with world.modify_world():
+            world.add_semantic_annotation(entry_way)
+            world.add_region(entry_way.root)
+            world.add_connection(FixedConnection(door.root, entry_way.root))
+        door.entry_way = entry_way
+        return door
+
+    def calculate_world_T_hinge_based_on_handle(
+        self,
+    ) -> HomogeneousTransformationMatrix:
+        """
+        Calculate the door pivot point based on the handle position and the door scale. The pivot point is on the opposite
+        side of the handle.
+        :return: The transformation matrix defining the door's pivot point.
+        """
+        if self.handle is None:
+            raise ValueError("Door has no handle.")
+        connection = self.handle.root.parent_connection
+        door_P_handle: NDArray[float] = (
+            connection.origin_expression.to_position().to_np()
+        )
+
+        sign = np.sign(door_P_handle[1]) if door_P_handle[1] != 0 else 1
+        door_collision = self.root.collision
+        if len(door_collision) != 1:
+            raise ValueError("Door has more than one collision shape.")
+
+        scale = door_collision[0].local_frame_bounding_box.scale
+        offset = sign * (scale.y / 2)
+        world_P_hinge = self.root.global_pose.to_np()[:3, 3] + np.array([0, offset, 0])
+
+        world_T_hinge = HomogeneousTransformationMatrix.from_point_rotation_matrix(
+            Point3(*world_P_hinge)
+        )
+
+        return world_T_hinge
 
 
 @dataclass(eq=False)

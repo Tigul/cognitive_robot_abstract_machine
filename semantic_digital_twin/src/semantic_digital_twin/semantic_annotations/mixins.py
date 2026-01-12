@@ -705,14 +705,21 @@ class HasSupportingSurface(HasRootBody, ABC):
             )
             for x, y, z in candidates_filtered.vertices
         ]
-
-        self.supporting_surface = Region.from_3d_points(
+        supporting_surface = Region.from_3d_points(
             name=PrefixedName(
                 f"{self.root.name.name}_supporting_surface_region",
                 self.root.name.prefix,
             ),
             points_3d=points_3d,
         )
+        self_C_supporting_surface = FixedConnection(
+            parent=self.root, child=supporting_surface
+        )
+        with self._world.modify_world():
+            self._world.add_region(supporting_surface)
+            self._world.add_connection(self_C_supporting_surface)
+        self.supporting_surface = supporting_surface
+        return supporting_surface
 
     def points_on_surface(self, amount: int = 100) -> List[Point3]:
         """
