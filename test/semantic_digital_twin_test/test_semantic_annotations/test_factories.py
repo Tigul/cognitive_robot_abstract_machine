@@ -138,7 +138,7 @@ class TestFactories(unittest.TestCase):
         hinge = Hinge.create_with_new_body_in_world(
             name=PrefixedName("hinge"), world=world
         )
-        assert len(world.kinematic_structure_entities) == 3
+        assert len(world.kinematic_structure_entities) == 4
         assert isinstance(hinge.root.parent_connection, RevoluteConnection)
         assert root == hinge.root.parent_kinematic_structure_entity
         assert root == door.root.parent_kinematic_structure_entity
@@ -164,7 +164,7 @@ class TestFactories(unittest.TestCase):
             name=PrefixedName("handle"),
             world=world,
         )
-        assert len(world.kinematic_structure_entities) == 3
+        assert len(world.kinematic_structure_entities) == 4
 
         assert root == handle.root.parent_kinematic_structure_entity
 
@@ -320,7 +320,9 @@ class TestFactories(unittest.TestCase):
             body=door.root,
         )
         semantic_aperture_annotations = world.get_semantic_annotations_by_type(Aperture)
-        self.assertEqual(len(semantic_aperture_annotations), 1)
+        self.assertEqual(len(semantic_aperture_annotations), 2)
+        self.assertIn(aperture, semantic_aperture_annotations)
+        self.assertIn(door.entry_way, semantic_aperture_annotations)
 
     def test_has_aperture_factory(self):
         world = World()

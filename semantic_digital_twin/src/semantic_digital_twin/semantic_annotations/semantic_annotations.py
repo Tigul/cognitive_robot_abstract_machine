@@ -216,7 +216,7 @@ class Door(HasHandle, HasHinge):
     A door is a physical entity that has covers an opening, has a movable body and a handle.
     """
 
-    entry_way: EntryWay = field(init=False)
+    entry_way: Optional[EntryWay] = field(init=False, default=None)
     """
     The entry way of the door.
     """

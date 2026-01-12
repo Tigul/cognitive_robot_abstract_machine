@@ -2962,7 +2962,7 @@ class DoorDAO(
         nullable=True,
         use_existing_column=True,
     )
-    entry_way_id: Mapped[int] = mapped_column(
+    entry_way_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
         ForeignKey("EntryWayDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
