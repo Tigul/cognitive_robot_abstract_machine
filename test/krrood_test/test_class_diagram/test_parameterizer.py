@@ -1,10 +1,19 @@
 from __future__ import annotations
+import pytest
 from random_events.set import Set
 from random_events.variable import Continuous, Integer, Symbolic
 from krrood.class_diagrams.class_diagram import ClassDiagram
 from krrood.class_diagrams.parameterizer import Parameterizer
 from pycram.datastructures.enums import TorsoState
 from pycram.robot_plans import MoveTorsoAction
+from pycram.robot_plans.actions.core.navigation import NavigateAction
+from pycram.datastructures.pose import (
+    PoseStamped,
+    PyCramPose,
+    PyCramVector3,
+    PyCramQuaternion,
+    Header,
+)
 from ..dataset.example_classes import (
     Position,
     Orientation,
@@ -14,11 +23,18 @@ from ..dataset.example_classes import (
 )
 
 
-def test_parameterize_position():
+@pytest.fixture
+def parameterizer() -> Parameterizer:
+    """
+    Fixture for the Parameterizer instance.
+    """
+    return Parameterizer()
+
+
+def test_parameterize_position(parameterizer: Parameterizer):
     """
     Test parameterization of the Position class.
     """
-    parameterizer = Parameterizer()
     class_diagram = ClassDiagram([Position])
     wrapped_position = class_diagram.get_wrapped_class(Position)
     variables = parameterizer(wrapped_position)
@@ -30,11 +46,10 @@ def test_parameterize_position():
     assert variables == expected_variables
 
 
-def test_parameterize_orientation():
+def test_parameterize_orientation(parameterizer: Parameterizer):
     """
     Test parameterization of the Orientation class.
     """
-    parameterizer = Parameterizer()
     class_diagram = ClassDiagram([Orientation])
     wrapped_orientation = class_diagram.get_wrapped_class(Orientation)
     variables = parameterizer(wrapped_orientation)
@@ -48,11 +63,10 @@ def test_parameterize_orientation():
     assert variables == expected_variables
 
 
-def test_parameterize_pose():
+def test_parameterize_pose(parameterizer: Parameterizer):
     """
     Test parameterization of the Pose class.
     """
-    parameterizer = Parameterizer()
     class_diagram = ClassDiagram([Pose, Position, Orientation])
     wrapped_pose = class_diagram.get_wrapped_class(Pose)
     variables = parameterizer(wrapped_pose)
@@ -69,11 +83,10 @@ def test_parameterize_pose():
     assert variables == expected_variables
 
 
-def test_parameterize_atom():
+def test_parameterize_atom(parameterizer: Parameterizer):
     """
     Test parameterization of the Atom class.
     """
-    parameterizer = Parameterizer()
     class_diagram = ClassDiagram([Atom, Element])
     wrapped_atom = class_diagram.get_wrapped_class(Atom)
     variables = parameterizer(wrapped_atom)
@@ -88,12 +101,10 @@ def test_parameterize_atom():
     ]
 
 
-
-def test_create_fully_factorized_distribution():
+def test_create_fully_factorized_distribution(parameterizer: Parameterizer):
     """
     Test for a fully factorized distribution.
     """
-    parameterizer = Parameterizer()
     variables = [
         Continuous("Variable.A"),
         Continuous("Variable.B"),
@@ -105,15 +116,12 @@ def test_create_fully_factorized_distribution():
     assert set(probabilistic_circuit.variables) == set(variables)
 
 
-
-
-def test_parameterize_movetorso_action():
+def test_parameterize_movetorso_action(parameterizer: Parameterizer):
     """
     Test Parameterizer for MoveTorsoAction with multiple torso states.
     """
     class_diagram = ClassDiagram([MoveTorsoAction])
     wrapped_action = class_diagram.get_wrapped_class(MoveTorsoAction)
-    parameterizer = Parameterizer
     variables = parameterizer(wrapped_action)
 
     expected_variable = Symbolic(
@@ -121,12 +129,46 @@ def test_parameterize_movetorso_action():
         Set.from_iterable(list(TorsoState))
     )
 
+    assert len(variables) == 1
     variable = variables[0]
+    assert isinstance(variable, Symbolic)
     assert variable.name == expected_variable.name
     assert set(variable.domain) == set(expected_variable.domain)
 
+    # Assert that all states from TorsoState are represented in the domain
     domain_values = {str(value) for value in variable.domain}
     expected_values = {str(int(state)) for state in TorsoState}
     assert domain_values == expected_values
+
+
+def test_parameterize_navigate_action(parameterizer: Parameterizer):
+    """
+    Test parameterization of the NavigateAction class.
+    """
+    class_diagram = ClassDiagram([
+        NavigateAction,
+        PoseStamped,
+        PyCramPose,
+        PyCramVector3,
+        PyCramQuaternion,
+        Header
+    ])
+    wrapped_navigate_action = class_diagram.get_wrapped_class(NavigateAction)
+    variables = parameterizer(wrapped_navigate_action)
+
+    expected_variable_names = {
+        "NavigateAction.target_location.pose.position.x",
+        "NavigateAction.target_location.pose.position.y",
+        "NavigateAction.target_location.pose.position.z",
+        "NavigateAction.target_location.pose.orientation.x",
+        "NavigateAction.target_location.pose.orientation.y",
+        "NavigateAction.target_location.pose.orientation.z",
+        "NavigateAction.target_location.pose.orientation.w",
+        "NavigateAction.target_location.header.sequence",
+        "NavigateAction.keep_joint_states",
+    }
+
+    variable_names = {v.name for v in variables}
+    assert variable_names == expected_variable_names
 
 

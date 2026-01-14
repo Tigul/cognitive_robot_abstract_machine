@@ -131,6 +131,9 @@ class Parameterizer:
         if endpoint_type is float:
             return Continuous(field_name)
 
+        if endpoint_type is bool:
+            return Symbolic(field_name, Set.from_iterable([True, False]))
+
         return None
 
     def create_fully_factorized_distribution(
