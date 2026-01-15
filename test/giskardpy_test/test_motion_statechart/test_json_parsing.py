@@ -41,7 +41,7 @@ from krrood.symbolic_math.symbolic_math import (
     trinary_logic_or,
 )
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
-    KinematicStructureEntityKwargsTracker,
+    WorldEntityWithIDKwargsTracker,
 )
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.abstract_robot import AbstractRobot
@@ -75,7 +75,7 @@ def test_CollisionRequest(pr2_world_setup: World):
     json_data = collision_request.to_json()
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
-    tracker = KinematicStructureEntityKwargsTracker.from_world(pr2_world_setup)
+    tracker = WorldEntityWithIDKwargsTracker.from_world(pr2_world_setup)
     kwargs = tracker.create_kwargs()
     collision_request_copy = CollisionRequest.from_json(new_json_data, **kwargs)
     assert collision_request_copy.type_ == collision_request.type_
@@ -262,7 +262,7 @@ def test_cart_goal_simple(pr2_world_setup: World):
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
 
-    tracker = KinematicStructureEntityKwargsTracker.from_world(pr2_world_setup)
+    tracker = WorldEntityWithIDKwargsTracker.from_world(pr2_world_setup)
     kwargs = tracker.create_kwargs()
     msc_copy = MotionStatechart.from_json(new_json_data, **kwargs)
 
@@ -377,7 +377,7 @@ def test_unreachable_cart_goal(pr2_world_setup):
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
 
-    tracker = KinematicStructureEntityKwargsTracker.from_world(pr2_world_setup)
+    tracker = WorldEntityWithIDKwargsTracker.from_world(pr2_world_setup)
     kwargs = tracker.create_kwargs()
     msc_copy = MotionStatechart.from_json(new_json_data, **kwargs)
 
