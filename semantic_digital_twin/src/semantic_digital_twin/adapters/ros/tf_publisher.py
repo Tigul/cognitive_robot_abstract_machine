@@ -25,18 +25,37 @@ from semantic_digital_twin.world_description.world_entity import (
 
 @dataclass
 class TfPublisherModelCallback(ModelChangeCallback):
+    """
+    Publishes the TF tree of the world.
+    """
+
     node: Node
+    """ros2 node used to publish tf messages"""
     ignored_kinematic_structure_entities: set[KinematicStructureEntity] = field(
         default_factory=set
     )
+    """
+    Kinematic structure entities that should not be published in the tf tree.
+    Useful, if the robot is already publishing some tf.
+    """
     connections_to_expression: dict[tuple[UUID, UUID], Matrix] = field(
         init=False, default_factory=OrderedDict
     )
-    size: int = field(init=False, default=0)
+    """
+    Maps kinematic structure entity ids which are directly connected to the corresponding position and quaternion expressions.
+    If either parent or child is in the ignored_kinematic_structure_entities set, the connection is not included in this dictionary.
+    """
     tf_message: TFMessage = field(init=False)
+    """Cache for the tf message that is published."""
     compiled_tf: CompiledFunction = field(init=False)
+    """Compiled function for evaluating the tf expressions."""
 
-    def build_tf(self):
+    def _notify(self):
+        self.update_connections_to_expression()
+        self.compile_tf_expression()
+        self.init_tf_message()
+
+    def update_connections_to_expression(self):
         for connection in self.world.connections:
             if (
                 connection.parent in self.ignored_kinematic_structure_entities
@@ -46,12 +65,6 @@ class TfPublisherModelCallback(ModelChangeCallback):
             self.connections_to_expression[
                 (connection.parent.id, connection.child.id)
             ] = connection.origin_as_position_quaternion()
-        self.size = len(self.connections_to_expression)
-
-    def _notify(self):
-        self.build_tf()
-        self.compile_tf_expression()
-        self.init_tf_message()
 
     def compile_tf_expression(self):
         tf = Matrix.vstack([pose for pose in self.connections_to_expression.values()])
@@ -59,12 +72,11 @@ class TfPublisherModelCallback(ModelChangeCallback):
         self.compiled_tf = tf.compile(parameters=VariableParameters.from_lists(params))
         self.compiled_tf.bind_args_to_memory_view(0, self.world.state.positions)
 
-    def compute_tf(self) -> np.ndarray:
-        return self.compiled_tf.evaluate()
-
     def init_tf_message(self):
         self.tf_message = TFMessage()
-        self.tf_message.transforms = [TransformStamped() for _ in range(self.size)]
+        self.tf_message.transforms = [
+            TransformStamped() for _ in range(len(self.connections_to_expression))
+        ]
         for i, (parent_link_id, child_link_id) in enumerate(
             self.connections_to_expression
         ):
@@ -77,7 +89,7 @@ class TfPublisherModelCallback(ModelChangeCallback):
             self.tf_message.transforms[i].child_frame_id = str(child_link.name)
 
     def update_tf_message(self):
-        tf_data = self.compute_tf()
+        tf_data = self.compiled_tf.evaluate()
         current_time = self.node.get_clock().now().to_msg()
         for i, (p_T_c, pose) in enumerate(zip(self.tf_message.transforms, tf_data)):
             p_T_c.header.stamp = current_time
@@ -98,14 +110,23 @@ class TFPublisher(StateChangeCallback):
     """
 
     node: Node
+    """ros2 node used to publish tf messages"""
     world: World
+    """World for which to publish tf messages."""
     ignored_kinematic_structure_entities: set[KinematicStructureEntity] = field(
         default_factory=set
     )
+    """
+    Kinematic structure entities that should not be published in the tf tree.
+    Useful, if the robot is already publishing some tf.
+    """
     tf_topic: str = field(default="tf")
+    """Topic to which tf messages should be published."""
     tf_pub: Publisher = field(init=False)
+    """Publisher for tf messages."""
 
     tf_model_cb: TfPublisherModelCallback = field(init=False)
+    """Callback for updating the tf message cache on model update."""
 
     def __post_init__(self):
         super().__post_init__()

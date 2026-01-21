@@ -15,6 +15,12 @@ from semantic_digital_twin.callbacks.callback import (
 
 @dataclass
 class VizMarkerPublisher(ModelChangeCallback):
+    """
+    Publishes the world model as a visualization marker.
+    Relies on the tf tree to correctly position the markers.
+    Use TFPublisher to publish the tf tree.
+    """
+
     red: ClassVar[ColorRGBA] = ColorRGBA(r=1.0, g=0.0, b=0.0, a=1.0)
     yellow: ClassVar[ColorRGBA] = ColorRGBA(r=1.0, g=1.0, b=0.0, a=1.0)
     green: ClassVar[ColorRGBA] = ColorRGBA(r=0.0, g=1.0, b=0.0, a=1.0)
@@ -35,13 +41,18 @@ class VizMarkerPublisher(ModelChangeCallback):
     """
 
     use_visuals: bool = field(kw_only=True, default=True)
+    """
+    Whether to use the visual shapes of the bodies or the collision shapes.
+    """
 
     markers: MarkerArray = field(init=False, default_factory=MarkerArray)
+    """Maker message to be published."""
     qos_profile: QoSProfile = field(
         default_factory=lambda: QoSProfile(
             depth=10, durability=DurabilityPolicy.TRANSIENT_LOCAL
         )
     )
+    """QoS profile for the publisher."""
 
     def __post_init__(self):
         super().__post_init__()

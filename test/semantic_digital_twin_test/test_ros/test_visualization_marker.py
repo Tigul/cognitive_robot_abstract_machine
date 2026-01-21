@@ -13,7 +13,7 @@ from semantic_digital_twin.world_description.connections import OmniDrive
 def test_visualization_marker(rclpy_node, box_bot_world):
     tf_wrapper = TFWrapper(node=rclpy_node)
     tf_publisher = TFPublisher(node=rclpy_node, world=box_bot_world)
-    viz = VizMarkerPublisher(world=box_bot_world, node=rclpy_node)
+    viz = VizMarkerPublisher(world=box_bot_world, node=rclpy_node, use_visuals=False)
 
     @dataclass
     class Callback:
