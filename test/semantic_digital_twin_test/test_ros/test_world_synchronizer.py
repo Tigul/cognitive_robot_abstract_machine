@@ -40,13 +40,10 @@ from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFr
 from semantic_digital_twin.world_description.geometry import Scale
 from semantic_digital_twin.world_description.world_entity import (
     Body,
-    SemanticAnnotation,
+    SemanticAnnotation, synchronized_attribute_modification,
 )
 from semantic_digital_twin.world_description.world_modification import (
     AttributeUpdateModification,
-)
-from semantic_digital_twin.semantic_annotations.mixins import (
-    synchronized_attribute_modification,
 )
 from krrood.adapters.json_serializer import JSONAttributeDiff
 

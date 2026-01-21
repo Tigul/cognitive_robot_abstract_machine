@@ -164,11 +164,13 @@ class SubclassJSONSerializer:
         :param kwargs: Additional keyword arguments to pass to the constructor of the subclass.
         """
         for diff in diffs:
-            if not hasattr(self, diff.attribute_name):
-                continue
             self._apply_diff(diff, **kwargs)
 
     def _apply_diff(self, diff: JSONAttributeDiff, **kwargs) -> None:
+        """
+        Apply a single diff to the current object.
+        :param diff: The diff to apply.
+        """
         current_value = getattr(self, diff.attribute_name)
         if isinstance(current_value, list):
             for item in diff.remove:
@@ -242,6 +244,7 @@ class JSONAttributeDiff(SubclassJSONSerializer):
     """
 
     def to_json(self) -> Dict[str, Any]:
+        super().to_json()
         return {
             JSON_TYPE_NAME: get_full_class_name(self.__class__),
             "attribute_name": self.attribute_name,
@@ -263,6 +266,11 @@ def shallow_diff_json(
 ) -> List[JSONAttributeDiff]:
     """
     Create a shallow diff between two JSON dicts. Result describes the changes that need to be applied to first json to get second json.
+
+    :param original_json: The original JSON dict.
+    :param new_json: The new JSON dict.
+
+    :return: List of JSONAttributeDiff describing the changes that need to be applied to first json to get second json.
     """
     all_keys = original_json.keys() | new_json.keys()
     diffs: List[JSONAttributeDiff] = [
@@ -278,6 +286,12 @@ def _compute_attribute_diff(
 ) -> Optional[JSONAttributeDiff]:
     """
     Compute the attribute diff for a single key between two JSON dicts.
+
+    :param original_json: The original JSON dict.
+    :param new_json: The new JSON dict.
+    :param key: The key to compute the diff for.
+
+    :return JSONAttributeDiff describing the changes that need to be applied to first json to get second json for a specific key.
     """
     original_value = original_json.get(key)
     new_value = new_json.get(key)

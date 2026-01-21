@@ -53,11 +53,17 @@ from ..world_description.world_entity import (
 
 
 @dataclass(eq=False)
-class Furniture(SemanticAnnotation, ABC): ...
+class Furniture(SemanticAnnotation, ABC):
+    """
+    A semantic annotation that represents a piece of furniture.
+    """
 
 
 @dataclass(eq=False)
 class Handle(HasRootBody):
+    """
+    A handle is a physical entity that can be grasped by a hand or a robotic gripper to open or close an object.
+    """
 
     @classmethod
     def create_with_new_body_in_world(
@@ -329,7 +335,7 @@ class DoubleDoor(SemanticAnnotation):
 class Drawer(Furniture, HasCaseAsRootBody, HasHandle, HasSlider, HasStorageSpace):
 
     @property
-    def opening_direction(self) -> Direction:
+    def physical_opening_of_geometry(self) -> Direction:
         return Direction.Z
 
 
@@ -344,9 +350,9 @@ class Table(Furniture, HasSupportingSurface):
 
 
 @dataclass(eq=False)
-class Cabinet(Furniture, HasStorageSpace, HasCaseAsRootBody):
+class Cabinet(Furniture, HasCaseAsRootBody):
     @property
-    def opening_direction(self) -> Direction:
+    def physical_opening_of_geometry(self) -> Direction:
         return Direction.NEGATIVE_X
 
 
@@ -430,6 +436,9 @@ class Room(SemanticAnnotation):
 
 @dataclass(eq=False)
 class Wall(HasApertures):
+    """
+    A wall is a physical entity that separates two spaces and can contain apertures. Doors are a computed property.
+    """
 
     @classmethod
     def create_with_new_body_in_world(

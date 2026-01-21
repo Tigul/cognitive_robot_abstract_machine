@@ -129,42 +129,40 @@ class UsageError(LogicalError):
 
 
 @dataclass
-class MissingConnectionType(UsageError):
-    clazz: Type[HasRootKinematicStructureEntity]
-
-    def __post_init__(self):
-
-        self.message = f"connection_type must not be None. You probably forgot to set the class variable _parent_connection_type for class {self.clazz.__name__}."
-
-
-@dataclass
-class MissingActiveAxis(UsageError):
-    """
-    Raised when active_axis is missing for a Active1DOFConnection.
-    """
-
-    clazz: Type[HasRootKinematicStructureEntity]
-
-    def __post_init__(self):
-        self.message = (
-            f"When creating an instance of {self.clazz.__name__}, active_axis must be provided for connection_type "
-            f"{self.clazz._parent_connection_type.__name__}."
-        )
-
-
-@dataclass
 class InvalidConnectionLimits(UsageError):
+    """
+    Raised when the lower limit is not less than the upper limit for a degree of freedom.
+    """
+
     name: PrefixedName
+    """
+    The name of the degree of freedom.
+    """
+
     limits: DegreeOfFreedomLimits
+    """
+    The invalid limits.
+    """
 
     def __post_init__(self):
-        self.message = f"Lower limit for {self.name} must be strictly less than upper limit. Given limits: {self.limits}."
+        self.message = f"Lower limit for {self.name} must be less than upper limit. Given limits: {self.limits}."
 
 
 @dataclass
 class MismatchingWorld(UsageError):
+    """
+    Raised when two entities belong to different worlds.
+    """
+
     expected_world: World
+    """
+    The expected world.
+    """
+
     given_world: World
+    """
+    The given world.
+    """
 
     def __post_init__(self):
         self.message = f"The two entities have mismatching worlds. Expected world: {self.expected_world}, given world: {self.given_world}"
@@ -172,8 +170,19 @@ class MismatchingWorld(UsageError):
 
 @dataclass
 class MissingSemanticAnnotationError(UsageError):
+    """
+    Raised when a required semantic annotation is required but missing.
+    """
+
     semantic_annotation_class: Type[SemanticAnnotation]
+    """
+    The semantic annotation class that requires another semantic annotation.
+    """
+
     missing_semantic_annotation_class: Type[SemanticAnnotation]
+    """
+    The missing semantic annotation class.
+    """
 
     def __post_init__(self):
         self.message = (
@@ -184,23 +193,29 @@ class MissingSemanticAnnotationError(UsageError):
 
 @dataclass
 class InvalidPlaneDimensions(UsageError):
+    """
+    Raised when the depth of a plane is not less than its width or height.
+    """
 
     scale: Scale
+    """
+    The scale of the plane.
+    """
 
     def __post_init__(self):
         self.message = f"The depth of a plane must be less than its width or height. This doesnt hold for your door with dimensions {self.scale}"
 
 
 @dataclass
-class MissingSemanticPositionError(UsageError):
-
-    def __post_init__(self):
-        self.message = f"Semantic position is missing."
-
-
-@dataclass
 class InvalidAxisError(UsageError):
+    """
+    Raised when an invalid axis is provided.
+    """
+
     axis: Vector3
+    """
+    The invalid axis.
+    """
 
     def __post_init__(self):
         self.message = f"Invalid axis {self.axis}."

@@ -507,7 +507,8 @@ class TestFactories(unittest.TestCase):
         ).as_shapes()
         table.root.visual = table.root.collision
 
-        surface = table.calculate_supporting_surface()
+        with world.modify_world():
+            surface = table.calculate_supporting_surface()
 
         self.assertIsNotNone(surface)
         self.assertEqual(len(world.regions), 1)

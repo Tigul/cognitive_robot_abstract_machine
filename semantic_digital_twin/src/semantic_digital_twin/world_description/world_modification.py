@@ -12,12 +12,12 @@ from typing_extensions import (
     TYPE_CHECKING,
 )
 
-from krrood.adapters.exceptions import JSON_TYPE_NAME
 from krrood.adapters.json_serializer import (
     SubclassJSONSerializer,
     to_json,
     from_json,
     JSONAttributeDiff,
+    list_like_classes,
 )
 from .degree_of_freedom import DegreeOfFreedom
 from .world_entity import (
@@ -89,7 +89,7 @@ class AttributeUpdateModification(WorldModelModification):
         entity = world.get_world_entity_with_id_by_id(self.entity_id)
         for diff in self.updated_kwargs:
             current_value = getattr(entity, diff.attribute_name)
-            if isinstance(current_value, list):
+            if isinstance(current_value, list_like_classes):
                 self._apply_to_list(world, current_value, diff)
             else:
                 obj = self._resolve_item(world, diff.add[0])

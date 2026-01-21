@@ -166,6 +166,12 @@ wardrobedao_drawers_association = Table(
     Column("source_wardrobedao_id", ForeignKey("WardrobeDAO.database_id")),
     Column("target_drawerdao_id", ForeignKey("DrawerDAO.database_id")),
 )
+tabledao_objects_association = Table(
+    "tabledao_objects_association",
+    Base.metadata,
+    Column("source_tabledao_id", ForeignKey("TableDAO.database_id")),
+    Column("target_hasrootbodydao_id", ForeignKey("HasRootBodyDAO.database_id")),
+)
 drawerdao_objects_association = Table(
     "drawerdao_objects_association",
     Base.metadata,
@@ -3176,7 +3182,7 @@ class HasStorageSpaceDAO(
 
 
 class HasSupportingSurfaceDAO(
-    HasRootBodyDAO,
+    HasStorageSpaceDAO,
     DataAccessObject[
         semantic_digital_twin.semantic_annotations.mixins.HasSupportingSurface
     ],
@@ -3185,7 +3191,7 @@ class HasSupportingSurfaceDAO(
     __tablename__ = "HasSupportingSurfaceDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(HasRootBodyDAO.database_id),
+        ForeignKey(HasStorageSpaceDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
@@ -3205,7 +3211,7 @@ class HasSupportingSurfaceDAO(
 
     __mapper_args__ = {
         "polymorphic_identity": "HasSupportingSurfaceDAO",
-        "inherit_condition": database_id == HasRootBodyDAO.database_id,
+        "inherit_condition": database_id == HasStorageSpaceDAO.database_id,
     }
 
 
@@ -3303,18 +3309,18 @@ class CabinetDAO(
     root: Mapped[BodyDAO] = relationship(
         "BodyDAO", uselist=False, foreign_keys=[root_id], post_update=True
     )
-    supporting_surface: Mapped[RegionDAO] = relationship(
-        "RegionDAO",
-        uselist=False,
-        foreign_keys=[supporting_surface_id],
-        post_update=True,
-    )
     objects: Mapped[typing.List[HasRootBodyDAO]] = relationship(
         "HasRootBodyDAO",
         secondary="cabinetdao_objects_association",
         primaryjoin="CabinetDAO.database_id == cabinetdao_objects_association.c.source_cabinetdao_id",
         secondaryjoin="HasRootBodyDAO.database_id == cabinetdao_objects_association.c.target_hasrootbodydao_id",
         cascade="save-update, merge",
+    )
+    supporting_surface: Mapped[RegionDAO] = relationship(
+        "RegionDAO",
+        uselist=False,
+        foreign_keys=[supporting_surface_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
@@ -3499,6 +3505,13 @@ class TableDAO(
 
     root: Mapped[BodyDAO] = relationship(
         "BodyDAO", uselist=False, foreign_keys=[root_id], post_update=True
+    )
+    objects: Mapped[typing.List[HasRootBodyDAO]] = relationship(
+        "HasRootBodyDAO",
+        secondary="tabledao_objects_association",
+        primaryjoin="TableDAO.database_id == tabledao_objects_association.c.source_tabledao_id",
+        secondaryjoin="HasRootBodyDAO.database_id == tabledao_objects_association.c.target_hasrootbodydao_id",
+        cascade="save-update, merge",
     )
     supporting_surface: Mapped[RegionDAO] = relationship(
         "RegionDAO",

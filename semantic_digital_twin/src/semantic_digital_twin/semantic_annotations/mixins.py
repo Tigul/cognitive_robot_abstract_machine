@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from functools import wraps
 
 import numpy as np
 import trimesh
@@ -18,20 +17,14 @@ from typing_extensions import (
     Iterable,
     Type,
     assert_never,
-    Any,
 )
 
-from krrood.adapters.json_serializer import to_json, shallow_diff_json
 from krrood.ormatic.utils import classproperty
 from .position_descriptions import Direction
 from ..datastructures.prefixed_name import PrefixedName
 from ..datastructures.variables import SpatialVariables
 from ..exceptions import (
-    MissingConnectionType,
-    InvalidConnectionLimits,
     MismatchingWorld,
-    MissingWorldModificationContextError,
-    MissingActiveAxis,
 )
 from ..spatial_types import Point3, HomogeneousTransformationMatrix, Vector3
 from ..spatial_types.derivatives import DerivativeMap
@@ -42,7 +35,7 @@ from ..world_description.connections import (
     PrismaticConnection,
     ActiveConnection1DOF,
 )
-from ..world_description.degree_of_freedom import DegreeOfFreedomLimits, DegreeOfFreedom
+from ..world_description.degree_of_freedom import DegreeOfFreedomLimits
 from ..world_description.geometry import Scale
 from ..world_description.shape_collection import BoundingBoxCollection
 from ..world_description.world_entity import (
@@ -51,8 +44,8 @@ from ..world_description.world_entity import (
     Region,
     KinematicStructureEntity,
     Connection,
+    synchronized_attribute_modification,
 )
-from ..world_description.world_modification import AttributeUpdateModification
 
 if TYPE_CHECKING:
     from .semantic_annotations import (
@@ -63,42 +56,6 @@ if TYPE_CHECKING:
         Slider,
         Aperture,
     )
-
-
-def synchronized_attribute_modification(func):
-    """
-    Decorator to synchronize attribute modifications.
-
-    Ensures that any modifications to the attributes of an instance of WorldEntityWithID are properly recorded and any
-    resultant changes are appended to the current model modification block in the world model manager. Keeps track of
-    the pre- and post-modification states of the object to compute the differences and maintain a log of updates.
-    """
-
-    @wraps(func)
-    def wrapper(self: SemanticAnnotation, *args: Any, **kwargs: Any) -> Any:
-
-        object_before_change = to_json(self)
-        result = func(self, *args, **kwargs)
-        object_after_change = to_json(self)
-        diff = shallow_diff_json(object_before_change, object_after_change)
-
-        current_model_modification_block = (
-            self._world.get_world_model_manager().current_model_modification_block
-        )
-        if current_model_modification_block is None:
-            raise MissingWorldModificationContextError(func)
-
-        current_model_modification_block.append(
-            AttributeUpdateModification.from_kwargs(
-                {
-                    "entity_id": object_after_change["id"],
-                    "updated_kwargs": to_json(diff),
-                }
-            )
-        )
-        return result
-
-    return wrapper
 
 
 @dataclass(eq=False)
@@ -281,8 +238,6 @@ class HasRootKinematicStructureEntity(SemanticAnnotation, ABC):
             return
 
         world = self._world
-        # world._forward_kinematic_manager.recompile()
-        # world._forward_kinematic_manager.recompute()
         root_T_self = self._offline_root_T_entity(self.root)
         root_T_new_child = self._offline_root_T_entity(child_kinematic_structure_entity)
 
@@ -442,6 +397,7 @@ class HasApertures(HasRootBody, ABC):
     The apertures of the semantic annotation.
     """
 
+    @synchronized_attribute_modification
     def add_aperture(self, aperture: Aperture):
         """
         Cuts a hole in the semantic annotation's body for the given body annotation.
@@ -486,6 +442,7 @@ class HasHinge(HasRootBody, ABC):
     The hinge of the semantic annotation.
     """
 
+    @synchronized_attribute_modification
     def add_hinge(
         self,
         hinge: Hinge,
@@ -512,6 +469,7 @@ class HasSlider(HasRootKinematicStructureEntity, ABC):
     The slider of the semantic annotation.
     """
 
+    @synchronized_attribute_modification
     def add_slider(
         self,
         slider: Slider,
@@ -538,6 +496,7 @@ class HasDrawers(HasRootKinematicStructureEntity, ABC):
     The drawers of the semantic annotation.
     """
 
+    @synchronized_attribute_modification
     def add_drawer(
         self,
         drawer: Drawer,
@@ -589,6 +548,7 @@ class HasHandle(HasRootBody, ABC):
     The handle of the semantic annotation.
     """
 
+    @synchronized_attribute_modification
     def add_handle(
         self,
         handle: Handle,
@@ -605,7 +565,25 @@ class HasHandle(HasRootBody, ABC):
 
 
 @dataclass(eq=False)
-class HasSupportingSurface(HasRootBody, ABC):
+class HasStorageSpace(HasRootBody, ABC):
+    """
+    A mixin class for semantic annotations that represent storage spaces. Used to afterthefact add object for example
+    to a table, and have those objects move with the table when it is moved.
+    """
+
+    objects: List[HasRootBody] = field(default_factory=list, hash=False, kw_only=True)
+    """
+    The objects stored in the semantic annotation.
+    """
+
+    @synchronized_attribute_modification
+    def add_object(self, object: HasRootBody):
+        self._attach_child_entity_in_kinematic_structure(object.root)
+        self.objects.append(object)
+
+
+@dataclass(eq=False)
+class HasSupportingSurface(HasStorageSpace, ABC):
     """
     A semantic annotation that represents a supporting surface.
     """
@@ -615,6 +593,7 @@ class HasSupportingSurface(HasRootBody, ABC):
     The supporting surface region of the semantic annotation.
     """
 
+    @synchronized_attribute_modification
     def calculate_supporting_surface(
         self,
         upward_threshold: float = 0.95,
@@ -730,9 +709,12 @@ class HasCaseAsRootBody(HasSupportingSurface, ABC):
 
     @classproperty
     @abstractmethod
-    def opening_direction(self) -> Direction:
+    def physical_opening_of_geometry(self) -> Direction:
         """
-        The direction in which the case is open.
+        The direction of the physical opening of the geometry. For a drawer for example, this would always be Z.
+
+        ..warning:: This does not describe the axis along, for example, a drawer opens. Its the physical opening where
+        you can put something into the drawer.
         """
         ...
 
@@ -797,21 +779,8 @@ class HasCaseAsRootBody(HasSupportingSurface, ABC):
             scale.x - wall_thickness,
             scale.y - wall_thickness,
             scale.z - wall_thickness,
-        ).to_simple_event(cls.opening_direction, wall_thickness)
+        ).to_simple_event(cls.physical_opening_of_geometry, wall_thickness)
 
         container_event = outer_box.as_composite_set() - inner_box.as_composite_set()
 
         return container_event
-
-
-@dataclass(eq=False)
-class HasStorageSpace(HasRootBody, ABC):
-    """
-    A mixin class for semantic annotations that represent storage spaces.
-    """
-
-    objects: List[HasRootBody] = field(default_factory=list, hash=False, kw_only=True)
-
-    def add_object(self, object: HasRootBody):
-        self._attach_child_entity_in_kinematic_structure(object.root)
-        self.objects.append(object)
