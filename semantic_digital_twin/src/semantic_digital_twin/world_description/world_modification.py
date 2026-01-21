@@ -66,9 +66,20 @@ class WorldModelModification(SubclassJSONSerializer, ABC):
 
 @dataclass
 class AttributeUpdateModification(WorldModelModification):
+    """
+    An update to one or more attributes of an entity in the world.
+    This is used when decorating a method with  @synchronized_attribute_modification
+    """
 
     entity_id: UUID
+    """
+    The UUID of the entity that was updated.
+    """
+
     updated_kwargs: List[JSONAttributeDiff]
+    """
+    The list of attribute names and their new values.
+    """
 
     @classmethod
     def from_kwargs(cls, kwargs: Dict[str, Any]):

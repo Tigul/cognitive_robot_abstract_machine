@@ -139,6 +139,10 @@ class MissingConnectionType(UsageError):
 
 @dataclass
 class MissingActiveAxis(UsageError):
+    """
+    Raised when active_axis is missing for a Active1DOFConnection.
+    """
+
     clazz: Type[HasRootKinematicStructureEntity]
 
     def __post_init__(self):

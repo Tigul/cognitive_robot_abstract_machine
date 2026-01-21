@@ -1530,7 +1530,7 @@ class World:
             self.kinematic_structure.successors(kinematic_structure_entity.index)
         )
 
-    # @lru_cache(maxsize=_LRU_CACHE_SIZE)
+    @lru_cache(maxsize=_LRU_CACHE_SIZE)
     def compute_parent_connection(
         self, kinematic_structure_entity: KinematicStructureEntity
     ) -> Optional[Connection]:
@@ -1550,7 +1550,7 @@ class World:
             )
         )
 
-    # @lru_cache(maxsize=_LRU_CACHE_SIZE)
+    @lru_cache(maxsize=_LRU_CACHE_SIZE)
     def compute_parent_kinematic_structure_entity(
         self, kinematic_structure_entity: KinematicStructureEntity
     ) -> Optional[KinematicStructureEntity]:
