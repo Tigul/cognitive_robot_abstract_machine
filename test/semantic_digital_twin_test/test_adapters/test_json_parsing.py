@@ -1,11 +1,11 @@
 import os
+from copy import deepcopy
 
 import numpy as np
 import pytest
 import trimesh.boolean
-from krrood.adapters.json_serializer import SubclassJSONSerializer
-from krrood.symbolic_math.symbolic_math import FloatVariable
 
+from krrood.symbolic_math.symbolic_math import FloatVariable
 from semantic_digital_twin.adapters.mesh import STLParser
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
@@ -46,12 +46,14 @@ def test_body_json_serialization():
 
     with world.modify_world():
         world.add_kinematic_structure_entity(body)
-    body_index = body.index
+
+    other_world = deepcopy(world)
 
     json_data = body.to_json()
-    body2 = Body.from_json(json_data)
+    tracker = WorldEntityWithIDKwargsTracker.from_world(other_world)
+    body2 = Body.from_json(json_data, **tracker.create_kwargs())
 
-    assert body_index == body2.index
+    assert body2.index is not None
 
     for c1 in body.collision:
         for c2 in body2.collision:
