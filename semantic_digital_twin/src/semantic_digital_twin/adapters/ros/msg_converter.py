@@ -41,19 +41,33 @@ Ros2Type = TypeVar("Ros2Type")
 
 
 @dataclass
-class ROS2ConversionError(DataclassException): ...
+class ROS2ConversionError(DataclassException):
+    message: str = field(init=False)
 
 
 @dataclass
-class CannotConvertToRos2Error(ROS2ConversionError): ...
+class CannotConvertToRos2Error(ROS2ConversionError):
+    our_type: Type = field(kw_only=True)
+
+    def __post_init__(self):
+        self.message = f"Cannot convert {self.our_type.__name__} to ROS2 message."
 
 
 @dataclass
-class CannotConvertFromRos2Error(ROS2ConversionError): ...
+class CannotConvertFromRos2Error(ROS2ConversionError):
+    ros2_type: Type = field(kw_only=True)
+
+    def __post_init__(self):
+        self.message = f"Cannot convert {self.ros2_type.__name__} to our semDT type."
 
 
 @dataclass
 class ROS2MessageConverter(ABC, Generic[OurType, Ros2Type]):
+    """
+    Converts between some semDT types and ROS2 messages.
+    If you want to add a new converter, you need to add a new class that inherits from ROS2MessageConverter.
+    """
+
     our_registry: ClassVar[Dict[Type, Type[ROS2MessageConverter]]] = field(default={})
     ros2_registry: ClassVar[Dict[Type, Type[ROS2MessageConverter]]] = field(default={})
 
@@ -68,15 +82,14 @@ class ROS2MessageConverter(ABC, Generic[OurType, Ros2Type]):
         for sub_class in recursive_subclasses(cls):
             if sub_class.our_type == our_type:
                 return sub_class
-
-        raise CannotConvertToRos2Error()
+        raise CannotConvertToRos2Error(our_type=our_type)
 
     @classmethod
     def get_to_our_converter(cls, ros2_type: Type) -> Type[ROS2MessageConverter]:
         for sub_class in recursive_subclasses(cls):
             if sub_class.ros2_type == ros2_type:
                 return sub_class
-        raise CannotConvertFromRos2Error()
+        raise CannotConvertFromRos2Error(ros2_type=ros2_type)
 
     @classmethod
     def to_ros2_message(cls, data: OurType) -> Ros2Type:
@@ -90,9 +103,9 @@ class ROS2MessageConverter(ABC, Generic[OurType, Ros2Type]):
         pass
 
     @classmethod
-    def from_ros2_message(cls, data: Ros2Type) -> OurType:
+    def from_ros2_message(cls, data: Ros2Type, world: World) -> OurType:
         return ROS2MessageConverter.get_to_our_converter(type(data))._from_ros2_message(
-            data
+            data, world
         )
 
     @classmethod
@@ -142,13 +155,15 @@ class HomogeneousTransformationMatrixROS2Converter(
             quat_y=data.transform.rotation.y,
             quat_z=data.transform.rotation.z,
             quat_w=data.transform.rotation.w,
-            reference_frame=world.get_kinematic_structure_entity_by_name(
-                data.header.frame_id
-            ),
-            child_frame=world.get_kinematic_structure_entity_by_name(
-                data.child_frame_id
-            ),
         )
+        if data.child_frame_id != "":
+            result.reference_frame = world.get_kinematic_structure_entity_by_name(
+                data.header.frame_id
+            )
+        if data.child_frame_id != "":
+            result.child_frame = world.get_kinematic_structure_entity_by_name(
+                data.child_frame_id
+            )
         return result
 
 

@@ -114,7 +114,7 @@ def cleanup_ros():
 
 
 @pytest.fixture()
-def box_bot_world():
+def cylinder_bot_world():
     robot_world = World()
     with robot_world.modify_world():
         robot = Body(

@@ -2399,17 +2399,17 @@ class TestOpenClose:
 
 
 class TestCollisionAvoidance:
-    def test_collision_avoidance(self, box_bot_world: World):
-        tip = box_bot_world.get_kinematic_structure_entity_by_name("bot")
+    def test_collision_avoidance(self, cylinder_bot_world: World):
+        tip = cylinder_bot_world.get_kinematic_structure_entity_by_name("bot")
 
         msc = MotionStatechart()
         msc.add_nodes(
             [
                 CartesianPose(
-                    root_link=box_bot_world.root,
+                    root_link=cylinder_bot_world.root,
                     tip_link=tip,
                     goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
-                        x=1, reference_frame=box_bot_world.root
+                        x=1, reference_frame=cylinder_bot_world.root
                     ),
                 ),
                 CollisionAvoidance(
@@ -2424,12 +2424,12 @@ class TestCollisionAvoidance:
         json_str = json.dumps(json_data)
         new_json_data = json.loads(json_str)
 
-        tracker = WorldEntityWithIDKwargsTracker.from_world(box_bot_world)
+        tracker = WorldEntityWithIDKwargsTracker.from_world(cylinder_bot_world)
         kwargs = tracker.create_kwargs()
         msc_copy = MotionStatechart.from_json(new_json_data, **kwargs)
 
         kin_sim = Executor(
-            world=box_bot_world,
+            world=cylinder_bot_world,
             collision_checker=CollisionCheckerLib.bpb,
         )
         kin_sim.compile(motion_statechart=msc_copy)
@@ -2444,9 +2444,9 @@ class TestCollisionAvoidance:
         )
         assert contact_distance > 0.049
 
-    def test_hard_constraints_violated(self, box_bot_world: World):
-        root = box_bot_world.root
-        with box_bot_world.modify_world():
+    def test_hard_constraints_violated(self, cylinder_bot_world: World):
+        root = cylinder_bot_world.root
+        with cylinder_bot_world.modify_world():
             env2 = Body(
                 name=PrefixedName("environment2"),
                 collision=ShapeCollection(shapes=[Cylinder(width=0.5, height=0.1)]),
@@ -2458,7 +2458,7 @@ class TestCollisionAvoidance:
                     0.75
                 ),
             )
-            box_bot_world.add_connection(env_connection)
+            cylinder_bot_world.add_connection(env_connection)
 
             env3 = Body(
                 name=PrefixedName("environment3"),
@@ -2471,7 +2471,7 @@ class TestCollisionAvoidance:
                     1.25
                 ),
             )
-            box_bot_world.add_connection(env_connection)
+            cylinder_bot_world.add_connection(env_connection)
             env4 = Body(
                 name=PrefixedName("environment4"),
                 collision=ShapeCollection(shapes=[Cylinder(width=0.5, height=0.1)]),
@@ -2483,7 +2483,7 @@ class TestCollisionAvoidance:
                     x=1, y=-0.25
                 ),
             )
-            box_bot_world.add_connection(env_connection)
+            cylinder_bot_world.add_connection(env_connection)
             env5 = Body(
                 name=PrefixedName("environment5"),
                 collision=ShapeCollection(shapes=[Cylinder(width=0.5, height=0.1)]),
@@ -2495,9 +2495,9 @@ class TestCollisionAvoidance:
                     x=1, y=0.25
                 ),
             )
-            box_bot_world.add_connection(env_connection)
+            cylinder_bot_world.add_connection(env_connection)
 
-        tip = box_bot_world.get_kinematic_structure_entity_by_name("bot")
+        tip = cylinder_bot_world.get_kinematic_structure_entity_by_name("bot")
 
         msc = MotionStatechart()
         msc.add_node(
@@ -2505,16 +2505,16 @@ class TestCollisionAvoidance:
                 [
                     SetOdometry(
                         base_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
-                            x=1, reference_frame=box_bot_world.root
+                            x=1, reference_frame=cylinder_bot_world.root
                         )
                     ),
                     Parallel(
                         [
                             CartesianPose(
-                                root_link=box_bot_world.root,
+                                root_link=cylinder_bot_world.root,
                                 tip_link=tip,
                                 goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
-                                    x=1, reference_frame=box_bot_world.root
+                                    x=1, reference_frame=cylinder_bot_world.root
                                 ),
                             ),
                             CollisionAvoidance(
@@ -2534,12 +2534,12 @@ class TestCollisionAvoidance:
         json_str = json.dumps(json_data)
         new_json_data = json.loads(json_str)
 
-        tracker = WorldEntityWithIDKwargsTracker.from_world(box_bot_world)
+        tracker = WorldEntityWithIDKwargsTracker.from_world(cylinder_bot_world)
         kwargs = tracker.create_kwargs()
         msc_copy = MotionStatechart.from_json(new_json_data, **kwargs)
 
         kin_sim = Executor(
-            world=box_bot_world,
+            world=cylinder_bot_world,
             collision_checker=CollisionCheckerLib.bpb,
         )
         kin_sim.compile(motion_statechart=msc_copy)
