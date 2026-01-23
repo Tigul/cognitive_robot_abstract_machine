@@ -3,6 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import timedelta
 
+from sympy import true
+
+from krrood.entity_query_language.entity import entity, variable
+from krrood.entity_query_language.entity_result_processors import an
+from krrood.entity_query_language.symbolic import Variable
+from semantic_digital_twin.robots.abstract_robot import AbstractRobot
 from semantic_digital_twin.world_description.world_entity import Body, Connection
 from typing_extensions import Union, Optional, Type, Any, Iterable
 
@@ -15,6 +21,8 @@ from ....datastructures.partial_designator import PartialDesignator
 from ....failures import ContainerManipulationError
 from ....has_parameters import has_parameters
 from ....language import SequentialPlan
+from ....querying.predicates import GripperIsFree
+from ....robot_description import ViewManager
 from ....robot_plans.actions.base import ActionDescription
 
 
@@ -50,14 +58,14 @@ class OpenAction(ActionDescription):
             ),
         ).perform()
 
-    def validate(
-        self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None
-    ):
+    @ActionDescription.rdr.decorator
+    def pre_condition(self) -> bool:
         """
         Check if the container is opened, this assumes that the container state can be read accurately from the
         real world.
         """
-        validate_close_open(self.object_designator, self.arm, OpenAction)
+
+        return None
 
     @classmethod
     def description(

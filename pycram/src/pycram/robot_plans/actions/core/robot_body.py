@@ -96,14 +96,7 @@ class SetGripperAction(ActionDescription):
                 self.context, MoveGripperMotion(gripper=arm, motion=self.motion)
             ).perform()
 
-    def validate(
-        self,
-        result: Optional[Any] = None,
-        max_wait_time: timedelta = timedelta(seconds=2),
-    ):
-        """
-        Needs gripper state to be read or perceived.
-        """
+    def pre_condition(self):
         pass
 
     @classmethod
