@@ -173,7 +173,11 @@ class ProcthorDoor:
 
             wall_T_door = HomogeneousTransformationMatrix.from_xyz_rpy(
                 x=x_direction,
-                y=(-y_direction) if np.allclose(direction, Vector3.Y()) else y_direction,
+                y=(
+                    (-y_direction)
+                    if np.allclose(direction, Vector3.Y())
+                    else y_direction
+                ),
             )
             world_T_door = self.world_T_parent_wall @ wall_T_door
 
