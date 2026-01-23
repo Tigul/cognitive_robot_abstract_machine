@@ -420,7 +420,7 @@ class Plan:
         """
 
         try:
-            ordered_nodes = self.root.children
+            ordered_nodes = [self.root] + self.root.recursive_children
         except AttributeError:
             ordered_nodes = list(self.nodes)
 
@@ -446,11 +446,20 @@ class Plan:
                 wrapped_class = class_diagram.get_wrapped_class(
                     node.designator_type
                 )
-            except Exception:
+            except ClassIsUnMappedInClassDiagram as e:
+                logger.warning(
+                    "Skipping parameterization for node %s (%s): class not present in ClassDiagram: %s",
+                    getattr(node, "name", repr(node)),
+                    node.__class__.__name__,
+                    e,
+                )
                 continue
+            except Exception:
+                logger.exception("Unexpected error while parameterizing node %s", getattr(node, "name", repr(node)))
+                raise
 
             prefix = f"{node.designator_type.__name__}_{index}"
-            variables = parameterizer._parameterize_wrapped_class(
+            variables = parameterizer.parameterize(
                 wrapped_class,
                 prefix=prefix
             )

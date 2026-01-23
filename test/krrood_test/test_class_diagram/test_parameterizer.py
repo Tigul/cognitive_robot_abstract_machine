@@ -138,9 +138,9 @@ def test_parameterize_movetorse_navigate(parameterizer: Parameterizer):
     wrapped_move_torso = class_diagram.get_wrapped_class(MoveTorsoAction)
     wrapped_navigate = class_diagram.get_wrapped_class(NavigateAction)
 
-    movetorso_variables1 = parameterizer._parameterize_wrapped_class(wrapped_move_torso, prefix="MoveTorsoAction_1")
+    movetorso_variables1 = parameterizer.parameterize(wrapped_move_torso, prefix="MoveTorsoAction_1")
     navigate_variables = parameterizer(wrapped_navigate)
-    movetorso_variables2 = parameterizer._parameterize_wrapped_class(wrapped_move_torso, prefix="MoveTorsoAction_2")
+    movetorso_variables2 = parameterizer.parameterize(wrapped_move_torso, prefix="MoveTorsoAction_2")
 
     all_variables = movetorso_variables1 + navigate_variables + movetorso_variables2
     variables = {v.name: v for v in all_variables}
@@ -156,8 +156,7 @@ def test_parameterize_movetorse_navigate(parameterizer: Parameterizer):
 
     assert set(variables.keys()) == expected_names
 
-    distribution_variables = [v for v in all_variables if not isinstance(v, Integer)]
-    probabilistic_circuit = parameterizer.create_fully_factorized_distribution(distribution_variables)
+    probabilistic_circuit = parameterizer.create_fully_factorized_distribution(all_variables)
 
     expected_distribution_names = expected_names - {"NavigateAction.target_location.header.sequence"}
     assert {v.name for v in probabilistic_circuit.variables} == expected_distribution_names
@@ -212,9 +211,9 @@ def test_parameterize_pickup_navigate_place(parameterizer: Parameterizer):
     wrapped_navigate = class_diagram.get_wrapped_class(NavigateAction)
     wrapped_place = class_diagram.get_wrapped_class(PlaceAction)
 
-    pickup_variables = parameterizer._parameterize_wrapped_class(wrapped_pickup, prefix="PickUpAction")
-    navigate_variables = parameterizer._parameterize_wrapped_class(wrapped_navigate, prefix="NavigateAction")
-    place_variables = parameterizer._parameterize_wrapped_class(wrapped_place, prefix="PlaceAction")
+    pickup_variables = parameterizer.parameterize(wrapped_pickup, prefix="PickUpAction")
+    navigate_variables = parameterizer.parameterize(wrapped_navigate, prefix="NavigateAction")
+    place_variables = parameterizer.parameterize(wrapped_place, prefix="PlaceAction")
 
     all_variables = pickup_variables + navigate_variables + place_variables
     variables = {v.name: v for v in all_variables}
@@ -246,8 +245,7 @@ def test_parameterize_pickup_navigate_place(parameterizer: Parameterizer):
 
     assert set(variables.keys()) == expected_variables
 
-    distribution = [v for v in all_variables if not isinstance(v, Integer)]
-    probabilistic_distribution = parameterizer.create_fully_factorized_distribution(distribution)
+    probabilistic_distribution = parameterizer.create_fully_factorized_distribution(all_variables)
 
     expected_distribution = expected_variables - {"NavigateAction.target_location.header.sequence", "PlaceAction.target_location.header.sequence"}
     assert {v.name for v in probabilistic_distribution.variables} == expected_distribution

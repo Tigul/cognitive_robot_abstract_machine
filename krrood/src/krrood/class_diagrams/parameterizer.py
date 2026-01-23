@@ -28,13 +28,9 @@ class Parameterizer:
         Create random event variables from a WrappedClass.
 
         """
-        return self._parameterize_wrapped_class(
-            wrapped_class, prefix=wrapped_class.clazz.__name__
-        )
+        return self.parameterize(wrapped_class, prefix=wrapped_class.clazz.__name__)
 
-    def _parameterize_wrapped_class(
-        self, wrapped_class: WrappedClass, prefix: str
-    ) -> List[Variable]:
+    def parameterize(self, wrapped_class: WrappedClass, prefix: str) -> List[Variable]:
         """
         Create variables for all fields of a WrappedClass.
 
@@ -96,7 +92,7 @@ class Parameterizer:
             return []
 
         target_wrapped_class = class_diagram.get_wrapped_class(target_type)
-        return self._parameterize_wrapped_class(target_wrapped_class, prefix=field_name)
+        return self.parameterize(target_wrapped_class, prefix=field_name)
 
     def _create_variable_from_field(
         self, wrapped_field: WrappedField, field_name: str
@@ -134,8 +130,12 @@ class Parameterizer:
 
         :return: A fully factorized probabilistic circuit.
         """
+        distribution_variables = [v for v in variables if not isinstance(v, Integer)]
+
         return fully_factorized(
-            variables,
-            means={v: 0.0 for v in variables if isinstance(v, Continuous)},
-            variances={v: 1.0 for v in variables if isinstance(v, Continuous)},
+            distribution_variables,
+            means={v: 0.0 for v in distribution_variables if isinstance(v, Continuous)},
+            variances={
+                v: 1.0 for v in distribution_variables if isinstance(v, Continuous)
+            },
         )

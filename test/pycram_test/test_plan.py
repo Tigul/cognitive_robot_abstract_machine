@@ -1,7 +1,6 @@
 import os
 import time
 import pytest
-import datetime
 
 from pycram.datastructures.pose import PyCramPose, PyCramQuaternion, PyCramVector3, Header
 from random_events.product_algebra import SimpleEvent, Event
@@ -10,8 +9,7 @@ from krrood.class_diagrams.parameterizer import Parameterizer
 from semantic_digital_twin.adapters.urdf import URDFParser
 
 from pycram.datastructures.dataclasses import Context
-from pycram.datastructures.enums import TaskStatus, TorsoState, Arms
-from pycram.datastructures.grasp import GraspDescription
+from pycram.datastructures.enums import TaskStatus
 from pycram.robot_plans import *
 from pycram.language import SequentialPlan, ParallelPlan, CodeNode
 from pycram.plan import PlanNode, Plan
@@ -282,7 +280,7 @@ def test_pause_plan(immutable_model_world):
 def test_algebra_sequentialplan(immutable_model_world):
     """
     Parameterize a SequentialPlan using krrood parameterizer, create a fully-factorized distribution and
-    assert the correctness of sampled values after condiioning and truncation.
+    assert the correctness of sampled values after conditioning and truncation.
     """
     world, robot_view, context = immutable_model_world
     sp = SequentialPlan(
@@ -300,8 +298,7 @@ def test_algebra_sequentialplan(immutable_model_world):
     variables = sp.parameterize_plan(classes=plan_classes)
     variables_map = {v.name: v for v in variables}
 
-    distribution_variables = [v for v in variables if not isinstance(v, Integer)]
-    probabilistic_circuit = Parameterizer().create_fully_factorized_distribution(distribution_variables)
+    probabilistic_circuit = Parameterizer().create_fully_factorized_distribution(variables)
 
     torso_1 = variables_map["MoveTorsoAction_0.torso_state"]
     torso_2 = variables_map["MoveTorsoAction_2.torso_state"]
@@ -321,12 +318,37 @@ def test_algebra_sequentialplan(immutable_model_world):
 
     nav_x = variables_map["NavigateAction_1.target_location.pose.position.x"]
     nav_y = variables_map["NavigateAction_1.target_location.pose.position.y"]
+    nav_z = next(
+        v for v in final_distribution.variables
+        if v.name == "NavigateAction_1.target_location.pose.position.z"
+    )
+    nav_ox_var = next(
+        v for v in final_distribution.variables
+        if v.name == "NavigateAction_1.target_location.pose.orientation.x"
+    )
+    nav_oy_var = next(
+        v for v in final_distribution.variables
+        if v.name == "NavigateAction_1.target_location.pose.orientation.y"
+    )
+    nav_oz_var = next(
+        v for v in final_distribution.variables
+        if v.name == "NavigateAction_1.target_location.pose.orientation.z"
+    )
+    nav_ow_var = next(
+        v for v in final_distribution.variables
+        if v.name == "NavigateAction_1.target_location.pose.orientation.w"
+    )
 
     for sample_values in final_distribution.sample(10):
         sample = dict(zip(final_distribution.variables, sample_values))
-        assert sample[torso_1] == sample[torso_2]
         assert nav_x in sample
         assert nav_y in sample
+        assert sample[nav_z] == 0.0
+        assert sample[nav_ox_var] == 0.0
+        assert sample[nav_oy_var] == 0.0
+        assert sample[nav_oz_var] == 0.0
+        assert sample[nav_ow_var] == 1.0
+
 
 
 def test_algebra_parallelplan(immutable_model_world):
@@ -354,8 +376,7 @@ def test_algebra_parallelplan(immutable_model_world):
     assert "MoveTorsoAction_0.torso_state" in variables_map
     assert "ParkArmsAction_1.arm" in variables_map
 
-    distribution_variables = [v for v in variables if not isinstance(v, Integer)]
-    probabilistic_circuit = Parameterizer().create_fully_factorized_distribution(distribution_variables)
+    probabilistic_circuit = Parameterizer().create_fully_factorized_distribution(variables)
 
     arm_var = variables_map["ParkArmsAction_1.arm"]
     torso_var = variables_map["MoveTorsoAction_0.torso_state"]
