@@ -1934,6 +1934,9 @@ class World:
             for connection in self.connections:
                 new_connection = connection.copy_for_world(new_world)
                 new_world.add_connection(new_connection)
+            for sem_annotation in self.semantic_annotations:
+                new_sem_annotation = sem_annotation.copy_for_world(new_world)
+                new_world.add_semantic_annotation(new_sem_annotation)
         return new_world
 
     # %% Associations

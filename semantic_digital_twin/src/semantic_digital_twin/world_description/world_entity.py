@@ -762,6 +762,29 @@ class SemanticAnnotation(WorldEntityWithID, SubclassJSONSerializer):
         else:
             return obj
 
+    def copy_for_world(self, world: World, **kwargs) -> Self:
+        def get_field_attribute(inner_value):
+            if isinstance(inner_value, KinematicStructureEntity):
+                return world.get_kinematic_structure_entity_by_name(inner_value.name)
+            elif isinstance(inner_value, SemanticAnnotation):
+                return inner_value.copy_for_world(world, **kwargs)
+
+        params = {}
+
+        for f in fields(self):
+            if f.name.startswith("_"):
+                continue
+            value = getattr(self, f.name)
+            if isinstance(value, (list, set)):
+                new_list = []
+                for list_value in value:
+                    new_list.append(get_field_attribute(list_value))
+                params[f.name] = new_list
+            params[f.name] = get_field_attribute(value)
+
+            params[f.name] = kwargs.get(f.name, getattr(self, f.name))
+        return self.__class__(**params)
+
     def _kinematic_structure_entities(
         self, visited: Set[int], aggregation_type: Type[GenericKinematicStructureEntity]
     ) -> Set[GenericKinematicStructureEntity]:
