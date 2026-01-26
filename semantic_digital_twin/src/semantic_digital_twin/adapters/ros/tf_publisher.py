@@ -1,3 +1,4 @@
+import logging
 from collections import OrderedDict
 from dataclasses import dataclass, field
 from time import sleep
@@ -16,9 +17,11 @@ from krrood.symbolic_math.symbolic_math import (
 )
 from .tfwrapper import TFWrapper
 from ...callbacks.callback import StateChangeCallback, ModelChangeCallback
+from ...robots.abstract_robot import AbstractRobot
 from ...world import World
 from ...world_description.world_entity import KinematicStructureEntity
-from ...robots.abstract_robot import AbstractRobot
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -177,7 +180,8 @@ class TFPublisher(StateChangeCallback):
                 break
             sleep(0.1)
         else:
-            raise RuntimeError("Could not find any tf frames.")
+            all_frames = set()
+            logging.info("Could not find any tf frames, publishing all tf")
         ignored_bodies = set(
             kse
             for kse in world.kinematic_structure_entities

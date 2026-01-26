@@ -272,7 +272,7 @@ def test_static_world2(rclpy_node):
 
 
 def test_double_tf_publisher(rclpy_node, pr2_world_state_reset):
-    tf_publisher = TFPublisher(
+    tf_publisher = TFPublisher.create_with_ignore_existing_tf(
         node=rclpy_node,
         world=pr2_world_state_reset,
     )
