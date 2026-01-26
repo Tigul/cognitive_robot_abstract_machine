@@ -1,12 +1,11 @@
-import logging
 import os
 import threading
 import time
 from copy import deepcopy
-from dataclasses import dataclass
 
 import numpy as np
 import pytest
+from typing_extensions import Type
 
 from krrood.class_diagrams import ClassDiagram
 from krrood.entity_query_language.predicate import Symbol
@@ -15,14 +14,15 @@ from krrood.ontomatic.property_descriptor.attribute_introspector import (
     DescriptorAwareIntrospector,
 )
 from krrood.utils import recursive_subclasses
-
 from pycram.datastructures.dataclasses import Context  # type: ignore
 from semantic_digital_twin.adapters.mesh import STLParser
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.robots.abstract_robot import AbstractRobot
 from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.robots.pr2 import PR2
+from semantic_digital_twin.robots.tracy import Tracy
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.utils import rclpy_installed, tracy_installed
@@ -154,12 +154,37 @@ def cylinder_bot_world():
     return world
 
 
-@pytest.fixture(scope="session")
-def pr2_world_setup():
+def world_with_urdf_factory(
+    urdf_path: str, robot_semantic_annotation: Type[AbstractRobot] | None
+):
     """
     Builds this tree:
-    map -> odom_combined -> "pr2 urdf tree"
+    map -> odom_combined -> "urdf tree"
     """
+    urdf_parser = URDFParser.from_file(file_path=urdf_path)
+    world_with_urdf = urdf_parser.parse()
+    if robot_semantic_annotation is not None:
+        robot_semantic_annotation.from_world(world_with_urdf)
+
+    with world_with_urdf.modify_world():
+        map = Body(name=PrefixedName("map"))
+        localization_body = Body(name=PrefixedName("odom_combined"))
+
+        map_C_localization = Connection6DoF.create_with_dofs(
+            world_with_urdf, map, localization_body
+        )
+        world_with_urdf.add_connection(map_C_localization)
+
+        c_root_bf = OmniDrive.create_with_dofs(
+            parent=localization_body, child=world_with_urdf.root, world=world_with_urdf
+        )
+        world_with_urdf.add_connection(c_root_bf)
+
+    return world_with_urdf
+
+
+@pytest.fixture(scope="session")
+def pr2_world_setup():
     urdf_dir = os.path.join(
         os.path.dirname(os.path.abspath(__file__)),
         "..",
@@ -168,26 +193,7 @@ def pr2_world_setup():
         "robots",
     )
     pr2 = os.path.join(urdf_dir, "pr2_calibrated_with_ft.urdf")
-    pr2_parser = URDFParser.from_file(file_path=pr2)
-    world_with_pr2 = pr2_parser.parse()
-    PR2.from_world(world_with_pr2)
-    with world_with_pr2.modify_world():
-        pr2_root = world_with_pr2.root
-
-        map = Body(name=PrefixedName("map"))
-        localization_body = Body(name=PrefixedName("odom_combined"))
-
-        map_C_localization = Connection6DoF.create_with_dofs(
-            world_with_pr2, map, localization_body
-        )
-        world_with_pr2.add_connection(map_C_localization)
-
-        c_root_bf = OmniDrive.create_with_dofs(
-            parent=localization_body, child=pr2_root, world=world_with_pr2
-        )
-        world_with_pr2.add_connection(c_root_bf)
-
-    return world_with_pr2
+    return world_with_urdf_factory(pr2, PR2)
 
 
 @pytest.fixture(scope="session")
@@ -200,19 +206,7 @@ def hsr_world_setup():
         "robots",
     )
     hsr = os.path.join(urdf_dir, "hsrb.urdf")
-    hsr_parser = URDFParser.from_file(file_path=hsr)
-    world_with_hsr = hsr_parser.parse()
-    HSRB.from_world(world_with_hsr)
-    with world_with_hsr.modify_world():
-        hsr_root = world_with_hsr.root
-        localization_body = Body(name=PrefixedName("odom_combined"))
-        world_with_hsr.add_kinematic_structure_entity(localization_body)
-        c_root_bf = OmniDrive.create_with_dofs(
-            parent=localization_body, child=hsr_root, world=world_with_hsr
-        )
-        world_with_hsr.add_connection(c_root_bf)
-
-    return world_with_hsr
+    return world_with_urdf_factory(hsr, HSRB)
 
 
 @pytest.fixture(scope="session")
@@ -227,21 +221,10 @@ def tracy_world():
         "urdf",
     )
     tracy = os.path.join(urdf_dir, "tracy.urdf")
-    world = World()
-    with world.modify_world():
-        localization_body = Body(name=PrefixedName("odom_combined"))
-        world.add_kinematic_structure_entity(localization_body)
-
-        tracy_parser = URDFParser.from_file(file_path=tracy)
-        world_with_tracy = tracy_parser.parse()
-        # world_with_tracy.plot_kinematic_structure()
-        tracy_root = world_with_tracy.root
-        c_root_bf = Connection6DoF.create_with_dofs(
-            parent=localization_body, child=tracy_root, world=world
-        )
-        world.merge_world(world_with_tracy, c_root_bf)
-
-    return world
+    tracy_parser = URDFParser.from_file(file_path=tracy)
+    world_with_tracy = tracy_parser.parse()
+    Tracy.from_world(world_with_tracy)
+    return world_with_tracy
 
 
 @pytest.fixture(scope="session")
@@ -433,24 +416,24 @@ def pr2_apartment_world(pr2_world_setup, apartment_world_setup):
 
 @pytest.fixture(scope="session")
 def simple_pr2_world_setup(pr2_world_setup, simple_apartment_setup):
-    world = deepcopy(pr2_world_setup)
     apartment_world = deepcopy(simple_apartment_setup)
-    world.merge_world(apartment_world)
+    pr2_copy = deepcopy(pr2_world_setup)
+    robot_view = PR2.from_world(pr2_copy)
+    pr2_copy.merge_world(apartment_world)
 
-    robot_view = PR2.from_world(world)
-    return world, robot_view, Context(world, robot_view)
+    return pr2_copy, robot_view, Context(pr2_copy, robot_view)
 
 
 @pytest.fixture(scope="session")
 def hsr_apartment_world(hsr_world_setup, apartment_world_setup):
     apartment_copy = deepcopy(apartment_world_setup)
     hsr_copy = deepcopy(hsr_world_setup)
+    robot_view = HSRB.from_world(hsr_copy)
 
-    apartment_copy.merge_world_at_pose(
-        hsr_copy, HomogeneousTransformationMatrix.from_xyz_rpy(1.5, 2, 0)
+    hsr_copy.merge_world_at_pose(
+        apartment_copy, HomogeneousTransformationMatrix.from_xyz_rpy(1.5, 2, 0)
     )
 
-    robot_view = HSRB.from_world(hsr_copy)
     return apartment_copy, robot_view, Context(hsr_copy, robot_view)
 
 
@@ -462,6 +445,7 @@ def hsr_apartment_world(hsr_world_setup, apartment_world_setup):
 @pytest.fixture
 def pr2_world_state_reset(pr2_world_setup):
     world = deepcopy(pr2_world_setup)
+    PR2.from_world(world)
     state = deepcopy(world.state.data)
     yield world
     world.state.data = state
