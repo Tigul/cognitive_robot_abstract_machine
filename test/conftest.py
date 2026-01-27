@@ -365,7 +365,7 @@ def pr2_apartment_world(pr2_world_setup, apartment_world_setup):
     apartment_copy.get_body_by_name("base_footprint").parent_connection.origin = (
         HomogeneousTransformationMatrix.from_xyz_rpy(1.3, 2, 0)
     )
-    PR2.from_world(apartment_copy)
+    # PR2.from_world(apartment_copy)
     return apartment_copy
 
 
@@ -375,7 +375,8 @@ def simple_pr2_world_setup(pr2_world_setup, simple_apartment_setup):
     apartment_world = deepcopy(simple_apartment_setup)
     world.merge_world(apartment_world)
 
-    robot_view = PR2.from_world(world)
+    # robot_view = PR2.from_world(world)
+    robot_view = world.get_semantic_annotations_by_type(PR2)[0]
     return world, robot_view, Context(world, robot_view)
 
 

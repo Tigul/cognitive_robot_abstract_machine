@@ -800,6 +800,7 @@ def test_copy_reference_frames_shape(pr2_world_state_reset):
             )
 
 
+@pytest.mark.timeout(5)
 def test_copy_semantic_annotations(pr2_world_setup):
     pr2_copy = deepcopy(pr2_world_setup)
     origin_robot_sem = pr2_world_setup.get_semantic_annotation_by_name("pr2")
@@ -813,8 +814,15 @@ def test_copy_semantic_annotations(pr2_world_setup):
     assert origin_robot_sem.name == copy_robot_sem.name
     assert origin_robot_sem.id == copy_robot_sem.id
     assert origin_robot_sem.left_arm == copy_robot_sem.left_arm
+    assert origin_robot_sem.left_arm is not copy_robot_sem.left_arm
     assert origin_robot_sem.right_arm == copy_robot_sem.right_arm
+    assert origin_robot_sem.right_arm is not copy_robot_sem.right_arm
     assert origin_robot_sem.torso == copy_robot_sem.torso
+    assert origin_robot_sem.torso is not copy_robot_sem.torso
+
+    assert copy_robot_sem._world == pr2_copy
+    assert copy_robot_sem.left_arm._world != pr2_copy
+    assert copy_robot_sem.left_arm._world == pr2_copy
 
 
 def test_set_omni_after_copy(pr2_world_state_reset):
