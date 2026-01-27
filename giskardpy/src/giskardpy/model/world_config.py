@@ -168,6 +168,10 @@ class WorldWithDiffDriveRobot(WorldConfig):
 
 @dataclass
 class WorldFromDatabaseConfig(WorldConfig):
+    """
+    This world config loads a world from the semantic digital twin database at the given primary key.
+    """
+
     primary_key: int = 1
 
     def setup_collision_config(self):
