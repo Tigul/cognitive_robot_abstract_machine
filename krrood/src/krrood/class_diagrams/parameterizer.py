@@ -13,6 +13,8 @@ from random_events.variable import Continuous, Integer, Symbolic, Variable
 from ..class_diagrams.class_diagram import WrappedClass
 from ..class_diagrams.wrapped_field import WrappedField
 
+SKIPPED_FIELD_TYPES = (datetime,)
+
 
 @dataclass
 class Parameterizer:
@@ -41,8 +43,7 @@ class Parameterizer:
 
         for wrapped_field in wrapped_class.fields:
             for var in self._parameterize_wrapped_field(wrapped_field, prefix):
-                if var.name not in variables_by_name:
-                    variables_by_name[var.name] = var
+                variables_by_name.setdefault(var.name, var)
 
         return list(variables_by_name.values())
 
@@ -68,9 +69,9 @@ class Parameterizer:
 
     def skip_field(self, wrapped_field: WrappedField) -> bool:
         """
-        Currently skipping the 'datetime' fields.
+        Skip fields listed in SKIPPED_FIELD_TYPES.
         """
-        return wrapped_field.type_endpoint is datetime
+        return wrapped_field.type_endpoint in SKIPPED_FIELD_TYPES
 
     def _parameterize_relationship(
         self, wrapped_field: WrappedField, field_name: str
@@ -80,10 +81,7 @@ class Parameterizer:
 
         :return: A list of variables from the related class.
         """
-        if not hasattr(wrapped_field.clazz, "_class_diagram"):
-            return []
-
-        class_diagram = wrapped_field.clazz._class_diagram
+        class_diagram = getattr(wrapped_field.clazz, "_class_diagram", None)
         if not class_diagram:
             return []
 
