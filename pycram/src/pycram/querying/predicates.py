@@ -30,7 +30,7 @@ class GripperIsFree(GripperOccupancy, Predicate):
 
 
 @dataclass
-class GripperIsFree(GripperOccupancy, Predicate):
+class GripperIsNotFree(GripperOccupancy, Predicate):
 
     def __call__(self) -> bool:
         return self.check_man_occupancy(lambda bodies: len(bodies) != 0)

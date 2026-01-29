@@ -467,7 +467,6 @@ class ResultProcessor(CanBehaveLikeAVariable[T], ABC):
         Evaluate the query and map the results to the correct output data structure.
         This is the exposed evaluation method for users.
         """
-        print("here")
         SymbolGraph().remove_dead_instances()
         yield from map(self._child_._process_result_, self._evaluate__())
 
@@ -502,61 +501,6 @@ class ResultProcessor(CanBehaveLikeAVariable[T], ABC):
             edge_style=edge_style,
             label_max_chars_per_line=label_max_chars_per_line,
         )
-
-
-@dataclass
-class Condition(SymbolicExpression):
-    conditions: tuple[ConditionType, ...]
-
-    def __init__(self, *conditions: ConditionType):
-        super().__init__()
-        self.conditions = conditions
-        self.create_symbolic_expressions(conditions)
-
-    def create_symbolic_expressions(
-        self, conditions: tuple[SymbolicExpression, ...]
-    ) -> Iterable[SymbolicExpression]:
-        condition_list = list(conditions)
-
-        # If there are no conditions raise error.
-        if len(condition_list) == 0:
-            raise ValueError("No conditions provided")
-
-        # If there's a constant condition raise error.
-        literal_expressions = [
-            exp for exp in condition_list if not isinstance(exp, SymbolicExpression)
-        ]
-        if literal_expressions:
-            raise LiteralConditionError(literal_expressions)
-
-        # Build the expression from the conditions
-        expression = (
-            chained_logic(AND, *condition_list)
-            if len(condition_list) > 1
-            else condition_list[0]
-        )
-
-        # set the child of the query object descriptor to the expression and return self.
-        self._update_child_(expression)
-        return expression
-
-    def _evaluate__(
-        self,
-        sources: Optional[Dict[int, Any]] = None,
-        parent: Optional[SymbolicExpression] = None,
-    ) -> Iterable[OperationResult]:
-        for res in self._root_._evaluate__(sources, parent):
-            yield res
-
-    @property
-    def _name_(self) -> str:
-        return "Condition"
-
-    def _all_variable_instances_(self) -> List[Variable]:
-        pass
-
-    def evaluate(self):
-        return list(self._child_._evaluate__())
 
 
 @dataclass(eq=False, repr=False)
@@ -768,9 +712,6 @@ class ResultQuantifier(ResultProcessor[T], ABC):
         sources: Optional[Dict[int, Any]] = None,
         parent: Optional[SymbolicExpression] = None,
     ) -> Iterable[T]:
-        print(f"here evaluate, {self.__class__}")
-        print(f"sources: {sources}")
-        print(f"parent: {parent}")
         sources = sources or {}
         self._eval_parent_ = parent
         if self._id_ in sources:
@@ -1191,6 +1132,64 @@ class QueryObjectDescriptor(SymbolicExpression[T], ABC):
     @property
     def _name_(self) -> str:
         return f"({', '.join(var._name_ for var in self._selected_variables)})"
+
+
+@dataclass(init=False)
+class Condition(QueryObjectDescriptor[T]):
+
+    def __init__(self, *conditions: ConditionType):
+        self.conditions: Tuple[ConditionType, ...] = conditions
+        super().__init__()
+        self.where(*self.conditions)
+
+    def _evaluate__(
+        self,
+        sources: Optional[Dict[int, Any]] = None,
+        parent: Optional[SymbolicExpression] = None,
+    ) -> Iterable[OperationResult]:
+        for res in self._root_._evaluate__(sources, parent):
+            yield res
+
+    @property
+    def _name_(self) -> str:
+        return f"Condition: {",".join([c._name_ for c in self.conditions])}"
+
+    def _all_variable_instances_(self) -> List[Variable]:
+        return self._child_._all_variable_instances_
+
+    def evaluate(self) -> bool:
+        """
+        Evaluates the condition to True or False.
+        """
+        results = list(self._child_._evaluate__())
+        return any([r.is_true for r in results])
+
+    def get_false_statements(self) -> List[ConditionType]:
+        """
+        The false statements of all statements of this condition.
+
+        :return: The false statements of all statements of this condition.
+        """
+        condition_results = []
+        for node in self.conditions:
+            node_result = node._evaluate__()
+            if not any([r.is_true for r in node_result]):
+                condition_results.append(node)
+
+        return condition_results
+
+    def get_true_statements(self) -> List[ConditionType]:
+        """
+        The true statements of all statements of this condition.
+
+        :return: The true statements of this condition.
+        """
+        false_conditions = self.get_false_statements()
+        all_conditions = copy(self.conditions)
+        for c in false_conditions:
+            if c in all_conditions:
+                all_conditions.remove(c)
+        return list(all_conditions)
 
 
 @dataclass(eq=False, repr=False)
