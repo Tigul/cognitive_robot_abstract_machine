@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from ripple_down_rules import RDRDecorator
 from typing_extensions import Any, Optional, Callable, ClassVar
 
-from .. import OpenAction
 from ...designator import DesignatorDescription
 from ...failures import PlanFailure
 from ...has_parameters import HasParameters
