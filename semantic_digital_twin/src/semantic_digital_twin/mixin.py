@@ -1,15 +1,18 @@
 from dataclasses import dataclass, field
 from typing import List
 
+
 @dataclass
 class SimulatorAdditionalProperty:
     """
     Class representing an additional property for a simulator.
     """
+
     ...
 
+
 @dataclass
-class SimulatorAdditionalPropertiesMixin:
+class HasSimulatorProperties:
     """
     Mixin class to add simulator additional properties to a data class.
     """

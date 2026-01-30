@@ -11,7 +11,7 @@ from typing_extensions import Optional
 
 from krrood.ormatic.dao import AlternativeMapping
 from ..datastructures.prefixed_name import PrefixedName
-from ..mixin import SimulatorAdditionalPropertiesMixin
+from ..mixin import HasSimulatorProperties
 from ..spatial_types import (
     RotationMatrix,
     Vector3,
@@ -240,7 +240,9 @@ class PoseMapping(AlternativeMapping[Pose]):
 
 
 @dataclass
-class DegreeOfFreedomMapping(AlternativeMapping[DegreeOfFreedom], SimulatorAdditionalPropertiesMixin):
+class DegreeOfFreedomMapping(
+    AlternativeMapping[DegreeOfFreedom], HasSimulatorProperties
+):
     name: PrefixedName
     limits: DegreeOfFreedomLimits
     id: UUID

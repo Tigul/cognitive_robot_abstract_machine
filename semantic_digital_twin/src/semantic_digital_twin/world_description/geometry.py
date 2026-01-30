@@ -20,7 +20,7 @@ from typing_extensions import Optional, List, Dict, Any, Self, Tuple, TYPE_CHECK
 from krrood.adapters.exceptions import JSON_TYPE_NAME
 from krrood.adapters.json_serializer import SubclassJSONSerializer, to_json, from_json
 from ..datastructures.variables import SpatialVariables
-from ..mixin import SimulatorAdditionalPropertiesMixin
+from ..mixin import HasSimulatorProperties
 from ..spatial_types import HomogeneousTransformationMatrix, Point3, Vector3
 from ..utils import IDGenerator
 
@@ -170,7 +170,7 @@ class Scale:
 
 
 @dataclass
-class Shape(ABC, SubclassJSONSerializer, SimulatorAdditionalPropertiesMixin):
+class Shape(ABC, SubclassJSONSerializer, HasSimulatorProperties):
     """
     Base class for all shapes in the world.
     """
