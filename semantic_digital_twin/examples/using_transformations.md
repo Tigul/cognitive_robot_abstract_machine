@@ -91,7 +91,7 @@ with world.modify_world():
 # Visualize
 rt = RayTracer(world)
 rt.update_scene()
-rt.scene.show("notebook")
+rt.scene.show("jupyter")
 ```
 
 ## 1. What is a transform?
@@ -138,7 +138,7 @@ with world.modify_world():
 
 rt = RayTracer(world)
 rt.update_scene()
-rt.scene.show("notebook")
+rt.scene.show("jupyter")
 ```
 
 ## 3. Reposition the base and see the chain update
@@ -154,7 +154,7 @@ with world.modify_world():
 
 rt = RayTracer(world)
 rt.update_scene()
-rt.scene.show("notebook")
+rt.scene.show("jupyter")
 ```
 
 ## Where to go next

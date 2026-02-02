@@ -77,7 +77,7 @@ with world.modify_world():
 
 rt = RayTracer(world)
 rt.update_scene()
-rt.scene.show("notebook")
+rt.scene.show("jupyter")
 ```
 
 Let's get a reference to the drawer we built above.
@@ -96,7 +96,7 @@ We can update the drawer's state by altering the free variables position of its 
 drawer.root.parent_connection.position = 0.1
 rt = RayTracer(world)
 rt.update_scene()
-rt.scene.show("notebook")
+rt.scene.show("jupyter")
 ```
 
 Note that this only works in this simple way for connections that only have one degree of freedom. For multiple degrees of freedom you either have to set the entire transformation or use the world state directly.
@@ -120,7 +120,7 @@ with world.modify_world():
     world.add_connection(root_T_dresser)
 rt = RayTracer(world)
 rt.update_scene()
-rt.scene.show("notebook")
+rt.scene.show("jupyter")
 ```
 
 Now we can start moving the dresser everywhere and even rotate it.
@@ -134,7 +134,7 @@ with world.modify_world():
     free_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(1., 1., 0., 0., 0., 0.5 * np.pi)
 rt = RayTracer(world)
 rt.update_scene()
-rt.scene.show("notebook")
+rt.scene.show("jupyter")
 ```
 
 The final way of manipulating the world state is the registry for all degrees of freedom, the {py:class}`semantic_digital_twin.world_description.world_state.WorldState`.
@@ -150,5 +150,5 @@ with world.modify_world():
     world.state[connection.dof.id] = [0., 0., 0., 0.]
 rt = RayTracer(world)
 rt.update_scene()
-rt.scene.show("notebook")
+rt.scene.show("jupyter")
 ```

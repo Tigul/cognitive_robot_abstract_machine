@@ -76,7 +76,7 @@ with world.modify_world():
 from semantic_digital_twin.spatial_computations.raytracer import RayTracer
 rt = RayTracer(world)
 rt.update_scene()
-rt.scene.show("notebook")
+rt.scene.show("jupyter")
 ```
 
 If you think you have understood everything in this tutorial, you may try out 
