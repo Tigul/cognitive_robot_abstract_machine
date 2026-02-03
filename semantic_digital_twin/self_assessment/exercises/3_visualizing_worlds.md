@@ -26,9 +26,7 @@ You will:
 :tags: [remove-input]
 import os
 import logging
-
-from krrood.utils import get_package_root
-import semantic_digital_twin
+from pkg_resources import resource_filename
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.spatial_computations.raytracer import RayTracer
 
@@ -41,7 +39,7 @@ Your goal:
 
 ```{code-cell} ipython3
 :tags: [exercise]
-root = get_package_root(semantic_digital_twin)
+root = resource_filename("semantic_digital_twin", "../../")
 table_urdf = os.path.join(root, "resources", "urdf", "table.urdf")
 world = URDFParser.from_file(table_urdf).parse()
 
@@ -55,7 +53,7 @@ viz = ...
 
 ```{code-cell} ipython3
 :tags: [example-solution]
-root = get_package_root(semantic_digital_twin)
+root = resource_filename("semantic_digital_twin", "../../")
 table_urdf = os.path.join(root, "resources", "urdf", "table.urdf")
 world = URDFParser.from_file(table_urdf).parse()
 

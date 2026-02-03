@@ -28,8 +28,8 @@ You will:
 import os
 import logging
 
-from krrood.utils import get_package_root
-import semantic_digital_twin
+from pkg_resources import resource_filename
+
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.spatial_types import HomogeneousTransformationMatrix
@@ -38,7 +38,7 @@ from semantic_digital_twin.world_description.geometry import Box, Scale
 from semantic_digital_twin.world_description.world_entity import Body, Region
 
 logging.disable(logging.CRITICAL)
-root_path = get_package_root(semantic_digital_twin)
+root_path = resource_filename("semantic_digital_twin", "../../")
 table_urdf = os.path.join(root_path, "resources", "urdf", "table.urdf")
 ```
 

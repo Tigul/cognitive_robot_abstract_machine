@@ -23,12 +23,12 @@ Let's load a world first to get started.
 import logging
 import os
 
-from krrood.utils import get_package_root
-import semantic_digital_twin
+from pkg_resources import resource_filename
+
 from semantic_digital_twin.adapters.urdf import URDFParser 
 
 logging.disable(logging.CRITICAL)
-apartment = os.path.join(get_package_root(semantic_digital_twin), "resources", "urdf", "apartment.urdf")
+apartment = os.path.join(resource_filename("semantic_digital_twin", "../../"), "resources", "urdf", "apartment.urdf")
 world = URDFParser.from_file(apartment).parse()
 
 ```

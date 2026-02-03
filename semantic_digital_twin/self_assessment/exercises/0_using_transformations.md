@@ -37,8 +37,8 @@ import logging
 import math
 import os
 
-from krrood.utils import get_package_root
-import semantic_digital_twin
+
+from pkg_resources import resource_filename
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.spatial_types import HomogeneousTransformationMatrix
@@ -48,7 +48,7 @@ from semantic_digital_twin.world_description.geometry import Box, Scale, Color
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.spatial_computations.raytracer import RayTracer
 
-root = get_package_root(semantic_digital_twin)
+root = resource_filename("semantic_digital_twin", "../../")
 urdf_path = os.path.join(root, "resources", "urdf", "table.urdf")
 table_world = URDFParser.from_file(urdf_path).parse()
 

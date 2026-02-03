@@ -13,12 +13,12 @@ kernelspec:
 (creating-custom-bodies)=
 # Creating Custom Bodies
 
-The tutorial demonstrates the creation of a body and its visual and collision information
+The tutorial demonstrates the creation of a body and its visual and collision information.
 First, let's create a world.
 
 ```{code-cell} ipython3
-from krrood.utils import get_package_root
-import semantic_digital_twin
+from pkg_resources import resource_filename
+
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.spatial_types import HomogeneousTransformationMatrix, RotationMatrix
 from semantic_digital_twin.world import World
@@ -60,7 +60,7 @@ cylinder_origin = HomogeneousTransformationMatrix.from_point_rotation_matrix(poi
 cylinder = Cylinder(origin=cylinder_origin, width=0.05, height=0.5)
 
 mesh = FileMesh(origin=HomogeneousTransformationMatrix(),
-            filename=os.path.join(get_package_root(semantic_digital_twin), "resources", "stl", "milk.stl"))
+            filename=os.path.join(resource_filename("semantic_digital_twin", "../../"), "resources", "stl", "milk.stl"))
 
 collision = ShapeCollection([cylinder, sphere, box])
 visual = ShapeCollection([mesh])

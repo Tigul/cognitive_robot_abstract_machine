@@ -26,8 +26,7 @@ You will:
 ```{code-cell} ipython3
 :tags: [remove-input]
 
-from krrood.utils import get_package_root
-import semantic_digital_twin
+from pkg_resources import resource_filename
 from semantic_digital_twin.adapters.urdf import URDFParser
 
 from multiverse_simulator import MultiverseViewer
@@ -37,7 +36,7 @@ import time
 import logging
 
 logging.disable(logging.CRITICAL)
-root_path = get_package_root(semantic_digital_twin)
+root_path = resource_filename("semantic_digital_twin", "../../")
 table_urdf = os.path.join(root_path, "resources", "urdf", "table.urdf")
 ```
 

@@ -30,13 +30,14 @@ First, let's load a world from a URDF file.
 ```{code-cell} ipython3
 import logging
 import os
+from pkg_resources import resource_filename
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from krrood.utils import get_package_root
+
 from krrood.ormatic.utils import create_engine
 from krrood.ormatic.dao import to_dao
-import semantic_digital_twin
+
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.orm.ormatic_interface import *
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Table
@@ -49,7 +50,7 @@ session = Session(engine)
 Base.metadata.create_all(bind=session.bind)
 
 # load the table world from urdf
-urdf_dir = os.path.join(get_package_root(semantic_digital_twin), "resources", "urdf")
+urdf_dir = os.path.join(resource_filename("semantic_digital_twin", "../../"), "resources", "urdf")
 table = os.path.join(urdf_dir, "table.urdf")
 world = URDFParser.from_file(table).parse()
 ```
