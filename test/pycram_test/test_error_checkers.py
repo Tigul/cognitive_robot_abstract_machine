@@ -5,7 +5,6 @@ import pytest
 
 from pycram.tf_transformations import quaternion_from_euler
 
-from pycram.datastructures.enums import JointType
 from pycram.validation.error_checkers import (
     calculate_angle_between_quaternions,
     PoseErrorChecker,
