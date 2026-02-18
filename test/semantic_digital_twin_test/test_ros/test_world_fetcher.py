@@ -3,6 +3,7 @@ import json
 import numpy as np
 from std_srvs.srv import Trigger
 
+from krrood.ormatic.dao import to_dao
 from semantic_digital_twin.adapters.ros.world_fetcher import (
     FetchWorldServer,
     fetch_world_from_service,
@@ -11,6 +12,7 @@ from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
 )
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.orm.ormatic_interface import WorldMappingDAO
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle, Door
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
@@ -153,10 +155,23 @@ def test_world_fetching(rclpy_node):
 
 
 def test_semantic_annotation_modifications(rclpy_node):
+    """
+    If this test does not terminate after calling "client.call(Trigger.Request())" inside "fetch_world_from_service" doublecheck
+    if some fields in semantic annotations are not instantiated.
+    For instance having this field in the door semantic annotation causes the above issue:
+
+    >>> entry_way: EntryWay = field(init=False)
+
+    Changing it to:
+
+    >>> entry_way: Optional[EntryWay] = field(init=False, default=None)
+
+    resolves the issue
+    """
     w1 = World(name="w1")
     b1 = Body(name=PrefixedName("b1"))
-    v1 = Handle(body=b1)
-    v2 = Door(body=b1, handle=v1)
+    v1 = Handle(root=b1)
+    v2 = Door(root=b1, handle=v1)
 
     with w1.modify_world():
         w1.add_body(b1)

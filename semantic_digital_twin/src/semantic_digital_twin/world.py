@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import inspect
 import logging
+import threading
+import uuid
 from copy import deepcopy
 from dataclasses import dataclass, field
 from enum import IntEnum
@@ -40,7 +42,10 @@ from .exceptions import (
     AlreadyBelongsToAWorldError,
     MissingWorldModificationContextError,
     WorldEntityWithIDNotFoundError,
+    MissingReferenceFrameError,
+    MismatchingPublishChangesAttribute,
 )
+from .mixin import HasSimulatorProperties
 from .robots.abstract_robot import AbstractRobot
 from .spatial_computations.forward_kinematics import ForwardKinematicsManager
 from .spatial_computations.ik_solver import InverseKinematicsSolver
@@ -55,7 +60,7 @@ from .world_description.connections import (
     ActiveConnection,
 )
 from .world_description.connections import HasUpdateState
-from .world_description.degree_of_freedom import DegreeOfFreedom
+from .world_description.degree_of_freedom import DegreeOfFreedom, DegreeOfFreedomLimits
 from .world_description.visitors import CollisionBodyCollector, ConnectionCollector
 from .world_description.world_entity import (
     Connection,
@@ -143,38 +148,63 @@ class WorldModelUpdateContextManager:
     desired updates have been performed.
     """
 
+    publish_changes: bool = True
+    """
+    Whether to publish the changes made to the world after exiting the context.
+    """
+
     world: World = field(kw_only=True, repr=False)
     """
     The world to manage updates for.
     """
 
-    first: bool = True
+    _id: UUID = field(default_factory=uuid.uuid4)
     """
-    First time flag.
+    Unique identifier for this context manager instance, used to track active world model updates.
     """
 
     def __enter__(self):
-        if self.world.world_is_being_modified:
-            self.first = False
-        self.world.world_is_being_modified = True
-
-        if self.first:
-            self.world.get_world_model_manager().current_model_modification_block = (
-                WorldModelModificationBlock()
+        self.world._model_manager._world_lock.acquire()
+        model_manager = self.world._model_manager
+        if model_manager._current_modifications_will_be_published is None:
+            model_manager._current_modifications_will_be_published = (
+                self.publish_changes
             )
+
+        if (
+            not model_manager._current_modifications_will_be_published
+            == self.publish_changes
+        ):
+            raise MismatchingPublishChangesAttribute(
+                model_manager._current_modifications_will_be_published,
+                self.publish_changes,
+            )
+
+        self.world.world_is_being_modified = True
+        model_manager._active_world_model_update_context_manager_ids.append(self._id)
 
         return self
 
     def __exit__(self, exc_type, exc_val, exc_tb):
-        if self.first:
-            self.world.delete_orphaned_dofs()
-            self.world.get_world_model_manager().model_modification_blocks.append(
-                self.world.get_world_model_manager().current_model_modification_block
+        self.world.delete_orphaned_dofs()
+        model_manager = self.world._model_manager
+        model_manager._active_world_model_update_context_manager_ids.remove(self._id)
+
+        if not model_manager._active_world_model_update_context_manager_ids:
+            model_manager.model_modification_blocks.append(
+                model_manager.current_model_modification_block
             )
-            self.world.get_world_model_manager().current_model_modification_block = None
+            model_manager.current_model_modification_block = (
+                WorldModelModificationBlock()
+            )
             if exc_type is None:
-                self.world._notify_model_change()
+                self.world._notify_model_change(publish_changes=self.publish_changes)
+
             self.world.world_is_being_modified = False
+            model_manager._current_modifications_will_be_published = None
+
+        # keep outside the if block, as it needs to be released as many times as it was acquired
+        model_manager._world_lock.release()
 
 
 class AtomicWorldModificationNotAtomic(Exception):
@@ -222,8 +252,7 @@ def atomic_world_modification(
             bound_args = dict(bound.arguments)
             bound_args.pop("self", None)
             if (
-                current_world.get_world_model_manager().current_model_modification_block
-                is None
+                not current_world._model_manager._active_world_model_update_context_manager_ids
             ):
                 raise MissingWorldModificationContextError(func)
             current_world.get_world_model_manager().current_model_modification_block.append(
@@ -419,8 +448,8 @@ class WorldModelManager:
     The inner list is a block of modifications where change callbacks must not be called in between.
     """
 
-    current_model_modification_block: Optional[WorldModelModificationBlock] = field(
-        default=None, repr=False, init=False
+    current_model_modification_block: WorldModelModificationBlock = field(
+        default_factory=WorldModelModificationBlock, repr=False, init=False
     )
     """
     The current modification block called within one context of @atomic_world_modification.
@@ -433,7 +462,28 @@ class WorldModelManager:
     Callbacks to be called when the model of the world changes.
     """
 
-    def update_model_version_and_notify_callbacks(self) -> None:
+    _active_world_model_update_context_manager_ids: List[UUID] = field(
+        init=False, default_factory=list, repr=False
+    )
+    """
+    List of active world model managers currently modifying this world
+    """
+
+    _current_modifications_will_be_published: Optional[bool] = field(
+        init=False, default=None
+    )
+    """
+    Indicates if the current modifications will be published via a synchronizer. If None, then there are no active contexts.
+    """
+
+    _world_lock: threading.RLock = field(
+        default_factory=threading.RLock, init=False, repr=False
+    )
+    """
+    Lock used to prevent multiple threads from modifying the world at the same time.
+    """
+
+    def update_model_version_and_notify_callbacks(self, **kwargs) -> None:
         """
         Notifies the system of a model change and updates necessary states, caches,
         and forward kinematics expressions while also triggering registered callbacks
@@ -441,14 +491,14 @@ class WorldModelManager:
         """
         self.version += 1
         for callback in self.model_change_callbacks:
-            callback.notify()
+            callback.notify(**kwargs)
 
 
 _LRU_CACHE_SIZE: int = 2048
 
 
 @dataclass
-class World:
+class World(HasSimulatorProperties):
     """
     A class representing the world.
     The world manages a set of kinematic structure entities and connections represented as a tree-like graph.
@@ -505,6 +555,11 @@ class World:
     _collision_pair_manager: CollisionPairManager = field(init=False, repr=False)
     """
     Manages disabled collision pairs in the world.
+    """
+
+    _id: UUID = field(init=False, default_factory=uuid.uuid4)
+    """
+    Unique identifier for this world instance.
     """
 
     _model_manager: WorldModelManager = field(
@@ -695,6 +750,12 @@ class World:
         body: KinematicStructureEntity,
     ):
         return self.add_kinematic_structure_entity(body)
+
+    def add_region(
+        self,
+        region: KinematicStructureEntity,
+    ):
+        return self.add_kinematic_structure_entity(region)
 
     def add_kinematic_structure_entity(
         self,
@@ -1313,6 +1374,31 @@ class World:
             self.add_semantic_annotation(semantic_annotation)
 
     # %% Subgraph Targeting
+
+    def move_branch_with_fixed_connection(
+        self,
+        branch_root: KinematicStructureEntity,
+        new_parent: KinematicStructureEntity,
+    ):
+        """
+        Moves a branch of the kinematic structure starting at branch_root to a new parent.
+        Useful for example to "attach" an object (branch_root) to the gripper of the robot (new_parent), when picking up
+        an object.
+        ..warning:: the old connection is lost after calling this method
+
+        :param branch_root: The root of the branch to move.
+        :param new_parent: The new parent of the branch.
+        """
+        new_parent_T_child = self.compute_forward_kinematics(new_parent, branch_root)
+        self.remove_connection(branch_root.parent_connection)
+        self.add_connection(
+            FixedConnection(
+                parent=new_parent,
+                child=branch_root,
+                parent_T_connection_expression=new_parent_T_child,
+            )
+        )
+
     def get_connections_of_branch(
         self, root: KinematicStructureEntity
     ) -> List[Connection]:
@@ -1456,24 +1542,26 @@ class World:
         return new_world
 
     # %% Change Notifications
-    def notify_state_change(self) -> None:
+    def notify_state_change(self, publish_changes: bool = True, **kwargs) -> None:
         """
         If you have changed the state of the world, call this function to trigger necessary events and increase
         the state version.
         """
         if not self.is_empty():
             self._forward_kinematic_manager.recompute()
-        self.state._notify_state_change()
+        self.state._notify_state_change(publish_changes=publish_changes, **kwargs)
 
-    def _notify_model_change(self) -> None:
+    def _notify_model_change(self, publish_changes: bool = True, **kwargs) -> None:
         """
         Notifies the system of a model change and updates the necessary states, caches,
         and forward kinematics expressions while also triggering registered callbacks
         for model changes.
         """
-        self._model_manager.update_model_version_and_notify_callbacks()
+        self._model_manager.update_model_version_and_notify_callbacks(
+            publish_changes=publish_changes, **kwargs
+        )
         self._compile_forward_kinematics_expressions()
-        self.notify_state_change()
+        self.notify_state_change(publish_changes=publish_changes, **kwargs)
 
         for callback in self.state.state_change_callbacks:
             callback.update_previous_world_state()
@@ -1524,7 +1612,6 @@ class World:
             self.kinematic_structure.successors(kinematic_structure_entity.index)
         )
 
-    @lru_cache(maxsize=_LRU_CACHE_SIZE)
     def compute_parent_connection(
         self, kinematic_structure_entity: KinematicStructureEntity
     ) -> Optional[Connection]:
@@ -1544,7 +1631,6 @@ class World:
             )
         )
 
-    @lru_cache(maxsize=_LRU_CACHE_SIZE)
     def compute_parent_kinematic_structure_entity(
         self, kinematic_structure_entity: KinematicStructureEntity
     ) -> Optional[KinematicStructureEntity]:
@@ -1808,6 +1894,19 @@ class World:
         """
         return self._forward_kinematic_manager.collision_fks
 
+    def update_forward_kinematics(self) -> None:
+        """
+        Recompile and recompute forward kinematics of the world.
+
+        ..warning::
+            Use this method if you need to live update the forward kinematic inside a with self.modify_world(): block.
+            Use with caution, as this only works if the world structure is not currently broken, and thus may lead to
+            crashes if its not the case. Also using this in a method that is called a lot, it may cause performance
+            issues because of unnecessary recompilations.
+        """
+        self._forward_kinematic_manager.recompile()
+        self._forward_kinematic_manager.recompute()
+
     # %% Inverse Kinematics
     def compute_inverse_kinematics(
         self,
@@ -1855,6 +1954,8 @@ class World:
             self.semantic_annotations.clear()
             self.degrees_of_freedom.clear()
             self.state = WorldState(_world=self)
+        self._world_entity_hash_table.clear()
+        self._model_manager.model_modification_blocks.clear()
 
     def is_empty(self):
         """
@@ -1885,6 +1986,8 @@ class World:
             is a Quaternion, the returned object is a Quaternion. Otherwise, it is the
             transformed spatial object.
         """
+        if spatial_object.reference_frame is None:
+            raise MissingReferenceFrameError(spatial_object)
         target_frame_T_reference_frame = self.compute_forward_kinematics(
             root=target_frame, tip=spatial_object.reference_frame
         )
@@ -1915,6 +2018,7 @@ class World:
                 new_world.add_kinematic_structure_entity(new_body)
                 new_body.visual = body.visual.copy_for_world(new_world)
                 new_body.collision = body.collision.copy_for_world(new_world)
+                new_body.collision_config = deepcopy(body.collision_config)
             for region in self.regions:
                 new_region = Region(
                     name=region.name,
@@ -1925,8 +2029,10 @@ class World:
             for dof in self.degrees_of_freedom:
                 new_dof = DegreeOfFreedom(
                     name=dof.name,
-                    lower_limits=dof.lower_limits,
-                    upper_limits=dof.upper_limits,
+                    limits=DegreeOfFreedomLimits(
+                        lower=dof.limits.lower,
+                        upper=dof.limits.upper,
+                    ),
                     id=dof.id,
                 )
                 new_world.add_degree_of_freedom(new_dof)
@@ -1943,8 +2049,12 @@ class World:
     def load_collision_srdf(self, file_path: str):
         self._collision_pair_manager.load_collision_srdf(file_path)
 
-    def modify_world(self) -> WorldModelUpdateContextManager:
-        return WorldModelUpdateContextManager(world=self)
+    def modify_world(
+        self, publish_changes: bool = True
+    ) -> WorldModelUpdateContextManager:
+        return WorldModelUpdateContextManager(
+            world=self, publish_changes=publish_changes
+        )
 
     def reset_state_context(self) -> ResetStateContextManager:
         return ResetStateContextManager(self)
