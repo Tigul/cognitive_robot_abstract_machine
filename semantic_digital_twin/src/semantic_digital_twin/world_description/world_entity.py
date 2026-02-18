@@ -40,6 +40,7 @@ from krrood.symbolic_math.symbolic_math import Matrix
 from .geometry import TriangleMesh
 from .inertial_properties import Inertial
 from .shape_collection import ShapeCollection, BoundingBoxCollection
+from ..datastructures.joint_state import JointState
 from ..mixin import HasSimulatorProperties
 from ..adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
@@ -687,8 +688,15 @@ class SemanticAnnotation(WorldEntityWithID):
         def get_field_attribute(inner_value):
             if isinstance(inner_value, KinematicStructureEntity):
                 return world.get_kinematic_structure_entity_by_name(inner_value.name)
+            elif isinstance(inner_value, JointState):
+                return inner_value.copy_for_world(world)
             elif isinstance(inner_value, SemanticAnnotation):
-                return inner_value.copy_for_world(world, **kwargs)
+                if sem := world.get_semantic_annotation_by_name(inner_value.name):
+                    return sem
+                else:
+                    return inner_value.copy_for_world(world, **kwargs)
+            else:
+                return deepcopy(inner_value)
 
         params = {}
 
@@ -701,11 +709,11 @@ class SemanticAnnotation(WorldEntityWithID):
                 for list_value in value:
                     new_list.append(get_field_attribute(list_value))
                 params[f.name] = new_list
-            params[f.name] = get_field_attribute(value)
+            else:
+                params[f.name] = get_field_attribute(value)
 
-            params[f.name] = kwargs.get(f.name, getattr(self, f.name))
+            # params[f.name] = kwargs.get(f.name, getattr(self, f.name))
         return self.__class__(**params)
-
 
     def _kinematic_structure_entities(
         self, visited: Set[int], aggregation_type: Type[GenericKinematicStructureEntity]
