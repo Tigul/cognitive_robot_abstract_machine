@@ -61,3 +61,19 @@ def test_DofLimits(prismatic_bot):
         np.array([1.0] * 8 + [expected_jerk_limit] * 10),
         rtol=1.0e-4,
     )
+    assert np.allclose(
+        limits.quadratic_weights.evaluate(),
+        np.array(
+            [
+                0.001,
+                0.002285714285714286,
+                0.0035714285714285718,
+                0.004857142857142858,
+                0.0061428571428571435,
+                0.007428571428571429,
+                0.008714285714285716,
+                0.01,
+            ]
+            + [0.0] * 10
+        ),
+    )

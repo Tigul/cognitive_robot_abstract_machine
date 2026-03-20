@@ -325,8 +325,33 @@ class DofLimits(DirectLimits):
                     index = t + config.prediction_horizon * (derivative - 1)
                     lower_bounds.append(lb_[index] * multiplier)
                     upper_bounds.append(ub_[index] * multiplier)
+
+                    normalized_weight = self.normalize_dof_weight(
+                        limit=v.limits.upper[derivative],
+                        base_weight=config.get_dof_weight(v.name, derivative),
+                        t=t,
+                        derivative=derivative,
+                        horizon=config.prediction_horizon - 3,
+                        alpha=config.horizon_weight_gain_scalar,
+                    )
+                    quadratic_weights.append(normalized_weight)
+                    linear_weights.append(0)
         self.lower_bounds = sm.Vector(lower_bounds)
         self.upper_bounds = sm.Vector(upper_bounds)
+        self.quadratic_weights = sm.Vector(quadratic_weights)
+        self.linear_weights = sm.Vector(linear_weights)
+
+    def normalize_dof_weight(self, limit, base_weight, t, derivative, horizon, alpha):
+        def linear(x_in: float, weight: float, h: int, alpha: float) -> float:
+            start = weight * alpha
+            a = (weight - start) / h
+            return a * x_in + start
+
+        if limit is None:
+            return 0.0
+        weight = linear(t, base_weight, horizon, alpha)
+
+        return weight * (1 / limit) ** 2
 
 
 @dataclass
@@ -610,48 +635,6 @@ class Weights(ProblemDataPart):
             quadratic_weights.append(quadratic_weight)
             linear_weights.append(linear_weight)
         return sm.Vector(quadratic_weights), sm.Vector(linear_weights)
-
-    def free_variable_weights_expression(self) -> List[tuple[defaultdict, defaultdict]]:
-        max_derivative = self.config.max_derivative
-        params = []
-        weights = defaultdict(dict)  # maps order to joints
-        for t in range(self.config.prediction_horizon):
-            for v in self.degrees_of_freedom:
-                for derivative in Derivatives.range(
-                    Derivatives.velocity, max_derivative
-                ):
-                    if t >= self.config.prediction_horizon - (
-                        max_derivative - derivative
-                    ):
-                        continue
-                    if derivative == Derivatives.acceleration:
-                        continue
-                    normalized_weight = self.normalize_dof_weight(
-                        limit=v.limits.upper[derivative],
-                        base_weight=self.config.get_dof_weight(v.name, derivative),
-                        t=t,
-                        derivative=derivative,
-                        horizon=self.config.prediction_horizon - 3,
-                        alpha=self.config.horizon_weight_gain_scalar,
-                    )
-                    weights[derivative][
-                        f"t{t:03}/{v.variables.position.dof.name}/{derivative}"
-                    ] = (normalized_weight, 0)
-        for _, weight in sorted(weights.items()):
-            params.append(weight)
-        return params
-
-    def normalize_dof_weight(self, limit, base_weight, t, derivative, horizon, alpha):
-        def linear(x_in: float, weight: float, h: int, alpha: float) -> float:
-            start = weight * alpha
-            a = (weight - start) / h
-            return a * x_in + start
-
-        if limit is None:
-            return 0.0
-        weight = linear(t, base_weight, horizon, alpha)
-
-        return weight * (1 / limit) ** 2
 
     def derivative_weight_expressions(self) -> List[Dict[str, sm.Scalar]]:
         params = []
