@@ -142,7 +142,7 @@ def b_profile(
     dt: float,
     ph: int,
     eps: float = 0.00001,
-):
+) -> Tuple[Vector, Vector, Vector, Vector, Vector, Vector]:
     vel_limit = upper_limits.velocity
     acc_limit = upper_limits.acceleration
     jerk_limit = upper_limits.jerk
@@ -261,8 +261,17 @@ def b_profile(
         sm.Scalar(jerk_limit),
     )
 
-    lb_profile = sm.concatenate(pos_vel_profile_lb, -acc_profile, -jerk_profile)
-    ub_profile = sm.concatenate(pos_vel_profile_ub, acc_profile, jerk_profile)
-    lb_profile = sm.min(lb_profile, ub_profile)
-    ub_profile = sm.max(lb_profile, ub_profile)
-    return lb_profile, ub_profile
+    pos_vel_profile_lb = sm.min(pos_vel_profile_lb, pos_vel_profile_ub)
+    pos_vel_profile_ub = sm.max(pos_vel_profile_lb, pos_vel_profile_ub)
+    acc_profile_lb = -acc_profile
+    acc_profile_ub = acc_profile
+    jerk_profile_lb = sm.min(jerk_profile, -jerk_profile) * dt**2
+    jerk_profile_ub = sm.max(jerk_profile, jerk_profile) * dt**2
+    return (
+        pos_vel_profile_lb,
+        pos_vel_profile_ub,
+        acc_profile_lb,
+        acc_profile_ub,
+        jerk_profile_lb,
+        jerk_profile_ub,
+    )

@@ -204,6 +204,7 @@ class DofLimits(DirectLimits):
     ) -> DofLimits:
         self = cls()
         self.free_variable_bounds(degrees_of_freedom, config)
+        self.init_weights(degrees_of_freedom, config)
         return self
 
     def construct_expression(
@@ -220,39 +221,39 @@ class DofLimits(DirectLimits):
 
         return sm.Vector(lb), sm.Vector(ub)
 
-    def velocity_limit(
+    def all_the_limits(
         self,
-        v: DegreeOfFreedom,
+        degree_of_freedom: DegreeOfFreedom,
         max_derivative: Derivatives,
         config: QPControllerConfig,
-    ) -> Tuple[sm.Vector, sm.Vector]:
+    ) -> Tuple[sm.Vector, sm.Vector, sm.Vector, sm.Vector, sm.Vector, sm.Vector]:
         lower_limits = DerivativeMap()
         upper_limits = DerivativeMap()
 
         # %% pos limits
-        if not v.has_position_limits():
+        if not degree_of_freedom.has_position_limits():
             lower_limits.position = upper_limits.position = None
         else:
-            lower_limits.position = v.limits.lower.position
-            upper_limits.position = v.limits.upper.position
+            lower_limits.position = degree_of_freedom.limits.lower.position
+            upper_limits.position = degree_of_freedom.limits.upper.position
 
         # %% vel limits
-        lower_limits.velocity = v.limits.lower.velocity
-        upper_limits.velocity = v.limits.upper.velocity
+        lower_limits.velocity = degree_of_freedom.limits.lower.velocity
+        upper_limits.velocity = degree_of_freedom.limits.upper.velocity
         if config.prediction_horizon == 1:
             return sm.Vector([lower_limits.velocity]), sm.Vector(
                 [upper_limits.velocity]
             )
 
         # %% acc limits
-        if v.limits.lower.acceleration is None:
+        if degree_of_freedom.limits.lower.acceleration is None:
             lower_limits.acceleration = -np.inf
         else:
-            lower_limits.acceleration = v.limits.lower.acceleration
-        if v.limits.upper.acceleration is None:
+            lower_limits.acceleration = degree_of_freedom.limits.lower.acceleration
+        if degree_of_freedom.limits.upper.acceleration is None:
             upper_limits.acceleration = np.inf
         else:
-            upper_limits.acceleration = v.limits.upper.acceleration
+            upper_limits.acceleration = degree_of_freedom.limits.upper.acceleration
 
         # %% jerk limits
         if upper_limits.jerk is None:
@@ -264,12 +265,12 @@ class DofLimits(DirectLimits):
             )
             lower_limits.jerk = -upper_limits.jerk
         else:
-            upper_limits.jerk = v.limits.upper.jerk
-            lower_limits.jerk = v.limits.lower.jerk
+            upper_limits.jerk = degree_of_freedom.limits.upper.jerk
+            lower_limits.jerk = degree_of_freedom.limits.lower.jerk
 
         try:
-            lb, ub = b_profile(
-                dof_symbols=v.variables,
+            lbv, ubv, lba, uba, lbj, ubj = b_profile(
+                dof_symbols=degree_of_freedom.variables,
                 lower_limits=lower_limits,
                 upper_limits=upper_limits,
                 solver_class=config.qp_solver_class,
@@ -288,7 +289,7 @@ class DofLimits(DirectLimits):
             )[0]
             if max_reachable_vel < upper_limits.velocity:
                 error_msg = (
-                    f'Free variable "{v.name}" can\'t reach velocity limit of "{upper_limits.velocity}". '
+                    f'Free variable "{degree_of_freedom.name}" can\'t reach velocity limit of "{upper_limits.velocity}". '
                     f'Maximum reachable with prediction horizon = "{config.prediction_horizon}", '
                     f'jerk limit = "{upper_limits.jerk}" and dt = "{config.mpc_dt}" is "{max_reachable_vel}".'
                 )
@@ -296,7 +297,7 @@ class DofLimits(DirectLimits):
                 raise VelocityLimitUnreachableException(error_msg)
             else:
                 raise
-        return lb, ub
+        return lbv, ubv, lba, uba, lbj, ubj
 
     def free_variable_bounds(
         self,
@@ -304,31 +305,58 @@ class DofLimits(DirectLimits):
         config: QPControllerConfig,
     ):
         max_derivative = config.max_derivative
-        quadratic_weights = []
-        linear_weights = []
         lower_bounds = []
         upper_bounds = []
-        for v in degrees_of_freedom:
-            lb_, ub_ = self.velocity_limit(
-                v=v, max_derivative=max_derivative, config=config
+        cache = {}
+        for degree_of_freedom in degrees_of_freedom:
+            (
+                lower_velocity,
+                upper_velocity,
+                _,
+                _,
+                lower_jerk_limits,
+                upper_jerk_limits,
+            ) = self.all_the_limits(
+                degree_of_freedom=degree_of_freedom,
+                max_derivative=max_derivative,
+                config=config,
             )
-            for derivative in Derivatives.range(Derivatives.velocity, max_derivative):
-                for t in range(config.prediction_horizon):
-                    if t >= config.prediction_horizon - (max_derivative - derivative):
-                        continue
-                    if derivative == Derivatives.acceleration:
-                        continue
-                    if derivative == Derivatives.jerk:
-                        multiplier = config.mpc_dt**2
-                    else:
-                        multiplier = 1
-                    index = t + config.prediction_horizon * (derivative - 1)
-                    lower_bounds.append(lb_[index] * multiplier)
-                    upper_bounds.append(ub_[index] * multiplier)
+            cache[degree_of_freedom.id] = {
+                Derivatives.velocity: (lower_velocity, upper_velocity),
+                Derivatives.jerk: (lower_jerk_limits, upper_jerk_limits),
+            }
+        for derivative in [Derivatives.velocity, Derivatives.jerk]:
+            for t in range(config.prediction_horizon):
+                if t >= config.prediction_horizon - (max_derivative - derivative):
+                    continue
+                for degree_of_freedom in degrees_of_freedom:
+                    current_profile = cache[degree_of_freedom.id][derivative]
+                    lower_bounds.append(current_profile[0][t])
+                    upper_bounds.append(current_profile[1][t])
 
+        self.lower_bounds = sm.Vector(lower_bounds)
+        self.upper_bounds = sm.Vector(upper_bounds)
+
+    def init_weights(
+        self,
+        degrees_of_freedom: List[DegreeOfFreedom],
+        config: QPControllerConfig,
+    ):
+        max_derivative = config.max_derivative
+        quadratic_weights = []
+        linear_weights = []
+        for derivative in Derivatives.range(Derivatives.velocity, max_derivative):
+            for t in range(config.prediction_horizon):
+                if t >= config.prediction_horizon - (max_derivative - derivative):
+                    continue
+                if derivative == Derivatives.acceleration:
+                    continue
+                for degree_of_freedom in degrees_of_freedom:
                     normalized_weight = self.normalize_dof_weight(
-                        limit=v.limits.upper[derivative],
-                        base_weight=config.get_dof_weight(v.name, derivative),
+                        limit=degree_of_freedom.limits.upper[derivative],
+                        base_weight=config.get_dof_weight(
+                            degree_of_freedom.name, derivative
+                        ),
                         t=t,
                         derivative=derivative,
                         horizon=config.prediction_horizon - 3,
@@ -336,12 +364,12 @@ class DofLimits(DirectLimits):
                     )
                     quadratic_weights.append(normalized_weight)
                     linear_weights.append(0)
-        self.lower_bounds = sm.Vector(lower_bounds)
-        self.upper_bounds = sm.Vector(upper_bounds)
         self.quadratic_weights = sm.Vector(quadratic_weights)
         self.linear_weights = sm.Vector(linear_weights)
 
-    def normalize_dof_weight(self, limit, base_weight, t, derivative, horizon, alpha):
+    def normalize_dof_weight(
+        self, limit, base_weight, t, derivative, horizon, alpha
+    ) -> sm.Scalar:
         def linear(x_in: float, weight: float, h: int, alpha: float) -> float:
             start = weight * alpha
             a = (weight - start) / h
