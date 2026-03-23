@@ -98,6 +98,9 @@ class QPControllerConfig:
     If True, prints config.
     """
 
+    radian_normalization_number: float = field(default=0.2)
+    meter_normalization_number: float = field(default=0.2)
+
     # %% init false
     mpc_dt: float = field(init=False)
     """
@@ -142,6 +145,10 @@ class QPControllerConfig:
             target_frequency=20,
             prediction_horizon=7,
         )
+
+    @property
+    def velocity_horizon(self) -> int:
+        return self.prediction_horizon - 2
 
     def set_dof_weight(
         self, dof_name: PrefixedName, derivative: Derivatives, weight: float

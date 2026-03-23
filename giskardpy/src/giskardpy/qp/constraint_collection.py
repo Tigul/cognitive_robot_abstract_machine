@@ -20,6 +20,7 @@ from giskardpy.qp.constraint import (
     DerivativeEqualityConstraint,
     BaseConstraint,
 )
+from krrood.symbolic_math.symbolic_math import Scalar
 from semantic_digital_twin.spatial_types import Point3, Vector3, RotationMatrix
 from semantic_digital_twin.spatial_types.derivatives import Derivatives
 
@@ -36,6 +37,12 @@ class ConstraintCollection:
     @property
     def equality_constraints(self) -> list[EqualityConstraint]:
         return [c for c in self._constraints if isinstance(c, EqualityConstraint)]
+
+    @property
+    def equality_constraints_expressions(self) -> list[Scalar]:
+        return [
+            c.expression for c in self._constraints if isinstance(c, EqualityConstraint)
+        ]
 
     @property
     def derivative_equality_constraints(self) -> list[DerivativeEqualityConstraint]:

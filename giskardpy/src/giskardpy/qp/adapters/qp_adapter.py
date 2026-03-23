@@ -13,6 +13,7 @@ import scipy.sparse as sp
 from typing_extensions import Self
 
 import krrood.symbolic_math.symbolic_math as sm
+from giskardpy.qp.constraint import BaseConstraint
 from giskardpy.qp.constraint_collection import ConstraintCollection
 from giskardpy.qp.exceptions import (
     InfeasibleException,
@@ -22,7 +23,7 @@ from giskardpy.qp.pos_in_vel_limits import b_profile
 from giskardpy.qp.solvers.qp_solver import QPSolver
 from giskardpy.utils.decorators import memoize
 from giskardpy.utils.math import mpc
-from krrood.symbolic_math.symbolic_math import Vector, Matrix
+from krrood.symbolic_math.symbolic_math import Vector, Matrix, Scalar
 from semantic_digital_twin.spatial_types.derivatives import Derivatives, DerivativeMap
 from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedom,
@@ -198,6 +199,52 @@ class DirectLimits:
         config: QPControllerConfig,
     ) -> Self:
         pass
+
+
+@dataclass
+class SlackLimits(DirectLimits):
+    lower_slack_limits: sm.Vector = field(init=False)
+    upper_slack_limits: sm.Vector = field(init=False)
+    names_without_slack: List[str] = field(init=False)
+    names_slack: List[str] = field(init=False)
+
+    @classmethod
+    def from_constraints(
+        cls, constraints: list[BaseConstraint], config: QPControllerConfig
+    ):
+        self = cls()
+        num_of_slack_variables = len(constraints)
+        self.quadratic_weights = Vector(
+            [
+                self.normalized_weight(
+                    quadratic_weight=c.quadratic_weight,
+                    control_horizon=config.velocity_horizon,
+                    normalization_number=config.radian_normalization_number,
+                )
+                for c in constraints
+            ]
+        )
+        self.linear_weights = Vector(
+            [
+                self.normalized_weight(
+                    quadratic_weight=c.linear_weight,
+                    control_horizon=config.velocity_horizon,
+                    normalization_number=config.radian_normalization_number,
+                )
+                for c in constraints
+            ]
+        )
+        self.lower_bounds = Vector([-np.inf] * num_of_slack_variables)
+        self.upper_bounds = Vector([np.inf] * num_of_slack_variables)
+        return self
+
+    def normalized_weight(
+        self,
+        quadratic_weight: Scalar,
+        normalization_number: float,
+        control_horizon: int,
+    ) -> Scalar:
+        return quadratic_weight * (1 / (normalization_number**2 * control_horizon))
 
 
 @dataclass
@@ -443,6 +490,10 @@ class EqualityQPComponent(ABC):
         return self.number_of_free_variables * self.config.prediction_horizon
 
     @property
+    def position_variables(self) -> Vector:
+        return Vector([dof.variables.position for dof in self.degrees_of_freedom])
+
+    @property
     def velocity_variables(self) -> Vector:
         return Vector([dof.variables.velocity for dof in self.degrees_of_freedom])
 
@@ -504,6 +555,7 @@ class EqualityDerivativeLinkModel(EqualityQPComponent):
     def __post_init__(self):
         self.create_matrix()
         self.compute_bounds()
+        self.slack_matrix = Matrix.zeros(self.matrix.shape[0], 0)
 
     def create_matrix(self):
         matrix = np.zeros(
@@ -546,12 +598,6 @@ class EqualityDerivativeLinkModel(EqualityQPComponent):
 @dataclass
 class EqualityConstraintModel(EqualityQPComponent):
     """
-    |   t1   |   t2   |   t1   |   t2   |   t1   |   t2   | prediction horizon
-    |v1 v2 v3|v1 v2 v3|j1 j2 j3|j1 j2 j3|s1 s2 s3|s1 s2 s3| free variables / slack
-    |-----------------------------------------------------|
-    |  J1*sp |  J1*sp |  J3*sp | J3*sp  | sp*ch  | sp*ch  |
-    |-----------------------------------------------------|
-
     Equality constraints have the form:
     .. math::
         f(q) = b
@@ -564,40 +610,36 @@ class EqualityConstraintModel(EqualityQPComponent):
 
     ::
 
-        |  equality_bounds |   |           equality constraint matrix          |   | v_0 |
-        |------------------|   |-----------------------------------------------|   | v_1 |
-        | limit(target - f(q), ) |   | -1  |     |     |dt**2|     |     |     |     |   | v_2 |
-        |       v_c        |   |  2  | -1  |     |     |dt**2|     |     |     |   | j_0 |
-        |        0         | = | -1  |  2  | -1  |     |     |dt**2|     |     | @ | j_1 |
-        |        0         |   |     | -1  |  2  |     |     |     |dt**2|     |   | j_2 |
-        |        0         |   |     |     | -1  |     |     |     |     |dt**2|   | j_3 |
-        |------------------|   |-----------------------------------------------|   | j_4 |
+        |   t1   |   t2   |   t1   |   t2   |   t1   |   t2   | prediction horizon
+        |v1 v2 v3|v1 v2 v3|j1 j2 j3|j1 j2 j3|s1 s2 s3|s1 s2 s3| free variables / slack
+        |-----------------------------------------------------|
+        |  J1*sp |  J1*sp |  J3*sp | J3*sp  | sp     | sp     |
+        |-----------------------------------------------------|
     """
 
     def __post_init__(self):
         self.create_matrix()
+        self.create_bounds()
+        self.create_slack_matrix()
+        self.create_slack_variables()
 
     def create_matrix(self):
         if len(self.constraint_collection.equality_constraints) == 0:
             self.matrix = sm.Matrix()
             self.slack_matrix = sm.Matrix()
             return
-        self.matrix = sm.Matrix.zeros(
-            len(self.constraint_collection.equality_constraints),
-            self.number_of_non_slack_columns,
-        )
         J_eq = (
-            sm.Matrix(self.equality_constraint_expressions()).jacobian(
-                variables=self.get_free_variable_symbols(Derivatives.position)
-            )
+            sm.Vector(
+                self.constraint_collection.equality_constraints_expressions
+            ).jacobian(variables=self.position_variables)
             * self.config.mpc_dt
         )
-        J_hstack = sm.hstack([J_eq for _ in range(self.config.prediction_horizon - 2)])
-        # set jacobian entry to 0 if control horizon shorter than prediction horizon
-        horizontal_offset = J_hstack.shape[1]
-        self.matrix[:, horizontal_offset * 0 : horizontal_offset * 1] = J_hstack
+        self.matrix = sm.hstack(
+            [J_eq for _ in range(self.config.velocity_horizon)]
+            + [sm.Matrix.zeros(J_eq.shape[0], self.number_of_jerk_columns)]
+        )
 
-        # slack variable for total error
+    def create_slack_matrix(self):
         self.slack_matrix = sm.Matrix.diag(
             [
                 self.config.mpc_dt
@@ -605,11 +647,34 @@ class EqualityConstraintModel(EqualityQPComponent):
             ]
         )
 
-    def compute_bounds(self):
-        pass
+    def create_slack_variables(self):
+        self.slack_variables = SlackLimits.from_constraints(
+            constraints=self.constraint_collection.equality_constraints,
+            config=self.config,
+        )
 
-    def compute_weights(self):
-        pass
+    def _apply_cap(self, value: Scalar, dt: float, control_horizon: int) -> Scalar:
+        # todo normalization with jacobian???
+        return sm.limit(
+            value,
+            -self.config.radian_normalization_number * dt * control_horizon,
+            self.config.radian_normalization_number * dt * control_horizon,
+        )
+
+    def capped_bound(
+        self, equality_bound: Scalar, dt: float, control_horizon: int
+    ) -> Scalar:
+        return self._apply_cap(equality_bound, dt, control_horizon)
+
+    def create_bounds(self):
+        self.bounds = Vector(
+            [
+                self.capped_bound(
+                    c.bound, self.config.mpc_dt, self.config.velocity_horizon
+                )
+                for c in self.constraint_collection.equality_constraints
+            ]
+        )
 
     def compute_matrix(self):
         lb_params, ub_params = self.free_variable_bounds()
@@ -1647,41 +1712,37 @@ class QPDataSymbolic:
         config: QPControllerConfig,
     ):
         direct_limits = DofLimits.create(degrees_of_freedom, config)
-        mpc_model = EqualityDerivativeLinkModel()
-        eq_constraints = EqualityConstraintModel()
-        quadratic_weights = sm.Vector(
-            [
-                direct_limits.quadratic_weights,
-                mpc_model.slack_variables.quadratic_weights,
-                eq_constraints.slack_variables.quadratic_weights,
-            ]
+        mpc_model = EqualityDerivativeLinkModel(
+            degrees_of_freedom=degrees_of_freedom,
+            constraint_collection=constraint_collection,
+            config=config,
         )
-        linear_weights = sm.Vector(
-            [
-                direct_limits.linear_weights,
-                mpc_model.slack_variables.linear_weights,
-                eq_constraints.slack_variables.linear_weights,
-            ]
+        eq_constraints = EqualityConstraintModel(
+            degrees_of_freedom=degrees_of_freedom,
+            constraint_collection=constraint_collection,
+            config=config,
         )
-        box_lower_constraints = sm.Vector(
-            [
-                direct_limits.lower_bounds,
-                mpc_model.slack_variables.lower_bounds,
-                eq_constraints.slack_variables.lower_bounds,
-            ]
+        quadratic_weights = sm.concatenate(
+            direct_limits.quadratic_weights,
+            eq_constraints.slack_variables.quadratic_weights,
         )
-        box_upper_constraints = sm.Vector(
-            [
-                direct_limits.upper_bounds,
-                mpc_model.slack_variables.upper_bounds,
-                eq_constraints.slack_variables.upper_bounds,
-            ]
+        linear_weights = sm.concatenate(
+            direct_limits.linear_weights,
+            eq_constraints.slack_variables.linear_weights,
+        )
+        box_lower_constraints = sm.concatenate(
+            direct_limits.lower_bounds,
+            eq_constraints.slack_variables.lower_bounds,
+        )
+        box_upper_constraints = sm.concatenate(
+            direct_limits.upper_bounds,
+            eq_constraints.slack_variables.upper_bounds,
         )
         eq_matrix_dofs = sm.vstack([mpc_model.matrix, eq_constraints.matrix])
-        eq_matrix_slack = sm.vstack(
-            [mpc_model.slack_variables.matrix, eq_constraints.slack_variables.matrix]
+        eq_matrix_slack = sm.diag_stack(
+            [mpc_model.slack_matrix, eq_constraints.slack_matrix]
         )
-        eq_bounds = sm.Vector([mpc_model.bounds, eq_constraints.bounds])
+        eq_bounds = sm.concatenate(mpc_model.bounds, eq_constraints.bounds)
 
         # quadratic_weights, linear_weights = weights.construct_expression()
         # box_lower_constraints, box_upper_constraints = (

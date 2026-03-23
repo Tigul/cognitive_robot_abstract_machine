@@ -35,18 +35,6 @@ class IntegralConstraint(BaseConstraint):
         - a rad/s value for rotation
     """
 
-    def normalized_weight(self, control_horizon: int) -> Scalar:
-        return self.quadratic_weight * (
-            1 / (self.normalization_factor**2 * control_horizon)
-        )
-
-    def _apply_cap(self, value: Scalar, dt: float, control_horizon: int) -> Scalar:
-        return sm.limit(
-            value,
-            -self.normalization_factor * dt * control_horizon,
-            self.normalization_factor * dt * control_horizon,
-        )
-
 
 @dataclass
 class InequalityConstraint(IntegralConstraint):
@@ -77,9 +65,6 @@ class EqualityConstraint(IntegralConstraint):
 
     lower_slack_limit: sm.ScalarData
     upper_slack_limit: sm.ScalarData
-
-    def capped_bound(self, dt: float, control_horizon: int) -> Scalar:
-        return self._apply_cap(self.bound, dt, control_horizon)
 
 
 @dataclass
