@@ -3,14 +3,16 @@ from __future__ import annotations
 import abc
 import logging
 from abc import ABC
-from collections import defaultdict
 from dataclasses import dataclass, field
 from itertools import product
 from typing import Tuple, List, Dict, TYPE_CHECKING, Type
 from uuid import UUID
 
-import krrood.symbolic_math.symbolic_math as sm
 import numpy as np
+import scipy.sparse as sp
+from typing_extensions import Self
+
+import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.qp.constraint_collection import ConstraintCollection
 from giskardpy.qp.exceptions import (
     InfeasibleException,
@@ -26,7 +28,6 @@ from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedom,
     DegreeOfFreedomLimits,
 )
-from typing_extensions import Self
 
 logger = logging.getLogger(__name__)
 
@@ -420,10 +421,33 @@ class EqualityQPComponent(ABC):
     Describes a component of a QP problem.
     """
 
-    matrix: sm.Matrix
-    slack_matrix: sm.Matrix
-    bounds: sm.Vector
-    slack_variables: DirectLimits
+    degrees_of_freedom: List[DegreeOfFreedom]
+    config: QPControllerConfig
+
+    matrix: sm.Matrix = field(init=False)
+    slack_matrix: sm.Matrix = field(init=False)
+    bounds: sm.Vector = field(init=False)
+    slack_variables: DirectLimits = field(init=False)
+
+    @property
+    def number_of_free_variables(self) -> int:
+        return len(self.degrees_of_freedom)
+
+    @property
+    def number_of_velocity_columns(self) -> int:
+        return self.number_of_free_variables * (self.config.prediction_horizon - 2)
+
+    @property
+    def number_of_jerk_columns(self) -> int:
+        return self.number_of_free_variables * self.config.prediction_horizon
+
+    @property
+    def velocity_variables(self) -> Vector:
+        return Vector([dof.variables.velocity for dof in self.degrees_of_freedom])
+
+    @property
+    def acceleration_variables(self) -> Vector:
+        return Vector([dof.variables.acceleration for dof in self.degrees_of_freedom])
 
 
 @dataclass
@@ -466,9 +490,82 @@ class EqualityDerivativeLinkModel(EqualityQPComponent):
 
     ::
 
+        |  equality_bounds |   |           equality constraint matrix          |   |    v_0    |
+        |------------------|   |-----------------------------------------------|   |    v_1    |
+        | - v_c - a_c * dt |   | -1  |     |     |  1  |     |     |     |     |   |    v_2    |
+        |       v_c        |   |  2  | -1  |     |     |  1  |     |     |     |   | j_0*dt**2 |
+        |        0         | = | -1  |  2  | -1  |     |     |  1  |     |     | @ | j_1*dt**2 |
+        |        0         |   |     | -1  |  2  |     |     |     |  1  |     |   | j_2*dt**2 |
+        |        0         |   |     |     | -1  |     |     |     |     |  1  |   | j_3*dt**2 |
+        |------------------|   |-----------------------------------------------|   | j_4*dt**2 |
+    """
+
+    def __post_init__(self):
+        self.create_matrix()
+        self.compute_bounds()
+
+    def create_matrix(self):
+        matrix = np.zeros(
+            (
+                self.number_of_jerk_columns,
+                self.number_of_velocity_columns + self.number_of_jerk_columns,
+            )
+        )
+        identity = np.eye(self.number_of_velocity_columns)
+        velocity_at_k = -identity
+        velocity_at_k_minus1 = -identity
+        velocity_at_k_minus2 = 2 * identity
+        matrix[
+            : -self.number_of_free_variables * 2, : self.number_of_velocity_columns
+        ] += velocity_at_k
+        matrix[
+            self.number_of_free_variables : -self.number_of_free_variables,
+            : self.number_of_velocity_columns,
+        ] += velocity_at_k_minus2
+        matrix[
+            self.number_of_free_variables * 2 :, : self.number_of_velocity_columns
+        ] += velocity_at_k_minus1
+
+        matrix[:, self.number_of_velocity_columns :] = np.eye(
+            self.number_of_jerk_columns
+        )
+
+        self.matrix = sm.Matrix(matrix)
+
+    def compute_bounds(self):
+        self.bounds = sm.Vector.zeros(self.number_of_jerk_columns)
+        self.bounds[: self.number_of_free_variables] = (
+            -self.velocity_variables - self.acceleration_variables * self.config.mpc_dt
+        )
+        self.bounds[
+            self.number_of_free_variables : self.number_of_free_variables * 2
+        ] = self.velocity_variables
+
+
+@dataclass
+class EqualityConstraintModel(EqualityQPComponent):
+    """
+    |   t1   |   t2   |   t1   |   t2   |   t1   |   t2   | prediction horizon
+    |v1 v2 v3|v1 v2 v3|j1 j2 j3|j1 j2 j3|s1 s2 s3|s1 s2 s3| free variables / slack
+    |-----------------------------------------------------|
+    |  J1*sp |  J1*sp |  J3*sp | J3*sp  | sp*ch  | sp*ch  |
+    |-----------------------------------------------------|
+
+    Equality constraints have the form:
+    .. math::
+        f(q) = b
+
+    where
+
+    .. math::
+
+        target - f = \Delta t \sum_{k=0}^{N-1} J_{f} * sp_k
+
+    ::
+
         |  equality_bounds |   |           equality constraint matrix          |   | v_0 |
         |------------------|   |-----------------------------------------------|   | v_1 |
-        | - v_c - a_c * dt |   | -1  |     |     |dt**2|     |     |     |     |   | v_2 |
+        | limit(target - f(q), ) |   | -1  |     |     |dt**2|     |     |     |     |   | v_2 |
         |       v_c        |   |  2  | -1  |     |     |dt**2|     |     |     |   | j_0 |
         |        0         | = | -1  |  2  | -1  |     |     |dt**2|     |     | @ | j_1 |
         |        0         |   |     | -1  |  2  |     |     |     |dt**2|     |   | j_2 |
@@ -477,6 +574,7 @@ class EqualityDerivativeLinkModel(EqualityQPComponent):
     """
 
     degrees_of_freedom: List[DegreeOfFreedom]
+    constraint_collection: ConstraintCollection
     config: QPControllerConfig
 
     def compute_matrix(self):
@@ -488,10 +586,7 @@ class EqualityDerivativeLinkModel(EqualityQPComponent):
     def compute_weights(self):
         pass
 
-    def construct_expression(
-        self,
-    ) -> Tuple[sm.Vector, sm.Vector]:
-        # derivative model
+    def compute_matrix(self):
         lb_params, ub_params = self.free_variable_bounds()
         num_free_variables = sum(len(x) for x in lb_params)
 
@@ -547,51 +642,6 @@ class EqualityDerivativeLinkModel(EqualityQPComponent):
         neq_slack_start = eq_slack_stop
         self.names_neq_slack = self.names_slack[neq_slack_start:]
         return sm.Vector(lb), sm.Vector(ub)
-
-
-@dataclass
-class EqualityConstraintModel(EqualityQPComponent):
-    """
-    |   t1   |   t2   |   t1   |   t2   |   t1   |   t2   | prediction horizon
-    |v1 v2 v3|v1 v2 v3|j1 j2 j3|j1 j2 j3|s1 s2 s3|s1 s2 s3| free variables / slack
-    |-----------------------------------------------------|
-    |  J1*sp |  J1*sp |  J3*sp | J3*sp  | sp*ch  | sp*ch  |
-    |-----------------------------------------------------|
-
-    Equality constraints have the form:
-    .. math::
-        f(q) = b
-
-    where
-
-    .. math::
-
-        target - f = \Delta t \sum_{k=0}^{N-1} J_{f} * sp_k
-
-    ::
-
-        |  equality_bounds |   |           equality constraint matrix          |   | v_0 |
-        |------------------|   |-----------------------------------------------|   | v_1 |
-        | limit(target - f(q), ) |   | -1  |     |     |dt**2|     |     |     |     |   | v_2 |
-        |       v_c        |   |  2  | -1  |     |     |dt**2|     |     |     |   | j_0 |
-        |        0         | = | -1  |  2  | -1  |     |     |dt**2|     |     | @ | j_1 |
-        |        0         |   |     | -1  |  2  |     |     |     |dt**2|     |   | j_2 |
-        |        0         |   |     |     | -1  |     |     |     |     |dt**2|   | j_3 |
-        |------------------|   |-----------------------------------------------|   | j_4 |
-    """
-
-    degrees_of_freedom: List[DegreeOfFreedom]
-    constraint_collection: ConstraintCollection
-    config: QPControllerConfig
-
-    def compute_matrix(self):
-        pass
-
-    def compute_bounds(self):
-        pass
-
-    def compute_weights(self):
-        pass
 
     def equality_constraint_slack_lower_bound(self):
         return {
@@ -757,31 +807,6 @@ class EqualityBounds(ProblemDataPart):
     names_derivative_links: np.ndarray = field(default=None)
     evaluated: bool = field(default=True)
 
-    def equality_constraint_bounds(self) -> Dict[str, sm.Scalar]:
-        return {
-            f"{c.name}": c.capped_bound(self.config.mpc_dt, self.control_horizon)
-            for c in self.constraint_collection.equality_constraints
-        }
-
-    def last_derivative_values(
-        self, derivative: Derivatives
-    ) -> Dict[str, sm.ScalarData]:
-        last_values = {}
-        for v in self.degrees_of_freedom:
-            last_values[f"{v.name}/last_{derivative}"] = v.variables.data[derivative]
-        return last_values
-
-    def derivative_links(self, derivative: Derivatives) -> Dict[str, sm.ScalarData]:
-        derivative_link = {}
-        for t in range(self.config.prediction_horizon - 1):
-            if t >= self.config.prediction_horizon - (
-                self.config.max_derivative - derivative
-            ):
-                continue  # this row is all zero in the model, because the system has to stop at 0 vel
-            for v in self.degrees_of_freedom:
-                derivative_link[f"t{t:03}/{derivative}/{v.name}/link"] = 0
-        return derivative_link
-
     def eq_derivative_constraint_bounds(
         self, derivative: Derivatives
     ) -> Dict[str, sm.Vector]:
@@ -793,6 +818,12 @@ class EqualityBounds(ProblemDataPart):
                 if t < self.control_horizon:
                     bound[f"t{t:03}/{c.name}"] = c.bound[t] * self.config.mpc_dt
         return bound
+
+    def equality_constraint_bounds(self) -> Dict[str, sm.Scalar]:
+        return {
+            f"{c.name}": c.capped_bound(self.config.mpc_dt, self.control_horizon)
+            for c in self.constraint_collection.equality_constraints
+        }
 
     def construct_expression(
         self,

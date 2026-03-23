@@ -2,7 +2,7 @@ from time import sleep
 
 import numpy as np
 import pytest
-from giskardpy.qp.adapters.qp_adapter import DofLimits
+from giskardpy.qp.adapters.qp_adapter import DofLimits, EqualityDerivativeLinkModel
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
@@ -170,3 +170,21 @@ def test_DofLimits_two_joints(prismatic_bot2):
         limits.quadratic_weights.evaluate(),
         expected_weights,
     )
+
+
+def test_mpc_model(prismatic_bot2):
+    target_frequency = 20
+    prediction_horizon = 10
+    expected_jerk_limit1 = 1 / target_frequency
+    expected_jerk_limit2 = 1 / (target_frequency * 2)
+    mpc_model = EqualityDerivativeLinkModel(
+        prismatic_bot2.active_degrees_of_freedom,
+        config=QPControllerConfig(
+            target_frequency=target_frequency, prediction_horizon=prediction_horizon
+        ),
+    )
+    assert len(mpc_model.bounds[0].free_variables()) == 2
+    assert len(mpc_model.bounds[1].free_variables()) == 2
+    assert len(mpc_model.bounds[2].free_variables()) == 1
+    assert len(mpc_model.bounds[3].free_variables()) == 1
+    assert len(mpc_model.bounds[4:].free_variables()) == 0

@@ -511,7 +511,7 @@ class SymbolicMathType(ABC):
     def __setitem__(
         self,
         key: int | slice | Tuple[int | slice, int | slice],
-        value: ScalarData,
+        value: ScalarData | VectorData | MatrixData,
     ):
         """
         Gives this class the setitem behavior of numpy.
