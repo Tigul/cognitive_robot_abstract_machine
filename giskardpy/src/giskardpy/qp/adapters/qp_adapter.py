@@ -1682,20 +1682,24 @@ class QPDataSymbolic:
           lbA <= Aslack x <= ubA_slack  (lower/upper inequality constraints)
     """
 
-    quadratic_weights: Vector
-    linear_weights: Vector
+    degrees_of_freedom: List[DegreeOfFreedom]
+    constraint_collection: ConstraintCollection
+    config: QPControllerConfig
 
-    box_lower_constraints: Vector
-    box_upper_constraints: Vector
+    quadratic_weights: Vector = field(init=False)
+    linear_weights: Vector = field(init=False)
 
-    eq_matrix_dofs: Matrix
-    eq_matrix_slack: Matrix
-    eq_bounds: Vector
+    box_lower_constraints: Vector = field(init=False)
+    box_upper_constraints: Vector = field(init=False)
 
-    neq_matrix_dofs: Matrix
-    neq_matrix_slack: Matrix
-    neq_lower_bounds: Vector
-    neq_upper_bounds: Vector
+    eq_matrix_dofs: Matrix = field(init=False)
+    eq_matrix_slack: Matrix = field(init=False)
+    eq_bounds: Vector = field(init=False)
+
+    neq_matrix_dofs: Matrix = field(init=False)
+    neq_matrix_slack: Matrix = field(init=False)
+    neq_lower_bounds: Vector = field(init=False)
+    neq_upper_bounds: Vector = field(init=False)
 
     # _weights: Weights
     # _free_variable_bounds: FreeVariableBounds
@@ -1704,73 +1708,39 @@ class QPDataSymbolic:
     # _inequality_model: InequalityModel
     # _inequality_bounds: InequalityBounds
 
-    @classmethod
-    def from_giskard(
-        cls,
-        degrees_of_freedom: List[DegreeOfFreedom],
-        constraint_collection: ConstraintCollection,
-        config: QPControllerConfig,
-    ):
-        direct_limits = DofLimits.create(degrees_of_freedom, config)
+    def __post_init__(self):
+        direct_limits = DofLimits.create(self.degrees_of_freedom, self.config)
         mpc_model = EqualityDerivativeLinkModel(
-            degrees_of_freedom=degrees_of_freedom,
-            constraint_collection=constraint_collection,
-            config=config,
+            degrees_of_freedom=self.degrees_of_freedom,
+            constraint_collection=self.constraint_collection,
+            config=self.config,
         )
         eq_constraints = EqualityConstraintModel(
-            degrees_of_freedom=degrees_of_freedom,
-            constraint_collection=constraint_collection,
-            config=config,
+            degrees_of_freedom=self.degrees_of_freedom,
+            constraint_collection=self.constraint_collection,
+            config=self.config,
         )
-        quadratic_weights = sm.concatenate(
+        self.quadratic_weights = sm.concatenate(
             direct_limits.quadratic_weights,
             eq_constraints.slack_variables.quadratic_weights,
         )
-        linear_weights = sm.concatenate(
+        self.linear_weights = sm.concatenate(
             direct_limits.linear_weights,
             eq_constraints.slack_variables.linear_weights,
         )
-        box_lower_constraints = sm.concatenate(
+        self.box_lower_constraints = sm.concatenate(
             direct_limits.lower_bounds,
             eq_constraints.slack_variables.lower_bounds,
         )
-        box_upper_constraints = sm.concatenate(
+        self.box_upper_constraints = sm.concatenate(
             direct_limits.upper_bounds,
             eq_constraints.slack_variables.upper_bounds,
         )
-        eq_matrix_dofs = sm.vstack([mpc_model.matrix, eq_constraints.matrix])
-        eq_matrix_slack = sm.diag_stack(
+        self.eq_matrix_dofs = sm.vstack([mpc_model.matrix, eq_constraints.matrix])
+        self.eq_matrix_slack = sm.diag_stack(
             [mpc_model.slack_matrix, eq_constraints.slack_matrix]
         )
-        eq_bounds = sm.concatenate(mpc_model.bounds, eq_constraints.bounds)
-
-        # quadratic_weights, linear_weights = weights.construct_expression()
-        # box_lower_constraints, box_upper_constraints = (
-        #     free_variable_bounds.construct_expression()
-        # )
-        # eq_matrix_dofs, eq_matrix_slack = equality_model.construct_expression()
-        # eq_bounds = equality_bounds.construct_expression()
-        # neq_matrix_dofs, neq_matrix_slack = inequality_model.construct_expression()
-        # neq_lower_bounds, neq_upper_bounds = inequality_bounds.construct_expression()
-        return cls(
-            quadratic_weights=quadratic_weights,
-            linear_weights=linear_weights,
-            box_lower_constraints=box_lower_constraints,
-            box_upper_constraints=box_upper_constraints,
-            eq_matrix_dofs=eq_matrix_dofs,
-            eq_matrix_slack=eq_matrix_slack,
-            eq_bounds=eq_bounds,
-            neq_matrix_dofs=sm.Matrix(),
-            neq_matrix_slack=sm.Matrix(),
-            neq_lower_bounds=sm.Vector(),
-            neq_upper_bounds=sm.Vector(),
-            # _weights=weights,
-            # _free_variable_bounds=free_variable_bounds,
-            # _equality_model=equality_model,
-            # _equality_bounds=equality_bounds,
-            # _inequality_model=inequality_model,
-            # _inequality_bounds=inequality_bounds,
-        )
+        self.eq_bounds = sm.concatenate(mpc_model.bounds, eq_constraints.bounds)
 
     def __hash__(self):
         return hash(id(self))

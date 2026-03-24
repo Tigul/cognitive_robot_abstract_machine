@@ -7,9 +7,12 @@ from giskardpy.qp.adapters.qp_adapter import (
     DofLimits,
     EqualityDerivativeLinkModel,
     EqualityConstraintModel,
+    QPDataSymbolic,
 )
 from giskardpy.qp.constraint_collection import ConstraintCollection
 from giskardpy.qp.qp_controller_config import QPControllerConfig
+from giskardpy.qp.qp_data_factories import QPDataExplicitFactory
+from giskardpy.qp.qp_debugger import QPDebugger
 from krrood.symbolic_math.symbolic_math import (
     create_float_variables,
     FloatVariable,
@@ -70,6 +73,7 @@ def prismatic_bot2(cylinder_bot_world):
                 ),
             ),
             has_hardware_interface=True,
+            name=PrefixedName("dof1"),
         )
         world.add_degree_of_freedom(dof)
         world.add_connection(
@@ -88,6 +92,7 @@ def prismatic_bot2(cylinder_bot_world):
                 ),
             ),
             has_hardware_interface=True,
+            name=PrefixedName("dof2"),
         )
         world.add_degree_of_freedom(dof)
         world.add_connection(
@@ -299,3 +304,34 @@ def test_equality_constraint_model(prismatic_bot2):
     assert eq_constraint_model.slack_variables.lower_bounds < 0
     assert eq_constraint_model.slack_variables.upper_bounds > 0
     assert eq_constraint_model.slack_matrix[0, 0] == (1 / target_frequency)
+
+
+def test_qp_data_symbolic(prismatic_bot2):
+    constraints = ConstraintCollection()
+    dof1 = prismatic_bot2.active_degrees_of_freedom[0]
+    dof2 = prismatic_bot2.active_degrees_of_freedom[0]
+    constraints.add_equality_constraint(
+        task_expression=dof1.variables.position,
+        equality_bound=1,
+        quadratic_weight=1,
+        reference_velocity=1,
+    )
+    qp_data_symbolic = QPDataSymbolic(
+        degrees_of_freedom=prismatic_bot2.active_degrees_of_freedom,
+        constraint_collection=constraints,
+        config=QPControllerConfig(target_frequency=20, prediction_horizon=10),
+    )
+    debugger = QPDebugger(qp_data_symbolic)
+    adapter = QPDataExplicitFactory(qp_data_symbolic)
+    adapter.compile(
+        world_state_symbols=prismatic_bot2.state.get_variables(),
+        life_cycle_symbols=[],
+        float_variables=[],
+    )
+    qp_data = adapter.evaluate(
+        world_state=prismatic_bot2.state.data,
+        life_cycle_state=np.array([]),
+        float_variables=np.array([]),
+    )
+
+    pass
