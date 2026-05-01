@@ -61,14 +61,6 @@ class ConstraintCollection:
         return [c for c in self._constraints if isinstance(c.bound, EqualityBound)]
 
     @property
-    def equality_constraints_expressions(self) -> list[Scalar]:
-        return [
-            c.expression
-            for c in self._constraints
-            if isinstance(c.bound, EqualityBound)
-        ]
-
-    @property
     def derivative_equality_constraints(self) -> list[DerivativeEqualityConstraint]:
         return [
             c for c in self._constraints if isinstance(c, DerivativeEqualityConstraint)
@@ -454,11 +446,11 @@ class ConstraintCollection:
         :param upper_slack_limit:
         """
 
-        constraint = DerivativeEqualityConstraint(
+        constraint = GiskardConstraint(
             name=name,
-            derivative=Derivatives.velocity,
+            enforcement_strategy=VelocityStrategy,
             expression=task_expression,
-            bound=velocity_goal,
+            bound=EqualityBound(velocity_goal),
             quadratic_weight=quadratic_weight,
             normalization_factor=velocity_limit,
             lower_slack_limit=lower_slack_limit,
