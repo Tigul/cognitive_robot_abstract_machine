@@ -2,16 +2,10 @@
 
 from __future__ import annotations
 from sqlalchemy import (
-    Column,
     ForeignKey,
     Integer,
     String,
-    Float,
-    Boolean,
-    DateTime,
-    Enum,
     JSON,
-    Table,
 )
 from sqlalchemy.orm import relationship, Mapped, mapped_column, DeclarativeBase
 
@@ -56,7 +50,7 @@ import giskardpy.motion_statechart.tasks.joint_tasks
 import giskardpy.motion_statechart.tasks.pointing
 import giskardpy.motion_statechart.tasks.weight_scaling_goals
 import giskardpy.motion_statechart.test_nodes.test_nodes
-import giskardpy.qp.adapters.qp_adapter
+import giskardpy.qp.qp_adapter
 import giskardpy.qp.constraint
 import giskardpy.qp.constraint_collection
 import giskardpy.qp.qp_controller
@@ -173,7 +167,6 @@ import semantic_digital_twin.world_description.world_state_trajectory_plotter
 import sqlalchemy.sql.sqltypes
 import trimesh.base
 import typing
-import typing_extensions
 import uuid
 
 
@@ -8534,7 +8527,7 @@ class PrintDAO(
 
 
 class ProblemDataPartDAO(
-    Base, DataAccessObject[giskardpy.qp.adapters.qp_adapter.ProblemDataPart]
+    Base, DataAccessObject[giskardpy.qp.qp_adapter.ProblemDataPart]
 ):
 
     __tablename__ = "ProblemDataPartDAO"
@@ -8587,7 +8580,7 @@ class ProblemDataPartDAO(
 
 class EqualityBoundsDAO(
     ProblemDataPartDAO,
-    DataAccessObject[giskardpy.qp.adapters.qp_adapter.EqualityBounds],
+    DataAccessObject[giskardpy.qp.qp_adapter.EqualityBounds],
 ):
 
     __tablename__ = "EqualityBoundsDAO"
@@ -8617,7 +8610,7 @@ class EqualityBoundsDAO(
 
 
 class EqualityModelDAO(
-    ProblemDataPartDAO, DataAccessObject[giskardpy.qp.adapters.qp_adapter.EqualityModel]
+    ProblemDataPartDAO, DataAccessObject[giskardpy.qp.qp_adapter.EqualityModel]
 ):
 
     __tablename__ = "EqualityModelDAO"
@@ -8636,7 +8629,7 @@ class EqualityModelDAO(
 
 class FreeVariableBoundsDAO(
     ProblemDataPartDAO,
-    DataAccessObject[giskardpy.qp.adapters.qp_adapter.FreeVariableBounds],
+    DataAccessObject[giskardpy.qp.qp_adapter.FreeVariableBounds],
 ):
 
     __tablename__ = "FreeVariableBoundsDAO"
@@ -8676,7 +8669,7 @@ class FreeVariableBoundsDAO(
 
 class InequalityBoundsDAO(
     ProblemDataPartDAO,
-    DataAccessObject[giskardpy.qp.adapters.qp_adapter.InequalityBounds],
+    DataAccessObject[giskardpy.qp.qp_adapter.InequalityBounds],
 ):
 
     __tablename__ = "InequalityBoundsDAO"
@@ -8714,7 +8707,7 @@ class InequalityBoundsDAO(
 
 class InequalityModelDAO(
     ProblemDataPartDAO,
-    DataAccessObject[giskardpy.qp.adapters.qp_adapter.InequalityModel],
+    DataAccessObject[giskardpy.qp.qp_adapter.InequalityModel],
 ):
 
     __tablename__ = "InequalityModelDAO"
@@ -8950,9 +8943,7 @@ class QPDataExplicitFactoryDAO(
     }
 
 
-class QPDataSymbolicDAO(
-    Base, DataAccessObject[giskardpy.qp.adapters.qp_adapter.QPDataSymbolic]
-):
+class QPDataSymbolicDAO(Base, DataAccessObject[giskardpy.qp.qp_adapter.QPDataSymbolic]):
 
     __tablename__ = "QPDataSymbolicDAO"
 
@@ -13473,9 +13464,7 @@ class WaitForMessageDAO(
     }
 
 
-class WeightsDAO(
-    ProblemDataPartDAO, DataAccessObject[giskardpy.qp.adapters.qp_adapter.Weights]
-):
+class WeightsDAO(ProblemDataPartDAO, DataAccessObject[giskardpy.qp.qp_adapter.Weights]):
 
     __tablename__ = "WeightsDAO"
 

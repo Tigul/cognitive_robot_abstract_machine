@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import operator
 from abc import ABC
 from abc import abstractmethod
 from copy import copy
@@ -654,24 +655,6 @@ class IntegralStrategy(EnforcementStrategy):
 
     def create_names(self) -> list[str]:
         return [c.name for c in self.constraints]
-
-
-@dataclass
-class PositionStrategy(IntegralStrategy):
-    def create_bounds(
-        self, bounds_getter: Callable[GiskardConstraint, Scalar]
-    ) -> Vector:
-        return Vector(
-            [
-                self.capped_bound(
-                    bounds_getter(c) - c.expression,
-                    self.config.mpc_dt,
-                    c.normalization_factor,
-                    self.config.velocity_horizon,
-                )
-                for c in self.constraints
-            ]
-        )
 
 
 @dataclass

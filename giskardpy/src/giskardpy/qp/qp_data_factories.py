@@ -4,10 +4,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 import numpy as np
-import scipy.sparse as sp
-from scipy.sparse import issparse
 from typing_extensions import (
-    Self,
     TYPE_CHECKING,
     Generic,
     TypeVar,
@@ -27,7 +24,7 @@ from krrood.symbolic_math.symbolic_math import (
 )
 
 if TYPE_CHECKING:
-    from giskardpy.qp.adapters.qp_adapter import QPDataSymbolic
+    from giskardpy.qp.qp_data_symbolic import QPDataSymbolic
 
 
 T = TypeVar("T", bound=QPData)

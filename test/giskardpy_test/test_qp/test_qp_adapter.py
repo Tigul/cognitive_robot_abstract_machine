@@ -1,9 +1,8 @@
 from collections import defaultdict
-from time import sleep
 
 import numpy as np
 import pytest
-from giskardpy.qp.adapters.qp_adapter import (
+from giskardpy.qp.qp_adapter import (
     DofLimits,
     EqualityDerivativeLinkModel,
     EqualityConstraintModel,
@@ -16,7 +15,6 @@ from giskardpy.qp.qp_data_factories import QPDataExplicitFactory
 from giskardpy.qp.qp_debugger import QPDebugger
 from giskardpy.qp.solvers.qp_solver_piqp import QPSolverPIQP
 from krrood.symbolic_math.symbolic_math import (
-    create_float_variables,
     FloatVariable,
     Vector,
 )

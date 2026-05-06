@@ -1,29 +1,17 @@
 from __future__ import annotations
 
-import datetime
 import logging
-from copy import deepcopy
 from dataclasses import dataclass, field, InitVar
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, TYPE_CHECKING
 
 import numpy as np
-import pandas
-import pandas as pd
 
 import krrood.symbolic_math.symbolic_math as sm
-from giskardpy.qp.adapters.qp_adapter import QPDataSymbolic
 from giskardpy.qp.constraint_collection import ConstraintCollection
-from giskardpy.qp.exceptions import (
-    HardConstraintsViolatedException,
-)
-from giskardpy.qp.qp_data import (
-    QPDataExplicit,
-)
 from giskardpy.qp.qp_data_factories import QPDataFactory
+from giskardpy.qp.qp_data_symbolic import QPDataSymbolic
 from giskardpy.qp.qp_debugger import QPDebugger
 from giskardpy.qp.solvers.qp_solver import QPSolver
-from giskardpy.utils.utils import create_path
-from semantic_digital_twin import utils
 from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
 
 logger = logging.getLogger(__name__)

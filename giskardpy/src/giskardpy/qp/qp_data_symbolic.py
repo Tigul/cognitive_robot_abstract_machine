@@ -25,51 +25,6 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class QPConstraintComponent(ABC):
-    """
-    A kind of factory method that produces parts of the QP problem.
-    It has to compute a matrix and bounds for the matrix.
-    The bounds are decided by the subclasses EqualityConstraintComponent and InequalityConstraintComponent.
-    """
-
-    degrees_of_freedom: List[DegreeOfFreedom]
-    constraint_collection: ConstraintCollection
-    config: QPControllerConfig
-
-    matrix: sm.Matrix = field(init=False)
-    slack_matrix: sm.Matrix = field(init=False)
-    slack_variables: DirectLimits = field(init=False)
-
-    @property
-    def number_of_free_variables(self) -> int:
-        return len(self.degrees_of_freedom)
-
-    @property
-    def number_of_velocity_columns(self) -> int:
-        return self.number_of_free_variables * (self.config.prediction_horizon - 2)
-
-    @property
-    def number_of_jerk_columns(self) -> int:
-        return self.number_of_free_variables * self.config.prediction_horizon
-
-    @property
-    def position_variables(self) -> Vector:
-        return Vector([dof.variables.position for dof in self.degrees_of_freedom])
-
-    @property
-    def velocity_variables(self) -> Vector:
-        return Vector([dof.variables.velocity for dof in self.degrees_of_freedom])
-
-    @property
-    def acceleration_variables(self) -> Vector:
-        return Vector([dof.variables.acceleration for dof in self.degrees_of_freedom])
-
-    @property
-    @abstractmethod
-    def constraint_names(self) -> list[str]: ...
-
-
-@dataclass
 class QPDataSymbolic:
     """
     Takes free variables and constraints and converts them to a QP problem in the following format, depending on the

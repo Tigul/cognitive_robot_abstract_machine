@@ -2,32 +2,20 @@ from __future__ import annotations
 
 import datetime
 import logging
-from copy import deepcopy
-from dataclasses import dataclass, field, InitVar
-from typing import List, Optional, TYPE_CHECKING
+from dataclasses import dataclass, field
+from typing import Optional, TYPE_CHECKING
 
 import numpy as np
 import pandas
 import pandas as pd
 
-import krrood.symbolic_math.symbolic_math as sm
-from giskardpy.qp.adapters.qp_adapter import QPDataSymbolic
-from giskardpy.qp.constraint_collection import ConstraintCollection
-from giskardpy.qp.exceptions import (
-    HardConstraintsViolatedException,
-)
-from giskardpy.qp.qp_data import (
-    QPDataExplicit,
-)
-from giskardpy.qp.qp_data_factories import QPDataFactory
-from giskardpy.qp.solvers.qp_solver import QPSolver
+from giskardpy.qp.qp_data_symbolic import QPDataSymbolic
 from giskardpy.utils.utils import create_path
-from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from giskardpy.qp.qp_controller_config import QPControllerConfig
+    pass
 
 date_str = datetime.datetime.now().strftime("%Yy-%mm-%dd--%Hh-%Mm-%Ss")
 
@@ -41,15 +29,6 @@ class QPDebugger:
     equality_matrix: pandas.DataFrame = field(init=False)
     inequality_constraints: pandas.DataFrame = field(init=False)
     inequality_matrix: pandas.DataFrame = field(init=False)
-    # weights: pandas.DataFrame = field(init=False)
-    # A: pandas.DataFrame = field(init=False)
-    # b: pandas.DataFrame = field(init=False)
-    # E: pandas.DataFrame = field(init=False)
-    # bE: pandas.DataFrame = field(init=False)
-    # lbA: pandas.DataFrame = field(init=False)
-    # ubA: pandas.DataFrame = field(init=False)
-    # xdot: pandas.DataFrame = field(init=False)
-    # debug: pandas.DataFrame = field(init=False)
 
     def __post_init__(self):
         self.update(self.current_solution)
