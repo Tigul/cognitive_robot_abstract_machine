@@ -948,10 +948,19 @@ def test_flatten_iterable_attribute_and_use_not_equal(handles_and_containers_wor
     query = an(entity(drawers).where(drawer_1 != drawers))
 
     results = list(query.evaluate())
-
+    visualize_query_graph(query)
     # We should get one row for each drawer and the parent view preserved
     assert len(results) == 2
     assert {row.handle.name for row in results} == {"Handle2", "Handle3"}
+
+
+def visualize_query_graph(query):
+    try:
+        from krrood.entity_query_language.query_graph import QueryGraph
+
+        QueryGraph(query).visualize()
+    except ImportError as e:
+        print(f"Failed to visualize query graph: {e}")
 
 
 def test_exists_and_for_all(handles_and_containers_world):
@@ -1219,6 +1228,7 @@ def test_indexing_on_dict_field():
 
     i = variable(ItemWithDictionary, world.items)
     q = an(entity(i).where(i.attrs["score"] == 2))
+    visualize_query_graph(q)
     res = list(q.evaluate())
     assert {x.name for x in res} == {"B", "C"}
 
