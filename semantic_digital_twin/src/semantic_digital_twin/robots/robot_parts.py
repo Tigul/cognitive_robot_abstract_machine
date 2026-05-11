@@ -26,10 +26,10 @@ from semantic_digital_twin.exceptions import (
     MissingDefaultCameraError,
 )
 from semantic_digital_twin.robots.robot_part_mixins import (
-    HasFingers,
-    HasTwoFingers,
     HasEndEffector,
-    HasCameras,
+    HasSensors,
+    GenericSensor,
+    GenericEndEffector,
 )
 from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Agent
@@ -393,20 +393,6 @@ class EndEffector(AbstractRobotPart, ABC):
 
 
 @dataclass(eq=False)
-class ParallelGripper(EndEffector, HasTwoFingers, ABC):
-    """
-    A parallel gripper is an end effector that has two fingers that move in parallel to grasp objects.
-    """
-
-
-@dataclass(eq=False)
-class HumanoidHand(EndEffector, HasFingers, ABC):
-    """
-    A humanoid hand is an end effector that has multiple fingers that can move independently to grasp objects.
-    """
-
-
-@dataclass(eq=False)
 class Torso(KinematicChain, ABC):
     """
     The torso of a robot, which is a kinematic chain providing additional shared degrees of freedom to its
@@ -415,14 +401,14 @@ class Torso(KinematicChain, ABC):
 
 
 @dataclass(eq=False)
-class Arm(KinematicChain, HasEndEffector, ABC):
+class Arm(KinematicChain, HasEndEffector[GenericEndEffector], ABC):
     """
     An arm is a kinematic chain that has an end effector attached to it.
     """
 
 
 @dataclass(eq=False)
-class Neck(KinematicChain, HasCameras, ABC):
+class Neck(KinematicChain, HasSensors[GenericSensor], ABC):
     """
     The neck of a robot, which is a kinematic chain that has a camera attached to it.
     """
@@ -601,6 +587,18 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
                     None, new_limits[connection], None, None
                 ),
             )
+
+    @property
+    def end_effectors(self) -> list[EndEffector]:
+        return [p for p in self._robot_parts if isinstance(p, EndEffector)]
+
+    @property
+    def arms(self) -> list[Arm]:
+        return [p for p in self._robot_parts if isinstance(p, Arm)]
+
+    @property
+    def sensors(self) -> list[Sensor]:
+        return [p for p in self._robot_parts if isinstance(p, Sensor)]
 
     def get_default_camera(self) -> Camera:
         """

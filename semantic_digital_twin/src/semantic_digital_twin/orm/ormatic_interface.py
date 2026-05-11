@@ -66,6 +66,7 @@ import semantic_digital_twin.semantic_annotations.semantic_annotations
 import semantic_digital_twin.spatial_computations.ik_solver
 import semantic_digital_twin.spatial_types.derivatives
 import semantic_digital_twin.spatial_types.spatial_types
+import semantic_digital_twin.utils
 import semantic_digital_twin.world
 import semantic_digital_twin.world_description.connection_properties
 import semantic_digital_twin.world_description.connections
@@ -279,70 +280,6 @@ class AvoidCollisionBetweenGroupsDAO_body_group_b_association(
     target_bodydao_id: Mapped[int] = mapped_column(ForeignKey("BodyDAO.database_id"))
 
     target: Mapped[BodyDAO] = relationship("BodyDAO", foreign_keys=[target_bodydao_id])
-
-
-class HasArmsDAO_arms_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_29862750035374540800173834202665026606176872785492472172419984"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_hasarmsdao_id: Mapped[int] = mapped_column(
-        ForeignKey("HasArmsDAO.database_id")
-    )
-    target_armdao_id: Mapped[int] = mapped_column(ForeignKey("ArmDAO.database_id"))
-
-    target: Mapped[ArmDAO] = relationship("ArmDAO", foreign_keys=[target_armdao_id])
-
-
-class HasFingersDAO_fingers_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_87102314717370366891684742630741088068452235283428595255649024"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_hasfingersdao_id: Mapped[int] = mapped_column(
-        ForeignKey("HasFingersDAO.database_id")
-    )
-    target_fingerdao_id: Mapped[int] = mapped_column(
-        ForeignKey("FingerDAO.database_id")
-    )
-
-    target: Mapped[FingerDAO] = relationship(
-        "FingerDAO", foreign_keys=[target_fingerdao_id]
-    )
-
-
-class HasSensorsDAO_sensors_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_30810416866823612174022712509351070926069769396572144062859263"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_hassensorsdao_id: Mapped[int] = mapped_column(
-        ForeignKey("HasSensorsDAO.database_id")
-    )
-    target_sensordao_id: Mapped[int] = mapped_column(
-        ForeignKey("SensorDAO.database_id")
-    )
-
-    target: Mapped[SensorDAO] = relationship(
-        "SensorDAO", foreign_keys=[target_sensordao_id]
-    )
-
-
-class HasCamerasDAO_cameras_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_86225081646825235419482050155328273629452524963660400422801268"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_hascamerasdao_id: Mapped[int] = mapped_column(
-        ForeignKey("HasCamerasDAO.database_id")
-    )
-    target_cameradao_id: Mapped[int] = mapped_column(
-        ForeignKey("CameraDAO.database_id")
-    )
-
-    target: Mapped[CameraDAO] = relationship(
-        "CameraDAO", foreign_keys=[target_cameradao_id]
-    )
 
 
 class HasSimulatorPropertiesDAO_simulator_additional_properties_association(
@@ -858,268 +795,6 @@ class AbstractRobotPartDAO_joint_states_association(Base, AssociationDataAccessO
     )
 
 
-class HumanoidHandDAO_fingers_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_25141693835261187658218470831042934615284476873957793485801579"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_humanoidhanddao_id: Mapped[int] = mapped_column(
-        ForeignKey("HumanoidHandDAO.database_id")
-    )
-    target_fingerdao_id: Mapped[int] = mapped_column(
-        ForeignKey("FingerDAO.database_id")
-    )
-
-    target: Mapped[FingerDAO] = relationship(
-        "FingerDAO", foreign_keys=[target_fingerdao_id]
-    )
-
-
-class ParallelGripperDAO_fingers_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_10767374233435639949463974841971179513632856830801737189036648"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_parallelgripperdao_id: Mapped[int] = mapped_column(
-        ForeignKey("ParallelGripperDAO.database_id")
-    )
-    target_fingerdao_id: Mapped[int] = mapped_column(
-        ForeignKey("FingerDAO.database_id")
-    )
-
-    target: Mapped[FingerDAO] = relationship(
-        "FingerDAO", foreign_keys=[target_fingerdao_id]
-    )
-
-
-class HSRBArmDAO_sensors_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_10496932630927257261783792073339671637701412416029376491417600"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_hsrbarmdao_id: Mapped[int] = mapped_column(
-        ForeignKey("HSRBArmDAO.database_id")
-    )
-    target_sensordao_id: Mapped[int] = mapped_column(
-        ForeignKey("SensorDAO.database_id")
-    )
-
-    target: Mapped[SensorDAO] = relationship(
-        "SensorDAO", foreign_keys=[target_sensordao_id]
-    )
-
-
-class HSRBArmDAO_cameras_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_64130642810600273859748244028583856582626313642400239801468000"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_hsrbarmdao_id: Mapped[int] = mapped_column(
-        ForeignKey("HSRBArmDAO.database_id")
-    )
-    target_cameradao_id: Mapped[int] = mapped_column(
-        ForeignKey("CameraDAO.database_id")
-    )
-
-    target: Mapped[CameraDAO] = relationship(
-        "CameraDAO", foreign_keys=[target_cameradao_id]
-    )
-
-
-class NeckDAO_sensors_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_81313812547207439089271527420874114520048025706098529120770178"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_neckdao_id: Mapped[int] = mapped_column(ForeignKey("NeckDAO.database_id"))
-    target_sensordao_id: Mapped[int] = mapped_column(
-        ForeignKey("SensorDAO.database_id")
-    )
-
-    target: Mapped[SensorDAO] = relationship(
-        "SensorDAO", foreign_keys=[target_sensordao_id]
-    )
-
-
-class NeckDAO_cameras_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_11473994712919964867649438417739077938618734680587371083333937"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_neckdao_id: Mapped[int] = mapped_column(ForeignKey("NeckDAO.database_id"))
-    target_cameradao_id: Mapped[int] = mapped_column(
-        ForeignKey("CameraDAO.database_id")
-    )
-
-    target: Mapped[CameraDAO] = relationship(
-        "CameraDAO", foreign_keys=[target_cameradao_id]
-    )
-
-
-class Armar7TorsoDAO_arms_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_49028194938909131708630833495556133243978559865873520520395484"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_armar7torsodao_id: Mapped[int] = mapped_column(
-        ForeignKey("Armar7TorsoDAO.database_id")
-    )
-    target_armdao_id: Mapped[int] = mapped_column(ForeignKey("ArmDAO.database_id"))
-
-    target: Mapped[ArmDAO] = relationship("ArmDAO", foreign_keys=[target_armdao_id])
-
-
-class HSRBTorsoDAO_arms_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_15783763389827200086226504361348647345836588593318171618918776"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_hsrbtorsodao_id: Mapped[int] = mapped_column(
-        ForeignKey("HSRBTorsoDAO.database_id")
-    )
-    target_armdao_id: Mapped[int] = mapped_column(ForeignKey("ArmDAO.database_id"))
-
-    target: Mapped[ArmDAO] = relationship("ArmDAO", foreign_keys=[target_armdao_id])
-
-
-class ICub3TorsoDAO_arms_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_42988089680460654206831017762754997791117783364998831723900267"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_icub3torsodao_id: Mapped[int] = mapped_column(
-        ForeignKey("ICub3TorsoDAO.database_id")
-    )
-    target_armdao_id: Mapped[int] = mapped_column(ForeignKey("ArmDAO.database_id"))
-
-    target: Mapped[ArmDAO] = relationship("ArmDAO", foreign_keys=[target_armdao_id])
-
-
-class JustinTorsoDAO_arms_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_58842732994741753747888848499470290723686037187318320659543813"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_justintorsodao_id: Mapped[int] = mapped_column(
-        ForeignKey("JustinTorsoDAO.database_id")
-    )
-    target_armdao_id: Mapped[int] = mapped_column(ForeignKey("ArmDAO.database_id"))
-
-    target: Mapped[ArmDAO] = relationship("ArmDAO", foreign_keys=[target_armdao_id])
-
-
-class MMPDresdenTorsoDAO_sensors_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_25459292650698024389310320091701675216782234496162389686145481"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_mmpdresdentorsodao_id: Mapped[int] = mapped_column(
-        ForeignKey("MMPDresdenTorsoDAO.database_id")
-    )
-    target_sensordao_id: Mapped[int] = mapped_column(
-        ForeignKey("SensorDAO.database_id")
-    )
-
-    target: Mapped[SensorDAO] = relationship(
-        "SensorDAO", foreign_keys=[target_sensordao_id]
-    )
-
-
-class MMPDresdenTorsoDAO_cameras_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_10188147423465659510857310234079059192054669357829854845060601"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_mmpdresdentorsodao_id: Mapped[int] = mapped_column(
-        ForeignKey("MMPDresdenTorsoDAO.database_id")
-    )
-    target_cameradao_id: Mapped[int] = mapped_column(
-        ForeignKey("CameraDAO.database_id")
-    )
-
-    target: Mapped[CameraDAO] = relationship(
-        "CameraDAO", foreign_keys=[target_cameradao_id]
-    )
-
-
-class MMPDresdenTorsoDAO_arms_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_64123099656270431831604749025388608344746751699846445913403781"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_mmpdresdentorsodao_id: Mapped[int] = mapped_column(
-        ForeignKey("MMPDresdenTorsoDAO.database_id")
-    )
-    target_armdao_id: Mapped[int] = mapped_column(ForeignKey("ArmDAO.database_id"))
-
-    target: Mapped[ArmDAO] = relationship("ArmDAO", foreign_keys=[target_armdao_id])
-
-
-class PR2TorsoDAO_arms_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_43294110462669536040109993728365291088831277455653646461447705"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_pr2torsodao_id: Mapped[int] = mapped_column(
-        ForeignKey("PR2TorsoDAO.database_id")
-    )
-    target_armdao_id: Mapped[int] = mapped_column(ForeignKey("ArmDAO.database_id"))
-
-    target: Mapped[ArmDAO] = relationship("ArmDAO", foreign_keys=[target_armdao_id])
-
-
-class StretchTorsoDAO_arms_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_77753599939522855655183935836944784265988161530096919824847127"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_stretchtorsodao_id: Mapped[int] = mapped_column(
-        ForeignKey("StretchTorsoDAO.database_id")
-    )
-    target_armdao_id: Mapped[int] = mapped_column(ForeignKey("ArmDAO.database_id"))
-
-    target: Mapped[ArmDAO] = relationship("ArmDAO", foreign_keys=[target_armdao_id])
-
-
-class TiagoMujocoTorsoDAO_arms_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_13462138309854268382103182853278840877893118144283387498923144"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_tiagomujocotorsodao_id: Mapped[int] = mapped_column(
-        ForeignKey("TiagoMujocoTorsoDAO.database_id")
-    )
-    target_armdao_id: Mapped[int] = mapped_column(ForeignKey("ArmDAO.database_id"))
-
-    target: Mapped[ArmDAO] = relationship("ArmDAO", foreign_keys=[target_armdao_id])
-
-
-class TiagoTorsoDAO_arms_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_36602511029413669930015264243702159317158685236273968721911141"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_tiagotorsodao_id: Mapped[int] = mapped_column(
-        ForeignKey("TiagoTorsoDAO.database_id")
-    )
-    target_armdao_id: Mapped[int] = mapped_column(ForeignKey("ArmDAO.database_id"))
-
-    target: Mapped[ArmDAO] = relationship("ArmDAO", foreign_keys=[target_armdao_id])
-
-
-class UnitreeG1TorsoDAO_arms_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_95873692005819052712052730795272799515176526805082304891849661"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_unitreeg1torsodao_id: Mapped[int] = mapped_column(
-        ForeignKey("UnitreeG1TorsoDAO.database_id")
-    )
-    target_armdao_id: Mapped[int] = mapped_column(ForeignKey("ArmDAO.database_id"))
-
-    target: Mapped[ArmDAO] = relationship("ArmDAO", foreign_keys=[target_armdao_id])
-
-
 class MinimalRobotDAO_bodies_of_branch_association(Base, AssociationDataAccessObject):
 
     __tablename__ = "_93313390411884787792845487212249312599933457989172665658987594"
@@ -1136,47 +811,6 @@ class MinimalRobotDAO_bodies_of_branch_association(Base, AssociationDataAccessOb
         "KinematicStructureEntityDAO",
         foreign_keys=[target_kinematicstructureentitydao_id],
     )
-
-
-class TracyDAO_sensors_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_53455785527190888444914272868730157618197722139938256344000707"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_tracydao_id: Mapped[int] = mapped_column(ForeignKey("TracyDAO.database_id"))
-    target_sensordao_id: Mapped[int] = mapped_column(
-        ForeignKey("SensorDAO.database_id")
-    )
-
-    target: Mapped[SensorDAO] = relationship(
-        "SensorDAO", foreign_keys=[target_sensordao_id]
-    )
-
-
-class TracyDAO_cameras_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_86196221949623094197018454205926974414266820777350280514579126"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_tracydao_id: Mapped[int] = mapped_column(ForeignKey("TracyDAO.database_id"))
-    target_cameradao_id: Mapped[int] = mapped_column(
-        ForeignKey("CameraDAO.database_id")
-    )
-
-    target: Mapped[CameraDAO] = relationship(
-        "CameraDAO", foreign_keys=[target_cameradao_id]
-    )
-
-
-class TracyDAO_arms_association(Base, AssociationDataAccessObject):
-
-    __tablename__ = "_45474736740902555163487771756097111507910689146576589055575542"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    source_tracydao_id: Mapped[int] = mapped_column(ForeignKey("TracyDAO.database_id"))
-    target_armdao_id: Mapped[int] = mapped_column(ForeignKey("ArmDAO.database_id"))
-
-    target: Mapped[ArmDAO] = relationship("ArmDAO", foreign_keys=[target_armdao_id])
 
 
 class HasAperturesDAO_apertures_association(Base, AssociationDataAccessObject):
@@ -2598,13 +2232,6 @@ class HasArmsDAO(
         String(255), nullable=False, use_existing_column=True
     )
 
-    arms: Mapped[builtins.list[HasArmsDAO_arms_association]] = relationship(
-        "HasArmsDAO_arms_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[HasArmsDAO_arms_association.source_hasarmsdao_id]",
-    )
-
     __mapper_args__ = {
         "polymorphic_on": "polymorphic_type",
         "polymorphic_identity": "HasArmsDAO",
@@ -2626,19 +2253,6 @@ class HasEndEffectorDAO(
         String(255), nullable=False, use_existing_column=True
     )
 
-    end_effector_id: Mapped[int] = mapped_column(
-        ForeignKey("EndEffectorDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    end_effector: Mapped[EndEffectorDAO] = relationship(
-        "EndEffectorDAO",
-        uselist=False,
-        foreign_keys=[end_effector_id],
-        post_update=True,
-    )
-
     __mapper_args__ = {
         "polymorphic_on": "polymorphic_type",
         "polymorphic_identity": "HasEndEffectorDAO",
@@ -2657,22 +2271,6 @@ class HasFingersDAO(
 
     polymorphic_type: Mapped[str] = mapped_column(
         String(255), nullable=False, use_existing_column=True
-    )
-
-    thumb_id: Mapped[int] = mapped_column(
-        ForeignKey("FingerDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    fingers: Mapped[builtins.list[HasFingersDAO_fingers_association]] = relationship(
-        "HasFingersDAO_fingers_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[HasFingersDAO_fingers_association.source_hasfingersdao_id]",
-    )
-    thumb: Mapped[FingerDAO] = relationship(
-        "FingerDAO", uselist=False, foreign_keys=[thumb_id], post_update=True
     )
 
     __mapper_args__ = {
@@ -2731,16 +2329,6 @@ class HasMobileBaseDAO(
         String(255), nullable=False, use_existing_column=True
     )
 
-    mobile_base_id: Mapped[int] = mapped_column(
-        ForeignKey("MobileBaseDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    mobile_base: Mapped[MobileBaseDAO] = relationship(
-        "MobileBaseDAO", uselist=False, foreign_keys=[mobile_base_id], post_update=True
-    )
-
     __mapper_args__ = {
         "polymorphic_on": "polymorphic_type",
         "polymorphic_identity": "HasMobileBaseDAO",
@@ -2759,16 +2347,6 @@ class HasNeckDAO(
 
     polymorphic_type: Mapped[str] = mapped_column(
         String(255), nullable=False, use_existing_column=True
-    )
-
-    neck_id: Mapped[int] = mapped_column(
-        ForeignKey("NeckDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    neck: Mapped[NeckDAO] = relationship(
-        "NeckDAO", uselist=False, foreign_keys=[neck_id], post_update=True
     )
 
     __mapper_args__ = {
@@ -2847,13 +2425,6 @@ class HasSensorsDAO(
         String(255), nullable=False, use_existing_column=True
     )
 
-    sensors: Mapped[builtins.list[HasSensorsDAO_sensors_association]] = relationship(
-        "HasSensorsDAO_sensors_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[HasSensorsDAO_sensors_association.source_hassensorsdao_id]",
-    )
-
     __mapper_args__ = {
         "polymorphic_on": "polymorphic_type",
         "polymorphic_identity": "HasSensorsDAO",
@@ -2871,13 +2442,6 @@ class HasCamerasDAO(
         ForeignKey(HasSensorsDAO.database_id),
         primary_key=True,
         use_existing_column=True,
-    )
-
-    cameras: Mapped[builtins.list[HasCamerasDAO_cameras_association]] = relationship(
-        "HasCamerasDAO_cameras_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[HasCamerasDAO_cameras_association.source_hascamerasdao_id]",
     )
 
     __mapper_args__ = {
@@ -2929,16 +2493,6 @@ class HasTorsoDAO(
 
     polymorphic_type: Mapped[str] = mapped_column(
         String(255), nullable=False, use_existing_column=True
-    )
-
-    torso_id: Mapped[int] = mapped_column(
-        ForeignKey("TorsoDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    torso: Mapped[TorsoDAO] = relationship(
-        "TorsoDAO", uselist=False, foreign_keys=[torso_id], post_update=True
     )
 
     __mapper_args__ = {
@@ -3444,6 +2998,41 @@ class MismatchingIDsInWorldModificationDAO(
     )
     actual_uuids: Mapped[typing.List[uuid.UUID]] = mapped_column(
         JSON, nullable=False, use_existing_column=True
+    )
+
+
+class MockedNodeClassDAO(
+    Base, DataAccessObject[semantic_digital_twin.utils.MockedNodeClass]
+):
+
+    __tablename__ = "MockedNodeClassDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+
+class MockedNodeModuleDAO(
+    Base, DataAccessObject[semantic_digital_twin.utils.MockedNodeModule]
+):
+
+    __tablename__ = "MockedNodeModuleDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    Node: Mapped[TypeType] = mapped_column(
+        TypeType, nullable=False, use_existing_column=True
+    )
+
+
+class MockedRCLPYDAO(Base, DataAccessObject[semantic_digital_twin.utils.MockedRCLPY]):
+
+    __tablename__ = "MockedRCLPYDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
     )
 
 
@@ -7419,22 +7008,6 @@ class HumanoidHandDAO(
         use_existing_column=True,
     )
 
-    thumb_id: Mapped[int] = mapped_column(
-        ForeignKey("FingerDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    fingers: Mapped[builtins.list[HumanoidHandDAO_fingers_association]] = relationship(
-        "HumanoidHandDAO_fingers_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[HumanoidHandDAO_fingers_association.source_humanoidhanddao_id]",
-    )
-    thumb: Mapped[FingerDAO] = relationship(
-        "FingerDAO", uselist=False, foreign_keys=[thumb_id], post_update=True
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "HumanoidHandDAO",
         "inherit_condition": database_id == EndEffectorDAO.database_id,
@@ -7565,24 +7138,6 @@ class ParallelGripperDAO(
         ForeignKey(EndEffectorDAO.database_id),
         primary_key=True,
         use_existing_column=True,
-    )
-
-    thumb_id: Mapped[int] = mapped_column(
-        ForeignKey("FingerDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    fingers: Mapped[builtins.list[ParallelGripperDAO_fingers_association]] = (
-        relationship(
-            "ParallelGripperDAO_fingers_association",
-            collection_class=builtins.list,
-            cascade="all, delete-orphan",
-            foreign_keys="[ParallelGripperDAO_fingers_association.source_parallelgripperdao_id]",
-        )
-    )
-    thumb: Mapped[FingerDAO] = relationship(
-        "FingerDAO", uselist=False, foreign_keys=[thumb_id], post_update=True
     )
 
     __mapper_args__ = {
@@ -7740,41 +7295,57 @@ class MMPDresdenGripperDAO(
     }
 
 
+class PR2GripperDAO(
+    ParallelGripperDAO, DataAccessObject[semantic_digital_twin.robots.pr2.PR2Gripper]
+):
+
+    __tablename__ = "PR2GripperDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ParallelGripperDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "PR2GripperDAO",
+        "inherit_condition": database_id == ParallelGripperDAO.database_id,
+    }
+
+
 class PR2LeftGripperDAO(
-    ParallelGripperDAO,
-    DataAccessObject[semantic_digital_twin.robots.pr2.PR2LeftGripper],
+    PR2GripperDAO, DataAccessObject[semantic_digital_twin.robots.pr2.PR2LeftGripper]
 ):
 
     __tablename__ = "PR2LeftGripperDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ParallelGripperDAO.database_id),
+        ForeignKey(PR2GripperDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
     __mapper_args__ = {
         "polymorphic_identity": "PR2LeftGripperDAO",
-        "inherit_condition": database_id == ParallelGripperDAO.database_id,
+        "inherit_condition": database_id == PR2GripperDAO.database_id,
     }
 
 
 class PR2RightGripperDAO(
-    ParallelGripperDAO,
-    DataAccessObject[semantic_digital_twin.robots.pr2.PR2RightGripper],
+    PR2GripperDAO, DataAccessObject[semantic_digital_twin.robots.pr2.PR2RightGripper]
 ):
 
     __tablename__ = "PR2RightGripperDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ParallelGripperDAO.database_id),
+        ForeignKey(PR2GripperDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
     __mapper_args__ = {
         "polymorphic_identity": "PR2RightGripperDAO",
-        "inherit_condition": database_id == ParallelGripperDAO.database_id,
+        "inherit_condition": database_id == PR2GripperDAO.database_id,
     }
 
 
@@ -8007,19 +7578,6 @@ class ArmDAO(
         use_existing_column=True,
     )
 
-    end_effector_id: Mapped[int] = mapped_column(
-        ForeignKey("EndEffectorDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    end_effector: Mapped[EndEffectorDAO] = relationship(
-        "EndEffectorDAO",
-        uselist=False,
-        foreign_keys=[end_effector_id],
-        post_update=True,
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "ArmDAO",
         "inherit_condition": database_id == KinematicChainDAO.database_id,
@@ -8064,19 +7622,6 @@ class HSRBArmDAO(ArmDAO, DataAccessObject[semantic_digital_twin.robots.hsrb.HSRB
 
     database_id: Mapped[builtins.int] = mapped_column(
         ForeignKey(ArmDAO.database_id), primary_key=True, use_existing_column=True
-    )
-
-    sensors: Mapped[builtins.list[HSRBArmDAO_sensors_association]] = relationship(
-        "HSRBArmDAO_sensors_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[HSRBArmDAO_sensors_association.source_hsrbarmdao_id]",
-    )
-    cameras: Mapped[builtins.list[HSRBArmDAO_cameras_association]] = relationship(
-        "HSRBArmDAO_cameras_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[HSRBArmDAO_cameras_association.source_hsrbarmdao_id]",
     )
 
     __mapper_args__ = {
@@ -9594,19 +9139,6 @@ class NeckDAO(
         use_existing_column=True,
     )
 
-    sensors: Mapped[builtins.list[NeckDAO_sensors_association]] = relationship(
-        "NeckDAO_sensors_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[NeckDAO_sensors_association.source_neckdao_id]",
-    )
-    cameras: Mapped[builtins.list[NeckDAO_cameras_association]] = relationship(
-        "NeckDAO_cameras_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[NeckDAO_cameras_association.source_neckdao_id]",
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "NeckDAO",
         "inherit_condition": database_id == KinematicChainDAO.database_id,
@@ -9783,22 +9315,6 @@ class Armar7TorsoDAO(
         ForeignKey(TorsoDAO.database_id), primary_key=True, use_existing_column=True
     )
 
-    neck_id: Mapped[int] = mapped_column(
-        ForeignKey("NeckDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    neck: Mapped[NeckDAO] = relationship(
-        "NeckDAO", uselist=False, foreign_keys=[neck_id], post_update=True
-    )
-    arms: Mapped[builtins.list[Armar7TorsoDAO_arms_association]] = relationship(
-        "Armar7TorsoDAO_arms_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[Armar7TorsoDAO_arms_association.source_armar7torsodao_id]",
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "Armar7TorsoDAO",
         "inherit_condition": database_id == TorsoDAO.database_id,
@@ -9813,22 +9329,6 @@ class HSRBTorsoDAO(
 
     database_id: Mapped[builtins.int] = mapped_column(
         ForeignKey(TorsoDAO.database_id), primary_key=True, use_existing_column=True
-    )
-
-    neck_id: Mapped[int] = mapped_column(
-        ForeignKey("NeckDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    neck: Mapped[NeckDAO] = relationship(
-        "NeckDAO", uselist=False, foreign_keys=[neck_id], post_update=True
-    )
-    arms: Mapped[builtins.list[HSRBTorsoDAO_arms_association]] = relationship(
-        "HSRBTorsoDAO_arms_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[HSRBTorsoDAO_arms_association.source_hsrbtorsodao_id]",
     )
 
     __mapper_args__ = {
@@ -9847,22 +9347,6 @@ class ICub3TorsoDAO(
         ForeignKey(TorsoDAO.database_id), primary_key=True, use_existing_column=True
     )
 
-    neck_id: Mapped[int] = mapped_column(
-        ForeignKey("NeckDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    neck: Mapped[NeckDAO] = relationship(
-        "NeckDAO", uselist=False, foreign_keys=[neck_id], post_update=True
-    )
-    arms: Mapped[builtins.list[ICub3TorsoDAO_arms_association]] = relationship(
-        "ICub3TorsoDAO_arms_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[ICub3TorsoDAO_arms_association.source_icub3torsodao_id]",
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "ICub3TorsoDAO",
         "inherit_condition": database_id == TorsoDAO.database_id,
@@ -9877,22 +9361,6 @@ class JustinTorsoDAO(
 
     database_id: Mapped[builtins.int] = mapped_column(
         ForeignKey(TorsoDAO.database_id), primary_key=True, use_existing_column=True
-    )
-
-    neck_id: Mapped[int] = mapped_column(
-        ForeignKey("NeckDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    neck: Mapped[NeckDAO] = relationship(
-        "NeckDAO", uselist=False, foreign_keys=[neck_id], post_update=True
-    )
-    arms: Mapped[builtins.list[JustinTorsoDAO_arms_association]] = relationship(
-        "JustinTorsoDAO_arms_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[JustinTorsoDAO_arms_association.source_justintorsodao_id]",
     )
 
     __mapper_args__ = {
@@ -9911,29 +9379,6 @@ class MMPDresdenTorsoDAO(
         ForeignKey(TorsoDAO.database_id), primary_key=True, use_existing_column=True
     )
 
-    sensors: Mapped[builtins.list[MMPDresdenTorsoDAO_sensors_association]] = (
-        relationship(
-            "MMPDresdenTorsoDAO_sensors_association",
-            collection_class=builtins.list,
-            cascade="all, delete-orphan",
-            foreign_keys="[MMPDresdenTorsoDAO_sensors_association.source_mmpdresdentorsodao_id]",
-        )
-    )
-    cameras: Mapped[builtins.list[MMPDresdenTorsoDAO_cameras_association]] = (
-        relationship(
-            "MMPDresdenTorsoDAO_cameras_association",
-            collection_class=builtins.list,
-            cascade="all, delete-orphan",
-            foreign_keys="[MMPDresdenTorsoDAO_cameras_association.source_mmpdresdentorsodao_id]",
-        )
-    )
-    arms: Mapped[builtins.list[MMPDresdenTorsoDAO_arms_association]] = relationship(
-        "MMPDresdenTorsoDAO_arms_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[MMPDresdenTorsoDAO_arms_association.source_mmpdresdentorsodao_id]",
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "MMPDresdenTorsoDAO",
         "inherit_condition": database_id == TorsoDAO.database_id,
@@ -9948,22 +9393,6 @@ class PR2TorsoDAO(
 
     database_id: Mapped[builtins.int] = mapped_column(
         ForeignKey(TorsoDAO.database_id), primary_key=True, use_existing_column=True
-    )
-
-    neck_id: Mapped[int] = mapped_column(
-        ForeignKey("NeckDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    neck: Mapped[NeckDAO] = relationship(
-        "NeckDAO", uselist=False, foreign_keys=[neck_id], post_update=True
-    )
-    arms: Mapped[builtins.list[PR2TorsoDAO_arms_association]] = relationship(
-        "PR2TorsoDAO_arms_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[PR2TorsoDAO_arms_association.source_pr2torsodao_id]",
     )
 
     __mapper_args__ = {
@@ -9982,22 +9411,6 @@ class StretchTorsoDAO(
         ForeignKey(TorsoDAO.database_id), primary_key=True, use_existing_column=True
     )
 
-    neck_id: Mapped[int] = mapped_column(
-        ForeignKey("NeckDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    arms: Mapped[builtins.list[StretchTorsoDAO_arms_association]] = relationship(
-        "StretchTorsoDAO_arms_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[StretchTorsoDAO_arms_association.source_stretchtorsodao_id]",
-    )
-    neck: Mapped[NeckDAO] = relationship(
-        "NeckDAO", uselist=False, foreign_keys=[neck_id], post_update=True
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "StretchTorsoDAO",
         "inherit_condition": database_id == TorsoDAO.database_id,
@@ -10012,22 +9425,6 @@ class TiagoMujocoTorsoDAO(
 
     database_id: Mapped[builtins.int] = mapped_column(
         ForeignKey(TorsoDAO.database_id), primary_key=True, use_existing_column=True
-    )
-
-    neck_id: Mapped[int] = mapped_column(
-        ForeignKey("NeckDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    neck: Mapped[NeckDAO] = relationship(
-        "NeckDAO", uselist=False, foreign_keys=[neck_id], post_update=True
-    )
-    arms: Mapped[builtins.list[TiagoMujocoTorsoDAO_arms_association]] = relationship(
-        "TiagoMujocoTorsoDAO_arms_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[TiagoMujocoTorsoDAO_arms_association.source_tiagomujocotorsodao_id]",
     )
 
     __mapper_args__ = {
@@ -10046,22 +9443,6 @@ class TiagoTorsoDAO(
         ForeignKey(TorsoDAO.database_id), primary_key=True, use_existing_column=True
     )
 
-    neck_id: Mapped[int] = mapped_column(
-        ForeignKey("NeckDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    neck: Mapped[NeckDAO] = relationship(
-        "NeckDAO", uselist=False, foreign_keys=[neck_id], post_update=True
-    )
-    arms: Mapped[builtins.list[TiagoTorsoDAO_arms_association]] = relationship(
-        "TiagoTorsoDAO_arms_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[TiagoTorsoDAO_arms_association.source_tiagotorsodao_id]",
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "TiagoTorsoDAO",
         "inherit_condition": database_id == TorsoDAO.database_id,
@@ -10076,22 +9457,6 @@ class UnitreeG1TorsoDAO(
 
     database_id: Mapped[builtins.int] = mapped_column(
         ForeignKey(TorsoDAO.database_id), primary_key=True, use_existing_column=True
-    )
-
-    neck_id: Mapped[int] = mapped_column(
-        ForeignKey("NeckDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    neck: Mapped[NeckDAO] = relationship(
-        "NeckDAO", uselist=False, foreign_keys=[neck_id], post_update=True
-    )
-    arms: Mapped[builtins.list[UnitreeG1TorsoDAO_arms_association]] = relationship(
-        "UnitreeG1TorsoDAO_arms_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[UnitreeG1TorsoDAO_arms_association.source_unitreeg1torsodao_id]",
     )
 
     __mapper_args__ = {
@@ -10149,16 +9514,6 @@ class Armar7MobileBaseDAO(
         use_existing_column=True,
     )
 
-    torso_id: Mapped[int] = mapped_column(
-        ForeignKey("TorsoDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    torso: Mapped[TorsoDAO] = relationship(
-        "TorsoDAO", uselist=False, foreign_keys=[torso_id], post_update=True
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "Armar7MobileBaseDAO",
         "inherit_condition": database_id == MobileBaseDAO.database_id,
@@ -10175,16 +9530,6 @@ class HSRBMobileBaseDAO(
         ForeignKey(MobileBaseDAO.database_id),
         primary_key=True,
         use_existing_column=True,
-    )
-
-    torso_id: Mapped[int] = mapped_column(
-        ForeignKey("TorsoDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    torso: Mapped[TorsoDAO] = relationship(
-        "TorsoDAO", uselist=False, foreign_keys=[torso_id], post_update=True
     )
 
     __mapper_args__ = {
@@ -10224,16 +9569,6 @@ class JustinMobileBaseDAO(
         use_existing_column=True,
     )
 
-    torso_id: Mapped[int] = mapped_column(
-        ForeignKey("TorsoDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    torso: Mapped[TorsoDAO] = relationship(
-        "TorsoDAO", uselist=False, foreign_keys=[torso_id], post_update=True
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "JustinMobileBaseDAO",
         "inherit_condition": database_id == MobileBaseDAO.database_id,
@@ -10253,16 +9588,6 @@ class MMPDresdenMobileBaseDAO(
         use_existing_column=True,
     )
 
-    torso_id: Mapped[int] = mapped_column(
-        ForeignKey("TorsoDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    torso: Mapped[TorsoDAO] = relationship(
-        "TorsoDAO", uselist=False, foreign_keys=[torso_id], post_update=True
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "MMPDresdenMobileBaseDAO",
         "inherit_condition": database_id == MobileBaseDAO.database_id,
@@ -10279,16 +9604,6 @@ class PR2MobileBaseDAO(
         ForeignKey(MobileBaseDAO.database_id),
         primary_key=True,
         use_existing_column=True,
-    )
-
-    torso_id: Mapped[int] = mapped_column(
-        ForeignKey("TorsoDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    torso: Mapped[TorsoDAO] = relationship(
-        "TorsoDAO", uselist=False, foreign_keys=[torso_id], post_update=True
     )
 
     __mapper_args__ = {
@@ -10310,16 +9625,6 @@ class StretchMobileBaseDAO(
         use_existing_column=True,
     )
 
-    torso_id: Mapped[int] = mapped_column(
-        ForeignKey("TorsoDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    torso: Mapped[TorsoDAO] = relationship(
-        "TorsoDAO", uselist=False, foreign_keys=[torso_id], post_update=True
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "StretchMobileBaseDAO",
         "inherit_condition": database_id == MobileBaseDAO.database_id,
@@ -10336,16 +9641,6 @@ class TiagoMobileBaseDAO(
         ForeignKey(MobileBaseDAO.database_id),
         primary_key=True,
         use_existing_column=True,
-    )
-
-    torso_id: Mapped[int] = mapped_column(
-        ForeignKey("TorsoDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    torso: Mapped[TorsoDAO] = relationship(
-        "TorsoDAO", uselist=False, foreign_keys=[torso_id], post_update=True
     )
 
     __mapper_args__ = {
@@ -10365,16 +9660,6 @@ class TiagoMujocoMobileBaseDAO(
         ForeignKey(MobileBaseDAO.database_id),
         primary_key=True,
         use_existing_column=True,
-    )
-
-    torso_id: Mapped[int] = mapped_column(
-        ForeignKey("TorsoDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    torso: Mapped[TorsoDAO] = relationship(
-        "TorsoDAO", uselist=False, foreign_keys=[torso_id], post_update=True
     )
 
     __mapper_args__ = {
@@ -10789,16 +10074,6 @@ class Armar7DAO(
         use_existing_column=True,
     )
 
-    mobile_base_id: Mapped[int] = mapped_column(
-        ForeignKey("MobileBaseDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    mobile_base: Mapped[MobileBaseDAO] = relationship(
-        "MobileBaseDAO", uselist=False, foreign_keys=[mobile_base_id], post_update=True
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "Armar7DAO",
         "inherit_condition": database_id == AbstractRobotDAO.database_id,
@@ -10815,16 +10090,6 @@ class HSRBDAO(
         ForeignKey(AbstractRobotDAO.database_id),
         primary_key=True,
         use_existing_column=True,
-    )
-
-    mobile_base_id: Mapped[int] = mapped_column(
-        ForeignKey("MobileBaseDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    mobile_base: Mapped[MobileBaseDAO] = relationship(
-        "MobileBaseDAO", uselist=False, foreign_keys=[mobile_base_id], post_update=True
     )
 
     __mapper_args__ = {
@@ -10845,24 +10110,6 @@ class ICub3DAO(
         use_existing_column=True,
     )
 
-    mobile_base_id: Mapped[int] = mapped_column(
-        ForeignKey("MobileBaseDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-    torso_id: Mapped[int] = mapped_column(
-        ForeignKey("TorsoDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    mobile_base: Mapped[MobileBaseDAO] = relationship(
-        "MobileBaseDAO", uselist=False, foreign_keys=[mobile_base_id], post_update=True
-    )
-    torso: Mapped[TorsoDAO] = relationship(
-        "TorsoDAO", uselist=False, foreign_keys=[torso_id], post_update=True
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "ICub3DAO",
         "inherit_condition": database_id == AbstractRobotDAO.database_id,
@@ -10879,16 +10126,6 @@ class JustinDAO(
         ForeignKey(AbstractRobotDAO.database_id),
         primary_key=True,
         use_existing_column=True,
-    )
-
-    mobile_base_id: Mapped[int] = mapped_column(
-        ForeignKey("MobileBaseDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    mobile_base: Mapped[MobileBaseDAO] = relationship(
-        "MobileBaseDAO", uselist=False, foreign_keys=[mobile_base_id], post_update=True
     )
 
     __mapper_args__ = {
@@ -10908,16 +10145,6 @@ class MMPDresdenDAO(
         ForeignKey(AbstractRobotDAO.database_id),
         primary_key=True,
         use_existing_column=True,
-    )
-
-    mobile_base_id: Mapped[int] = mapped_column(
-        ForeignKey("MobileBaseDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    mobile_base: Mapped[MobileBaseDAO] = relationship(
-        "MobileBaseDAO", uselist=False, foreign_keys=[mobile_base_id], post_update=True
     )
 
     __mapper_args__ = {
@@ -10964,16 +10191,6 @@ class PR2DAO(AbstractRobotDAO, DataAccessObject[semantic_digital_twin.robots.pr2
         use_existing_column=True,
     )
 
-    mobile_base_id: Mapped[int] = mapped_column(
-        ForeignKey("MobileBaseDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    mobile_base: Mapped[MobileBaseDAO] = relationship(
-        "MobileBaseDAO", uselist=False, foreign_keys=[mobile_base_id], post_update=True
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "PR2DAO",
         "inherit_condition": database_id == AbstractRobotDAO.database_id,
@@ -10990,16 +10207,6 @@ class StretchDAO(
         ForeignKey(AbstractRobotDAO.database_id),
         primary_key=True,
         use_existing_column=True,
-    )
-
-    mobile_base_id: Mapped[int] = mapped_column(
-        ForeignKey("MobileBaseDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    mobile_base: Mapped[MobileBaseDAO] = relationship(
-        "MobileBaseDAO", uselist=False, foreign_keys=[mobile_base_id], post_update=True
     )
 
     __mapper_args__ = {
@@ -11020,16 +10227,6 @@ class TiagoDAO(
         use_existing_column=True,
     )
 
-    mobile_base_id: Mapped[int] = mapped_column(
-        ForeignKey("MobileBaseDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    mobile_base: Mapped[MobileBaseDAO] = relationship(
-        "MobileBaseDAO", uselist=False, foreign_keys=[mobile_base_id], post_update=True
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "TiagoDAO",
         "inherit_condition": database_id == AbstractRobotDAO.database_id,
@@ -11046,16 +10243,6 @@ class TiagoMujocoDAO(
         ForeignKey(AbstractRobotDAO.database_id),
         primary_key=True,
         use_existing_column=True,
-    )
-
-    mobile_base_id: Mapped[int] = mapped_column(
-        ForeignKey("MobileBaseDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    mobile_base: Mapped[MobileBaseDAO] = relationship(
-        "MobileBaseDAO", uselist=False, foreign_keys=[mobile_base_id], post_update=True
     )
 
     __mapper_args__ = {
@@ -11076,25 +10263,6 @@ class TracyDAO(
         use_existing_column=True,
     )
 
-    sensors: Mapped[builtins.list[TracyDAO_sensors_association]] = relationship(
-        "TracyDAO_sensors_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[TracyDAO_sensors_association.source_tracydao_id]",
-    )
-    cameras: Mapped[builtins.list[TracyDAO_cameras_association]] = relationship(
-        "TracyDAO_cameras_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[TracyDAO_cameras_association.source_tracydao_id]",
-    )
-    arms: Mapped[builtins.list[TracyDAO_arms_association]] = relationship(
-        "TracyDAO_arms_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[TracyDAO_arms_association.source_tracydao_id]",
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "TracyDAO",
         "inherit_condition": database_id == AbstractRobotDAO.database_id,
@@ -11112,24 +10280,6 @@ class UnitreeG1DAO(
         ForeignKey(AbstractRobotDAO.database_id),
         primary_key=True,
         use_existing_column=True,
-    )
-
-    torso_id: Mapped[int] = mapped_column(
-        ForeignKey("TorsoDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-    mobile_base_id: Mapped[int] = mapped_column(
-        ForeignKey("MobileBaseDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    torso: Mapped[TorsoDAO] = relationship(
-        "TorsoDAO", uselist=False, foreign_keys=[torso_id], post_update=True
-    )
-    mobile_base: Mapped[MobileBaseDAO] = relationship(
-        "MobileBaseDAO", uselist=False, foreign_keys=[mobile_base_id], post_update=True
     )
 
     __mapper_args__ = {

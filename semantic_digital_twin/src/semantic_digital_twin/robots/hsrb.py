@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
-from typing import Self
+from typing import Self, Union
 
 from semantic_digital_twin.collision_checking.collision_matrix import (
     MaxAvoidedCollisionsOverride,
@@ -24,12 +24,12 @@ from semantic_digital_twin.datastructures.definitions import (
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
-    HasCameras,
     HasNeck,
     HasOneArm,
-    HasParallelGripper,
     HasTorso,
     HasMobileBase,
+    HasTwoFingers,
+    HasSensors,
 )
 from semantic_digital_twin.robots.robot_parts import (
     AbstractRobot,
@@ -38,9 +38,9 @@ from semantic_digital_twin.robots.robot_parts import (
     FieldOfView,
     Finger,
     Neck,
-    ParallelGripper,
     Torso,
     MobileBase,
+    EndEffector,
 )
 from semantic_digital_twin.spatial_types import Quaternion, Vector3
 from semantic_digital_twin.world_description.world_entity import (
@@ -91,7 +91,7 @@ class HSRBRightFinger(HSRBFinger):
 
 
 @dataclass(eq=False)
-class HSRBGripper(ParallelGripper):
+class HSRBGripper(EndEffector, HasTwoFingers[HSRBLeftFinger, HSRBRightFinger]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -176,7 +176,7 @@ class HSRBHandCamera(Camera):
 
 
 @dataclass(eq=False)
-class HSRBArm(Arm, HasParallelGripper, HasCameras):
+class HSRBArm(Arm[HSRBGripper], HasSensors[HSRBHandCamera]):
 
     def setup_hardware_interfaces(self):
         controlled_joints = [
@@ -339,7 +339,16 @@ class HSRBHeadRGBDCamera(Camera):
 
 
 @dataclass(eq=False)
-class HSRBNeck(Neck, HasCameras):
+class HSRBNeck(
+    Neck[
+        Union[
+            HSRBHeadCenterCamera,
+            HSRBHeadLeftCamera,
+            HSRBHeadRightCamera,
+            HSRBHeadRGBDCamera,
+        ]
+    ],
+):
 
     def setup_hardware_interfaces(self):
         controlled_joints = ["head_pan_joint", "head_tilt_joint"]
@@ -386,7 +395,7 @@ class HSRBNeck(Neck, HasCameras):
 
 
 @dataclass(eq=False)
-class HSRBTorso(Torso, HasOneArm, HasNeck):
+class HSRBTorso(Torso, HasOneArm[HSRBArm], HasNeck[HSRBNeck]):
 
     def setup_arm_semantic_annotations(self):
         arm = HSRBArm.setup_default_configuration_in_world_below_robot_root(self.root)
@@ -440,7 +449,7 @@ class HSRBTorso(Torso, HasOneArm, HasNeck):
 
 
 @dataclass(eq=False)
-class HSRBMobileBase(MobileBase, HasTorso):
+class HSRBMobileBase(MobileBase, HasTorso[HSRBTorso]):
 
     def setup_hardware_interfaces(self):
         pass
@@ -469,7 +478,7 @@ class HSRBMobileBase(MobileBase, HasTorso):
 
 
 @dataclass(eq=False)
-class HSRB(AbstractRobot, HasMobileBase):
+class HSRB(AbstractRobot, HasMobileBase[HSRBMobileBase]):
 
     @classmethod
     def get_ros_file_path(cls) -> str:
@@ -549,4 +558,4 @@ class HSRB(AbstractRobot, HasMobileBase):
 
     @property
     def end_effector(self) -> HSRBGripper:
-        return self.mobile_base.torso.end_effector
+        return self.mobile_base.torso.arm.end_effector

@@ -4,7 +4,7 @@ from abc import ABC
 
 import numpy as np
 from dataclasses import dataclass
-from typing import Self
+from typing import Self, Union
 
 from semantic_digital_twin.datastructures.definitions import (
     GripperState,
@@ -13,12 +13,13 @@ from semantic_digital_twin.datastructures.definitions import (
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
-    HasCameras,
     HasLeftRightArm,
     HasNeck,
-    HasParallelGripper,
     HasTorso,
     HasMobileBase,
+    HasFingers,
+    HasSensors,
+    GenericFinger,
 )
 from semantic_digital_twin.robots.robot_parts import (
     AbstractRobot,
@@ -27,9 +28,9 @@ from semantic_digital_twin.robots.robot_parts import (
     FieldOfView,
     Finger,
     Neck,
-    ParallelGripper,
     Torso,
     MobileBase,
+    EndEffector,
 )
 from semantic_digital_twin.spatial_types import Quaternion, Vector3
 from semantic_digital_twin.world_description.world_entity import (
@@ -208,7 +209,7 @@ class ICub3RightLittleFinger(ICub3Finger):
 
 
 @dataclass(eq=False)
-class ICub3Gripper(ParallelGripper, ABC):
+class ICub3Gripper(EndEffector, HasFingers[GenericFinger], ABC):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -256,7 +257,17 @@ class ICub3Gripper(ParallelGripper, ABC):
 
 
 @dataclass(eq=False)
-class ICub3LeftHand(ICub3Gripper):
+class ICub3LeftHand(
+    ICub3Gripper[
+        Union[
+            ICub3LeftThumb,
+            ICub3LeftIndexFinger,
+            ICub3LeftMiddleFinger,
+            ICub3LeftRingFinger,
+            ICub3LeftLittleFinger,
+        ]
+    ]
+):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -303,7 +314,17 @@ class ICub3LeftHand(ICub3Gripper):
 
 
 @dataclass(eq=False)
-class ICub3RightHand(ICub3Gripper):
+class ICub3RightHand(
+    ICub3Gripper[
+        Union[
+            ICub3RightThumb,
+            ICub3RightIndexFinger,
+            ICub3RightMiddleFinger,
+            ICub3RightRingFinger,
+            ICub3RightLittleFinger,
+        ]
+    ]
+):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -350,7 +371,7 @@ class ICub3RightHand(ICub3Gripper):
 
 
 @dataclass(eq=False)
-class ICub3LeftArm(Arm, HasParallelGripper):
+class ICub3LeftArm(Arm[ICub3LeftHand]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -386,7 +407,7 @@ class ICub3LeftArm(Arm, HasParallelGripper):
 
 
 @dataclass(eq=False)
-class ICub3RightArm(Arm, HasParallelGripper):
+class ICub3RightArm(Arm[ICub3RightHand]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -448,7 +469,7 @@ class ICub3Camera(Camera):
 
 
 @dataclass(eq=False)
-class ICub3Neck(Neck, HasCameras):
+class ICub3Neck(Neck[ICub3Camera]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -476,7 +497,9 @@ class ICub3Neck(Neck, HasCameras):
 
 
 @dataclass(eq=False)
-class ICub3Torso(Torso, HasLeftRightArm, HasNeck):
+class ICub3Torso(
+    Torso, HasLeftRightArm[ICub3LeftArm, ICub3RightArm], HasNeck[ICub3Neck]
+):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -539,7 +562,7 @@ class ICub3MobileBase(MobileBase):
 
 
 @dataclass(eq=False)
-class ICub3(AbstractRobot, HasTorso, HasMobileBase):
+class ICub3(AbstractRobot, HasTorso[ICub3Torso], HasMobileBase[ICub3MobileBase]):
 
     @classmethod
     def get_ros_file_path(cls) -> str:

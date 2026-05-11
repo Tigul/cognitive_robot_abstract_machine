@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass
-from typing import Self
+from typing import Self, Union
 
 from semantic_digital_twin.datastructures.definitions import (
     GripperState,
@@ -12,12 +12,12 @@ from semantic_digital_twin.datastructures.definitions import (
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
-    HasCameras,
     HasLeftRightArm,
     HasNeck,
-    HasParallelGripper,
     HasTorso,
     HasMobileBase,
+    HasFingers,
+    GenericFinger,
 )
 from semantic_digital_twin.robots.robot_parts import (
     AbstractRobot,
@@ -26,9 +26,9 @@ from semantic_digital_twin.robots.robot_parts import (
     FieldOfView,
     Finger,
     Neck,
-    ParallelGripper,
     Torso,
     MobileBase,
+    EndEffector,
 )
 from semantic_digital_twin.spatial_types import Quaternion, Vector3
 from semantic_digital_twin.world_description.world_entity import (
@@ -175,7 +175,7 @@ class JustinRightRingFinger(JustinFinger):
 
 
 @dataclass(eq=False)
-class JustinGripper(ParallelGripper, ABC):
+class JustinGripper(EndEffector, HasFingers[GenericFinger], ABC):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -200,7 +200,16 @@ class JustinGripper(ParallelGripper, ABC):
 
 
 @dataclass(eq=False)
-class JustinLeftHand(JustinGripper):
+class JustinLeftHand(
+    JustinGripper[
+        Union[
+            JustinLeftThumb,
+            JustinLeftIndexFinger,
+            JustinLeftMiddleFinger,
+            JustinLeftRingFinger,
+        ]
+    ]
+):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -241,7 +250,16 @@ class JustinLeftHand(JustinGripper):
 
 
 @dataclass(eq=False)
-class JustinRightHand(JustinGripper):
+class JustinRightHand(
+    JustinGripper[
+        Union[
+            JustinRightThumb,
+            JustinRightRingFinger,
+            JustinRightIndexFinger,
+            JustinRightMiddleFinger,
+        ]
+    ]
+):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -282,7 +300,7 @@ class JustinRightHand(JustinGripper):
 
 
 @dataclass(eq=False)
-class JustinLeftArm(Arm, HasParallelGripper):
+class JustinLeftArm(Arm[JustinLeftHand]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -318,7 +336,7 @@ class JustinLeftArm(Arm, HasParallelGripper):
 
 
 @dataclass(eq=False)
-class JustinRightArm(Arm, HasParallelGripper):
+class JustinRightArm(Arm[JustinRightHand]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -380,7 +398,7 @@ class JustinCamera(Camera):
 
 
 @dataclass(eq=False)
-class JustinNeck(Neck, HasCameras):
+class JustinNeck(Neck[JustinCamera]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -409,7 +427,9 @@ class JustinNeck(Neck, HasCameras):
 
 
 @dataclass(eq=False)
-class JustinTorso(Torso, HasLeftRightArm, HasNeck):
+class JustinTorso(
+    Torso, HasLeftRightArm[JustinLeftArm, JustinRightArm], HasNeck[JustinNeck]
+):
 
     def setup_arm_semantic_annotations(self):
         left_arm = JustinLeftArm.setup_default_configuration_in_world_below_robot_root(
@@ -453,7 +473,7 @@ class JustinTorso(Torso, HasLeftRightArm, HasNeck):
 
 
 @dataclass(eq=False)
-class JustinMobileBase(MobileBase, HasTorso):
+class JustinMobileBase(MobileBase, HasTorso[JustinTorso]):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -482,7 +502,7 @@ class JustinMobileBase(MobileBase, HasTorso):
 
 
 @dataclass(eq=False)
-class Justin(AbstractRobot, HasMobileBase):
+class Justin(AbstractRobot, HasMobileBase[JustinMobileBase]):
 
     @classmethod
     def get_ros_file_path(cls) -> str:

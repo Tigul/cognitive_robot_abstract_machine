@@ -22,23 +22,24 @@ from semantic_digital_twin.datastructures.definitions import (
 )
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
-    HasCameras,
-    HasParallelGripper,
     HasNeck,
     HasLeftRightArm,
     HasTorso,
     HasMobileBase,
+    HasTwoFingers,
+    HasSensors,
+    HasEndEffector,
 )
 from semantic_digital_twin.robots.robot_parts import (
     MobileBase,
     Torso,
     Arm,
     Neck,
-    ParallelGripper,
     Finger,
     Camera,
     AbstractRobot,
     FieldOfView,
+    EndEffector,
 )
 from semantic_digital_twin.spatial_types import Quaternion, Vector3
 from semantic_digital_twin.world_description.connections import ActiveConnection
@@ -180,13 +181,9 @@ class PR2LeftGripperRightFinger(Finger):
 
 
 @dataclass(eq=False)
-class PR2Gripper(ParallelGripper, ABC):
-    def setup_hardware_interfaces(self):
-        self._setup_hardware_interfaces_for_active_connections()
-
-
-@dataclass(eq=False)
-class PR2RightGripper(PR2Gripper):
+class PR2RightGripper(
+    EndEffector, HasTwoFingers[PR2RightGripperLeftFinger, PR2RightGripperRightFinger]
+):
 
     def setup_joint_states(self):
         right_gripper_joints = self.active_connections
@@ -205,6 +202,9 @@ class PR2RightGripper(PR2Gripper):
 
         self.add_joint_state(right_gripper_close)
         self.add_joint_state(right_gripper_open)
+
+    def setup_hardware_interfaces(self):
+        self._setup_hardware_interfaces_for_active_connections()
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -233,7 +233,9 @@ class PR2RightGripper(PR2Gripper):
 
 
 @dataclass(eq=False)
-class PR2LeftGripper(PR2Gripper):
+class PR2LeftGripper(
+    EndEffector, HasTwoFingers[PR2LeftGripperLeftFinger, PR2LeftGripperRightFinger]
+):
 
     def setup_joint_states(self):
         left_gripper_joints = self.active_connections
@@ -251,6 +253,9 @@ class PR2LeftGripper(PR2Gripper):
 
         self.add_joint_state(left_gripper_close)
         self.add_joint_state(left_gripper_open)
+
+    def setup_hardware_interfaces(self):
+        self._setup_hardware_interfaces_for_active_connections()
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -279,7 +284,7 @@ class PR2LeftGripper(PR2Gripper):
 
 
 @dataclass(eq=False)
-class PR2Neck(Neck, HasCameras):
+class PR2Neck(Neck, HasSensors[PR2KinectV1]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -307,7 +312,7 @@ class PR2Neck(Neck, HasCameras):
 
 
 @dataclass(eq=False)
-class PR2LeftArm(Arm, HasParallelGripper):
+class PR2LeftArm(Arm, HasEndEffector[PR2LeftGripper]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -355,7 +360,7 @@ class PR2LeftArm(Arm, HasParallelGripper):
 
 
 @dataclass(eq=False)
-class PR2RightArm(Arm, HasParallelGripper):
+class PR2RightArm(Arm, HasEndEffector[PR2RightGripper]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -395,7 +400,7 @@ class PR2RightArm(Arm, HasParallelGripper):
 
 
 @dataclass(eq=False)
-class PR2Torso(Torso, HasLeftRightArm, HasNeck):
+class PR2Torso(Torso, HasLeftRightArm[PR2LeftArm, PR2RightArm], HasNeck[PR2Neck]):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -456,7 +461,7 @@ class PR2Torso(Torso, HasLeftRightArm, HasNeck):
 
 
 @dataclass(eq=False)
-class PR2MobileBase(MobileBase, HasTorso):
+class PR2MobileBase(MobileBase, HasTorso[PR2Torso]):
 
     def setup_hardware_interfaces(self):
         pass
@@ -485,7 +490,7 @@ class PR2MobileBase(MobileBase, HasTorso):
 
 
 @dataclass(eq=False)
-class PR2(AbstractRobot, HasMobileBase):
+class PR2(AbstractRobot, HasMobileBase[PR2MobileBase]):
 
     @classmethod
     def get_ros_file_path(cls) -> str:

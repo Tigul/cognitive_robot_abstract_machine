@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
-from typing import Self
+from typing import Self, Union
 
 from semantic_digital_twin.collision_checking.collision_rules import (
     SelfCollisionMatrixRule,
@@ -19,12 +19,13 @@ from semantic_digital_twin.datastructures.definitions import (
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import (
-    HasCameras,
-    HasHumanoidHand,
     HasLeftRightArm,
     HasNeck,
     HasTorso,
     HasMobileBase,
+    HasFingers,
+    GenericFinger,
+    HasSensors,
 )
 from semantic_digital_twin.robots.robot_parts import (
     AbstractRobot,
@@ -32,15 +33,12 @@ from semantic_digital_twin.robots.robot_parts import (
     Camera,
     FieldOfView,
     Finger,
-    HumanoidHand,
     Neck,
     Torso,
     MobileBase,
+    EndEffector,
 )
 from semantic_digital_twin.spatial_types import Quaternion, Vector3
-from semantic_digital_twin.world_description.connections import (
-    ActiveConnection1DOF,
-)
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
@@ -217,7 +215,7 @@ class Armar7RightIndexFinger(Armar7Finger):
 
 
 @dataclass(eq=False)
-class Armar7Hand(HumanoidHand):
+class Armar7Hand(EndEffector, HasFingers[GenericFinger], ABC):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -242,7 +240,17 @@ class Armar7Hand(HumanoidHand):
 
 
 @dataclass(eq=False)
-class Armar7LeftGripper(Armar7Hand):
+class Armar7LeftGripper(
+    Armar7Hand[
+        Union[
+            Armar7LeftThumb,
+            Armar7LeftRingFinger,
+            Armar7LeftPinkyFinger,
+            Armar7LeftMiddleFinger,
+            Armar7LeftIndexFinger,
+        ]
+    ]
+):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -288,7 +296,17 @@ class Armar7LeftGripper(Armar7Hand):
 
 
 @dataclass(eq=False)
-class Armar7RightGripper(Armar7Hand):
+class Armar7RightGripper(
+    Armar7Hand[
+        Union[
+            Armar7RightThumb,
+            Armar7RightRingFinger,
+            Armar7RightPinkyFinger,
+            Armar7RightMiddleFinger,
+            Armar7RightIndexFinger,
+        ]
+    ]
+):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -334,7 +352,7 @@ class Armar7RightGripper(Armar7Hand):
 
 
 @dataclass(eq=False)
-class Armar7LeftArm(Arm, HasHumanoidHand):
+class Armar7LeftArm(Arm[Armar7LeftGripper]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -371,7 +389,7 @@ class Armar7LeftArm(Arm, HasHumanoidHand):
 
 
 @dataclass(eq=False)
-class Armar7RightArm(Arm, HasHumanoidHand):
+class Armar7RightArm(Arm[Armar7RightGripper]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -434,7 +452,7 @@ class AzureKinectRGB(Camera):
 
 
 @dataclass(eq=False)
-class Armar7Neck(Neck, HasCameras):
+class Armar7Neck(Neck[AzureKinectRGB]):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -455,7 +473,7 @@ class Armar7Neck(Neck, HasCameras):
         return neck
 
     def setup_sensor_semantic_annotations(self):
-        self.add_camera(
+        self.add_sensor(
             AzureKinectRGB.setup_default_configuration_in_world_below_robot_root(
                 self.root
             )
@@ -463,7 +481,9 @@ class Armar7Neck(Neck, HasCameras):
 
 
 @dataclass(eq=False)
-class Armar7Torso(Torso, HasLeftRightArm, HasNeck):
+class Armar7Torso(
+    Torso, HasLeftRightArm[Armar7LeftArm, Armar7RightArm], HasNeck[Armar7Neck]
+):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -525,7 +545,7 @@ class Armar7Torso(Torso, HasLeftRightArm, HasNeck):
 
 
 @dataclass(eq=False)
-class Armar7MobileBase(MobileBase, HasTorso):
+class Armar7MobileBase(MobileBase, HasTorso[Armar7Torso]):
 
     def setup_hardware_interfaces(self):
         pass
@@ -555,7 +575,7 @@ class Armar7MobileBase(MobileBase, HasTorso):
 
 
 @dataclass(eq=False)
-class Armar7(AbstractRobot, HasMobileBase):
+class Armar7(AbstractRobot, HasMobileBase[Armar7MobileBase]):
 
     @classmethod
     def get_ros_file_path(cls) -> str:
