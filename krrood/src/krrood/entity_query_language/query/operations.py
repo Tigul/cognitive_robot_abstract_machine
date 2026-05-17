@@ -67,7 +67,7 @@ class Where(Filter, UnaryExpression):
     def condition(self) -> SymbolicExpression:
         return self._child_
 
-    def _evaluate__(self, sources: OperationResult) -> Iterator[OperationResult]:
+    def _evaluate__(self, sources: OperationResult, parent=None) -> Iterator[OperationResult]:
         yield from (
             result
             for result in self._child_._evaluate_(sources, parent=self)
@@ -103,6 +103,7 @@ class Having(Filter, BinaryExpression):
     def _evaluate__(
         self,
         sources: OperationResult,
+        parent=None,
     ) -> Iterable[OperationResult]:
         yield from (
             OperationResult(
@@ -152,7 +153,7 @@ class OrderedBy(BinaryExpression, DerivedExpression):
         """
         return self.right
 
-    def _evaluate__(self, sources: OperationResult) -> Iterator[OperationResult]:
+    def _evaluate__(self, sources: OperationResult, parent=None) -> Iterator[OperationResult]:
         results = list(self.left._evaluate_(sources, parent=self))
         yield from sorted(
             results,
@@ -202,7 +203,7 @@ class GroupedBy(MultiArityExpressionThatPerformsACartesianProduct):
     The variables to group the results by their values.
     """
 
-    def _evaluate__(self, sources: Optional[OperationResult] = None) -> Iterator[OperationResult]:
+    def _evaluate__(self, sources: Optional[OperationResult] = None, parent=None) -> Iterator[OperationResult]:
         """
         Generate results grouped by the specified variables in the grouped_by clause.
 

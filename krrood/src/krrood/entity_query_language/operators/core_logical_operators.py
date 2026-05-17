@@ -9,7 +9,7 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass
 
-from typing_extensions import Iterable, TYPE_CHECKING, Type
+from typing_extensions import Iterable, Optional, TYPE_CHECKING, Type
 
 from krrood.entity_query_language.core.base_expressions import (
     TruthValueOperator,
@@ -17,6 +17,7 @@ from krrood.entity_query_language.core.base_expressions import (
     Bindings,
     OperationResult,
     BinaryExpression,
+    SymbolicExpression,
 )
 
 if TYPE_CHECKING:
@@ -46,6 +47,7 @@ class Not(LogicalOperator, UnaryExpression):
     def _evaluate__(
         self,
         sources: OperationResult,
+        parent: Optional[SymbolicExpression] = None,
     ) -> Iterable[OperationResult]:
 
         for v in self._child_._evaluate_(sources, parent=self):
@@ -82,6 +84,7 @@ class AND(LogicalBinaryOperator):
     def _evaluate__(
         self,
         sources: OperationResult,
+        parent: Optional[SymbolicExpression] = None,
     ) -> Iterable[OperationResult]:
 
         for left_value in self.left._evaluate_(sources, parent=self):
@@ -103,6 +106,7 @@ class OR(LogicalBinaryOperator):
     def _evaluate__(
         self,
         sources: OperationResult,
+        parent: Optional[SymbolicExpression] = None,
     ) -> Iterable[OperationResult]:
         """
         Evaluate the left operand, if it is False, then evaluate the right operand.

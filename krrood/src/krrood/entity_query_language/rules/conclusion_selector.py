@@ -109,6 +109,7 @@ class Refinement(LogicalBinaryOperator, ConclusionSelector):
     def _evaluate__(
         self,
         sources: Optional[OperationResult] = None,
+        parent=None,
     ) -> Iterable[OperationResult]:
         """
         Evaluate the ExceptIf condition and yield the results.
@@ -177,8 +178,9 @@ class Alternative(OR, ConclusionSelector):
     def _evaluate__(
         self,
         sources: OperationResult,
+        parent=None,
     ) -> Iterable[OperationResult]:
-        for output in OR._evaluate__(self, sources):
+        for output in OR._evaluate__(self, sources, parent):
             if output.is_true:
                 self._conclusions_.update(
                     output.previous_operation_result.operand._conclusions_
@@ -217,8 +219,9 @@ class Next(EQLUnion, ConclusionSelector):
     def _evaluate__(
         self,
         sources: OperationResult,
+        parent=None,
     ) -> Iterable[OperationResult]:
-        for output in EQLUnion._evaluate__(self, sources):
+        for output in EQLUnion._evaluate__(self, sources, parent):
             if output.is_true:
                 self._conclusions_.update(
                     output.previous_operation_result.operand._conclusions_

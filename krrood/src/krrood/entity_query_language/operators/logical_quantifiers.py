@@ -11,9 +11,9 @@ import uuid
 from abc import ABC
 from dataclasses import dataclass
 from functools import cached_property
-from typing import List, Iterable
+from typing import List, Iterable, Optional
 
-from krrood.entity_query_language.core.base_expressions import Bindings, OperationResult
+from krrood.entity_query_language.core.base_expressions import Bindings, OperationResult, SymbolicExpression
 from krrood.entity_query_language.operators.core_logical_operators import (
     LogicalBinaryOperator,
 )
@@ -54,6 +54,7 @@ class ForAll(QuantifiedConditional):
     def _evaluate__(
         self,
         sources: OperationResult,
+        parent: Optional[SymbolicExpression] = None,
     ) -> Iterable[OperationResult]:
         solution_set = None
 
@@ -109,6 +110,7 @@ class Exists(QuantifiedConditional):
     def _evaluate__(
         self,
         sources: OperationResult,
+        parent: Optional[SymbolicExpression] = None,
     ) -> Iterable[OperationResult]:
         for val in self.condition._evaluate_(sources, parent=self):
             if val.is_true and self.variable._id_ in val:

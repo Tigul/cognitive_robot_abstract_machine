@@ -10,7 +10,10 @@ import itertools
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
-from typing_extensions import Iterable, Optional, Tuple, Iterator
+from typing_extensions import Iterable, Optional, Tuple, Iterator, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 
 from krrood.entity_query_language.core.base_expressions import (
     MultiArityExpression,
@@ -30,6 +33,7 @@ class Union(MultiArityExpression):
     def _evaluate__(
         self,
         sources: OperationResult,
+        parent: Optional[SymbolicExpression] = None,
     ) -> Iterable[OperationResult]:
         yield from (
             self.get_result_and_update_truth_value(child_result)

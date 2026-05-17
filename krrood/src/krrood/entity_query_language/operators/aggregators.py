@@ -29,6 +29,7 @@ from krrood.entity_query_language.core.base_expressions import (
     Bindings,
     OperationResult,
     Selectable,
+    SymbolicExpression,
 )
 from krrood.entity_query_language.exceptions import (
     NestedAggregationError,
@@ -90,6 +91,7 @@ class Aggregator(UnaryExpression, CanBehaveLikeAVariable[T], ABC):
     def _evaluate__(
         self,
         sources: OperationResult,
+        parent: Optional[SymbolicExpression] = None,
     ) -> Iterator[OperationResult]:
         yield from (
             OperationResult(

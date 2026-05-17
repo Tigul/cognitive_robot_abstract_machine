@@ -115,6 +115,7 @@ class Variable(CanHaveDomainSource[T]):
     def _evaluate__(
         self,
         sources: OperationResult,
+        parent=None,
     ) -> Iterable[OperationResult]:
         """
         Fetch values from the domain values and yield an OperationResult for each.
@@ -122,7 +123,7 @@ class Variable(CanHaveDomainSource[T]):
 
         for v in self._re_enterable_domain_generator_:
             bindings = sources.bindings | {self._id_: v}
-            yield self._build_operation_result_and_update_truth_value_(bindings, sources)
+            yield self._build_operation_result_and_update_truth_value_(bindings, sources, parent)
 
     def _replace_child_field_(
         self, old_child: SymbolicExpression, new_child: SymbolicExpression
@@ -230,11 +231,12 @@ class InstantiatedVariable(
     def _evaluate__(
         self,
         sources: OperationResult,
+        parent=None,
     ) -> Iterable[OperationResult]:
-        yield from self._instantiate_using_child_vars_and_yield_results_(sources)
+        yield from self._instantiate_using_child_vars_and_yield_results_(sources, parent)
 
     def _instantiate_using_child_vars_and_yield_results_(
-        self, sources: OperationResult
+        self, sources: OperationResult, parent=None
     ) -> Iterator[OperationResult]:
         """
         Create new instances of the variable type and using as keyword arguments the child variables values.
@@ -247,10 +249,10 @@ class InstantiatedVariable(
                 if id_ in self._child_var_id_name_map_
             }
             instance = self._type_(**kwargs)
-            
+
             bindings = {self._id_: instance} | child_result.bindings
             result = self._build_operation_result_and_update_truth_value_(
-                bindings, child_result
+                bindings, child_result, parent
             )
             result.previous_operation_result = child_result
             yield result
@@ -285,7 +287,7 @@ class ExternallySetVariable(CanHaveDomainSource[T]):
     ):
         raise ValueError(f"class {self.__class__} does not have children")
 
-    def _evaluate__(self, sources: OperationResult) -> Iterable[OperationResult]:
+    def _evaluate__(self, sources: OperationResult, parent=None) -> Iterable[OperationResult]:
         """
         As this variable is externally set, it does not produce any results on its own, it just yields from an empty
          list to indicate that it has no results. It's important to note that this function will only be called when

@@ -7,7 +7,10 @@ This module defines the Concatenation operator that merges values from multiple 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Tuple, Iterable
+from typing import Tuple, Iterable, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 
 from krrood.entity_query_language.core.base_expressions import (
     Bindings,
@@ -40,10 +43,10 @@ class Concatenation(Union, CanBehaveLikeAVariable[T]):
         super().__post_init__()
         self._var_ = self
 
-    def _evaluate__(self, sources: OperationResult) -> Iterable[OperationResult]:
+    def _evaluate__(self, sources: OperationResult, parent: Optional[SymbolicExpression] = None) -> Iterable[OperationResult]:
         yield from (
             result.update({self._id_: result.previous_operation_result.value})
-            for result in super()._evaluate__(sources)
+            for result in super()._evaluate__(sources, parent)
         )
 
     @property

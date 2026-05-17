@@ -396,6 +396,7 @@ class Query(
     def _evaluate__(
         self,
         sources: OperationResult,
+        parent=None,
     ) -> Iterable[OperationResult]:
         """
         Evaluate the query by constraining values, updating conclusions,

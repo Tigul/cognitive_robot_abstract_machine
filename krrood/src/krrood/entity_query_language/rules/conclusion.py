@@ -72,6 +72,7 @@ class Add(Conclusion):
     def _evaluate__(
         self,
         sources: OperationResult,
+        parent=None,
     ) -> Iterable[OperationResult]:
 
         v = next(self.value._evaluate_(sources, parent=self)).value

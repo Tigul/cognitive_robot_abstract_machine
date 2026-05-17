@@ -95,13 +95,6 @@ class SymbolicExpression(ABC):
     """
     Internal attribute used to track the parent symbolic expression of this expression.
     """
-    _eval_parent_: Optional[SymbolicExpression] = field(
-        default=None, init=False, repr=False
-    )
-    """
-    The current parent symbolic expression of this expression during evaluation. Since a node can have multiple parents,
-    this attribute is used to track the current parent that is being evaluated.
-    """
     _expression_: SymbolicExpression = field(init=False, repr=False)
     """
     Useful when this expression is a builder that wires multiple components together to create the final expression.
@@ -132,15 +125,16 @@ class SymbolicExpression(ABC):
         except StopIteration:
             raise NoExpressionFoundForGivenID(self, id_)
 
-    def _compute_is_false_(self, current_value: Any) -> bool:
+    def _compute_is_false_(self, current_value: Any, parent: Optional[SymbolicExpression] = None) -> bool:
         """
         Compute the truth value for this expression given the current binding value.
-        Only meaningful when the eval-time parent is a TruthValueOperator; returns False otherwise.
-        
+        Only meaningful when the parent is a TruthValueOperator; returns False otherwise.
+
         :param current_value: The current value of the binding.
+        :param parent: The expression that requested this evaluation.
         :return: True if the expression evaluates to False, False otherwise.
         """
-        if not isinstance(self._eval_parent_, TruthValueOperator):
+        if not isinstance(parent, TruthValueOperator):
             return False
         is_true = (
             len(current_value) > 0
@@ -259,25 +253,14 @@ class SymbolicExpression(ABC):
         parent: Optional[SymbolicExpression] = None,
     ):
         """
-        Wrapper for ``SymbolicExpression._evaluate__*`` methods that automatically
-        manages the ``_eval_parent_`` attribute during evaluation.
-
-        This wraps evaluation generator methods so that, for the duration
-        of the wrapped call, ``self._eval_parent_`` is set to the ``parent`` argument
-        passed to the evaluation method and then restored to its previous value
-        afterwards. This allows evaluation code to reliably inspect the current
-        parent expression without having to manage this state manually.
+        Wrapper for ``SymbolicExpression._evaluate__`` that manages evaluation context lifecycle
+        and forwards ``parent`` into the implementation.
 
         :param sources: The current OperationResult carrying bindings of variables, or None.
-        :return: An Iterator method whose body automatically sets and restores ``self._eval_parent_`` around the
-        underlying evaluation logic.
+        :param parent: The expression that is requesting this evaluation.
+        :return: An iterator of OperationResult instances.
         """
-        previous_parent = self._eval_parent_
-        self._eval_parent_ = parent
         evaluation_context = get_evaluation_context()
-        # Lazily create the evaluation context so that satisfaction tracking
-        # and inference recording work even when _evaluate_ is called directly
-        # (e.g. from tests or nested child evaluations).
         owns_an_evaluation_context = evaluation_context is None
         if owns_an_evaluation_context:
             evaluation_context = EvaluationContext(
@@ -294,18 +277,17 @@ class SymbolicExpression(ABC):
                 bindings = {}
                 sources = OperationResult({})  # empty sentinel for _evaluate__()
             if self._id_ in bindings:
-                result = OperationResult(bindings, self._compute_is_false_(bindings[self._id_]), self, previous_result)
+                result = OperationResult(bindings, self._compute_is_false_(bindings[self._id_], parent), self, previous_result)
                 evaluation_context.on_result_yielded(expression=self, result=result)
                 yield result
             else:
                 for result in map(
                     self._evaluate_conclusions_and_update_bindings_,
-                    self._evaluate__(sources),
+                    self._evaluate__(sources, parent),
                 ):
                     evaluation_context.on_result_yielded(expression=self, result=result)
                     yield result
         finally:
-            self._eval_parent_ = previous_parent
             evaluation_context.on_evaluate_exit(expression=self)
             if owns_an_evaluation_context:
                 set_evaluation_context(None)
@@ -339,12 +321,14 @@ class SymbolicExpression(ABC):
     def _evaluate__(
         self,
         sources: OperationResult,
+        parent: Optional[SymbolicExpression] = None,
     ) -> Iterator[OperationResult]:
         """
         Evaluate the symbolic expression and set the operands bindings in the result according to the evaluation logic
         of this expression.
 
         :param sources: The current OperationResult carrying bindings of variables.
+        :param parent: The expression that requested this evaluation.
         :return: An Iterator of OperationResult instances containing the bindings resulting from the evaluation of this
         expression.
         """
@@ -355,11 +339,7 @@ class SymbolicExpression(ABC):
         """
         :return: The parent symbolic expression of this expression.
         """
-        if self._eval_parent_ is not None:
-            return self._eval_parent_
-        elif self._parent__ is not None:
-            return self._parent__
-        return None
+        return self._parent__
 
     @_parent_.setter
     def _parent_(self, value: Optional[SymbolicExpression]):
@@ -780,16 +760,20 @@ class Selectable(SymbolicExpression, Generic[T], ABC):
             self._type_ = self._type__
 
     def _build_operation_result_and_update_truth_value_(
-        self, bindings: Bindings, child_result: Optional[OperationResult] = None
+        self,
+        bindings: Bindings,
+        child_result: Optional[OperationResult] = None,
+        parent: Optional[SymbolicExpression] = None,
     ) -> OperationResult:
         """
         Build an OperationResult instance with the correct truth value for this binding.
 
         :param bindings: The bindings of the result.
         :param child_result: The result of the child operation, if any.
+        :param parent: The expression that requested this evaluation.
         :return: The OperationResult instance with the computed truth value.
         """
-        is_false = self._compute_is_false_(bindings[self._id_])
+        is_false = self._compute_is_false_(bindings[self._id_], parent)
         return OperationResult(bindings, is_false, self, child_result)
 
     @cached_property
