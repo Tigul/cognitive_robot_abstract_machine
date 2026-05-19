@@ -543,10 +543,17 @@ class EQLTranslator:
 
     def evaluate(self) -> List[Any]:
         """
-        Evaluate the translated SQL query.
+    Evaluate the translated SQL query.
 
-        :return: Query results
+    For entity() queries, returns a list of DAO objects.
+    For set_of() queries with multiple variables, returns a list of dicts
+    mapping each EQL variable to its corresponding DAO object.
+
+    :return: Query results
         """
+        if isinstance(self.select_like, SetOf):
+            return self._evaluate_set_of()
+
         bound_query = self.session.scalars(self.sql_query)
 
         if isinstance(self.quantifier, The):
@@ -556,6 +563,41 @@ class EQLTranslator:
             return bound_query.all()
 
         raise UnsupportedQuantifierError(f"Unknown quantifier: {type(self.quantifier)}")
+
+    def _evaluate_set_of(self) -> List[Any]:
+        """
+        Evaluate a set_of() query.
+
+        For Attribute variables: returns a list of dicts mapping each EQL variable
+        to its corresponding column value.
+        For Entity variables: returns a list of dicts mapping each EQL variable
+        to its corresponding DAO object.
+
+        :return: List of dicts mapping each variable to its value
+        """
+        selected = self.select_like._selected_variables_
+        all_variables = all(
+            isinstance(v, Variable) and not isinstance(v, Attribute)
+            for v in selected
+        )
+
+        rows = self.session.execute(self.sql_query).all()
+
+        if all_variables:
+            # Entity variables — map each variable to its DAO object per row
+            return [
+                {var: dao for var, dao in zip(selected, row)}
+                for row in rows
+            ]
+
+        # Attribute variables — map each variable to its column value per row
+        return [
+            {var: value for var, value in zip(selected, row)}
+            for row in rows
+        ]
+
+
+
 
     def __iter__(self):
         """Iterate over evaluation results."""
@@ -1028,3 +1070,24 @@ def eql_to_sql(query: Query, session: Session) -> EQLTranslator:
     result = EQLTranslator(query, session)
     result.translate()
     return result
+
+def eql_to_cte(query: Query, session: Session, name: str) -> Any:
+    """
+    Translate an EQL query to a SQLAlchemy CTE.
+
+    .. code-block:: python
+
+        # Inner query becomes CTE:
+        inner = eql_to_cte(inner_query, session, "plan_actions")
+
+        # Outer query uses the CTE:
+        outer_translator = eql_to_sql(outer_query, session)
+        outer_translator.sql_query = outer_translator.sql_query.join(inner, ...)
+
+    :param query: The EQL query to translate into a CTE
+    :param session: The SQLAlchemy session
+    :param name: The name of the CTE
+    :return: A SQLAlchemy CTE object
+    """
+    translator = eql_to_sql(query, session)
+    return translator.sql_query.cte(name)
