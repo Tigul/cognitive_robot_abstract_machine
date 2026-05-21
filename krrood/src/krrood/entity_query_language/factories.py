@@ -8,10 +8,12 @@ import inspect
 import operator
 
 from typing_extensions import Union, Iterable, List
+from dataclasses import dataclass
 
 from krrood.entity_query_language.core.base_expressions import (
     SymbolicExpression,
     TruthValueOperator,
+    Selectable,
 )
 from krrood.entity_query_language.core.mapped_variable import (
     FlatVariable,
@@ -414,6 +416,74 @@ def next_rule(*conditions: ConditionType) -> SymbolicExpression:
     """
     return Next.create_and_update_rule_tree(*conditions)
 
+#%% Conditionals
+
+@dataclass(eq=False)
+class CaseWhen(Selectable):
+    """Represents a SQL CASE WHEN ... THEN ... ELSE ... END expression."""
+    condition: Any
+    then_value: Any
+    else_value: Any = None
+
+    def __post_init__(self):
+        # Inherit the type from the 'then' value if available for EQL validation
+        self._type_ = getattr(self.then_value, "_type_", None)
+        # Execute framework-level initialization (e.g., parent-child tree linking)
+        super().__post_init__()
+
+    @property
+    def _children_(self) -> List[SymbolicExpression]:
+        # Required for internal tree traversals within the EQL framework
+        children = [self.condition]
+        if isinstance(self.then_value, SymbolicExpression):
+            children.append(self.then_value)
+        if isinstance(self.else_value, SymbolicExpression):
+            children.append(self.else_value)
+        return children
+
+    @_children_.setter
+    def _children_(self, value: Any) -> None:
+        """
+        The base dataclass automatically attempts to assign a default value
+        to inherited fields during __init__. This setter catches that
+        assignment to prevent an AttributeError.
+        """
+        pass
+
+    def _name_(self) -> str:
+        """Return the symbolic name of this expression node."""
+        return "case_when"
+
+    def _evaluate__(self) -> Any:
+        """
+        Local Python evaluation for this node.
+        Since this node is designed to be translated into SQL via SQLAlchemy,
+        in-memory execution is not implemented.
+        """
+        raise NotImplementedError("Local evaluation for CaseWhen is not implemented.")
+
+    def _replace_child_field_(self, old: Any, new: Any) -> None:
+        """Replace a child expression node during EQL tree manipulation."""
+        if self.condition is old:
+            self.condition = new
+        if self.then_value is old:
+            self.then_value = new
+        if self.else_value is old:
+            self.else_value = new
+
+
+def case_when(
+        condition: ConditionType,
+        then_value: Any,
+        else_value: Optional[Any] = None
+) -> CaseWhen:
+    """
+    Create a conditional CASE WHEN construct for EQL-Queries.
+
+    Example:
+        min(case_when(A.polymorphic_type == 'PickUpActionDAO', A.database_id))
+    """
+    return CaseWhen(condition, then_value, else_value)
 
 # %% Aggregators
 
