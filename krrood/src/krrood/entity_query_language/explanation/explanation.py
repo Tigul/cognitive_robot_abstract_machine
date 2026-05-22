@@ -4,11 +4,8 @@ import weakref
 from dataclasses import dataclass, field
 from functools import cached_property
 from types import ModuleType
-from typing import Any, Callable, List, Optional, Type, Union
+from typing import Any, Callable, List, Optional, Type
 from uuid import UUID
-
-from ordered_set import OrderedSet
-from typing_extensions import TYPE_CHECKING
 
 # Import monitoring infrastructure from the isolated sub-module that has no
 # EQL dependencies, breaking the variable.py ↔ explanation.py import cycle.
@@ -17,16 +14,18 @@ from krrood.entity_query_language._monitoring import (
     monitored,
 )
 from krrood.entity_query_language._stack import CallStack, StackFrame
-
-from krrood.entity_query_language.predicate import HasType
+from krrood.entity_query_language.core.base_expressions import Selectable
+from krrood.entity_query_language.core.mapped_variable import MappedVariable, Attribute
 from krrood.entity_query_language.factories import (
     entity, contains, node_id, node_type, is_class, issubclass_,
-    node_descendants, flat_variable, variable_from,
+    node_descendants, flat_variable, variable_from, node_children, exists, attribute_owner_class,
 )
 from krrood.entity_query_language.operators.comparator import Comparator
 from krrood.entity_query_language.operators.core_logical_operators import LogicalOperator
-from krrood.entity_query_language.core.base_expressions import Selectable
+from krrood.entity_query_language.predicate import HasType
 from krrood.symbol_graph.symbol_graph import Symbol
+from ordered_set import OrderedSet
+from typing_extensions import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from krrood.entity_query_language.core.base_expressions import (
@@ -132,7 +131,7 @@ class InferenceExplanation(Symbol):
         satisfied_conditions = []
         for condition_id in self.operation_result.satisfied_condition_ids:
             condition_expr = self.query_root._get_expression_by_id_(condition_id)
-            if isinstance(condition_expr, (LogicalOperator, )):
+            if isinstance(condition_expr, (LogicalOperator,)):
                 continue
             if condition_expr is not None:
                 satisfied_conditions.append(ConditionAndBindings(condition_expr, self.operation_result.all_bindings))
@@ -252,9 +251,11 @@ class InferenceExplanation(Symbol):
         explanation = self.explanation_variable
         node = self.get_variable_nodes_of_given_type(type_)
         operation_result = explanation.operation_result
-        return entity(operation_result.all_bindings[node_id(node)]).where(contains(operation_result.all_bindings, node_id(node))).distinct()
+        return entity(operation_result.all_bindings[node_id_:=node_id(node)]).where(
+            contains(operation_result.all_bindings, node_id_)).distinct()
 
-    def get_variable_nodes_of_given_type(self, type_: Type, node_variable: Optional[SymbolicExpression] = None) -> Entity[
+    def get_variable_nodes_of_given_type(self, type_: Type, node_variable: Optional[SymbolicExpression] = None) -> \
+    Entity[
         SymbolicExpression]:
         """
         :return: An entity containing instances that participated in the inference of this instance.
@@ -262,9 +263,9 @@ class InferenceExplanation(Symbol):
         if node_variable is None:
             node_variable = self.create_query_node_variable()
         return entity(node_variable).where(HasType(node_variable, Selectable),
-                                           node_type(node_variable) != None,
-                                           is_class(node_type(node_variable)),
-                                           issubclass_(node_type(node_variable), type_)).distinct(
+                                           (node_type_:=node_type(node_variable)) != None,
+                                           is_class(node_type_),
+                                           issubclass_(node_type_, type_)).distinct(
             node_id(node_variable))
 
     def get_conditions_that_relate_the_variables_of_type(self, type_: Type) -> Entity[SymbolicExpression]:
@@ -273,13 +274,17 @@ class InferenceExplanation(Symbol):
         """
         from krrood.entity_query_language.core.variable import InstantiatedVariable
         condition_node = self.get_satisfied_condition_expressions_for_the_instance()
-        condition_node_descendant_1 = self.get_variable_nodes_of_given_type(
-            type_, flat_variable(node_descendants(condition_node)))
-        condition_node_descendant_2 = self.get_variable_nodes_of_given_type(
-            type_, flat_variable(node_descendants(condition_node)))
-        return entity(condition_node).where(HasType(condition_node, (Comparator, InstantiatedVariable)),
-                                            node_id(condition_node_descendant_1) != node_id(
-                                                condition_node_descendant_2)).distinct(node_id(condition_node))
+        child1 = flat_variable(node_children(condition_node))
+        child2 = flat_variable(node_children(condition_node))
+        child1_descendant = self.get_variable_nodes_of_given_type(
+            type_, flat_variable(node_descendants(child1)))
+        child2_descendant = self.get_variable_nodes_of_given_type(
+            type_, child2:=flat_variable(node_descendants(child2)))
+        return entity(condition_node).where(HasType(condition_node, Comparator),
+                                            HasType(condition_node.left, Attribute),
+                                            HasType(condition_node.right, Attribute),
+                                            issubclass_(attribute_owner_class(condition_node.left), type_),
+                                            issubclass_(attribute_owner_class(condition_node.right), type_)).distinct()
 
     def get_conditions_that_relate_variables_of_types(self, type_a: Type, type_b: Type) -> Entity[SymbolicExpression]:
         """

@@ -110,10 +110,15 @@ class Exists(QuantifiedConditional):
         self,
         sources: OperationResult,
     ) -> Iterable[OperationResult]:
-        for val in self._evaluate_child_as_condition_(self.condition, sources):
-            if val.is_true and self.variable._id_ in val:
-                yield OperationResult(val.bindings, is_false=False, operand=self)
-                return
+        for val in self.variable._evaluate_(sources):
+            for cond_val in self._evaluate_child_as_condition_(self.condition, val):
+                if cond_val.is_true:
+                    yield OperationResult(val.bindings, is_false=False, operand=self)
+                    return
+        # for val in self._evaluate_child_as_condition_(self.condition, sources):
+        #     if val.is_true and self.variable._id_ in val:
+        #         yield OperationResult(val.bindings, is_false=False, operand=self)
+        #         return
 
         # Negation as failure: no variable value satisfied the condition.
         yield OperationResult(sources.bindings, is_false=True, operand=self)

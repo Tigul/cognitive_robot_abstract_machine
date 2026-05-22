@@ -18,7 +18,7 @@ from krrood.entity_query_language.core.base_expressions import (
 )
 from krrood.entity_query_language.core.mapped_variable import (
     FlatVariable,
-    CanBehaveLikeAVariable,
+    CanBehaveLikeAVariable, Attribute,
 )
 from krrood.entity_query_language.core.variable import (
     DomainType,
@@ -646,6 +646,10 @@ def node_type(node: CanBehaveLikeAVariable) -> Optional[Type]:
 @symbolic_function
 def node_children(node: CanBehaveLikeAVariable) -> Iterable[SymbolicExpression]:
     return node._children_
+
+@symbolic_function
+def attribute_owner_class(node: Attribute) -> Type:
+    return node._owner_class_
 
 @symbolic_function
 def node_parents(node: SymbolicExpression) -> Iterable[SymbolicExpression]:
