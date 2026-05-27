@@ -1,11 +1,198 @@
 from __future__ import annotations
 
 import pathlib
-from typing import Any, Callable, Dict, Iterable, Optional, Sequence, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    Optional,
+    Sequence,
+    Tuple,
+    TYPE_CHECKING,
+)
+from dataclasses import dataclass, field
 
 import networkx as nx
 from bokeh.io import output_file
 from rustworkx.rustworkx import PyDiGraph
+
+if TYPE_CHECKING:
+    from bokeh.document import Document
+    from bokeh.models import ColumnDataSource, Div, GraphRenderer
+    from bokeh.server.server import Server
+
+
+@dataclass
+class GraphVisualizer:
+    """
+    Handles the interactive visualization of a rustworkx graph using Bokeh.
+    Supports dynamic updates by periodically checking for graph changes.
+    """
+
+    graph: Any
+    node_params: Optional[Dict[int, Dict[str, Any]]] = None
+    node_label: Optional[Callable[[int, Any], str]] = None
+    attributes: Optional[Sequence[str]] = None
+    layout: str = "bfs"
+    start: Optional[int] = None
+    title: str = "Rustworkx Graph"
+    width: int = 1200
+    height: int = 800
+    update_interval: int = 1000
+
+    def _build_bokeh_app(self, doc: Document) -> None:
+        # Local imports to keep dependency optional
+        from bokeh.layouts import row
+        from bokeh.models import (
+            HoverTool,
+            NodesAndLinkedEdges,
+            TapTool,
+            CustomJS,
+            Div,
+        )
+        from bokeh.plotting import figure, from_networkx
+
+        nx_graph = build_nx_graph(
+            self.graph, self.node_params, self.attributes, self.node_label
+        )
+        positions = calculate_layout_positions(self.layout, nx_graph, self.start)
+
+        plot = figure(
+            title=self.title,
+            x_axis_location=None,
+            y_axis_location=None,
+            width=self.width,
+            height=self.height,
+            toolbar_location="below",
+            background_fill_color="#efefef",
+        )
+        plot.grid.grid_line_color = None
+
+        renderer = from_networkx(nx_graph, positions)
+        renderer.node_renderer.glyph.update(size=18, fill_color="#79a6d2")
+
+        hover = HoverTool(tooltips=[("label", "@label")])
+        plot.add_tools(hover, TapTool())
+        renderer.selection_policy = NodesAndLinkedEdges()
+        renderer.inspection_policy = NodesAndLinkedEdges()
+
+        info_panel = Div(
+            text="<b>Click a node to see its parameters</b>",
+            width=400,
+            height=self.height,
+        )
+
+        node_source = renderer.node_renderer.data_source
+        self._update_node_source(node_source, nx_graph)
+
+        callback = CustomJS(
+            args=dict(source=node_source, panel=info_panel),
+            code="""
+                const indices = source.selected.indices;
+                if (indices.length === 0) {
+                    panel.text = "<b>Click a node to see its parameters</b>";
+                    return;
+                }
+                const index = indices[0];
+                const label = source.data['label'][index];
+                const parameters = source.data['param_text'][index] || '';
+                panel.text = `<div><h3 style=\"margin:0 0 8px 0;\">${label}</h3>${parameters}</div>`;
+            """,
+        )
+        node_source.selected.js_on_change("indices", callback)
+
+        plot.renderers.append(renderer)
+
+        last_state = {
+            "node_indices": set(self.graph.node_indices()),
+            "edges": set(self.graph.edge_list()),
+            "node_data": {i: self.graph[i] for i in self.graph.node_indices()},
+            "edge_data": {
+                edge: self.graph.get_edge_data(*edge) for edge in self.graph.edge_list()
+            },
+        }
+
+        def update_callback() -> None:
+            nonlocal last_state
+            try:
+                current_node_indices = set(self.graph.node_indices())
+                current_edges = set(self.graph.edge_list())
+                current_node_data = {
+                    i: self.graph[i] for i in self.graph.node_indices()
+                }
+                current_edge_data = {
+                    edge: self.graph.get_edge_data(*edge)
+                    for edge in self.graph.edge_list()
+                }
+
+                if (
+                    current_node_indices != last_state["node_indices"]
+                    or current_edges != last_state["edges"]
+                    or current_node_data != last_state["node_data"]
+                    or current_edge_data != last_state["edge_data"]
+                ):
+                    last_state["node_indices"] = current_node_indices
+                    last_state["edges"] = current_edges
+                    last_state["node_data"] = current_node_data
+                    last_state["edge_data"] = current_edge_data
+                    self._update_plot(renderer, node_source)
+            except Exception:
+                # Avoid crashing the periodic callback on transient errors
+                pass
+
+        doc.add_periodic_callback(update_callback, self.update_interval)
+        doc.add_root(row(plot, info_panel))
+
+    def _update_node_source(self, source: ColumnDataSource, nx_graph: nx.Graph) -> None:
+        indices = list(source.data.get("index", []))
+        labels = [nx_graph.nodes[i].get("label", str(i)) for i in indices]
+        parameters = [nx_graph.nodes[i].get("param_text", "") for i in indices]
+        source.data.update({"label": labels, "param_text": parameters})
+
+    def _update_plot(
+        self, renderer: GraphRenderer, node_source: ColumnDataSource
+    ) -> None:
+        from bokeh.plotting import from_networkx
+
+        new_nx_graph = build_nx_graph(
+            self.graph, self.node_params, self.attributes, self.node_label
+        )
+        new_positions = calculate_layout_positions(
+            self.layout, new_nx_graph, self.start
+        )
+        new_renderer = from_networkx(new_nx_graph, new_positions)
+
+        # Update existing data sources to refresh the plot
+        new_node_data = dict(new_renderer.node_renderer.data_source.data)
+        indices = list(new_node_data.get("index", []))
+        labels = [new_nx_graph.nodes[i].get("label", str(i)) for i in indices]
+        parameters = [new_nx_graph.nodes[i].get("param_text", "") for i in indices]
+
+        node_source.data = {
+            **new_node_data,
+            "label": labels,
+            "param_text": parameters,
+        }
+        renderer.edge_renderer.data_source.data = dict(
+            new_renderer.edge_renderer.data_source.data
+        )
+
+        # Update layout positions
+        renderer.layout_provider.graph_layout = new_positions
+
+    def show(self) -> None:
+        """Launch the Bokeh server and show the plot."""
+        from bokeh.server.server import Server
+        import threading
+
+        server = Server({"/": self._build_bokeh_app}, port=0)
+        server.start()
+        server.show("/")
+
+        # Run the server loop in a separate thread so it doesn't block the caller
+        thread = threading.Thread(target=server.io_loop.start, daemon=True)
+        thread.start()
 
 
 def create_ordered_graph(plan):
@@ -37,6 +224,7 @@ def plot_rustworkx_interactive(
 
     - Click on a node to show its parameters in a side panel.
     - Hover shows the node label.
+    - The plot is dynamically updated when the given graph is changing.
 
     Parameters
     ----------
@@ -72,7 +260,6 @@ def plot_rustworkx_interactive(
     # Local imports to keep dependency optional at import time.
     try:
         import networkx as nx
-        import importlib
         from bokeh.layouts import row
         from bokeh.models import (
             ColumnDataSource,
@@ -82,80 +269,25 @@ def plot_rustworkx_interactive(
             TapTool,
             CustomJS,
         )
-        from bokeh.plotting import figure, from_networkx, show
+        from bokeh.plotting import figure, from_networkx
+        from bokeh.server.server import Server
     except Exception as exc:  # pragma: no cover - informative error only if used
         raise RuntimeError(
             "plot_rustworkx_interactive requires bokeh and networkx. Install with 'pip install bokeh networkx'."
         ) from exc
 
-    nx_g = build_nx_graph(graph, node_params, attributes, node_label)
-
-    pos = calculate_layout_positions(layout, nx_g, start)
-
-    # Create bokeh figure
-    p = figure(
+    visualizer = GraphVisualizer(
+        graph=graph,
+        node_params=node_params,
+        node_label=node_label,
+        attributes=attributes,
+        layout=layout,
+        start=start,
         title=title,
-        x_axis_location=None,
-        y_axis_location=None,
         width=width,
         height=height,
-        toolbar_location="below",
-        background_fill_color="#efefef",
     )
-    p.grid.grid_line_color = None
-
-    # Build graph renderer via from_networkx
-    g_renderer = from_networkx(nx_g, pos)
-
-    # Node glyphs and hover
-    g_renderer.node_renderer.glyph.update(size=18, fill_color="#79a6d2")
-    hover = HoverTool(tooltips=[("label", "@label")])
-    p.add_tools(hover, TapTool())
-    g_renderer.selection_policy = NodesAndLinkedEdges()
-    g_renderer.inspection_policy = NodesAndLinkedEdges()
-
-    # Prepare a side panel for parameters
-    info = Div(
-        text="<b>Click a node to see its parameters</b>", width=400, height=height
-    )
-
-    # Ensure param_text exists on data source
-    # from_networkx created a CDS with 'index' only; merge our attrs
-    cds = g_renderer.node_renderer.data_source
-    # Extract param_texts and labels in the same order as 'index'
-    index_list = list(cds.data.get("index", []))
-    labels = [nx_g.nodes[i].get("label", str(i)) for i in index_list]
-    params_html = [nx_g.nodes[i].get("param_text", "") for i in index_list]
-
-    # Update CDS with fields used by JS callback and hover
-    cds.data["label"] = labels
-    cds.data["param_text"] = params_html
-
-    # JS callback to update the Div when selection changes
-    callback = CustomJS(
-        args=dict(source=cds, panel=info),
-        code="""
-            const inds = source.selected.indices;
-            if (inds.length === 0) {
-                panel.text = "<b>Click a node to see its parameters</b>";
-                return;
-            }
-            const i = inds[0];
-            const label = source.data['label'][i];
-            const params = source.data['param_text'][i] || '';
-            panel.text = `<div><h3 style=\"margin:0 0 8px 0;\">${label}</h3>${params}</div>`;
-        """,
-    )
-    cds.selected.js_on_change("indices", callback)
-
-    p.renderers.append(g_renderer)
-
-    output_file(
-        pathlib.Path.home().joinpath("rustworkx_graph.html").as_posix(), title=title
-    )
-
-    # Show composed layout
-    show(row(p, info))
+    visualizer.show()
 
 
 def calculate_layout_positions(
@@ -175,8 +307,11 @@ def calculate_layout_positions(
         pos = nx.kamada_kawai_layout(nx_g)
     elif layout == "bfs":
         if start is None and len(nx_g.nodes) > 0:
-            start = 0
-        pos = nx.bfs_layout(nx_g, start=start)
+            start = list(nx_g.nodes)[0]
+        try:
+            pos = nx.bfs_layout(nx_g, start=start)
+        except nx.NetworkXError:
+            pos = nx.spring_layout(nx_g, seed=42)
     else:
         pos = nx.spring_layout(nx_g, seed=42)
     return pos
