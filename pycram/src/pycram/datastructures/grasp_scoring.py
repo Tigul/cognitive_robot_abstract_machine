@@ -176,13 +176,13 @@ class GraspScorer:
         ranked_grasps.sort(key=lambda x: x.score, reverse=True)
         return ranked_grasps
 
-def load_successful_grasps_from_dataset(dataset_path: str, gripper_name: str, object_uuid: Union[str, uuid.UUID]) -> List[Pose]:
+def load_successful_grasps_from_dataset(dataset_path: str, gripper_name: str, object_uuid: uuid.UUID) -> List[Pose]:
     """
     Helper to read dataset and return a list of successful grasp poses using ormatic.
     
     :param dataset_path: The database path or root directory path containing the dataset SQLite database.
     :param gripper_name: The name of the gripper used in the dataset.
-    :param object_uuid: The unique identifier for the target object (string or UUID).
+    :param object_uuid: The unique identifier for the target object.
     :return: A list of Pose objects representing successful grasp poses. Returns an empty list if no grasps are found.
     """
     from pycram.orm.ormatic_interface import GrasPoseMappingDAO
@@ -199,12 +199,10 @@ def load_successful_grasps_from_dataset(dataset_path: str, gripper_name: str, ob
 
     engine = create_engine(db_uri, echo=False)
     with Session(engine) as session:
-        target_uuid = uuid.UUID(object_uuid) if isinstance(object_uuid, str) else object_uuid
-
         query = (
             select(GrasPoseMappingDAO)
             .join(BodyDAO, GrasPoseMappingDAO.reference_frame_id == BodyDAO.database_id)
-            .where(BodyDAO.id == target_uuid)
+            .where(BodyDAO.id == object_uuid)
         )
         
         grasp_daos = session.scalars(query).all()

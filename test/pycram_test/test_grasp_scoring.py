@@ -5,6 +5,7 @@ from CGAL.CGAL_AABB_tree import AABB_tree_Triangle_3_soup
 
 from pycram.datastructures.grasp_scoring import GraspScorer, load_successful_grasps_from_dataset
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Point3, Quaternion
+from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 
 import uuid
 from semantic_digital_twin.world_description.world_entity import Body
@@ -55,7 +56,7 @@ def test_calculate_grasp_score_collision(gripper_mesh, object_mesh, object_tree)
     # Translate gripper such that one of the fingers intersects with the object.
     # The object occupies y in [-0.05, 0.05]. Moving the gripper by 0.02 in y
     # puts finger2 at y=-0.04, causing an intersection.
-    grasp_pose = Pose(Point3(0.0, 0.02, 0.05), Quaternion(1.0, 0.0, 0.0, 0.0))
+    grasp_pose = Pose(Point3(0.0, 0.02, 0.05), Quaternion())
     
     score = scorer.calculate_grasp_score(grasp_pose, gripper_mesh, object_mesh, object_tree)
     assert score == pytest.approx(scorer.penalty_collision)
@@ -63,7 +64,7 @@ def test_calculate_grasp_score_collision(gripper_mesh, object_mesh, object_tree)
 def test_calculate_grasp_score_clearance(gripper_mesh, object_mesh, object_tree):
     """Tests if the GraspScorer detects when the gripper dives below the ground plane."""
     # Submerge the gripper below the ground plane z=0
-    grasp_pose = Pose(Point3(0.0, 0.0, -0.5), Quaternion(1.0, 0.0, 0.0, 0.0))
+    grasp_pose = Pose(Point3(0.0, 0.0, -0.5), Quaternion())
     
     score = scorer.calculate_grasp_score(grasp_pose, gripper_mesh, object_mesh, object_tree)
     assert score == pytest.approx(scorer.penalty_clearance)
@@ -72,7 +73,7 @@ def test_calculate_grasp_score_good_grasp(gripper_mesh, object_mesh, object_tree
     """Tests the stability analysis on a completely valid grasp without collisions."""
     # Position the gripper perfectly around the object. 
     # Fingers are at y=+-0.06, which clears the object (y ends at +-0.05).
-    grasp_pose = Pose(Point3(0.0, 0.0, 0.05), Quaternion(1.0, 0.0, 0.0, 0.0))
+    grasp_pose = Pose(Point3(0.0, 0.0, 0.05), Quaternion())
     
     score = scorer.calculate_grasp_score(grasp_pose, gripper_mesh, object_mesh, object_tree)
     # Since the internal rays from y=+-0.06 pointing inwards will intersect the 
@@ -81,9 +82,9 @@ def test_calculate_grasp_score_good_grasp(gripper_mesh, object_mesh, object_tree
 
 def test_rank_grasps(gripper_mesh, object_mesh):
     """Tests whether grasping poses are correctly ranked by score."""
-    pose_good = Pose(Point3(0.0, 0.0, 0.05), Quaternion(1.0, 0.0, 0.0, 0.0))
-    pose_collision = Pose(Point3(0.0, 0.02, 0.05), Quaternion(1.0, 0.0, 0.0, 0.0))
-    pose_clearance = Pose(Point3(0.0, 0.0, -0.5), Quaternion(1.0, 0.0, 0.0, 0.0))
+    pose_good = Pose(Point3(0.0, 0.0, 0.05), Quaternion())
+    pose_collision = Pose(Point3(0.0, 0.02, 0.05), Quaternion())
+    pose_clearance = Pose(Point3(0.0, 0.0, -0.5), Quaternion())
     
     grasps = [pose_clearance, pose_collision, pose_good]
     
@@ -115,12 +116,12 @@ def test_load_successful_grasps_from_dataset(tmp_path):
     engine = create_engine(db_uri)
     PycramBase.metadata.create_all(engine)
 
-    body = Body(name="test_body")
+    body = Body(name=PrefixedName("test_body"))
     test_uuid = body.id
     
     grasp = GraspPose(
         position=Point3(1.0, 2.0, 3.0),
-        orientation=Quaternion(1.0, 0.0, 0.0, 0.0),
+        orientation=Quaternion(),
         reference_frame=body
     )
 
@@ -130,7 +131,7 @@ def test_load_successful_grasps_from_dataset(tmp_path):
         session.commit()
 
     # Test loading the existing grasp
-    grasps = load_successful_grasps_from_dataset(str(db_path), "fake_gripper", str(test_uuid))
+    grasps = load_successful_grasps_from_dataset(str(db_path), "fake_gripper", test_uuid)
     
     assert len(grasps) == 1
     assert grasps[0].to_position().x == 1.0
@@ -138,5 +139,5 @@ def test_load_successful_grasps_from_dataset(tmp_path):
     assert grasps[0].to_position().z == 3.0
 
     # Test with non-existing UUID
-    empty_grasps = load_successful_grasps_from_dataset(str(db_path), "fake_gripper", str(uuid.uuid4()))
+    empty_grasps = load_successful_grasps_from_dataset(str(db_path), "fake_gripper", uuid.uuid4())
     assert len(empty_grasps) == 0
