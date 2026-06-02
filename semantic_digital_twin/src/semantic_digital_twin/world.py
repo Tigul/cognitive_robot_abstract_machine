@@ -1865,10 +1865,7 @@ class World(HasSimulatorProperties):
             for dof in self.degrees_of_freedom:
                 new_dof = DegreeOfFreedom(
                     name=dof.name,
-                    limits=DegreeOfFreedomLimits(
-                        lower=dof.limits.lower,
-                        upper=dof.limits.upper,
-                    ),
+                    limits=deepcopy(dof.limits),
                     id=dof.id,
                 )
                 new_world.add_degree_of_freedom(new_dof)
