@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
-from typing import Self, Union
+from typing import Self, Union, List
 
 from semantic_digital_twin.collision_checking.collision_rules import (
     SelfCollisionMatrixRule,
@@ -45,172 +45,253 @@ from semantic_digital_twin.world_description.world_entity import (
 
 
 @dataclass(eq=False)
-class Armar7Finger(Finger, ABC):
+class Armar7LeftThumb(Finger):
 
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Hand L Palm_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Thumb L Tip_link"
+            ),
+        )
+
+
+@dataclass(eq=False)
+class Armar7LeftRingFinger(Finger):
+
+    def setup_hardware_interfaces(self):
         pass
 
-
-@dataclass(eq=False)
-class Armar7LeftThumb(Armar7Finger):
-
-    @classmethod
-    def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
-    ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "Hand L Palm_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "Thumb L Tip_link"),
-        )
-        return finger
-
-
-@dataclass(eq=False)
-class Armar7LeftRingFinger(Armar7Finger):
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "Hand L Palm_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "Ring L Tip_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Hand L Palm_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Ring L Tip_link"
+            ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class Armar7LeftPinkyFinger(Armar7Finger):
+class Armar7LeftPinkyFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "Hand L Palm_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "Pinky L Tip_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Hand L Palm_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Pinky L Tip_link"
+            ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class Armar7LeftMiddleFinger(Armar7Finger):
+class Armar7LeftMiddleFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "Hand L Palm_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "Middle L Tip_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Hand L Palm_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Middle L Tip_link"
+            ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class Armar7LeftIndexFinger(Armar7Finger):
+class Armar7LeftIndexFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "Hand L Palm_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "Index L Tip_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Hand L Palm_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Index L Tip_link"
+            ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class Armar7RightThumb(Armar7Finger):
+class Armar7RightThumb(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "Hand R Palm_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "Thumb R Tip_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Hand R Palm_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Thumb R Tip_link"
+            ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class Armar7RightRingFinger(Armar7Finger):
+class Armar7RightRingFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "Hand R Palm_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "Ring R Tip_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Hand R Palm_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Ring R Tip_link"
+            ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class Armar7RightPinkyFinger(Armar7Finger):
+class Armar7RightPinkyFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "Hand R Palm_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "Pinky R Tip_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Hand R Palm_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Pinky R Tip_link"
+            ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class Armar7RightMiddleFinger(Armar7Finger):
+class Armar7RightMiddleFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "Hand R Palm_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "Middle R Tip_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Hand R Palm_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Middle R Tip_link"
+            ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class Armar7RightIndexFinger(Armar7Finger):
+class Armar7RightIndexFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "Hand R Palm_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "Index R Tip_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Hand R Palm_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Index R Tip_link"
+            ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class Armar7Hand(EndEffector, HasFingers[GenericFinger], ABC):
+class Armar7LeftGripper(
+    EndEffector,
+    HasFingers[
+        Union[
+            Armar7LeftThumb,
+            Armar7LeftRingFinger,
+            Armar7LeftPinkyFinger,
+            Armar7LeftMiddleFinger,
+            Armar7LeftIndexFinger,
+        ]
+    ],
+):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         gripper_joints = self.active_connections
 
         gripper_open = JointState.from_mapping(
@@ -225,41 +306,27 @@ class Armar7Hand(EndEffector, HasFingers[GenericFinger], ABC):
             state_type=GripperState.CLOSE,
         )
 
-        self.add_joint_state(gripper_open)
-        self.add_joint_state(gripper_close)
-
-
-@dataclass(eq=False)
-class Armar7LeftGripper(
-    Armar7Hand[
-        Union[
-            Armar7LeftThumb,
-            Armar7LeftRingFinger,
-            Armar7LeftPinkyFinger,
-            Armar7LeftMiddleFinger,
-            Armar7LeftIndexFinger,
-        ]
-    ]
-):
+        return [gripper_open, gripper_close]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        gripper = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "ArmL8_Wrist_Hemisphere_B_link"
             ),
-            tool_frame=world.get_body_in_branch_by_name(robot_root, "Hand L TCP_link"),
+            tool_frame=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Hand L TCP_link"
+            ),
             front_facing_orientation=Quaternion(-0.5, 0.5, -0.5, 0.5),
         )
-        return gripper
 
 
 @dataclass(eq=False)
 class Armar7RightGripper(
-    Armar7Hand[
+    EndEffector,
+    HasFingers[
         Union[
             Armar7RightThumb,
             Armar7RightRingFinger,
@@ -267,22 +334,42 @@ class Armar7RightGripper(
             Armar7RightMiddleFinger,
             Armar7RightIndexFinger,
         ]
-    ]
+    ],
 ):
+
+    def setup_hardware_interfaces(self):
+        self._setup_hardware_interfaces_for_active_connections()
+
+    def setup_joint_states(self) -> List[JointState]:
+        gripper_joints = self.active_connections
+
+        gripper_open = JointState.from_mapping(
+            name=PrefixedName(f"{self.name.name}_open", prefix=self.name.name),
+            mapping=dict(zip(gripper_joints, [0.0] * len(gripper_joints))),
+            state_type=GripperState.OPEN,
+        )
+
+        gripper_close = JointState.from_mapping(
+            name=PrefixedName(f"{self.name.name}_close", prefix=self.name.name),
+            mapping=dict(zip(gripper_joints, [1.57] * len(gripper_joints))),
+            state_type=GripperState.CLOSE,
+        )
+
+        return [gripper_open, gripper_close]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        gripper = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "ArmR8_Wrist_Hemisphere_B_link"
             ),
-            tool_frame=world.get_body_in_branch_by_name(robot_root, "Hand R TCP_link"),
+            tool_frame=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Hand R TCP_link"
+            ),
             front_facing_orientation=Quaternion(-0.5, 0.5, -0.5, 0.5),
         )
-        return gripper
 
 
 @dataclass(eq=False)
@@ -291,27 +378,27 @@ class Armar7LeftArm(Arm[Armar7LeftGripper]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         vals = [0.0, 0.0, 0.25, 0.5, 1.0, 1.0, 0.0, 0.0]
         arm_park = JointState.from_mapping(
             name=PrefixedName("left_arm_park", prefix=self.name.name),
             mapping=dict(zip(self.active_connections, vals)),
             state_type=StaticJointState.PARK,
         )
-        self.add_joint_state(arm_park)
+        return [arm_park]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        arm = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "CenterArms_fixed_link"),
-            tip=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "CenterArms_fixed_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "ArmL8_Wrist_Hemisphere_B_link"
             ),
         )
-        return arm
 
 
 @dataclass(eq=False)
@@ -320,27 +407,27 @@ class Armar7RightArm(Arm[Armar7RightGripper]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         vals = [0.0, 0.0, 0.25, -0.5, 1.0, -1.0, 0.0, 0.0]
         arm_park = JointState.from_mapping(
             name=PrefixedName("right_arm_park", prefix=self.name.name),
             mapping=dict(zip(self.active_connections, vals)),
             state_type=StaticJointState.PARK,
         )
-        self.add_joint_state(arm_park)
+        return [arm_park]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        arm = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "CenterArms_fixed_link"),
-            tip=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "CenterArms_fixed_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "ArmR8_Wrist_Hemisphere_B_link"
             ),
         )
-        return arm
 
 
 @dataclass(eq=False)
@@ -350,22 +437,22 @@ class AzureKinectRGB(Camera):
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        self = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "AzureKinect_RGB_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "AzureKinect_RGB_link"
+            ),
             forward_facing_axis=Vector3.Z(),
             field_of_view=FieldOfView(horizontal_angle=0.99483, vertical_angle=0.75049),
             minimal_height=1.3715,
             maximal_height=1.7365,
             default_camera=True,
         )
-        return self
 
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
 
 @dataclass(eq=False)
@@ -374,19 +461,21 @@ class Armar7Neck(Neck[AzureKinectRGB]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        neck = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "Neck_Root_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "Head_Root_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Neck_Root_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Head_Root_link"
+            ),
         )
-        return neck
 
 
 @dataclass(eq=False)
@@ -397,7 +486,7 @@ class Armar7Torso(
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         torso_joints = self.active_connections
         torso_low = JointState.from_mapping(
             name=PrefixedName("torso_low", prefix=self.name.name),
@@ -414,20 +503,20 @@ class Armar7Torso(
             mapping=dict(zip(torso_joints, [0.0, 0.0, 0.0])),
             state_type=TorsoState.HIGH,
         )
-        self.add_joint_state(torso_low)
-        self.add_joint_state(torso_mid)
-        self.add_joint_state(torso_high)
+        return [torso_low, torso_mid, torso_high]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        torso = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "Platform_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "CenterArms_fixed_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Platform_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "CenterArms_fixed_link"
+            ),
         )
-        return torso
 
 
 @dataclass(eq=False)
@@ -436,19 +525,19 @@ class Armar7MobileBase(MobileBase, HasTorso[Armar7Torso]):
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        mobile_base = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "Dummy_Platform_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "Dummy_Platform_link"
+            ),
             forward_axis=Vector3.Y(),
         )
-        return mobile_base
 
 
 @dataclass(eq=False)

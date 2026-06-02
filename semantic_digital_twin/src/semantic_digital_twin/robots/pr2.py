@@ -4,7 +4,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
-from typing import Self
+from typing import Self, List
 
 from semantic_digital_twin.collision_checking.collision_matrix import (
     MaxAvoidedCollisionsOverride,
@@ -56,8 +56,8 @@ class PR2KinectV1(Camera):
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -76,33 +76,23 @@ class PR2KinectV1(Camera):
 
 
 @dataclass(eq=False)
-class PR2Gripper(
-    EndEffector, HasTwoFingers[GenericLeftFinger, GenericRightFinger], ABC
-):
-
-    def setup_hardware_interfaces(self):
-        self._setup_hardware_interfaces_for_active_connections()
-
-
-@dataclass(eq=False)
 class PR2RightGripperLeftFinger(Finger):
 
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
         return cls(
-            root=world.get_body_in_branch_by_name(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "r_gripper_l_finger_link"
             ),
-            tip=world.get_body_in_branch_by_name(
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "r_gripper_l_finger_tip_link"
             ),
         )
@@ -114,19 +104,18 @@ class PR2RightGripperRightFinger(Finger):
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
         return cls(
-            root=world.get_body_in_branch_by_name(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "r_gripper_r_finger_link"
             ),
-            tip=world.get_body_in_branch_by_name(
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "r_gripper_r_finger_tip_link"
             ),
         )
@@ -138,19 +127,18 @@ class PR2LeftGripperLeftFinger(Finger):
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
         return cls(
-            root=world.get_body_in_branch_by_name(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "l_gripper_l_finger_link"
             ),
-            tip=world.get_body_in_branch_by_name(
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "l_gripper_l_finger_tip_link"
             ),
         )
@@ -162,19 +150,18 @@ class PR2LeftGripperRightFinger(Finger):
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
         return cls(
-            root=world.get_body_in_branch_by_name(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "l_gripper_r_finger_link"
             ),
-            tip=world.get_body_in_branch_by_name(
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "l_gripper_r_finger_tip_link"
             ),
         )
@@ -182,10 +169,10 @@ class PR2LeftGripperRightFinger(Finger):
 
 @dataclass(eq=False)
 class PR2RightGripper(
-    PR2Gripper[PR2RightGripperLeftFinger, PR2RightGripperRightFinger]
+    EndEffector, HasTwoFingers[PR2RightGripperLeftFinger, PR2RightGripperRightFinger]
 ):
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         right_gripper_joints = self.active_connections
 
         right_gripper_open = JointState.from_mapping(
@@ -200,8 +187,7 @@ class PR2RightGripper(
             state_type=GripperState.CLOSE,
         )
 
-        self.add_joint_state(right_gripper_close)
-        self.add_joint_state(right_gripper_open)
+        return [right_gripper_open, right_gripper_close]
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
@@ -210,10 +196,11 @@ class PR2RightGripper(
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
         return cls(
-            root=world.get_body_in_branch_by_name(robot_root, "r_gripper_palm_link"),
-            tool_frame=world.get_body_in_branch_by_name(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "r_gripper_palm_link"
+            ),
+            tool_frame=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "r_gripper_tool_frame"
             ),
             front_facing_orientation=Quaternion(0, 0, 0, 1),
@@ -221,9 +208,11 @@ class PR2RightGripper(
 
 
 @dataclass(eq=False)
-class PR2LeftGripper(PR2Gripper[PR2LeftGripperLeftFinger, PR2LeftGripperRightFinger]):
+class PR2LeftGripper(
+    EndEffector, HasTwoFingers[PR2LeftGripperLeftFinger, PR2LeftGripperRightFinger]
+):
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         left_gripper_joints = self.active_connections
         left_gripper_open = JointState.from_mapping(
             name=PrefixedName("left_gripper_open", prefix=self.name.name),
@@ -237,21 +226,24 @@ class PR2LeftGripper(PR2Gripper[PR2LeftGripperLeftFinger, PR2LeftGripperRightFin
             state_type=GripperState.CLOSE,
         )
 
-        self.add_joint_state(left_gripper_close)
-        self.add_joint_state(left_gripper_open)
+        return [left_gripper_open, left_gripper_close]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
         return cls(
-            root=world.get_body_in_branch_by_name(robot_root, "l_gripper_palm_link"),
-            tool_frame=world.get_body_in_branch_by_name(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "l_gripper_palm_link"
+            ),
+            tool_frame=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "l_gripper_tool_frame"
             ),
             front_facing_orientation=Quaternion(0, 0, 0, 1),
         )
+
+    def setup_hardware_interfaces(self):
+        self._setup_hardware_interfaces_for_active_connections()
 
 
 @dataclass(eq=False)
@@ -260,17 +252,20 @@ class PR2Neck(Neck[PR2KinectV1]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
         return cls(
-            root=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "head_tilt_link"),
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "torso_lift_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "head_tilt_link"
+            ),
         )
 
 
@@ -280,7 +275,7 @@ class PR2LeftArm(Arm[PR2LeftGripper]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         left_arm_park = JointState.from_mapping(
             name=PrefixedName("left_park", prefix=self.name.name),
             mapping=dict(
@@ -300,16 +295,19 @@ class PR2LeftArm(Arm[PR2LeftGripper]):
             state_type=StaticJointState.PARK,
         )
 
-        self.add_joint_state(left_arm_park)
+        return [left_arm_park]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
         return cls(
-            root=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "l_wrist_roll_link"),
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "torso_lift_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "l_wrist_roll_link"
+            ),
         )
 
 
@@ -319,7 +317,7 @@ class PR2RightArm(Arm[PR2RightGripper]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         right_arm_park = JointState.from_mapping(
             name=PrefixedName("right_park", prefix=self.name.name),
             mapping=dict(
@@ -331,16 +329,19 @@ class PR2RightArm(Arm[PR2RightGripper]):
             state_type=StaticJointState.PARK,
         )
 
-        self.add_joint_state(right_arm_park)
+        return [right_arm_park]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
         return cls(
-            root=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "r_wrist_roll_link"),
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "torso_lift_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "r_wrist_roll_link"
+            ),
         )
 
 
@@ -351,16 +352,17 @@ class PR2Torso(Torso, HasLeftRightArm[PR2LeftArm, PR2RightArm], HasNeck[PR2Neck]
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
         return cls(
-            root=world.get_body_in_branch_by_name(robot_root, "base_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "base_link"),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "torso_lift_link"
+            ),
         )
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         torso_joint = self.active_connections
         torso_low = JointState.from_mapping(
             name=PrefixedName("torso_low", prefix=self.name.name),
@@ -380,9 +382,7 @@ class PR2Torso(Torso, HasLeftRightArm[PR2LeftArm, PR2RightArm], HasNeck[PR2Neck]
             state_type=TorsoState.HIGH,
         )
 
-        self.add_joint_state(torso_low)
-        self.add_joint_state(torso_mid)
-        self.add_joint_state(torso_high)
+        return [torso_low, torso_mid, torso_high]
 
 
 @dataclass(eq=False)
@@ -391,16 +391,15 @@ class PR2MobileBase(MobileBase, HasTorso[PR2Torso]):
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
         return cls(
-            root=world.get_body_in_branch_by_name(robot_root, "base_link"),
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "base_link"),
         )
 
 
@@ -509,7 +508,3 @@ class PR2(AbstractRobot, HasMobileBase[PR2MobileBase]):
     @property
     def torso(self) -> PR2Torso:
         return self.mobile_base.torso
-
-    @property
-    def all_end_effectors(self) -> list[PR2Gripper]:
-        return [self.left_arm.end_effector, self.right_arm.end_effector]

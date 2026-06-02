@@ -5,7 +5,7 @@ from abc import ABC
 import numpy as np
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import Self
+from typing import Self, List
 
 from semantic_digital_twin.datastructures.definitions import (
     GripperState,
@@ -38,51 +38,49 @@ from semantic_digital_twin.world_description.world_entity import (
 
 
 @dataclass(eq=False)
-class MMPDresdenFinger(Finger, ABC):
+class MMPDresdenThumb(Finger):
 
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
-
-
-@dataclass(eq=False)
-class MMPDresdenThumb(MMPDresdenFinger):
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "arm_0_gripper_robotiq_85_left_knuckle_link"
             ),
-            tip=world.get_body_in_branch_by_name(
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "arm_0_gripper_robotiq_85_left_finger_tip_link"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class MMPDresdenIndexFinger(MMPDresdenFinger):
+class MMPDresdenIndexFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "arm_0_gripper_robotiq_85_right_knuckle_link"
             ),
-            tip=world.get_body_in_branch_by_name(
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "arm_0_gripper_robotiq_85_right_finger_tip_link"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
@@ -93,7 +91,7 @@ class MMPDresdenGripper(
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         gripper_joints = self.active_connections
 
         gripper_open = JointState.from_mapping(
@@ -108,20 +106,21 @@ class MMPDresdenGripper(
             state_type=GripperState.CLOSE,
         )
 
-        self.add_joint_state(gripper_open)
-        self.add_joint_state(gripper_close)
+        return [gripper_open, gripper_close]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        gripper = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "arm_0_flange"),
-            tool_frame=world.get_body_in_branch_by_name(robot_root, "arm_0_tool_frame"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_0_flange"
+            ),
+            tool_frame=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_0_tool_frame"
+            ),
             front_facing_orientation=Quaternion(0.5, 0.5, 0.5, 0.5),
         )
-        return gripper
 
 
 @dataclass(eq=False)
@@ -131,9 +130,8 @@ class MMPDresdenCamera(Camera):
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        camera = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "pan_and_tilt_camera_link"
             ),
             forward_facing_axis=Vector3.Z(),
@@ -142,13 +140,12 @@ class MMPDresdenCamera(Camera):
             maximal_height=1.7,
             default_camera=True,
         )
-        return camera
 
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
 
 @dataclass(eq=False)
@@ -157,7 +154,7 @@ class MMPDresdenArm(Arm[MMPDresdenGripper]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         arm_park = JointState.from_mapping(
             name=PrefixedName("arm_park", prefix=self.name.name),
             mapping=dict(zip(self.active_connections, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])),
@@ -173,19 +170,20 @@ class MMPDresdenArm(Arm[MMPDresdenGripper]):
             ),
             state_type=StaticJointState.PARK,
         )
-        self.add_joint_state(arm_park)
-        self.add_joint_state(arm_both)
+        return [arm_park, arm_both]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        arm = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "hub_holder_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "arm_0_flange"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hub_holder_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_0_flange"
+            ),
         )
-        return arm
 
 
 @dataclass(eq=False)
@@ -194,19 +192,19 @@ class MMPDresdenTorso(Torso, HasOneArm[MMPDresdenArm], HasSensors[MMPDresdenCame
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        torso = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "base_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "hub_holder_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "base_link"),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hub_holder_link"
+            ),
         )
-        return torso
 
 
 @dataclass(eq=False)
@@ -216,17 +214,15 @@ class MMPDresdenMobileBase(MobileBase, HasTorso[MMPDresdenTorso]):
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        mobile_base = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "base_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "base_link"),
         )
-        return mobile_base
 
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
 
 @dataclass(eq=False)

@@ -22,7 +22,6 @@ from semantic_digital_twin.collision_checking.collision_rules import (
 )
 from semantic_digital_twin.reasoning.predicates import is_place_occupied
 from semantic_digital_twin.robots.robot_parts import (
-    ParallelGripper,
     AbstractRobot,
     EndEffector,
 )
@@ -81,7 +80,7 @@ def robot_holds_body(robot: AbstractRobot, body: Body) -> bool:
     :param body: The body to check if it is picked
     :return: True if the robot is holding the object, False otherwise
     """
-    g = variable(ParallelGripper, robot._world.semantic_annotations)
+    g = variable(EndEffector, robot._world.semantic_annotations)
     grippers = an(
         entity(g).where(
             g._robot == robot,
@@ -125,7 +124,7 @@ def blocking(
 
 
 @symbolic_function
-def bodies_in_gripper(gripper: ParallelGripper, sample_size: int = 100) -> List[Body]:
+def bodies_in_gripper(gripper: EndEffector, sample_size: int = 100) -> List[Body]:
     """
     Gets all bodies which are between the finger of the gripper.
     This method uses samples of rays which are cast between the finger

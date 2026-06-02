@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
-from typing import Self, Union
+from typing import Self, Union, List
 
 from semantic_digital_twin.collision_checking.collision_matrix import (
     MaxAvoidedCollisionsOverride,
@@ -50,122 +50,155 @@ from semantic_digital_twin.world_description.world_entity import (
 
 
 @dataclass(eq=False)
-class UnitreeG1Finger(Finger, ABC):
+class UnitreeG1LeftThumb(Finger):
 
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "left_hand_thumb_0_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "left_hand_thumb_2_link"
+            ),
+        )
+
+
+@dataclass(eq=False)
+class UnitreeG1LeftIndexFinger(Finger):
+
+    def setup_hardware_interfaces(self):
         pass
 
-
-@dataclass(eq=False)
-class UnitreeG1LeftThumb(UnitreeG1Finger):
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "left_hand_thumb_0_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "left_hand_thumb_2_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "left_hand_index_0_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "left_hand_index_1_link"
+            ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class UnitreeG1LeftIndexFinger(UnitreeG1Finger):
+class UnitreeG1LeftMiddleFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "left_hand_index_0_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "left_hand_index_1_link"),
-        )
-        return finger
-
-
-@dataclass(eq=False)
-class UnitreeG1LeftMiddleFinger(UnitreeG1Finger):
-
-    @classmethod
-    def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
-    ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "left_hand_middle_0_link"
             ),
-            tip=world.get_body_in_branch_by_name(robot_root, "left_hand_middle_1_link"),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "left_hand_middle_1_link"
+            ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class UnitreeG1RightThumb(UnitreeG1Finger):
+class UnitreeG1RightThumb(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "right_hand_thumb_0_link"
             ),
-            tip=world.get_body_in_branch_by_name(robot_root, "right_hand_thumb_2_link"),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "right_hand_thumb_2_link"
+            ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class UnitreeG1RightIndexFinger(UnitreeG1Finger):
+class UnitreeG1RightIndexFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "right_hand_index_0_link"
             ),
-            tip=world.get_body_in_branch_by_name(robot_root, "right_hand_index_1_link"),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "right_hand_index_1_link"
+            ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class UnitreeG1RightMiddleFinger(UnitreeG1Finger):
+class UnitreeG1RightMiddleFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "right_hand_middle_0_link"
             ),
-            tip=world.get_body_in_branch_by_name(
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "right_hand_middle_1_link"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class UnitreeG1Hand(EndEffector, HasFingers[GenericFinger], ABC):
+class UnitreeG1LeftHand(
+    EndEffector,
+    HasFingers[
+        Union[UnitreeG1LeftThumb, UnitreeG1LeftIndexFinger, UnitreeG1LeftMiddleFinger]
+    ],
+):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         gripper_joints = self.active_connections
 
         gripper_open = JointState.from_mapping(
@@ -180,54 +213,66 @@ class UnitreeG1Hand(EndEffector, HasFingers[GenericFinger], ABC):
             state_type=GripperState.CLOSE,
         )
 
-        self.add_joint_state(gripper_open)
-        self.add_joint_state(gripper_close)
-
-
-@dataclass(eq=False)
-class UnitreeG1LeftHand(
-    UnitreeG1Hand[
-        Union[UnitreeG1LeftThumb, UnitreeG1LeftIndexFinger, UnitreeG1LeftMiddleFinger]
-    ]
-):
+        return [gripper_open, gripper_close]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        gripper = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "left_hand_palm_link"),
-            tool_frame=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "left_hand_palm_link"
+            ),
+            tool_frame=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "left_hand_tool_frame"
             ),
             front_facing_orientation=Quaternion(),
         )
-        return gripper
 
 
 @dataclass(eq=False)
 class UnitreeG1RightHand(
-    UnitreeG1Hand[
+    EndEffector,
+    HasFingers[
         Union[
             UnitreeG1RightThumb, UnitreeG1RightIndexFinger, UnitreeG1RightMiddleFinger
         ]
-    ]
+    ],
 ):
+
+    def setup_hardware_interfaces(self):
+        self._setup_hardware_interfaces_for_active_connections()
+
+    def setup_joint_states(self) -> List[JointState]:
+        gripper_joints = self.active_connections
+
+        gripper_open = JointState.from_mapping(
+            name=PrefixedName(f"{self.name.name}_open", prefix=self.name.name),
+            mapping=dict(zip(gripper_joints, [0.0] * len(gripper_joints))),
+            state_type=GripperState.OPEN,
+        )
+
+        gripper_close = JointState.from_mapping(
+            name=PrefixedName(f"{self.name.name}_close", prefix=self.name.name),
+            mapping=dict(zip(gripper_joints, [1.0] * len(gripper_joints))),
+            state_type=GripperState.CLOSE,
+        )
+
+        return [gripper_open, gripper_close]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        gripper = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "right_hand_palm_link"),
-            tool_frame=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "right_hand_palm_link"
+            ),
+            tool_frame=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "right_hand_tool_frame"
             ),
             front_facing_orientation=Quaternion(),
         )
-        return gripper
 
 
 @dataclass(eq=False)
@@ -236,7 +281,7 @@ class UnitreeG1LeftArm(Arm[UnitreeG1LeftHand]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         arm_park = JointState.from_mapping(
             name=PrefixedName("left_arm_park", prefix=self.name.name),
             mapping=dict(
@@ -244,20 +289,20 @@ class UnitreeG1LeftArm(Arm[UnitreeG1LeftHand]):
             ),
             state_type=StaticJointState.PARK,
         )
-        self.add_joint_state(arm_park)
+        return [arm_park]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        arm = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "left_shoulder_pitch_link"
             ),
-            tip=world.get_body_in_branch_by_name(robot_root, "left_wrist_yaw_link"),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "left_wrist_yaw_link"
+            ),
         )
-        return arm
 
 
 @dataclass(eq=False)
@@ -266,7 +311,7 @@ class UnitreeG1RightArm(Arm[UnitreeG1RightHand]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         arm_park = JointState.from_mapping(
             name=PrefixedName("right_arm_park", prefix=self.name.name),
             mapping=dict(
@@ -274,20 +319,20 @@ class UnitreeG1RightArm(Arm[UnitreeG1RightHand]):
             ),
             state_type=StaticJointState.PARK,
         )
-        self.add_joint_state(arm_park)
+        return [arm_park]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        arm = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "right_shoulder_pitch_link"
             ),
-            tip=world.get_body_in_branch_by_name(robot_root, "right_wrist_yaw_link"),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "right_wrist_yaw_link"
+            ),
         )
-        return arm
 
 
 @dataclass(eq=False)
@@ -297,9 +342,8 @@ class D435(Camera):
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        camera = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "d435_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "d435_link"),
             forward_facing_axis=Vector3.Z(),
             field_of_view=FieldOfView(horizontal_angle=0.99483, vertical_angle=0.75049),
             minimal_height=1.27,
@@ -307,13 +351,11 @@ class D435(Camera):
             default_camera=True,
         )
 
-        return camera
-
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
 
 @dataclass(eq=False)
@@ -322,19 +364,17 @@ class UnitreeG1Neck(Neck[D435]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        neck = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "torso_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "d435_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "torso_link"),
+            tip=robot_root._world.get_body_in_branch_by_name(robot_root, "d435_link"),
         )
-        return neck
 
 
 @dataclass(eq=False)
@@ -345,19 +385,17 @@ class UnitreeG1Torso(
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        torso = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "pelvis"),
-            tip=world.get_body_in_branch_by_name(robot_root, "torso_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "pelvis"),
+            tip=robot_root._world.get_body_in_branch_by_name(robot_root, "torso_link"),
         )
-        return torso
 
 
 @dataclass(eq=False)
@@ -367,17 +405,15 @@ class UnitreeG1MobileBase(MobileBase):
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        mobile_base = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "pelvis"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "pelvis"),
         )
-        return mobile_base
 
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
 
 @dataclass(eq=False)

@@ -221,9 +221,10 @@ class AbstractRobotPart(HasRootBody, HasRobotParts, ABC):
         """
 
     @abstractmethod
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         """
-        Sets up default joint states for this robot part. Implement as "pass" if this robot part does not have any joint states.
+        Sets up default joint states for this robot part. Implement as "return []" if this robot part does not have
+        any important joint states.
         """
 
     @synchronized_attribute_modification
@@ -233,6 +234,13 @@ class AbstractRobotPart(HasRootBody, HasRobotParts, ABC):
         """
         self.joint_states.append(joint_state)
         joint_state.assign_to_robot(self._robot)
+
+    def add_joint_states(self, joint_states: list[JointState]):
+        """
+        Adds multiple joint states to this semantic annotation.
+        """
+        for joint_state in joint_states:
+            self.add_joint_state(joint_state)
 
     def get_joint_state_by_type(self, state_type: JointStateType) -> JointState:
         """
@@ -538,7 +546,7 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
             world.add_semantic_annotation_recursively(self)
             for robot_part in self._robot_parts:
                 robot_part.setup_hardware_interfaces()
-                robot_part.setup_joint_states()
+                robot_part.add_joint_states(robot_part.setup_joint_states())
             return self
 
     @property

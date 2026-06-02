@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
-from typing import Self, Union
+from typing import Self, Union, List
 
 from semantic_digital_twin.collision_checking.collision_matrix import (
     MaxAvoidedCollisionsOverride,
@@ -51,43 +51,49 @@ from semantic_digital_twin.world_description.world_entity import (
 
 
 @dataclass(eq=False)
-class HSRBFinger(Finger, ABC):
+class HSRBLeftFinger(Finger):
 
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hand_l_proximal_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hand_l_distal_link"
+            ),
+        )
+
+
+@dataclass(eq=False)
+class HSRBRightFinger(Finger):
+
+    def setup_hardware_interfaces(self):
         pass
 
-
-@dataclass(eq=False)
-class HSRBLeftFinger(HSRBFinger):
-
-    @classmethod
-    def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
-    ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "hand_l_proximal_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "hand_l_distal_link"),
-        )
-        return finger
-
-
-@dataclass(eq=False)
-class HSRBRightFinger(HSRBFinger):
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "hand_r_proximal_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "hand_r_distal_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hand_r_proximal_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hand_r_distal_link"
+            ),
         )
-        return finger
 
 
 @dataclass(eq=False)
@@ -96,7 +102,7 @@ class HSRBGripper(EndEffector, HasTwoFingers[HSRBLeftFinger, HSRBRightFinger]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         world = self._world
         gripper_joints = [
             world.get_connection_by_name("hand_l_proximal_joint"),
@@ -116,17 +122,17 @@ class HSRBGripper(EndEffector, HasTwoFingers[HSRBLeftFinger, HSRBRightFinger]):
             state_type=GripperState.CLOSE,
         )
 
-        self.add_joint_state(gripper_open)
-        self.add_joint_state(gripper_close)
+        return [gripper_open, gripper_close]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        gripper = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "hand_palm_link"),
-            tool_frame=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hand_palm_link"
+            ),
+            tool_frame=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "hand_gripper_tool_frame"
             ),
             front_facing_orientation=Quaternion(
@@ -136,7 +142,6 @@ class HSRBGripper(EndEffector, HasTwoFingers[HSRBLeftFinger, HSRBRightFinger]):
                 0.0,
             ),
         )
-        return gripper
 
 
 @dataclass(eq=False)
@@ -145,22 +150,22 @@ class HSRBHandCamera(Camera):
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        camera = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "hand_camera_frame"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hand_camera_frame"
+            ),
             forward_facing_axis=Vector3.Z(),
             field_of_view=FieldOfView(horizontal_angle=0.99483, vertical_angle=0.75049),
             minimal_height=0.75049,
             maximal_height=0.99483,
         )
-        return camera
 
 
 @dataclass(eq=False)
@@ -178,7 +183,7 @@ class HSRBArm(Arm[HSRBGripper], HasSensors[HSRBHandCamera]):
             connection = self._world.get_connection_by_name(joint_name)
             connection.has_hardware_interface = True
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         arm_park = JointState.from_mapping(
             name=PrefixedName("arm_park", prefix=self.name.name),
             mapping=dict(
@@ -190,18 +195,20 @@ class HSRBArm(Arm[HSRBGripper], HasSensors[HSRBHandCamera]):
             state_type=StaticJointState.PARK,
         )
 
-        self.add_joint_state(arm_park)
+        return [arm_park]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        arm = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "arm_lift_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "hand_palm_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_lift_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "hand_palm_link"
+            ),
         )
-        return arm
 
 
 @dataclass(eq=False)
@@ -210,16 +217,15 @@ class HSRBHeadCenterCamera(Camera):
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        camera = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "head_center_camera_frame"
             ),
             forward_facing_axis=Vector3.Z(),
@@ -228,7 +234,6 @@ class HSRBHeadCenterCamera(Camera):
             maximal_height=0.99483,
             default_camera=True,
         )
-        return camera
 
 
 @dataclass(eq=False)
@@ -237,16 +242,15 @@ class HSRBHeadLeftCamera(Camera):
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        camera = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "head_l_stereo_camera_link"
             ),
             forward_facing_axis=Vector3.Z(),
@@ -254,7 +258,6 @@ class HSRBHeadLeftCamera(Camera):
             minimal_height=0.75049,
             maximal_height=0.99483,
         )
-        return camera
 
 
 @dataclass(eq=False)
@@ -263,16 +266,15 @@ class HSRBHeadRightCamera(Camera):
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        camera = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "head_r_stereo_camera_link"
             ),
             forward_facing_axis=Vector3.Z(),
@@ -280,7 +282,6 @@ class HSRBHeadRightCamera(Camera):
             minimal_height=0.75049,
             maximal_height=0.99483,
         )
-        return camera
 
 
 @dataclass(eq=False)
@@ -289,23 +290,23 @@ class HSRBHeadRGBDCamera(Camera):
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        camera = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "head_rgbd_sensor_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "head_rgbd_sensor_link"
+            ),
             forward_facing_axis=Vector3.Z(),
             field_of_view=FieldOfView(horizontal_angle=0.99483, vertical_angle=0.75049),
             minimal_height=0.75049,
             maximal_height=0.99483,
             default_camera=True,
         )
-        return camera
 
 
 @dataclass(eq=False)
@@ -326,19 +327,21 @@ class HSRBNeck(
             connection = self._world.get_connection_by_name(joint_name)
             connection.has_hardware_interface = True
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        neck = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "head_pan_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "head_tilt_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "head_pan_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "head_tilt_link"
+            ),
         )
-        return neck
 
 
 @dataclass(eq=False)
@@ -347,7 +350,7 @@ class HSRBTorso(Torso, HasOneArm[HSRBArm], HasNeck[HSRBNeck]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         torso_joint = self.active_connections
         torso_low = JointState.from_mapping(
             name=PrefixedName("torso_low", prefix=self.name.name),
@@ -367,20 +370,18 @@ class HSRBTorso(Torso, HasOneArm[HSRBArm], HasNeck[HSRBNeck]):
             state_type=TorsoState.HIGH,
         )
 
-        self.add_joint_state(torso_low)
-        self.add_joint_state(torso_mid)
-        self.add_joint_state(torso_high)
+        return [torso_low, torso_mid, torso_high]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        torso = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "base_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "base_link"),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "torso_lift_link"
+            ),
         )
-        return torso
 
 
 @dataclass(eq=False)
@@ -389,18 +390,16 @@ class HSRBMobileBase(MobileBase, HasTorso[HSRBTorso]):
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        mobile_base = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "base_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "base_link"),
         )
-        return mobile_base
 
 
 @dataclass(eq=False)

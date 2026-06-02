@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
-from typing import Self
+from typing import Self, List
 
 from semantic_digital_twin.collision_checking.collision_rules import (
     AvoidExternalCollisions,
@@ -49,96 +49,106 @@ from semantic_digital_twin.world_description.world_entity import (
 
 
 @dataclass(eq=False)
-class TiagoFinger(Finger, ABC):
+class TiagoLeftThumb(Finger):
 
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
-
-
-@dataclass(eq=False)
-class TiagoLeftThumb(TiagoFinger):
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "gripper_left_base_link"),
-            tip=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "gripper_left_base_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "gripper_left_left_inner_finger_pad"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class TiagoLeftIndexFinger(TiagoFinger):
+class TiagoLeftIndexFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "gripper_left_base_link"),
-            tip=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "gripper_left_base_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "gripper_left_right_inner_finger_pad"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class TiagoRightThumb(TiagoFinger):
+class TiagoRightThumb(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "gripper_right_base_link"
             ),
-            tip=world.get_body_in_branch_by_name(
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "gripper_right_left_inner_finger_pad"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class TiagoRightIndexFinger(TiagoFinger):
+class TiagoRightIndexFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "gripper_right_base_link"
             ),
-            tip=world.get_body_in_branch_by_name(
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "gripper_right_right_inner_finger_pad"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class TiagoGripper(
-    EndEffector, HasTwoFingers[GenericLeftFinger, GenericRightFinger], ABC
+class TiagoLeftGripper(
+    EndEffector, HasTwoFingers[TiagoLeftIndexFinger, TiagoLeftThumb]
 ):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         gripper_joints = self.active_connections
 
         gripper_open = JointState.from_mapping(
@@ -153,46 +163,61 @@ class TiagoGripper(
             state_type=GripperState.CLOSE,
         )
 
-        self.add_joint_state(gripper_open)
-        self.add_joint_state(gripper_close)
-
-
-@dataclass(eq=False)
-class TiagoLeftGripper(TiagoGripper[TiagoLeftIndexFinger, TiagoLeftThumb]):
+        return [gripper_open, gripper_close]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        gripper = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "gripper_left_base_link"),
-            tool_frame=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "gripper_left_base_link"
+            ),
+            tool_frame=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "gripper_left_grasping_frame"
             ),
             front_facing_orientation=Quaternion(0, 0, 0, 1),
         )
-        return gripper
 
 
 @dataclass(eq=False)
-class TiagoRightGripper(TiagoGripper[TiagoRightIndexFinger, TiagoRightThumb]):
+class TiagoRightGripper(
+    EndEffector, HasTwoFingers[TiagoRightIndexFinger, TiagoRightThumb]
+):
+
+    def setup_hardware_interfaces(self):
+        self._setup_hardware_interfaces_for_active_connections()
+
+    def setup_joint_states(self) -> List[JointState]:
+        gripper_joints = self.active_connections
+
+        gripper_open = JointState.from_mapping(
+            name=PrefixedName(f"{self.name.name}_open", prefix=self.name.name),
+            mapping=dict(zip(gripper_joints, [0.045, 0.045])),
+            state_type=GripperState.OPEN,
+        )
+
+        gripper_close = JointState.from_mapping(
+            name=PrefixedName(f"{self.name.name}_close", prefix=self.name.name),
+            mapping=dict(zip(gripper_joints, [0.0, 0.0])),
+            state_type=GripperState.CLOSE,
+        )
+
+        return [gripper_open, gripper_close]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        gripper = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "gripper_right_base_link"
             ),
-            tool_frame=world.get_body_in_branch_by_name(
+            tool_frame=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "gripper_right_grasping_frame"
             ),
             front_facing_orientation=Quaternion(0, 0, 0, 1),
         )
-        return gripper
 
 
 @dataclass(eq=False)
@@ -201,7 +226,7 @@ class TiagoLeftArm(Arm[TiagoLeftGripper]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         arm_park = JointState.from_mapping(
             name=PrefixedName("left_arm_park", prefix=self.name.name),
             mapping=dict(
@@ -212,18 +237,20 @@ class TiagoLeftArm(Arm[TiagoLeftGripper]):
             ),
             state_type=StaticJointState.PARK,
         )
-        self.add_joint_state(arm_park)
+        return [arm_park]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        arm = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "arm_left_tool_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "torso_lift_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_left_tool_link"
+            ),
         )
-        return arm
 
 
 @dataclass(eq=False)
@@ -232,7 +259,7 @@ class TiagoRightArm(Arm[TiagoRightGripper]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         arm_park = JointState.from_mapping(
             name=PrefixedName("right_arm_park", prefix=self.name.name),
             mapping=dict(
@@ -243,18 +270,20 @@ class TiagoRightArm(Arm[TiagoRightGripper]):
             ),
             state_type=StaticJointState.PARK,
         )
-        self.add_joint_state(arm_park)
+        return [arm_park]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        arm = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "arm_right_tool_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "torso_lift_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_right_tool_link"
+            ),
         )
-        return arm
 
 
 @dataclass(eq=False)
@@ -264,9 +293,8 @@ class TiagoCamera(Camera):
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        camera = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "head_front_camera_optical_frame"
             ),
             forward_facing_axis=Vector3.Z(),
@@ -276,13 +304,11 @@ class TiagoCamera(Camera):
             default_camera=True,
         )
 
-        return camera
-
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
 
 @dataclass(eq=False)
@@ -291,19 +317,19 @@ class TiagoNeck(Neck[TiagoCamera]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        neck = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "head_2_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "torso_lift_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(robot_root, "head_2_link"),
         )
-        return neck
 
 
 @dataclass(eq=False)
@@ -314,7 +340,7 @@ class TiagoTorso(
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         torso_joint = self.active_connections
         torso_low = JointState.from_mapping(
             name=PrefixedName("torso_low", prefix=self.name.name),
@@ -334,20 +360,20 @@ class TiagoTorso(
             state_type=TorsoState.HIGH,
         )
 
-        self.add_joint_state(torso_low)
-        self.add_joint_state(torso_mid)
-        self.add_joint_state(torso_high)
+        return [torso_low, torso_mid, torso_high]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        torso = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "torso_fixed_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "torso_fixed_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "torso_lift_link"
+            ),
         )
-        return torso
 
 
 @dataclass(eq=False)
@@ -356,20 +382,18 @@ class TiagoMobileBase(MobileBase, HasTorso[TiagoTorso]):
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        base = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "base_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "base_link"),
             forward_axis=Vector3.X(),
             full_body_controlled=False,
         )
-        return base
 
 
 @dataclass(eq=False)
@@ -412,92 +436,106 @@ class Tiago(AbstractRobot, HasMobileBase[TiagoMobileBase]):
 
 
 @dataclass(eq=False)
-class TiagoMujocoFinger(Finger, ABC):
+class TiagoMujocoLeftThumb(Finger):
 
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
-
-
-@dataclass(eq=False)
-class TiagoMujocoLeftThumb(TiagoMujocoFinger):
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "arm_left_7_link"),
-            tip=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_left_7_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "gripper_left_left_finger_link"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class TiagoMujocoLeftIndexFinger(TiagoMujocoFinger):
+class TiagoMujocoLeftIndexFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "arm_left_7_link"),
-            tip=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_left_7_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "gripper_left_right_finger_link"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class TiagoMujocoRightThumb(TiagoMujocoFinger):
+class TiagoMujocoRightThumb(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "arm_right_7_link"),
-            tip=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_right_7_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "gripper_right_left_finger_link"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class TiagoMujocoRightIndexFinger(TiagoMujocoFinger):
+class TiagoMujocoRightIndexFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "arm_right_7_link"),
-            tip=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_right_7_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "gripper_right_right_finger_link"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class TiagoMujocoGripper(
-    EndEffector, HasTwoFingers[GenericLeftFinger, GenericRightFinger], ABC
+class TiagoMujocoLeftGripper(
+    EndEffector, HasTwoFingers[TiagoMujocoLeftIndexFinger, TiagoMujocoLeftThumb]
 ):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         gripper_joints = self.active_connections
         gripper_open = JointState.from_mapping(
             name=PrefixedName(f"{self.name.name}_open", prefix=self.name.name),
@@ -509,44 +547,58 @@ class TiagoMujocoGripper(
             mapping=dict(zip(gripper_joints, [0.0, 0.0])),
             state_type=GripperState.CLOSE,
         )
-        self.add_joint_state(gripper_close)
-        self.add_joint_state(gripper_open)
-
-
-@dataclass(eq=False)
-class TiagoMujocoLeftGripper(
-    TiagoMujocoGripper[TiagoMujocoLeftIndexFinger, TiagoMujocoLeftThumb]
-):
+        return [gripper_close, gripper_open]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        gripper = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "arm_left_7_link"),
-            tool_frame=world.get_body_in_branch_by_name(robot_root, "arm_left_7_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_left_7_link"
+            ),
+            tool_frame=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_left_7_link"
+            ),
             front_facing_orientation=Quaternion(0, 0, 0, 1),
         )
-        return gripper
 
 
 @dataclass(eq=False)
 class TiagoMujocoRightGripper(
-    TiagoMujocoGripper[TiagoMujocoRightIndexFinger, TiagoMujocoRightThumb]
+    EndEffector, HasTwoFingers[TiagoMujocoRightIndexFinger, TiagoMujocoRightThumb]
 ):
+
+    def setup_hardware_interfaces(self):
+        self._setup_hardware_interfaces_for_active_connections()
+
+    def setup_joint_states(self) -> List[JointState]:
+        gripper_joints = self.active_connections
+        gripper_open = JointState.from_mapping(
+            name=PrefixedName(f"{self.name.name}_open", prefix=self.name.name),
+            mapping=dict(zip(gripper_joints, [0.044, 0.044])),
+            state_type=GripperState.OPEN,
+        )
+        gripper_close = JointState.from_mapping(
+            name=PrefixedName(f"{self.name.name}_close", prefix=self.name.name),
+            mapping=dict(zip(gripper_joints, [0.0, 0.0])),
+            state_type=GripperState.CLOSE,
+        )
+        return [gripper_close, gripper_open]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        gripper = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "arm_right_7_link"),
-            tool_frame=world.get_body_in_branch_by_name(robot_root, "arm_right_7_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_right_7_link"
+            ),
+            tool_frame=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_right_7_link"
+            ),
             front_facing_orientation=Quaternion(0, 0, 0, 1),
         )
-        return gripper
 
 
 @dataclass(eq=False)
@@ -555,7 +607,7 @@ class TiagoMujocoLeftArm(Arm[TiagoMujocoLeftGripper]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         arm_park = JointState.from_mapping(
             name=PrefixedName("left_arm_park", prefix=self.name.name),
             mapping=dict(
@@ -566,18 +618,20 @@ class TiagoMujocoLeftArm(Arm[TiagoMujocoLeftGripper]):
             ),
             state_type=StaticJointState.PARK,
         )
-        self.add_joint_state(arm_park)
+        return [arm_park]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        arm = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "arm_left_7_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "torso_lift_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_left_7_link"
+            ),
         )
-        return arm
 
 
 @dataclass(eq=False)
@@ -586,7 +640,7 @@ class TiagoMujocoRightArm(Arm[TiagoMujocoRightGripper]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         arm_park = JointState.from_mapping(
             name=PrefixedName("right_arm_park", prefix=self.name.name),
             mapping=dict(
@@ -597,18 +651,20 @@ class TiagoMujocoRightArm(Arm[TiagoMujocoRightGripper]):
             ),
             state_type=StaticJointState.PARK,
         )
-        self.add_joint_state(arm_park)
+        return [arm_park]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        arm = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "arm_right_7_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "torso_lift_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "arm_right_7_link"
+            ),
         )
-        return arm
 
 
 @dataclass(eq=False)
@@ -617,19 +673,19 @@ class TiagoMujocoNeck(Neck[TiagoCamera]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        neck = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "head_2_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "torso_lift_link"
+            ),
+            tip=robot_root._world.get_body_in_branch_by_name(robot_root, "head_2_link"),
         )
-        return neck
 
 
 @dataclass(eq=False)
@@ -642,7 +698,7 @@ class TiagoMujocoTorso(
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         torso_joint = self.active_connections
         torso_low = JointState.from_mapping(
             name=PrefixedName("torso_low", prefix=self.name.name),
@@ -659,20 +715,18 @@ class TiagoMujocoTorso(
             mapping=dict(zip(torso_joint, [0.35])),
             state_type=TorsoState.HIGH,
         )
-        self.add_joint_state(torso_low)
-        self.add_joint_state(torso_mid)
-        self.add_joint_state(torso_high)
+        return [torso_low, torso_mid, torso_high]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        torso = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "base_link"),
-            tip=world.get_body_in_branch_by_name(robot_root, "torso_lift_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "base_link"),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "torso_lift_link"
+            ),
         )
-        return torso
 
 
 @dataclass(eq=False)
@@ -681,20 +735,18 @@ class TiagoMujocoMobileBase(MobileBase, HasTorso[TiagoMujocoTorso]):
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        base = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "base_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "base_link"),
             forward_axis=Vector3.X(),
             full_body_controlled=False,
         )
-        return base
 
 
 @dataclass(eq=False)

@@ -6,7 +6,7 @@ from collections import defaultdict
 from dataclasses import dataclass
 from importlib.resources import files
 from pathlib import Path
-from typing import Self
+from typing import Self, List
 
 from semantic_digital_twin.collision_checking.collision_rules import (
     AvoidExternalCollisions,
@@ -42,100 +42,106 @@ from semantic_digital_twin.world_description.world_entity import (
 
 
 @dataclass(eq=False)
-class TracyFinger(Finger, ABC):
+class TracyLeftGripperLeftFinger(Finger):
 
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
-
-
-@dataclass(eq=False)
-class TracyLeftGripperLeftFinger(TracyFinger):
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "left_robotiq_85_left_knuckle_link"
             ),
-            tip=world.get_body_in_branch_by_name(
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "left_robotiq_85_left_finger_tip_link"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class TracyLeftGripperRightFinger(TracyFinger):
+class TracyLeftGripperRightFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "left_robotiq_85_right_knuckle_link"
             ),
-            tip=world.get_body_in_branch_by_name(
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "left_robotiq_85_right_finger_tip_link"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class TracyRightGripperLeftFinger(TracyFinger):
+class TracyRightGripperLeftFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "right_robotiq_85_left_knuckle_link"
             ),
-            tip=world.get_body_in_branch_by_name(
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "right_robotiq_85_left_finger_tip_link"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class TracyRightGripperRightFinger(TracyFinger):
+class TracyRightGripperRightFinger(Finger):
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        finger = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "right_robotiq_85_right_knuckle_link"
             ),
-            tip=world.get_body_in_branch_by_name(
+            tip=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "right_robotiq_85_right_finger_tip_link"
             ),
         )
-        return finger
 
 
 @dataclass(eq=False)
-class TracyGripper(
-    EndEffector, HasTwoFingers[GenericLeftFinger, GenericRightFinger], ABC
+class TracyLeftGripper(
+    EndEffector, HasTwoFingers[TracyLeftGripperLeftFinger, TracyLeftGripperRightFinger]
 ):
 
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         gripper_joints = self.active_connections
 
         gripper_open = JointState.from_mapping(
@@ -150,52 +156,62 @@ class TracyGripper(
             state_type=GripperState.CLOSE,
         )
 
-        self.add_joint_state(gripper_open)
-        self.add_joint_state(gripper_close)
-
-
-@dataclass(eq=False)
-class TracyLeftGripper(
-    TracyGripper[TracyLeftGripperLeftFinger, TracyLeftGripperRightFinger]
-):
+        return [gripper_open, gripper_close]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        gripper = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "left_robotiq_85_base_link"
             ),
-            tool_frame=world.get_body_in_branch_by_name(
+            tool_frame=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "l_gripper_tool_frame"
             ),
             front_facing_orientation=Quaternion(0.5, 0.5, 0.5, 0.5),
         )
-        return gripper
 
 
 @dataclass(eq=False)
 class TracyRightGripper(
-    TracyGripper[TracyRightGripperLeftFinger, TracyRightGripperRightFinger]
+    EndEffector,
+    HasTwoFingers[TracyRightGripperLeftFinger, TracyRightGripperRightFinger],
 ):
+
+    def setup_hardware_interfaces(self):
+        self._setup_hardware_interfaces_for_active_connections()
+
+    def setup_joint_states(self) -> List[JointState]:
+        gripper_joints = self.active_connections
+
+        gripper_open = JointState.from_mapping(
+            name=PrefixedName(f"{self.name.name}_open", prefix=self.name.name),
+            mapping=dict(zip(gripper_joints, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])),
+            state_type=GripperState.OPEN,
+        )
+
+        gripper_close = JointState.from_mapping(
+            name=PrefixedName(f"{self.name.name}_close", prefix=self.name.name),
+            mapping=dict(zip(gripper_joints, [0.8, 0.8, 0.8, 0.8, 0.8, 0.8])),
+            state_type=GripperState.CLOSE,
+        )
+
+        return [gripper_open, gripper_close]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        gripper = cls(
-            root=world.get_body_in_branch_by_name(
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "right_robotiq_85_base_link"
             ),
-            tool_frame=world.get_body_in_branch_by_name(
+            tool_frame=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "r_gripper_tool_frame"
             ),
             front_facing_orientation=Quaternion(0.5, 0.5, 0.5, 0.5),
         )
-        return gripper
 
 
 @dataclass(eq=False)
@@ -204,24 +220,24 @@ class TracyLeftArm(Arm[TracyLeftGripper]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         arm_park = JointState.from_mapping(
             name=PrefixedName("left_arm_park", prefix=self.name.name),
             mapping=dict(zip(self.active_connections, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])),
             state_type=StaticJointState.PARK,
         )
-        self.add_joint_state(arm_park)
+        return [arm_park]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        arm = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "table"),
-            tip=world.get_body_in_branch_by_name(robot_root, "left_wrist_3_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "table"),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "left_wrist_3_link"
+            ),
         )
-        return arm
 
 
 @dataclass(eq=False)
@@ -230,24 +246,24 @@ class TracyRightArm(Arm[TracyRightGripper]):
     def setup_hardware_interfaces(self):
         self._setup_hardware_interfaces_for_active_connections()
 
-    def setup_joint_states(self):
+    def setup_joint_states(self) -> List[JointState]:
         arm_park = JointState.from_mapping(
             name=PrefixedName("right_arm_park", prefix=self.name.name),
             mapping=dict(zip(self.active_connections, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])),
             state_type=StaticJointState.PARK,
         )
-        self.add_joint_state(arm_park)
+        return [arm_park]
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        arm = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "table"),
-            tip=world.get_body_in_branch_by_name(robot_root, "right_wrist_3_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "table"),
+            tip=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "right_wrist_3_link"
+            ),
         )
-        return arm
 
 
 @dataclass(eq=False)
@@ -256,23 +272,23 @@ class TracyCamera(Camera):
     def setup_hardware_interfaces(self):
         pass
 
-    def setup_joint_states(self):
-        pass
+    def setup_joint_states(self) -> List[JointState]:
+        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        world = robot_root._world
-        camera = cls(
-            root=world.get_body_in_branch_by_name(robot_root, "camera_link"),
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(
+                robot_root, "camera_link"
+            ),
             forward_facing_axis=Vector3.Z(),
             field_of_view=FieldOfView(horizontal_angle=1.047, vertical_angle=0.785),
             minimal_height=0.8,
             maximal_height=1.7,
             default_camera=True,
         )
-        return camera
 
 
 @dataclass(eq=False)
@@ -317,5 +333,5 @@ class Tracy(
         self.tighten_dof_velocity_limits_of_1dof_connections(new_limits=vel_limits)
 
     @property
-    def all_end_effectors(self) -> list[TracyGripper]:
+    def all_end_effectors(self) -> list[EndEffector]:
         return [self.left_arm.end_effector, self.right_arm.end_effector]
