@@ -12,6 +12,7 @@ from krrood.entity_query_language.query.query import (
     Query,
     Entity,
     SetOf,
+    UnificationDict,
 )
 from krrood.entity_query_language.query.operations import Where, OrderedBy
 from krrood.entity_query_language.query.quantifiers import ResultQuantifier, An, The
@@ -560,13 +561,13 @@ class EQLTranslator:
         if all_variables:
             # Entity variables — map each variable to its DAO object per row
             return [
-                {var: dao for var, dao in zip(selected, row)}
+                UnificationDict({var: dao for var, dao in zip(selected, row)})
                 for row in rows
             ]
 
         # Attribute variables — map each variable to its column value per row
         return [
-            {var: value for var, value in zip(selected, row)}
+            UnificationDict({var: value for var, value in zip(selected, row)})
             for row in rows
         ]
 
@@ -610,7 +611,7 @@ class EQLTranslator:
 
     def translate_case_when(self, query: CaseWhen) -> Any:
         """
-        Translate EQL-node CaseWhen in a nativ SQLAlchemy case()-construct.
+        Translate EQL-node CaseWhen in a native SQLAlchemy case()-construct.
         """
         compiled_condition = self.translate_query(query.condition)
 
@@ -865,7 +866,6 @@ class EQLTranslator:
             return func.sum(col)
 
         if isinstance(operand, CaseWhen):
-            from sqlalchemy import case
             condition = self.translate_query(operand.condition)
             then_value = self._translate_comparator_operand(operand.then_value)
             if operand.else_value is not None:
