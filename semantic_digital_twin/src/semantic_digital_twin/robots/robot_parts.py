@@ -559,7 +559,7 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
         for connection in self.connections:
             dofs = connection.controlled_dofs
             for dof in dofs:
-                if dof in dofs:
+                if dof in dofs_with_hardware_interfaces:
                     continue
                 dofs_with_hardware_interfaces.append(dof)
         return dofs_with_hardware_interfaces

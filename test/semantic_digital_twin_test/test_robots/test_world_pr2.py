@@ -725,3 +725,47 @@ def test_pr2_automatic_setup_correctly(pr2_world_state_reset):
     assert (
         not extra_in_hierarchy
     ), f"Some verified parts were not in robot._robot_parts: {extra_in_hierarchy}"
+
+
+def test_pr2_degrees_of_freedom_with_hardware_interface(pr2_world_state_reset):
+    """
+    Tests that the degrees_of_freedom_with_hardware_interface property
+    correctly identifies all controlled joints of the PR2 robot.
+    """
+    robot = pr2_world_state_reset.get_semantic_annotations_by_type(PR2)[0]
+    dofs = robot.degrees_of_freedom_with_hardware_interface
+
+    # PR2 has:
+    # 7 DOFs per arm (14 total)
+    # 2 DOFs for the neck (pan/tilt)
+    # 1 DOF for the torso (lift)
+    # Total = 17
+    expected_dof_names = {
+        "l_shoulder_pan_joint",
+        "l_shoulder_lift_joint",
+        "l_upper_arm_roll_joint",
+        "l_elbow_flex_joint",
+        "l_forearm_roll_joint",
+        "l_wrist_flex_joint",
+        "l_wrist_roll_joint",
+        "r_shoulder_pan_joint",
+        "r_shoulder_lift_joint",
+        "r_upper_arm_roll_joint",
+        "r_elbow_flex_joint",
+        "r_forearm_roll_joint",
+        "r_wrist_flex_joint",
+        "r_wrist_roll_joint",
+        "torso_lift_joint",
+        "head_pan_joint",
+        "head_tilt_joint",
+    }
+
+    actual_dof_names = {dof.name.name for dof in dofs}
+
+    assert (
+        len(dofs) == 17
+    ), f"Expected 17 DOFs with hardware interface, but got {len(dofs)}: {actual_dof_names}"
+
+    assert (
+        actual_dof_names == expected_dof_names
+    ), f"Missing DOFs: {expected_dof_names - actual_dof_names}, Extra DOFs: {actual_dof_names - expected_dof_names}"
