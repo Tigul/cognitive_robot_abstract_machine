@@ -55,7 +55,7 @@ def test_ref_chain_after_copy_with_execute_complex_plan(mutable_model_world):
     copy_world.name = "copy_world"
 
     copy_context = Context(
-        copy_world, copy_world.get_semantic_annotation_by_id(view.id)
+        copy_world, copy_robot := copy_world.get_semantic_annotation_by_id(view.id)
     )
 
     description = TransportAction(
@@ -65,7 +65,7 @@ def test_ref_chain_after_copy_with_execute_complex_plan(mutable_model_world):
         GraspDescription(
             ApproachDirection.RIGHT,
             VerticalAlignment.NoAlignment,
-            copy_robot.right_arm.manipulator,
+            copy_robot.right_arm.end_effector,
         ),
     )
     plan = sequential([MoveTorsoAction(TorsoState.HIGH), description], copy_context)

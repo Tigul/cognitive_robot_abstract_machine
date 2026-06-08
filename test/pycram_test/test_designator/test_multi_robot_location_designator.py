@@ -305,8 +305,8 @@ def test_visibility_reachability_merge(
     assert len(pose.to_quaternion().to_list()) == 4
 
 
-def test_accessing_location_pose(immutable_model_world):
-    world, robot, context = immutable_model_world
+def test_accessing_location_pose(apartment_world_pr2_copy_with_context):
+    world, robot, context = apartment_world_pr2_copy_with_context
     plan = sequential(
         [
             ParkArmsAction(Arms.BOTH),

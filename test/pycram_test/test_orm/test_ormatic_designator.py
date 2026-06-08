@@ -1,6 +1,3 @@
-import time
-
-import numpy as np
 import pytest
 from sqlalchemy import select
 
@@ -17,9 +14,6 @@ from pycram.plans.plan import Plan
 from pycram.robot_plans.actions.composite.transporting import TransportAction
 from pycram.robot_plans.actions.core.navigation import NavigateAction
 from pycram.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
-from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
-    VizMarkerPublisher,
-)
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
@@ -103,7 +97,7 @@ def complex_plan(mutable_model_world):
             grasp_description=GraspDescription(
                 ApproachDirection.LEFT,
                 VerticalAlignment.NoAlignment,
-                robot_view.left_arm.manipulator,
+                robot_view.left_arm.end_effector,
             ),
         ),
         context=context,

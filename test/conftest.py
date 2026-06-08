@@ -516,6 +516,21 @@ def apartment_world_setup():
     return apartment_world
 
 
+@pytest.fixture(scope="function")
+def apartment_world_pr2_copy_with_context(apartment_world_setup, pr2_world_setup):
+    result = deepcopy(apartment_world_setup)
+    pr2_copy = deepcopy(pr2_world_setup)
+    result.merge_world(pr2_copy)
+    return (
+        result,
+        result.get_semantic_annotations_by_type(AbstractRobot)[0],
+        Context(
+            result,
+            result.get_semantic_annotations_by_type(AbstractRobot)[0],
+        ),
+    )
+
+
 @pytest.fixture(scope="session")
 def simple_apartment_setup():
     world = World()
