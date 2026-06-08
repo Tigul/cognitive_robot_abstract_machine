@@ -24,7 +24,7 @@ from rclpy.node import Node
 from semantic_digital_twin.adapters.ros.world_fetcher import fetch_world_from_service
 from semantic_digital_twin.adapters.ros.world_synchronizer import WorldSynchronizer
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
-from semantic_digital_twin.robots.abstract_robot import AbstractRobot
+from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.world import World
 
 
