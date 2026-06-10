@@ -117,13 +117,14 @@ class QuadraticProgramDebugger:
         Creates panda arrays for equality constraint insights.
         """
         eq_matrix_dofs_np = self.qp_data_symbolic.eq_matrix_dofs.evaluate()
-        eq_matrix_slack_np = self.qp_data_symbolic.eq_matrix_slack.evaluate()
-        Ex = eq_matrix_dofs_np @ self.current_solution[: eq_matrix_dofs_np.shape[1]]
+        constraint_value_without_slack = (
+            eq_matrix_dofs_np @ self.current_solution[: eq_matrix_dofs_np.shape[1]]
+        )
         bounds = self.qp_data_symbolic.eq_bounds.evaluate()
         self.equality_constraints = pd.DataFrame(
             {
-                "Ex": Ex,
-                "slack": bounds - Ex,
+                "constraint value w/o slack": constraint_value_without_slack,
+                "slack": bounds - constraint_value_without_slack,
                 "bounds": bounds,
             },
             self.equality_constr_names,
@@ -141,16 +142,17 @@ class QuadraticProgramDebugger:
         Creates panda arrays for inequality constraint insights.
         """
         neq_matrix_dofs_np = self.qp_data_symbolic.neq_matrix_dofs.evaluate()
-        neq_matrix_slack_np = self.qp_data_symbolic.neq_matrix_slack.evaluate()
-        Ex = neq_matrix_dofs_np @ self.current_solution[: neq_matrix_dofs_np.shape[1]]
+        constraint_value_without_slack = (
+            neq_matrix_dofs_np @ self.current_solution[: neq_matrix_dofs_np.shape[1]]
+        )
         lower_bounds = self.qp_data_symbolic.neq_lower_bounds.evaluate()
         upper_bounds = self.qp_data_symbolic.neq_upper_bounds.evaluate()
         if len(self.inequality_constr_names) > 0:
             self.inequality_constraints = pd.DataFrame(
                 {
                     "lower_bounds": lower_bounds,
-                    "Ax": Ex,
-                    # "slack": bounds - Ex,
+                    "constraint value w/o slack": constraint_value_without_slack,
+                    # "slack": bounds - constraint_value_without_slack,
                     "upper_bounds": upper_bounds,
                 },
                 self.inequality_constr_names,
