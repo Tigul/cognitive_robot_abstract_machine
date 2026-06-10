@@ -10,7 +10,7 @@ from krrood.entity_query_language.factories import variable_from, entity, variab
 from polytope import bounding_box
 from probabilistic_model.distributions.gaussian import GaussianDistribution
 from random_events.product_algebra import Event
-from random_events.set import Set
+from random_events.set import Set as EventSet
 from random_events.variable import Symbolic
 from semantic_digital_twin.reasoning.predicates import is_supported_by
 from typing_extensions import (
@@ -18,6 +18,7 @@ from typing_extensions import (
     List,
     Optional,
     Self,
+    Set,
     Iterable,
     Type,
 )
@@ -937,7 +938,7 @@ class HasSupportingSurface(HasStorageSpace, ABC):
         surface_circuit_root = SumUnit(probabilistic_circuit=surface_circuit)
 
         objects_of_interest_variable = Symbolic(
-            name="objects_of_interest", domain=Set.from_iterable(objects_of_interest)
+            name="objects_of_interest", domain=EventSet.from_iterable(objects_of_interest)
         )
 
         for object_of_interest in objects_of_interest:

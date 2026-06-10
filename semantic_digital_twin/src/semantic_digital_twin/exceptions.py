@@ -200,6 +200,13 @@ class UsageError(LogicalError):
 
 
 @dataclass
+class WorldValidationError(LogicalError):
+    """
+    Raised when the world fails validation, e.g., when the kinematic structure is not a tree.
+    """
+
+
+@dataclass
 class InvalidConnectionLimits(UsageError):
     """
     Raised when the lower limit is not less than the upper limit for a degree of freedom.
@@ -529,11 +536,15 @@ class MissingWorldError(UsageError):
 
 
 @dataclass
-class WorldEntityWithIDNotFoundError(UsageError):
-    id: UUID
+class WorldEntityWithIDNotFoundError(WorldEntityNotFoundError):
+    name_or_hash: UUID = None
 
     def __post_init__(self):
-        self.message = f"WorldEntity with id {self.id} not found"
+        self.message = f"WorldEntity with id {self.name_or_hash} not found"
+
+    @property
+    def id(self) -> UUID:
+        return self.name_or_hash
 
 
 @dataclass

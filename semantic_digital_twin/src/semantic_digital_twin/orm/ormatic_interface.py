@@ -10006,25 +10006,25 @@ class WorldEntityWithIDKwargsTrackerDAO(
 
 
 class WorldEntityWithIDNotFoundErrorDAO(
-    UsageErrorDAO,
+    WorldEntityNotFoundErrorDAO,
     DataAccessObject[semantic_digital_twin.exceptions.WorldEntityWithIDNotFoundError],
 ):
 
     __tablename__ = "WorldEntityWithIDNotFoundErrorDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(UsageErrorDAO.database_id),
+        ForeignKey(WorldEntityNotFoundErrorDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
-    id: Mapped[uuid.UUID] = mapped_column(
+    name_or_hash: Mapped[uuid.UUID] = mapped_column(
         sqlalchemy.sql.sqltypes.UUID, nullable=False, use_existing_column=True
     )
 
     __mapper_args__ = {
         "polymorphic_identity": "WorldEntityWithIDNotFoundErrorDAO",
-        "inherit_condition": database_id == UsageErrorDAO.database_id,
+        "inherit_condition": database_id == WorldEntityNotFoundErrorDAO.database_id,
     }
 
 
@@ -19196,6 +19196,25 @@ class WorldUpdateDAO(
     __mapper_args__ = {
         "polymorphic_identity": "WorldUpdateDAO",
         "inherit_condition": database_id == MessageDAO.database_id,
+    }
+
+
+class WorldValidationErrorDAO(
+    LogicalErrorDAO,
+    DataAccessObject[semantic_digital_twin.exceptions.WorldValidationError],
+):
+
+    __tablename__ = "WorldValidationErrorDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(LogicalErrorDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "WorldValidationErrorDAO",
+        "inherit_condition": database_id == LogicalErrorDAO.database_id,
     }
 
 

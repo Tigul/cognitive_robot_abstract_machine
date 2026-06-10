@@ -112,7 +112,10 @@ class WorldEntity(Symbol):
 
     def __eq__(self, other):
         if not isinstance(other, type(self)):
-            return False
+            # NotImplemented (instead of False) lets Python fall back to the
+            # other operand's __eq__, so base_instance == subclass_instance
+            # still works when the subclass's strict type check fails
+            return NotImplemented
         return hash(self) == hash(other)
 
     def add_to_world(self, world: World):
@@ -494,7 +497,16 @@ class Body(KinematicStructureEntity):
         :param surface_threshold: Ignore simple geometry shapes with a surface area less than this (in m^2)
         :return: True if collision geometry is mesh or simple shape exceeding thresholds
         """
-        return len(self.collision) > 0
+        for shape in self.collision:
+            if isinstance(shape, Mesh):
+                return True
+            shape_mesh = shape.mesh
+            if (
+                shape_mesh.volume > volume_threshold
+                or shape_mesh.area > surface_threshold
+            ):
+                return True
+        return False
 
     def get_semantic_annotations_by_type(
         self, type_: Type[GenericSemanticAnnotation]
@@ -514,6 +526,7 @@ class Body(KinematicStructureEntity):
             id=self.id,
             visual=self.visual.copy_for_world(new_world),
             collision=self.collision.copy_for_world(new_world),
+            inertial=deepcopy(self.inertial),
         )
 
 
