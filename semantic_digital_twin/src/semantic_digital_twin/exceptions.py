@@ -98,8 +98,9 @@ class MismatchingIDsInWorldModification(DataclassException):
         return (
             f"The world modification of type {self.modification_type.__name__} was initialized with the following UUIDs: {self.original_uuids}. "
             f"But during the application of those modifications, the UUIDs were {self.actual_uuids}. "
-            f"Somehow the original UUIDs were overridden, which should not happen. "
-            f"This is an internal error in semantic_digital_twin, not a usage error - please open a bug report."
+            f"Somehow the original UUIDs were overridden, which should not happen unless a user deliberately does so. "
+            f"If you are sure you did not do so, this may be an internal error in semantic_digital_twin. In that case, please"
+            f" open a bug report with a script reproducing the error."
         )
 
 
@@ -141,8 +142,8 @@ class DofNotInWorldStateError(DataclassException, KeyError):
     def error_message(self) -> str:
         return (
             f"Degree of freedom {self.dof_id} not found in world state. "
-            f"This usually means the DegreeOfFreedom reference is stale, e.g. it was removed from the world "
-            f"or belongs to a different world. Re-fetch it via world.get_degree_of_freedom_by_name(...)."
+            f"Did you possibly try to merge states of two different world models?"
+            f"States of two different worlds can only be merged iif other._world.degrees_of_freedom is a subset of self._world.degrees_of_freedom"
         )
 
 
@@ -269,7 +270,7 @@ class MismatchingWorld(UsageError):
     def error_message(self) -> str:
         return (
             f"The two entities have mismatching worlds: expected world '{self.expected_world.name}', "
-            f"given world '{self.given_world.name}'. Entities can only be combined when they belong to "
+            f"given world '{self.given_world.name}'. Entities can only reference each other when they belong to "
             f"the same world. Bring everything into one world first, e.g. with "
             f"world.merge_world(other_world) or world.merge_world_at_pose(other_world, pose)."
         )
@@ -364,17 +365,6 @@ class InvalidHingeActiveAxis(UsageError):
         return (
             f"Axis {self.axis} provided when trying to calculate the hinge position is invalid. "
             f"If you think this is incorrect, consider extending Door.calculate_world_T_hinge_based_on_handle"
-        )
-
-
-@dataclass
-class AddingAnExistingSemanticAnnotationError(UsageError):
-    semantic_annotation: SemanticAnnotation
-
-    def error_message(self) -> str:
-        return (
-            f"Semantic annotation {self.semantic_annotation} already exists in this world. "
-            f"Each annotation instance can only be added once; reuse the existing one instead of adding it again."
         )
 
 
@@ -516,18 +506,6 @@ class DuplicateRobotAssignmentsError(UsageError):
 
 
 @dataclass
-class DuplicateKinematicStructureEntityError(UsageError):
-    names: List[PrefixedName]
-
-    def error_message(self) -> str:
-        return (
-            f"Kinematic structure entities with names {self.names} are duplicates, "
-            f"but kinematic structure entity names must be unique within a world. "
-            f"Give entities from different sources distinct prefixes, e.g. PrefixedName(name, prefix='robot1')."
-        )
-
-
-@dataclass
 class SpatialTypesError(UsageError):
     pass
 
@@ -538,10 +516,17 @@ class InsufficientVectorsError(SpatialTypesError):
     Raised when a rotation matrix is constructed from fewer than two vectors.
     """
 
+    x: Optional[Vector3]
+    y: Optional[Vector3]
+    z: Optional[Vector3]
+
     def error_message(self) -> str:
         return (
-            "from_vectors requires at least two of the vectors x, y, z to be provided; "
-            "the third is computed via the cross product."
+            f"from_vectors requires at least two of the vectors x, y, z to be provided; "
+            f"the third is computed via the cross product."
+            f"X Vector was: {self.x}"
+            f"Y Vector was: {self.y}"
+            f"Z Vector was: {self.z}"
         )
 
 

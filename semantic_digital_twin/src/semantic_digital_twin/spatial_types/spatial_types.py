@@ -716,7 +716,7 @@ class RotationMatrix(sm.SymbolicMathType, SpatialType, SubclassJSONSerializer):
         - x, y, and z provided: all three used directly
         """
         if x is None and y is None and z is None:
-            raise InsufficientVectorsError()
+            raise InsufficientVectorsError(x=x, y=y, z=z)
         if x is not None and y is not None and z is None:
             z = x.cross(y)
         elif x is not None and y is None and z is not None:
