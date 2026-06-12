@@ -25,12 +25,18 @@ from typing_extensions import (
 )
 
 from krrood.class_diagrams.exceptions import MissingContainedTypeOfContainer
-from krrood.class_diagrams.utils import behaves_like_a_built_in_class, common_base_class, get_type_hints_of_object
+from krrood.class_diagrams.utils import (
+    behaves_like_a_built_in_class,
+    common_base_class,
+    get_type_hints_of_object,
+)
 from krrood.utils import module_and_class_name, is_builtin_type
 
 if TYPE_CHECKING:
     from krrood.class_diagrams.class_diagram import WrappedClass
-    from krrood.ontomatic.property_descriptor.property_descriptor import PropertyDescriptor
+    from krrood.ontomatic.property_descriptor.property_descriptor import (
+        PropertyDescriptor,
+    )
 
 
 @dataclass
@@ -144,7 +150,7 @@ class WrappedField:
     @cached_property
     def is_builtin_type(self) -> bool:
         return is_builtin_type(self.type_endpoint) or (
-                self.type_endpoint in [datetime, NoneType]
+            self.type_endpoint in [datetime, NoneType]
         )
 
     @cached_property
@@ -219,10 +225,10 @@ class WrappedField:
             return self.contained_type
         resolved = self.resolved_type
         if get_origin(resolved) is Union:
-            non_none = [a for a in get_args(resolved) if a is not NoneType]
-            lca = common_base_class(non_none)
-            if lca is not None:
-                return lca
+            non_none = [arg for arg in get_args(resolved) if arg is not NoneType]
+            lowest_common_ancestor = common_base_class(non_none)
+            if lowest_common_ancestor is not None:
+                return lowest_common_ancestor
         return resolved
 
     @cached_property
