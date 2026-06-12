@@ -62,36 +62,6 @@ class ActionDescription(Designator):
 
         return result
 
-    def action_plan_for_context(self, context: Context) -> PlanNode:
-        sub_plan_root = self._action_plan
-        action_node = ActionNode(designator=copy(self))
-
-        pre_condition_node = ConditionNode(
-            condition=self.pre_condition(
-                self.bound_variables,
-                context,
-                self.designator_parameter,
-            ),
-            pre_condition=True,
-        )
-
-        sub_plan_root.plan.add_edge(action_node, pre_condition_node)
-
-        sub_plan_root.plan.add_edge(action_node, sub_plan_root)
-
-        post_condition_node = ConditionNode(
-            condition=self.post_condition(
-                self.bound_variables,
-                context,
-                self.designator_parameter,
-            ),
-            pre_condition=False,
-        )
-
-        sub_plan_root.plan.add_edge(action_node, post_condition_node)
-
-        return action_node
-
     @property
     def action_plan(self) -> PlanNode:
 

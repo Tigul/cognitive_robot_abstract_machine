@@ -467,21 +467,36 @@ class ActionNode(DesignatorNode):
             ]
         )
 
+    @property
+    def parent_action_node(self) -> Optional[ActionNode]:
+        """
+        Returns the next action node in the plan above this node, None if this is the outermost action.
+        """
+        for node in self.path:
+            if isinstance(node, ActionNode):
+                return node
+        return None
+
     def notify(self):
+        from pycram.plans.condition_nodes import ConditionNode
+
         self.create_execution_data_pre_perform()
 
-        # result = self.action.perform()
+        if not self.children:
+            self.action.expand()
 
-        self.action.expand()
+        # recursively expand nested actions, conditions are only evaluated during execution
+        for child in self.children:
+            if isinstance(child, ConditionNode):
+                continue
+            child.notify()
 
-        # self.parse().execute()
-
-        # self.execute_motion_state_chart()
+        # only the outermost action parses and executes the fully expanded plan
+        if self.parent_action_node is None:
+            self.parse().execute()
 
         # TODO: This can't stay here
         self.update_execution_data_post_perform()
-
-        # return result
 
     def parse(self) -> Executable:
         children = self.children

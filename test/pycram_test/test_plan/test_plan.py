@@ -19,7 +19,8 @@ from pycram.datastructures.dataclasses import Context
 from pycram.datastructures.enums import TaskStatus, ApproachDirection, VerticalAlignment
 from pycram.exceptions import MotionDidNotFinish
 from pycram.language import CodeNode
-from pycram.motion_executor import simulated_robot, MotionExecutor
+from pycram.motion_executor import simulated_robot
+from pycram.plans.executables import GiskardExecutable
 from pycram.orm.ormatic_interface import *  # type: ignore
 from pycram.plans.factories import code, sequential, parallel, execute_single
 from pycram.plans.plan import (
@@ -447,7 +448,7 @@ def test_motion_order_pick_up(mutable_model_world):
     grasp_description = GraspDescription(
         ApproachDirection.FRONT,
         VerticalAlignment.NoAlignment,
-        robot_view.left_arm.manipulator,
+        robot_view.left_arm.end_effector,
     )
 
     milk_body = world.get_body_by_name("milk.stl")
@@ -472,21 +473,16 @@ def test_motion_order_pick_up(mutable_model_world):
 
     all_motions = []
 
-    def exec_wrapper(motion_executor):
+    def exec_wrapper(giskard_executable):
+        all_motions.extend(giskard_executable.motion_mappings.values())
 
-        all_motions.extend(motion_executor.motions)
-
-        if len(motion_executor.motions) == 0:
-            return
-
-        motion_executor.construct_execution_list()
-        for e in motion_executor.execution_queue:
-            e.perform()
-
-    MotionExecutor.execute = exec_wrapper
-
-    with simulated_robot:
-        root.perform()
+    original_execute = GiskardExecutable.execute
+    GiskardExecutable.execute = exec_wrapper
+    try:
+        with simulated_robot:
+            root.perform()
+    finally:
+        GiskardExecutable.execute = original_execute
 
     motion_names = [motion.name for motion in all_motions]
 
@@ -534,21 +530,16 @@ def test_motion_order_place(mutable_model_world):
 
     all_motions = []
 
-    def exec_wrapper(motion_executor):
+    def exec_wrapper(giskard_executable):
+        all_motions.extend(giskard_executable.motion_mappings.values())
 
-        all_motions.extend(motion_executor.motions)
-
-        if len(motion_executor.motions) == 0:
-            return
-
-        motion_executor.construct_execution_list()
-        for e in motion_executor.execution_queue:
-            e.perform()
-
-    MotionExecutor.execute = exec_wrapper
-
-    with simulated_robot:
-        root.perform()
+    original_execute = GiskardExecutable.execute
+    GiskardExecutable.execute = exec_wrapper
+    try:
+        with simulated_robot:
+            root.perform()
+    finally:
+        GiskardExecutable.execute = original_execute
 
     motion_names = [motion.name for motion in all_motions]
 
