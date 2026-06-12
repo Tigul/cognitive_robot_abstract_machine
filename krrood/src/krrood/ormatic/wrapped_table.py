@@ -125,6 +125,48 @@ class AssociationObject:
         short_number = str(number)[:62]
         return f"_{short_number}"
 
+    @property
+    def primary_key(self) -> ColumnConstructor:
+        """
+        :return: The primary key column constructor for this association table.
+        """
+        return ColumnConstructor(
+            self.primary_key_name,
+            "Mapped[int]",
+            "mapped_column(Integer, primary_key=True)",
+        )
+
+    @property
+    def columns(self) -> List[ColumnConstructor]:
+        """
+        :return: The foreign key column constructors for the left and right sides.
+        """
+        return [
+            ColumnConstructor(
+                self.left_foreign_key,
+                "Mapped[int]",
+                f"mapped_column(ForeignKey('{self.left_primary_key}'))",
+            ),
+            ColumnConstructor(
+                self.right_foreign_key,
+                "Mapped[int]",
+                f"mapped_column(ForeignKey('{self.right_primary_key}'))",
+            ),
+        ]
+
+    @property
+    def relationships(self) -> List[ColumnConstructor]:
+        """
+        :return: The relationship constructors for this association table.
+        """
+        return [
+            ColumnConstructor(
+                "target",
+                f"Mapped[{self.right_table_name}]",
+                f"relationship('{self.right_table_name}', foreign_keys=[{self.right_foreign_key}])",
+            )
+        ]
+
 
 @dataclass
 class WrappedTable:
@@ -682,7 +724,7 @@ class WrappedTable:
         rel_name = f"{wrapped_field.field.name}"
         rel_type = f"Mapped[{target_wrapped_table.tablename}]"
         # relationships have to be post updated since since it won't work in the case of subclasses with another ref otherwise
-        rel_constructor = f"relationship('{target_wrapped_table.tablename}', uselist=False, foreign_keys=[{fk_name}], post_update=True, lazy='selectin')"
+        rel_constructor = f"relationship('{target_wrapped_table.tablename}', uselist=False, foreign_keys=[{fk_name}], post_update=True)"
         self.relationships.append(
             ColumnConstructor(rel_name, rel_type, rel_constructor)
         )
@@ -738,8 +780,7 @@ class WrappedTable:
             f"relationship('{association_table.name}', "
             f"collection_class={container_name}, "
             f"cascade='all, delete-orphan', "
-            f"foreign_keys='[{association_table.name}.{association_table.left_foreign_key}]', "
-            f"lazy='selectin')"
+            f"foreign_keys='[{association_table.name}.{association_table.left_foreign_key}]')"
         )
 
         self.relationships.append(

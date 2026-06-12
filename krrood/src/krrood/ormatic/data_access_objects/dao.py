@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import logging
 import threading
+from contextlib import contextmanager
 from dataclasses import dataclass, fields
 from functools import lru_cache
 
 import sqlalchemy.inspection
 import sqlalchemy.orm
-from sqlalchemy.orm import MANYTOONE, MANYTOMANY, ONETOMANY, RelationshipProperty
+from sqlalchemy import event
+from sqlalchemy.orm import MANYTOONE, MANYTOMANY, ONETOMANY, RelationshipProperty, selectinload
 from typing_extensions import (
     Type,
     get_origin,
@@ -184,9 +186,27 @@ class AlternativePartitionPlan:
     """
 
     parent_single_relationships: Tuple[Tuple[str, Type], ...]
+    """
+    Single-valued relationships (key, domain type) that belong to the alternatively mapped base.
+    """
+
     parent_collection_relationships: Tuple[Tuple[str, Optional[Type], Type], ...]
+    """
+    Collection relationships (key, association class or None, domain type) that belong to the
+    alternatively mapped base.
+    """
+
     own_single_relationships: Tuple[Tuple[str, Type], ...]
+    """
+    Single-valued relationships (key, domain type) that belong to this DAO's own tables,
+    i.e. those not covered by the alternatively mapped base.
+    """
+
     own_collection_relationships: Tuple[Tuple[str, Optional[Type], Type], ...]
+    """
+    Collection relationships (key, association class or None, domain type) that belong to this
+    DAO's own tables, i.e. those not covered by the alternatively mapped base.
+    """
 
 
 @lru_cache(maxsize=None)
@@ -394,16 +414,6 @@ class DataAccessObject(HasGeneric[T]):
                 work_item.dao_instance.fill_dao_default(
                     source_object=work_item.source_object, state=state
                 )
-
-    @classmethod
-    def uses_alternative_mapping(cls, class_to_check: Type) -> bool:
-        """
-        Check if a class uses an alternative mapping, i. e. its original class inherits from AlternativeMapping.
-
-        :param class_to_check: The class to check.
-        :return: True if alternative mapping is used.
-        """
-        return _uses_alternative_mapping(class_to_check)
 
     @classmethod
     def _find_alternative_mapping_base(cls) -> Optional[Type[DataAccessObject]]:
@@ -623,22 +633,21 @@ class DataAccessObject(HasGeneric[T]):
         state.is_processing = True
         state.reset_conversion_tracking()
         discovery_order = []
-        try:
-            if not state.has(self):
-                state.allocate_and_memoize(self, self.constructable_original_class())
-            state.push_work_item(self, state.get(self))
 
-            self._discover_dependencies(state, discovery_order)
-            self._fill_domain_objects(state, discovery_order)
-            state.convert_alternative_mappings_to_domain_objects()
-            self._finalize_containers(state, discovery_order)
-            self._call_post_inits(state, discovery_order)
+        if not state.has(self):
+            state.allocate_and_memoize(self, self.constructable_original_class())
+        state.push_work_item(self, state.get(self))
 
-            for work_item in discovery_order:
-                state.mark_initialized(work_item.dao_instance)
-        finally:
-            state.is_processing = False
+        self._discover_dependencies(state, discovery_order)
+        self._fill_domain_objects(state, discovery_order)
+        state.convert_alternative_mappings_to_domain_objects()
+        self._finalize_containers(state, discovery_order)
+        self._call_post_inits(state, discovery_order)
 
+        for work_item in discovery_order:
+            state.mark_initialized(work_item.dao_instance)
+
+        state.is_processing = False
         return state.get(self)
 
     def _discover_dependencies(
@@ -653,22 +662,18 @@ class DataAccessObject(HasGeneric[T]):
         :param discovery_order: List to record the discovery order.
         """
         state.discovery_mode = True
+        collected_types = set()
 
-        collected_types = set()  # a set of all classes that have been discovered
+        while state.work_items:
+            # Use pop() to treat the deque as a stack (LIFO) for DFS
+            work_item = state.work_items.pop()
+            discovery_order.append(work_item)
+            if isinstance(work_item.domain_object, AlternativeMapping):
+                collected_types.add(type(work_item.domain_object))
+            work_item.dao_instance._fill_from_dao(work_item.domain_object, state)
 
-        try:
-            while state.work_items:
-                # Use pop() to treat the deque as a stack (LIFO) for DFS
-                work_item = state.work_items.pop()
-                discovery_order.append(work_item)
-                if isinstance(work_item.domain_object, AlternativeMapping):
-                    collected_types.add(type(work_item.domain_object))
-                work_item.dao_instance._fill_from_dao(work_item.domain_object, state)
-
-            # build dependency graph used to order the discovery queue
-            state._build_class_dependencies(list(collected_types))
-        finally:
-            state.discovery_mode = False
+        state._build_class_dependencies(list(collected_types))
+        state.discovery_mode = False
 
     def _fill_domain_objects(
         self,
@@ -1032,3 +1037,33 @@ class DataAccessObject(HasGeneric[T]):
             return f"{self.__class__.__name__}({', '.join(representations)})"
         finally:
             _repr_thread_local.seen.remove(id(self))
+
+
+@contextmanager
+def selectin_loading(session: sqlalchemy.orm.Session):
+    """
+    Context manager that applies selectin loading to all top-level ORM queries executed
+    within its scope.
+
+    Without this context manager (or ``lazy='selectin'`` on individual relationships),
+    relationship accesses default to lazy loading, which can cause N+1 queries when
+    converting large object graphs via :meth:`DataAccessObject.from_dao`.
+
+    Usage::
+
+        with selectin_loading(session):
+            dao = session.scalars(select(SomeDAO)).one()
+        domain_obj = dao.from_dao()
+
+    :param session: The SQLAlchemy session whose queries should use selectin loading.
+    """
+
+    def _add_selectin(orm_execute_state) -> None:
+        if not orm_execute_state.is_relationship_load:
+            orm_execute_state.user_defined_options += (selectinload("*"),)
+
+    event.listen(session, "do_orm_execute", _add_selectin)
+    try:
+        yield
+    finally:
+        event.remove(session, "do_orm_execute", _add_selectin)
