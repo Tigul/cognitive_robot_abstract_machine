@@ -19,9 +19,9 @@ from krrood.symbolic_math.symbolic_math import SymbolicMathType
 from krrood.exceptions import DataclassException
 from semantic_digital_twin.datastructures.definitions import JointStateType
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
-from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 
 if TYPE_CHECKING:
+    from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
     from semantic_digital_twin.robots.robot_parts import (
         AbstractRobot,
         AbstractRobotPart,
