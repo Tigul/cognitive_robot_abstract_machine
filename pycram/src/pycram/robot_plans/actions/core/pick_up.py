@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-from copy import deepcopy
 from dataclasses import dataclass
 
 from typing_extensions import Any, Dict
@@ -20,7 +19,7 @@ from pycram.datastructures.enums import (
     MovementType,
 )
 from pycram.datastructures.grasp import GraspDescription
-from pycram.locations.pose_validator import AreReachableBy
+from pycram.locations.pose_validator import IsObjectReachableBy
 from pycram.plans.attachment_nodes import AttachNode
 from pycram.plans.factories import sequential, execute_single
 from pycram.plans.plan_node import PlanNode
@@ -119,23 +118,14 @@ class ReachAction(ActionDescription):
         """
         The sequence in which the robot would reach the target pose needs to be achiveable
         """
-        end_effector = ViewManager.get_end_effector_view(
-            variables["arm"], context.robot
-        )
-        test_world = deepcopy(context.world)
-        grasp_pose_sequence = kwargs["grasp_description"]._pose_sequence(
-            kwargs["target_pose"],
-            kwargs["object_designator"],
-            reverse=kwargs["reverse_reach_order"],
-        )
         return and_(
-            AreReachableBy(
-                world=test_world,
-                robot=test_world.get_semantic_annotations_by_type(type(context.robot))[
-                    0
-                ],
-                pose_sequence=grasp_pose_sequence,
-                tip_link=end_effector.tool_frame,
+            IsObjectReachableBy(
+                context=context,
+                arm=kwargs["arm"],
+                object_designator=kwargs["object_designator"],
+                grasp_description=kwargs["grasp_description"],
+                target_pose=kwargs["target_pose"],
+                reverse=kwargs["reverse_reach_order"],
             ),
         )
 
@@ -220,19 +210,13 @@ class PickUpAction(ActionDescription):
         end_effector = ViewManager.get_end_effector_view(
             variables["arm"], context.robot
         )
-        test_world = deepcopy(context.world)
-        grasp_pose_sequence = kwargs["grasp_description"].grasp_pose_sequence(
-            kwargs["object_designator"]
-        )
         return and_(
             GripperIsFree(end_effector),
-            AreReachableBy(
-                world=test_world,
-                robot=test_world.get_semantic_annotations_by_type(type(context.robot))[
-                    0
-                ],
-                pose_sequence=grasp_pose_sequence,
-                tip_link=end_effector.tool_frame,
+            IsObjectReachableBy(
+                context=context,
+                arm=kwargs["arm"],
+                object_designator=kwargs["object_designator"],
+                grasp_description=kwargs["grasp_description"],
             ),
         )
 

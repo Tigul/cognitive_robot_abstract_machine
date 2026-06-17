@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from copy import deepcopy
 from dataclasses import dataclass
 
 from typing_extensions import Any, Dict
@@ -20,7 +19,7 @@ from pycram.datastructures.enums import (
     VerticalAlignment,
 )
 from pycram.datastructures.grasp import GraspDescription
-from pycram.locations.pose_validator import IsReachableBy
+from pycram.locations.pose_validator import IsObjectReachableBy
 from pycram.plans.factories import sequential
 from pycram.plans.plan_node import PlanNode
 from pycram.querying.predicates import GripperIsFree
@@ -33,7 +32,6 @@ from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.reasoning.predicates import allclose
 from semantic_digital_twin.reasoning.robot_predicates import is_body_in_gripper
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
-from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.world_description.connections import ActiveConnection1DOF
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -85,26 +83,16 @@ class OpenAction(ActionDescription):
         """
         The gripper with which to open the container has to be free and the handle has to be reachable.
         """
-        test_world = deepcopy(context.world)
-        test_robot: AbstractRobot = test_world.get_semantic_annotation_by_id(
-            context.robot.id
+        end_effector = ViewManager.get_end_effector_view(
+            variables["arm"], context.robot
         )
-        end_effector = ViewManager.get_end_effector_view(variables["arm"], test_robot)
-
         return and_(
             GripperIsFree(end_effector),
-            IsReachableBy(
-                world=test_world,
-                robot=test_world.get_semantic_annotations_by_type(type(context.robot))[
-                    0
-                ],
-                pose=kwargs["object_designator"].global_pose,
-                tip_link=end_effector.tool_frame,
-                grasp_description=GraspDescription(
-                    ApproachDirection.FRONT,
-                    VerticalAlignment.NoAlignment,
-                    next(end_effector.evaluate()),
-                ),
+            IsObjectReachableBy(
+                context=context,
+                arm=kwargs["arm"],
+                object_designator=kwargs["object_designator"],
+                as_single_grasp=True,
             ),
         )
 

@@ -1,8 +1,10 @@
 import logging
+from copy import deepcopy
 from dataclasses import dataclass, field
 
-from typing_extensions import List
+from typing_extensions import List, Optional
 
+from krrood.entity_query_language.predicate import Predicate
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.goals.templates import Sequence
@@ -21,7 +23,7 @@ from pycram.robot_plans import MoveToolCenterPointMotion
 from pycram.view_manager import ViewManager
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
-from semantic_digital_twin.robots.robot_parts import EndEffector
+from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import (
@@ -257,3 +259,89 @@ class AreReachableBy(PoseValidator):
                 )
                 return False
             return True
+
+
+@dataclass
+class IsObjectReachableBy(Predicate):
+    """
+    Reachability check that is evaluated against a *fresh* copy of the world.
+
+    Both the world copy and the grasp pose sequence are produced inside
+    :meth:`__call__`, i.e. when the surrounding condition/monitor is evaluated,
+    so the result reflects the current world state instead of the state at the
+    time the plan was parsed. The actual reachability simulation is delegated to
+    :class:`AreReachableBy` / :class:`IsReachableBy`, which run on the throwaway
+    copy so the live world is left untouched.
+    """
+
+    context: Context
+    """
+    Context providing the live world and robot to copy and check against.
+    """
+
+    arm: Arms
+    """
+    The arm whose end effector should reach the object.
+    """
+
+    object_designator: Body
+    """
+    The object that should be reachable.
+    """
+
+    grasp_description: GraspDescription = field(default=None)
+    """
+    Grasp description used to build the pose sequence. Required unless
+    ``as_single_grasp`` is set.
+    """
+
+    target_pose: Pose = field(default=None)
+    """
+    Optional explicit target pose. If omitted, the object's own frame is used as
+    the grasp target (as in :meth:`GraspDescription.grasp_pose_sequence`).
+    """
+
+    reverse: bool = field(default=False)
+    """
+    Whether the grasp pose sequence should be reversed.
+    """
+
+    as_single_grasp: bool = field(default=False)
+    """
+    If set, check reachability of a single grasp pose at the object (used for
+    grasping handles of containers) instead of a full pick pose sequence.
+    """
+
+    def __call__(self, *args, **kwargs) -> bool:
+        world = deepcopy(self.context.world)
+        robot = world.get_semantic_annotation_by_id(self.context.robot.id)
+        end_effector = ViewManager.get_end_effector_view(self.arm, robot)
+
+        if self.as_single_grasp:
+            return IsReachableBy(
+                world=world,
+                robot=robot,
+                pose=self.object_designator.global_pose,
+                tip_link=end_effector.tool_frame,
+                grasp_description=GraspDescription(
+                    ApproachDirection.FRONT,
+                    VerticalAlignment.NoAlignment,
+                    end_effector,
+                ),
+            ).__call__()
+
+        if self.target_pose is not None:
+            pose_sequence = self.grasp_description._pose_sequence(
+                self.target_pose, self.object_designator, reverse=self.reverse
+            )
+        else:
+            pose_sequence = self.grasp_description.grasp_pose_sequence(
+                self.object_designator
+            )
+
+        return AreReachableBy(
+            world=world,
+            robot=robot,
+            pose_sequence=pose_sequence,
+            tip_link=end_effector.tool_frame,
+        ).__call__()
