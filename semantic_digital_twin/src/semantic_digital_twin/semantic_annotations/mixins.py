@@ -353,7 +353,6 @@ def _wrapped_part_whole_relationship_fields(
 ) -> list[WrappedField]:
     """
     Filters the fields of cls for all fields that are of type PartWholeRelationshipField, and returns them as a Wrapped Class.
-    ..note:: Should be safely lru cacheable without world memory leak as we only work on types and wrapped fields.
     """
     return [
         wrapped_part_whole_relationship_field
