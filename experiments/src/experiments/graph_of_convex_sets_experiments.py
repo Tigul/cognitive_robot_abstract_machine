@@ -36,7 +36,9 @@ from experiments.experiment_definitions import (
 )
 
 from semantic_digital_twin.adapters.urdf import URDFParser
-from semantic_digital_twin.semantic_annotations.semantic_annotations import SemanticEnvironmentAnnotation
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    SemanticEnvironmentAnnotation,
+)
 from semantic_digital_twin.world_description.geometry import BoundingBox
 from semantic_digital_twin.world_description.graph_of_convex_sets import (
     GraphOfConvexSets,
