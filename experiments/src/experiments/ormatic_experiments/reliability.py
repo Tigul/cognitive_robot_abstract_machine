@@ -143,10 +143,12 @@ class ORMaticReliabilityExperimentResult(ExperimentResult):
     """
     Seconds to execute the plan under simulated_robot.
     """
+
     to_data_access_object_duration: float
     """
     Seconds for to_dao() to serialise the plan to a DAO.
     """
+
     writing_to_database_duration: float
     """
     Combined seconds for session.add(dao) + session.commit().
@@ -193,13 +195,11 @@ class ORMaticReliabilityAggregateResult(ExperimentResult):
     Mean and standard deviation of session.add() + session.commit() time
     (seconds).
     """
-
     reading_from_database_duration: MeanAndStandardDeviation
     """
     Mean and standard deviation of
     session.scalars(select(PlanMappingDAO)).one() time (seconds).
     """
-
     reconstruction_duration: MeanAndStandardDeviation
     """
     Mean and standard deviation of from_dao() reconstruction time (seconds).
