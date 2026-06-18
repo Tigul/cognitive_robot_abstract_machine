@@ -2,8 +2,9 @@
 This module provides functionality to build a PR2 robot world, create random
 robot action plans, execute plans in a simulated environment, and measure the
 performance of data operations, such as serialization and database storage.
-It includes tools for running experiments to evaluate the reliability and
-performance of robotic action plans and data operations.
+
+It includes tools for running experiments to evaluate the reliability
+and performance of robotic action plans and data operations.
 """
 
 import pathlib
@@ -71,7 +72,9 @@ def _build_pr2_world() -> World:
 
 
 def build_cram_world():
-    """Build a PR2+apartment world and return ``(world, pr2, context)``."""
+    """
+    Build a PR2+apartment world and return ``(world, pr2, context)``.
+    """
     pr2_world = _build_pr2_world()
     apartment = URDFParser.from_file(str(_APARTMENT_URDF)).parse()
     pr2_world.merge_world(apartment)
@@ -86,7 +89,9 @@ def build_cram_world():
 
 
 def _random_underspecified_action(world: World):
-    """Return a random underspecified action limited to at most attempts."""
+    """
+    Return a random underspecified action limited to at most attempts.
+    """
     choice = random.randint(0, 2)
     if choice == 0:
         action = underspecified(NavigateAction)(
@@ -110,49 +115,95 @@ def _random_underspecified_action(world: World):
 
 
 def create_random_plan(world: World, ctx: Context, n_actions: int):
-    """Create a sequential plan with *n_actions* randomly chosen underspecified actions."""
+    """
+    Create a sequential plan with *n_actions* randomly chosen underspecified
+    actions.
+    """
     actions = [_random_underspecified_action(world) for _ in range(n_actions)]
     return sequential(actions, context=ctx).plan
 
 
 @dataclass
 class ORMaticReliabilityExperimentResult(ExperimentResult):
-    """Raw timings from a single plan-creation, execution and DB-write cycle."""
+    """
+    Raw timings from a single plan-creation, execution and DB-write cycle.
+    """
 
     plan_size: int
-    """Number of actions in the plan."""
+    """
+    Number of actions in the plan.
+    """
+
     world_building_duration: float
-    """Seconds to build the PR2+apartment world."""
+    """
+    Seconds to build the PR2+apartment world.
+    """
+
     plan_execution_duration: float
-    """Seconds to execute the plan under simulated_robot."""
+    """
+    Seconds to execute the plan under simulated_robot.
+    """
     to_data_access_object_duration: float
-    """Seconds for to_dao() to serialise the plan to a DAO."""
+    """
+    Seconds for to_dao() to serialise the plan to a DAO.
+    """
     writing_to_database_duration: float
-    """Combined seconds for session.add(dao) + session.commit()."""
+    """
+    Combined seconds for session.add(dao) + session.commit().
+    """
+
     reading_from_database_duration: float
-    """Seconds for session.scalars(select(PlanMappingDAO)).one()."""
+    """
+    Seconds for session.scalars(select(PlanMappingDAO)).one().
+    """
+
     reconstruction_duration: float
-    """Seconds for fetched_plan.from_dao()."""
+    """
+    Seconds for fetched_plan.from_dao().
+    """
 
 
 @dataclass
 class ORMaticReliabilityAggregateResult(ExperimentResult):
-    """Aggregated timings across multiple reliability experiment runs."""
+    """
+    Aggregated timings across multiple reliability experiment runs.
+    """
 
     plan_size: int
-    """Number of actions in each plan in this aggregate."""
+    """
+    Number of actions in each plan in this aggregate.
+    """
+
     world_building_duration: MeanAndStandardDeviation
-    """Mean and standard deviation of world-building time across runs (seconds)."""
+    """
+    Mean and standard deviation of world-building time across runs (seconds).
+    """
+
     plan_execution_duration: MeanAndStandardDeviation
-    """Mean and standard deviation of plan execution time under simulated_robot (seconds)."""
+    """
+    Mean and standard deviation of plan execution time under simulated_robot
+    (seconds).
+    """
     to_data_access_object_duration: MeanAndStandardDeviation
-    """Mean and standard deviation of to_dao() serialisation time (seconds)."""
+    """
+    Mean and standard deviation of to_dao() serialisation time (seconds).
+    """
     writing_to_database_duration: MeanAndStandardDeviation
-    """Mean and standard deviation of session.add() + session.commit() time (seconds)."""
+    """
+    Mean and standard deviation of session.add() + session.commit() time
+    (seconds).
+    """
+
     reading_from_database_duration: MeanAndStandardDeviation
-    """Mean and standard deviation of session.scalars(select(PlanMappingDAO)).one() time (seconds)."""
+    """
+    Mean and standard deviation of
+    session.scalars(select(PlanMappingDAO)).one() time (seconds).
+    """
+
     reconstruction_duration: MeanAndStandardDeviation
-    """Mean and standard deviation of from_dao() reconstruction time (seconds)."""
+    """
+    Mean and standard deviation of from_dao() reconstruction time (seconds).
+    """
 
 
 def reliability_experiment(
@@ -162,13 +213,14 @@ def reliability_experiment(
     world_building_duration: float,
 ) -> ORMaticReliabilityExperimentResult:
     """
-    Run a single reliability iteration: create and execute a plan, then write it
-    to an in-memory SQLite database, measuring each phase separately.
+    Run a single reliability iteration: create and execute a plan, then write
+    it to an in-memory SQLite database, measuring each phase separately.
 
     :param plan_size: Number of actions to include in the random plan.
     :param world: The pre-built world to create the plan in.
     :param context: The execution context.
-    :param world_building_duration: Pre-measured world building time (s).
+    :param world_building_duration: Pre-measured world building time
+        (s).
     :return: Timing breakdown for this single run.
     """
     plan = create_random_plan(world, context, plan_size)
@@ -267,10 +319,12 @@ def plot_reliability(
     raw_results: List[ORMaticReliabilityExperimentResult],
 ) -> go.Figure:
     """
-    Produce a grouped violin plot of plan size vs duration for each timing phase.
+    Produce a grouped violin plot of plan size vs duration for each timing
+    phase.
 
-    :param raw_results: All per-iteration :class:`ORMaticReliabilityExperimentResult`
-                        instances across every plan size.
+    :param raw_results: All per-iteration
+        :class:`ORMaticReliabilityExperimentResult` instances across
+        every plan size.
     :return: A Plotly figure ready for display or export.
     """
     phases = [
@@ -306,11 +360,7 @@ def plot_reliability(
 def main():
     aggregate_results = []
     all_raw: List[ORMaticReliabilityExperimentResult] = []
-    for plan_size in tqdm.tqdm(
-        [
-            1,
-        ]
-    ):
+    for plan_size in tqdm.tqdm([10, 50, 100]):
         aggregate, raw = run_reliability_experiment(plan_size, iterations=1)
         aggregate_results.append(aggregate)
         all_raw.extend(raw)
