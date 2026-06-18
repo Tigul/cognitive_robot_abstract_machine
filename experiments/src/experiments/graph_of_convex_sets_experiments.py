@@ -51,21 +51,21 @@ from semantic_digital_twin.world_description.world_entity import (
 )
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 
-_APARTMENT_URDF_PATH = (
+URDF_DIRECTORY_PATH = (
     Path(__file__).parent
-    / ".."
     / ".."
     / ".."
     / ".."
     / "semantic_digital_twin"
     / "resources"
     / "urdf"
-    / "apartment.urdf"
 )
+
+PARTNET_WORLD_IDS = []
 
 
 @dataclass
-class GCSFreespaceExperimentResult(ExperimentResult):
+class GraphOfConvexSetsFreespaceExperimentResult(ExperimentResult):
     """
     Performance measurements for the Graph of Convex Sets free-space pipeline
     on the IAI Apartment world.
@@ -103,6 +103,11 @@ class GCSFreespaceExperimentResult(ExperimentResult):
     end_to_end_duration_milliseconds: float
     """Wall-clock time for a complete free_space_from_world call including world loading."""
 
+    environment_name: str
+    """
+    The environment that was used to measure the timings.
+    """
+
 
 def _measure(function_to_time, repetitions: int = 1):
     """Run function_to_time the given number of times and return (result, elapsed_seconds_list)."""
@@ -123,16 +128,14 @@ def _to_mean_and_standard_deviation_milliseconds(
     )
 
 
-def main():
-    print("=" * 65)
-    print("Graph of Convex Sets Free-Space Benchmark  –  IAI Apartment World")
-    print("=" * 65)
+def _perform_benchmark_for_environment(urdf_path: Path):
+    """Run function_to_time and return (result, elapsed_seconds_list)."""
 
-    def _load_apartment_world():
-        parser = URDFParser.from_file(_APARTMENT_URDF_PATH)
+    def _load_world():
+        parser = URDFParser.from_file(str(urdf_path))
         return parser.parse()
 
-    world, world_loading_elapsed = _measure(_load_apartment_world)
+    world, world_loading_elapsed = _measure(_load_world)
     world_loading_duration_milliseconds = world_loading_elapsed[0] * 1000.0
 
     body_count = len(list(world.bodies))
@@ -208,7 +211,7 @@ def main():
     )
 
     def _run_end_to_end():
-        loaded_world = _load_apartment_world()
+        loaded_world = _load_world()
         apartment_search_space = BoundingBoxCollection(
             shapes=[
                 BoundingBox(
@@ -232,7 +235,7 @@ def main():
     end_to_end_graph, end_to_end_elapsed = _measure(_run_end_to_end)
     end_to_end_duration_milliseconds = end_to_end_elapsed[0] * 1000.0
 
-    result = GCSFreespaceExperimentResult(
+    result = GraphOfConvexSetsFreespaceExperimentResult(
         world_loading_duration_milliseconds=round(
             world_loading_duration_milliseconds, 2
         ),
@@ -251,12 +254,20 @@ def main():
         graph_node_count=len(connectivity_graph.graph.nodes()),
         graph_edge_count=len(connectivity_graph.graph.edges()),
         end_to_end_duration_milliseconds=round(end_to_end_duration_milliseconds, 2),
+        environment_name=Path(urdf_path).stem,
     )
 
-    table = ExperimentsTable(experiments=[result])
-    renderer = TypstRenderer(experiments_table=table)
-    print("\n" + "=" * 65)
-    print(renderer.render_table())
+    return result
+
+
+def main():
+    results = []
+    for urdf_file in sorted(URDF_DIRECTORY_PATH.glob("*.urdf")):
+        print(f"Running benchmark for {urdf_file}")
+        results.append(_perform_benchmark_for_environment(urdf_file))
+
+    table = ExperimentsTable(results)
+    print(TypstRenderer(table).render_table())
 
 
 if __name__ == "__main__":
