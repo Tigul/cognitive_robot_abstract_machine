@@ -239,18 +239,6 @@ class GiskardExecutable(Executable):
 
 
 @dataclass
-class LanguageExecutable(Executable):
-
-    @property
-    def motion_state_chart(self):
-        return Parallel(
-            nodes=[
-                motion.motion_node.designator.motion_chart for motion in self.motions
-            ]
-        )
-
-
-@dataclass
 class ConditionExecutable(Executable):
     """
     An executable unit for a condition node.

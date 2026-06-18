@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Tuple, List, Optional, Any
+from typing import Tuple, List
 
 from typing_extensions import Optional, Dict, Any
 
@@ -10,25 +10,23 @@ from krrood.entity_query_language.core.base_expressions import SymbolicExpressio
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import variable_from
 from pycram.datastructures.dataclasses import Context
-from pycram.robot_plans import MoveManipulatorMotion
-from semantic_digital_twin.reasoning.predicates import allclose
-from semantic_digital_twin.robots.robot_parts import EndEffector
-from semantic_digital_twin.spatial_types.spatial_types import Pose
 from pycram.datastructures.enums import AxisIdentifier, Arms
-
 from pycram.datastructures.trajectory import PoseTrajectory
 from pycram.plans.factories import execute_single, sequential
-from pycram.robot_plans.actions.base import ActionDescription, DescriptionType
+from pycram.plans.plan_node import PlanNode
+from pycram.robot_plans import MoveManipulatorMotion
+from pycram.robot_plans.actions.base import ActionDescription
 from pycram.robot_plans.motions.gripper import MoveGripperMotion, MoveTCPWaypointsMotion
 from pycram.robot_plans.motions.robot_body import MoveJointsMotion
-from pycram.validation.goal_validator import create_multiple_joint_goal_validator
 from pycram.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import (
     TorsoState,
     GripperState,
     StaticJointState,
 )
-from ....plans.plan_node import PlanNode
+from semantic_digital_twin.reasoning.predicates import allclose
+from semantic_digital_twin.robots.robot_parts import EndEffector
+from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 
 @dataclass

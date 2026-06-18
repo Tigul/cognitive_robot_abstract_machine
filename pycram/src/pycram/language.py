@@ -24,7 +24,6 @@ from pycram.language_giskard_templates import TryAll, TryInOrder
 from pycram.plans.executables import (
     GiskardExecutable,
     Executable,
-    LanguageExecutable,
     ModelChangeExecutable,
 )
 from pycram.datastructures.enums import TaskStatus, MonitorBehavior
@@ -63,7 +62,7 @@ class LanguageNode(PlanNode, ABC):
             child.notify()
 
     def parse(self) -> Executable:
-        if ModelChangeNode in [type(child) for child in self.children]:
+        if any([isinstance(child, ModelChangeNode) for child in self.descendants]):
             return self.parse_with_model_change()
         child_execs = [child.parse() for child in self.children]
 
@@ -93,20 +92,8 @@ class LanguageNode(PlanNode, ABC):
                 )
             else:
                 exec_list.extend(group)
-        return LanguageExecutable(execution_list=exec_list, context=self.plan.context)
 
-        # group everything before and after
-
-        # all_motions = all([isinstance(m, GiskardExecutable) for m in child_executables])
-        # if all_motions:
-        #     tasks = [
-        #         t for exe in child_executables for t in exe.motion_mappings.values()
-        #     ]
-        #
-        #     return LanguageExecutable(
-        #         motion_mappings=self.merge_motion_mappings(child_executables),
-        #         giskard_task=self.msc_template(nodes=tasks),
-        #     )
+        return Executable(execution_list=exec_list, context=self.plan.context)
 
 
 @dataclass

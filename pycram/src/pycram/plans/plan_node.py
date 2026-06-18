@@ -522,22 +522,12 @@ class ActionNode(DesignatorNode):
             motion_exec.post_condition_node = post_condition_node
             return motion_exec
 
-        # Fallback for composite/non-motion bodies: evaluate the conditions
-        # synchronously around the body, as before.
-        pre_condition_executable = ConditionExecutable(
-            condition_node=pre_condition_node, context=self.plan.context
-        )
-        post_condition_executable = ConditionExecutable(
-            condition_node=post_condition_node, context=self.plan.context
-        )
-        return Executable(
-            execution_list=[
-                pre_condition_executable,
-                *merged,
-                post_condition_executable,
-            ],
-            context=self.plan.context,
-        )
+        giskard_child_execs = [
+            e for e in child_execs[0].execution_list if isinstance(e, GiskardExecutable)
+        ]
+        giskard_child_execs[0].pre_condition_node = pre_condition_node
+        giskard_child_execs[-1].post_condition_node = post_condition_node
+        return child_execs[0]
 
     def execute(self):
         self.parse().execute()
