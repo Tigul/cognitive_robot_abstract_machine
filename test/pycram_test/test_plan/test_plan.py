@@ -149,6 +149,7 @@ def test_path_after_node_removal():
     ``path``/``depth`` must keep working in that case (they previously relied on
     ``rx.all_shortest_paths``, which panics on non-contiguous indices).
     """
+
     class _Node(PlanNode):
         def notify(self):
             pass
@@ -344,17 +345,13 @@ def test_get_previous_nodes():
 def test_interrupt_plan(immutable_model_world):
     world, robot_view, context = immutable_model_world
 
-    def _interrupt_plan(code_node: CodeNode):
-        code_node.plan.root.interrupt()
-
     act1 = MoveTorsoAction(TorsoState.HIGH)
-
-    act2 = code(_interrupt_plan)
-    act2.code = lambda: _interrupt_plan(act2)
 
     act3 = MoveTorsoAction(TorsoState.LOW)
 
-    plan = sequential([act1, act2, act3], context=context).plan
+    plan = sequential([act1, act3], context=context).plan
+
+    plan.root.children[1].interrupt()
 
     with simulated_robot:
         plan.perform()

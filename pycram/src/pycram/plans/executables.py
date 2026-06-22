@@ -9,7 +9,6 @@ from typing_extensions import List, Dict, ClassVar, TYPE_CHECKING
 
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import LifeCycleValues
-from giskardpy.motion_statechart.goals.templates import Parallel, Sequence
 from giskardpy.motion_statechart.graph_node import EndMotion, Task
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.qp.qp_controller_config import QPControllerConfig
@@ -90,20 +89,77 @@ class GiskardExecutable(Executable):
           the motion if either condition is observed to be false.
         """
         from giskardpy.motion_statechart.graph_node import CancelMotion
-        from krrood.symbolic_math.symbolic_math import trinary_logic_not
-        from pycram.plans.condition_nodes import condition_monitor
+        from krrood.symbolic_math.symbolic_math import (
+            trinary_logic_and,
+            trinary_logic_not,
+            trinary_logic_or,
+        )
+        from pycram.plans.condition_nodes import (
+            condition_monitor,
+            PlanNodeStatusMonitor,
+        )
 
         motion_state_chart = MotionStatechart()
-        sequence_node = Sequence(nodes=list(self.motion_mappings.values()))
-        motion_state_chart.add_node(sequence_node)
 
-        end_trigger = sequence_node
+        plan_nodes = list(self.motion_mappings.keys())
+        tasks = list(self.motion_mappings.values())
+        for task in tasks:
+            motion_state_chart.add_node(task)
+
+        # Wire the tasks as an interruptible/pausable sequence. Each task carries
+        # two monitors bound to its originating plan node:
+        #
+        # - a pause monitor feeding the task's pause_condition, so the *active*
+        #   motion is held (and later resumed) when its plan node is paused;
+        # - an interrupt monitor gating the *next* task's start. An interrupt lets
+        #   the currently active motion finish but prevents the subsequent ones
+        #   from starting ("finish active, skip rest"). When a not-yet-started task
+        #   is reached while interrupted, the motion ends there.
+        first_task = tasks[0]
+        skip_end_conditions = []
+        for index, (plan_node, task) in enumerate(zip(plan_nodes, tasks)):
+            # a task is done once its own goal is observed (as giskard's Sequence does)
+            task.end_condition = task.observation_variable
+
+            pause_monitor = PlanNodeStatusMonitor(
+                predicate=lambda node=plan_node: node.is_paused,
+                name=f"paused#{index}",
+            )
+            motion_state_chart.add_node(pause_monitor)
+            task.pause_condition = pause_monitor.observation_variable
+
+            interrupt_monitor = PlanNodeStatusMonitor(
+                predicate=lambda node=plan_node: node.is_interrupted,
+                name=f"interrupted#{index}",
+            )
+            motion_state_chart.add_node(interrupt_monitor)
+
+            if index > 0:
+                previous_done = tasks[index - 1].observation_variable
+                # start only once the previous motion finished and this one is not
+                # interrupted ...
+                task.start_condition = trinary_logic_and(
+                    previous_done,
+                    trinary_logic_not(interrupt_monitor.observation_variable),
+                )
+                # ... otherwise, if we reach it while interrupted, the sequence ends.
+                skip_end_conditions.append(
+                    trinary_logic_and(
+                        previous_done, interrupt_monitor.observation_variable
+                    )
+                )
+
+        # The motion is done when the last task finished or the first skipped
+        # (interrupted) task is reached.
+        end_trigger = tasks[-1].observation_variable
+        if skip_end_conditions:
+            end_trigger = trinary_logic_or(end_trigger, *skip_end_conditions)
 
         if self.pre_condition_node is not None:
             pre_monitor = condition_monitor(self.pre_condition_node)
             motion_state_chart.add_node(pre_monitor)
             # only start the motion once the pre-condition holds
-            sequence_node.start_condition = pre_monitor.observation_variable
+            first_task.start_condition = pre_monitor.observation_variable
             # abort if the pre-condition is observed to be false
             pre_cancel = CancelMotion(
                 exception=self._condition_not_satisfied(
@@ -119,9 +175,9 @@ class GiskardExecutable(Executable):
         if self.post_condition_node is not None:
             post_monitor = condition_monitor(self.post_condition_node)
             # only evaluate the post-condition once the motion is done
-            post_monitor.start_condition = sequence_node.observation_variable
+            post_monitor.start_condition = end_trigger
             motion_state_chart.add_node(post_monitor)
-            end_trigger = post_monitor
+            end_trigger = post_monitor.observation_variable
             # abort if the post-condition is observed to be false
             post_cancel = CancelMotion(
                 exception=self._condition_not_satisfied(
@@ -134,7 +190,9 @@ class GiskardExecutable(Executable):
             )
             motion_state_chart.add_node(post_cancel)
 
-        motion_state_chart.add_node(EndMotion.when_true(end_trigger))
+        end_motion = EndMotion()
+        end_motion.start_condition = end_trigger
+        motion_state_chart.add_node(end_motion)
         return motion_state_chart
 
     @staticmethod
@@ -193,9 +251,12 @@ class GiskardExecutable(Executable):
 
         counter = 0
         while counter < len(self.motion_mappings) * 2000:
-            if self.is_interrupted:
-                return
-            elif self.is_paused:
+            # Interrupting and pausing are handled inside the motion state chart by
+            # per-task monitors (see motion_state_chart): an interrupt ends the
+            # motion via EndMotion, a pause holds the active task via its
+            # pause_condition. While paused we simply do not tick, so the pause does
+            # not consume the tick budget.
+            if self.is_paused:
                 time.sleep(0.01)
                 continue
 

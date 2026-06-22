@@ -39,7 +39,7 @@ def sort_by_layer_index(nodes: Iterable[PlanNode]) -> Iterable[PlanNode]:
 
 
 @dataclass(eq=False)
-class PlanNode(PlanEntity, ABC):
+class PlanNode(PlanEntity):
     """
     A node in the plan.
     """
