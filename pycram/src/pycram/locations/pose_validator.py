@@ -2,9 +2,8 @@ import logging
 from copy import deepcopy
 from dataclasses import dataclass, field
 
-from typing_extensions import List, Optional
+from typing_extensions import List
 
-from krrood.entity_query_language.predicate import Predicate
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.goals.templates import Sequence
@@ -23,8 +22,6 @@ from pycram.robot_plans import MoveToolCenterPointMotion
 from pycram.view_manager import ViewManager
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
-from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import (
     FixedConnection,
@@ -308,8 +305,8 @@ class IsObjectReachableBy(PoseValidator):
     """
 
     def __call__(self, *args, **kwargs) -> bool:
-        world = deepcopy(self.context.world)
-        robot = world.get_semantic_annotation_by_id(self.context.robot.id)
+        world = deepcopy(self.world)
+        robot = world.get_semantic_annotation_by_id(self.robot.id)
         end_effector = ViewManager.get_end_effector_view(self.arm, robot)
 
         if self.as_single_grasp:

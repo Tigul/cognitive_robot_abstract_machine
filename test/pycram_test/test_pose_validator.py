@@ -1,5 +1,6 @@
 import numpy as np
 
+from krrood.entity_query_language.factories import and_
 from pycram.datastructures.enums import (
     Arms,
     ApproachDirection,
@@ -123,7 +124,8 @@ def test_is_object_reachable_by_copies_current_world_lazily(
     monkeypatch.setattr(AreReachableBy, "__call__", fake_call)
 
     predicate = IsObjectReachableBy(
-        context=context,
+        robot=view,
+        world=world,
         arm=Arms.RIGHT,
         object_designator=milk,
         grasp_description=_right_front_grasp(view),
@@ -166,7 +168,8 @@ def test_is_object_reachable_by_uses_target_pose_sequence(
     )
 
     assert IsObjectReachableBy(
-        context=context,
+        robot=view,
+        world=world,
         arm=Arms.RIGHT,
         object_designator=milk,
         grasp_description=_right_front_grasp(view),
@@ -199,7 +202,8 @@ def test_is_object_reachable_by_single_grasp_delegates_to_is_reachable_by(
     )
 
     assert IsObjectReachableBy(
-        context=context,
+        robot=view,
+        world=world,
         arm=Arms.RIGHT,
         object_designator=milk,
         as_single_grasp=True,
@@ -223,7 +227,8 @@ def test_is_object_reachable_by_reachable(immutable_model_world):
     )
 
     assert IsObjectReachableBy(
-        context=context,
+        robot=view,
+        world=world,
         arm=Arms.RIGHT,
         object_designator=milk,
         grasp_description=_right_front_grasp(view),
@@ -239,7 +244,8 @@ def test_is_object_reachable_by_not_reachable(immutable_model_world):
     )
 
     assert not IsObjectReachableBy(
-        context=context,
+        robot=view,
+        world=world,
         arm=Arms.RIGHT,
         object_designator=milk,
         grasp_description=_right_front_grasp(view),

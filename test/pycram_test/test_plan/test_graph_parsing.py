@@ -124,7 +124,8 @@ def test_parse_complex_plan(immutable_model_world):
 
     plan.notify()
     exec = plan.parse()
-    assert len(exec.execution_list) == 2
+    assert type(exec) == GiskardExecutable
+    assert len(exec.motion_mappings) == 3
 
 
 def test_parsing_two_actions_into_one_exec(immutable_model_world):
