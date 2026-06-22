@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.qp.dof_limits import DofLimits
@@ -27,23 +27,23 @@ class QPVariableAccumulator:
     variables while the QP is assembled, so the assembly logic stays free of hidden side effects.
     """
 
-    quadratic_weights: List[Vector] = field(default_factory=list)
+    quadratic_weights: list[Vector] = field(default_factory=list)
     """
     The quadratic cost blocks, one per registered variable block.
     """
-    linear_weights: List[Vector] = field(default_factory=list)
+    linear_weights: list[Vector] = field(default_factory=list)
     """
     The linear cost blocks, one per registered variable block.
     """
-    box_lower_constraints: List[Vector] = field(default_factory=list)
+    box_lower_constraints: list[Vector] = field(default_factory=list)
     """
     The lower box-bound blocks, one per registered variable block.
     """
-    box_upper_constraints: List[Vector] = field(default_factory=list)
+    box_upper_constraints: list[Vector] = field(default_factory=list)
     """
     The upper box-bound blocks, one per registered variable block.
     """
-    free_variable_names: List[str] = field(default_factory=list)
+    free_variable_names: list[str] = field(default_factory=list)
     """
     The names of all registered variables, in column order.
     """
@@ -62,7 +62,7 @@ class QPDataSymbolic:
           lbA <= Aslack x <= ubA_slack  (lower/upper inequality constraints)
     """
 
-    degrees_of_freedom: List[DegreeOfFreedom]
+    degrees_of_freedom: list[DegreeOfFreedom]
     """
     The degrees of freedom whose decision variables make up the non-slack part of the QP.
     """
@@ -139,7 +139,7 @@ class QPDataSymbolic:
     @staticmethod
     def _append_slack_block(
         strategy: EnforcementStrategy,
-        constraint_names: List[str],
+        constraint_names: list[str],
         accumulator: QPVariableAccumulator,
     ) -> tuple[Matrix, Matrix]:
         """
@@ -252,21 +252,36 @@ class QPDataSymbolic:
         return hash(id(self))
 
     @property
-    def num_free_variable_constraints(self) -> int:
+    def num_degrees_of_freedom(self) -> int:
+        """
+        The number of degrees of freedom.
+        """
         return len(self.degrees_of_freedom)
 
     @property
     def num_eq_slack_variables(self) -> int:
+        """
+        The number of slack columns introduced by the equality constraints.
+        """
         return self.eq_matrix_slack.shape[1]
 
     @property
     def num_neq_slack_variables(self) -> int:
+        """
+        The number of slack columns introduced by the inequality constraints.
+        """
         return self.neq_matrix_slack.shape[1]
 
     @property
     def num_slack_variables(self) -> int:
+        """
+        The total number of slack columns.
+        """
         return self.num_eq_slack_variables + self.num_neq_slack_variables
 
     @property
     def num_non_slack_variables(self) -> int:
+        """
+        The number of degree-of-freedom decision variable columns, i.e. all non-slack columns.
+        """
         return self.quadratic_weights.shape[0] - self.num_slack_variables

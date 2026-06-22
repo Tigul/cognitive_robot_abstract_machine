@@ -209,10 +209,6 @@ def test_mpc_model(prismatic_bot2):
                 constraints[constraint_index]
                 == -v_k_minus_2 + 2 * v_k_minus_1 - v_k + j_k
             )
-            assert (
-                constraints[constraint_index]
-                == -v_k_minus_2 + 2 * v_k_minus_1 - v_k + j_k
-            )
             constraint_index += 1
 
     # constraints on last two idx
@@ -240,7 +236,6 @@ def test_mpc_model(prismatic_bot2):
 def test_integral_strategy_with_equality_constraints(prismatic_bot2):
     target_frequency = 20
     prediction_horizon = 10
-    number_of_variables = len(prismatic_bot2.active_degrees_of_freedom)
     constraints = ConstraintCollection()
     dof1 = prismatic_bot2.active_degrees_of_freedom[0]
     constraints.add_equality_constraint(
@@ -273,7 +268,6 @@ def test_integral_strategy_with_equality_constraints(prismatic_bot2):
 def test_integral_strategy_with_inequality_constraints(prismatic_bot2):
     target_frequency = 20
     prediction_horizon = 10
-    number_of_variables = len(prismatic_bot2.active_degrees_of_freedom)
     constraints = ConstraintCollection()
     dof1 = prismatic_bot2.active_degrees_of_freedom[0]
     constraints.add_inequality_constraint(
@@ -368,7 +362,6 @@ def test_system_dynamics_strategy_is_not_an_expression_strategy(prismatic_bot2):
         config=QPControllerConfig(target_frequency=20, prediction_horizon=10),
     )
     assert not isinstance(strategy, ExpressionEnforcementStrategy)
-    assert not hasattr(strategy, "create_lower_bounds")
     assert isinstance(
         IntegralStrategy(
             degrees_of_freedom=prismatic_bot2.active_degrees_of_freedom,
@@ -428,6 +421,9 @@ def test_qp_data_symbolic(prismatic_bot2):
     )
     assert len(debugger.inequality_constraints) == 1
     assert len(debugger.equality_constraints) == 22
+    assert "ineq constraint" in debugger.inequality_constraints.index
+    assert "position_constraint" in debugger.equality_constraints.index
+    assert "bounds" in debugger.equality_constraints.columns
 
 
 def _build_qp_data_symbolic(prismatic_bot2) -> QPDataSymbolic:
@@ -468,8 +464,13 @@ def test_two_sided_factory_evaluate_returns_fresh_object(prismatic_bot2):
         life_cycle_state=np.array([]),
         float_variables=np.array([]),
     )
+    second_qp_data = factory.evaluate(
+        world_state=_world_state_matrix(prismatic_bot2),
+        life_cycle_state=np.array([]),
+        float_variables=np.array([]),
+    )
     assert isinstance(qp_data, QPDataTwoSidedInequality)
-    assert not hasattr(factory, "qp_data_raw")
+    assert qp_data is not second_qp_data
 
 
 def test_get_factory_for_unregistered_type_raises():
@@ -484,4 +485,41 @@ def test_get_factory_for_unregistered_type_raises():
 def test_qp_data_type_is_a_classmethod():
     assert QPSolverPIQP.qp_data_type() is QPDataExplicit
     assert QPDataExplicitFactory.qp_data_type() is QPDataExplicit
+
+
+def test_active_degrees_of_freedom_are_deduplicated_and_ordered(prismatic_bot2):
+    active = prismatic_bot2.active_degrees_of_freedom
+    connection_dofs = [
+        dof
+        for connection in prismatic_bot2.connections
+        for dof in connection.active_dofs
+    ]
+
+    assert len(active) == len(set(active))
+    assert active == list(dict.fromkeys(connection_dofs))
+
+
+def test_constraint_collection_groups_constraints_by_enforcement_strategy(
+    prismatic_bot2,
+):
+    dof = prismatic_bot2.active_degrees_of_freedom[0]
+    constraints = ConstraintCollection()
+    constraints.add_equality_constraint(
+        task_expression=dof.variables.position,
+        equality_bound=1,
+        quadratic_weight=1,
+        reference_velocity=1,
+        name="eq",
+    )
+    constraints.add_velocity_constraint(
+        lower_velocity_limit=-1,
+        upper_velocity_limit=1,
+        quadratic_weight=1,
+        task_expression=dof.variables.position,
+        velocity_limit=1,
+        name="vel",
+    )
+
+    assert set(constraints.get_equality_constraint_blocks()) == {IntegralStrategy}
+    assert set(constraints.get_inequality_constraint_blocks()) == {VelocityStrategy}
     assert QPDataTwoSidedInequalityFactory.qp_data_type() is QPDataTwoSidedInequality

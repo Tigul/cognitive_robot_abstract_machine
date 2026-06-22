@@ -1,5 +1,6 @@
+from __future__ import annotations
+
 from dataclasses import field, dataclass
-from typing import Optional, Dict, List, Tuple, Union
 
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.context import MotionStatechartContext

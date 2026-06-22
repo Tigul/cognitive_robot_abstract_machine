@@ -1,4 +1,6 @@
-from dataclasses import dataclass
+from __future__ import annotations
+
+from dataclasses import dataclass, field
 
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.context import MotionStatechartContext
@@ -13,9 +15,18 @@ class MaxManipulability(Task):
     This chain should only include rotational joint and no linear joints i.e. torso lift joints or odometry joints.
     """
 
-    root_link: Body
-    tip_link: Body
-    m_threshold: float = 0.5
+    root_link: Body = field(kw_only=True)
+    """
+    The root of the kinematic chain whose manipulability is maximized.
+    """
+    tip_link: Body = field(kw_only=True)
+    """
+    The tip of the kinematic chain whose manipulability is maximized.
+    """
+    m_threshold: float = field(default=0.5, kw_only=True)
+    """
+    Manipulability value the goal drives the measure towards; also defines the observation threshold.
+    """
 
     def build(self, context: MotionStatechartContext) -> NodeArtifacts:
         artifacts = NodeArtifacts()
@@ -23,19 +34,19 @@ class MaxManipulability(Task):
             self.root_link, self.tip_link
         ).to_position()[:3]
 
-        symbols = root_P_tip.free_variables()
-        e = sm.vstack([root_P_tip])
-        J = e.jacobian(symbols)
-        JJT = J.dot(J.T)
-        m = sm.sqrt(JJT.det())
+        joint_symbols = root_P_tip.free_variables()
+        position_expression = sm.vstack([root_P_tip])
+        jacobian = position_expression.jacobian(joint_symbols)
+        jacobian_gram = jacobian.dot(jacobian.T)
+        manipulability = sm.sqrt(jacobian_gram.det())
 
         artifacts.geometry.add_position_constraint(
             reference_velocity=1,
             expr_goal=self.m_threshold,
             quadratic_weight=1,
-            expr_current=m,
+            expr_current=manipulability,
             name=self.name,
         )
 
-        artifacts.observation = sm.abs(self.m_threshold - m) <= 0.01
+        artifacts.observation = sm.abs(self.m_threshold - manipulability) <= 0.01
         return artifacts

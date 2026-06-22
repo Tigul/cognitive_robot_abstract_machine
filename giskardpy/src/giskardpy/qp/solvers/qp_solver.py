@@ -17,7 +17,7 @@ class QPSolver(Generic[T]):
     @classmethod
     def qp_data_type(cls) -> Type[T]:
         """
-        The semDT type for which this converter handles conversion.
+        The :class:`QPData` subtype this solver consumes.
         """
         return get_args(cls.__orig_bases__[0])[0]
 

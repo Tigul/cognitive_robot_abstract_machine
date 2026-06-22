@@ -5,6 +5,7 @@ import re
 import threading
 from abc import ABC
 from dataclasses import field, dataclass, fields
+from functools import cached_property
 
 import numpy as np
 from typing_extensions import (
@@ -359,7 +360,7 @@ class NodeArtifacts:
     While in debug mode, you can call .evaluate() on them to get their current value.
     """
 
-    @property
+    @cached_property
     def geometry(self) -> GeometricConstraintBuilder:
         """
         Builder for high-level geometric constraints (point, vector, and rotation goals, and

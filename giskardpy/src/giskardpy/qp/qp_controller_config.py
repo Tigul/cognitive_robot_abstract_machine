@@ -146,6 +146,9 @@ class QPControllerConfig:
 
     @classmethod
     def create_with_simulation_defaults(cls):
+        """
+        Creates a configuration with the default values used for kinematic simulation.
+        """
         return cls(
             target_frequency=20,
             prediction_horizon=7,
@@ -154,13 +157,19 @@ class QPControllerConfig:
     def set_dof_weight(
         self, dof_name: PrefixedName, derivative: Derivatives, weight: float
     ):
-        """Set weight for a specific DOF derivative."""
+        """
+        Sets the objective weight of a single degree-of-freedom derivative.
+        """
         self.dof_weights[dof_name][derivative] = weight
 
     def set_dof_weights(self, dof_name: PrefixedName, weight_map: DerivativeMap[float]):
-        """Set multiple weights for a DOF."""
+        """
+        Sets the objective weights of all derivatives of a degree of freedom.
+        """
         self.dof_weights[dof_name] = weight_map
 
     def get_dof_weight(self, dof_name: PrefixedName, derivative: Derivatives) -> float:
-        """Get weight for a specific DOF derivative."""
+        """
+        Returns the objective weight of a single degree-of-freedom derivative.
+        """
         return self.dof_weights[dof_name][derivative]

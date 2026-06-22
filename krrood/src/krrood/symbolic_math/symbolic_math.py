@@ -1289,16 +1289,16 @@ class Matrix(SymbolicMathType):
         return Matrix.from_casadi_sx(self.casadi_sx.__eq__(other.casadi_sx))
 
     def __le__(self, other: ScalarData | FloatVariable) -> Scalar:
-        return Scalar.from_casadi_sx(self.casadi_sx.__le__(other.casadi_sx))
+        return Scalar.from_casadi_sx(self.casadi_sx.__le__(to_sx(other)))
 
     def __lt__(self, other: ScalarData | FloatVariable) -> Scalar:
-        return Scalar.from_casadi_sx(self.casadi_sx.__lt__(other.casadi_sx))
+        return Scalar.from_casadi_sx(self.casadi_sx.__lt__(to_sx(other)))
 
     def __ge__(self, other: ScalarData | FloatVariable) -> Scalar:
-        return Scalar.from_casadi_sx(self.casadi_sx.__ge__(other.casadi_sx))
+        return Scalar.from_casadi_sx(self.casadi_sx.__ge__(to_sx(other)))
 
     def __gt__(self, other: ScalarData | FloatVariable) -> Scalar:
-        return Scalar.from_casadi_sx(self.casadi_sx.__gt__(other.casadi_sx))
+        return Scalar.from_casadi_sx(self.casadi_sx.__gt__(to_sx(other)))
 
     def _broadcast_like_self(self, other: SymbolicMathType) -> ca.SX:
         """
@@ -1527,6 +1527,7 @@ def to_sx(
         | NumericalMatrix
         | Iterable[FloatVariable]
         | SymbolicMathType
+        | SparseData
     ),
 ) -> ca.SX:
     """
@@ -1543,7 +1544,7 @@ def to_sx(
     return array_like_to_casadi_sx(data)
 
 
-def array_like_to_casadi_sx(data: VectorData) -> ca.SX:
+def array_like_to_casadi_sx(data: VectorData | SparseData) -> ca.SX:
     """
     Converts a given array-like data structure into a CasADi SX matrix. The input
     data can be a list, tuple, or numpy array. Based on the structure of the input
@@ -2402,9 +2403,10 @@ NumericalMatrix = np.ndarray | Iterable[Iterable[NumericalScalar]]
 
 SymbolicScalar = FloatVariable | Scalar
 
+SparseData = sp.spmatrix | sp.sparray
 ScalarData = NumericalScalar | SymbolicScalar
 VectorData = NumericalVector | Vector | Iterable[ScalarData]
-MatrixData = NumericalMatrix | Matrix
+MatrixData = NumericalMatrix | Matrix | SparseData
 
 GenericSymbolicType = TypeVar(
     "GenericSymbolicType",

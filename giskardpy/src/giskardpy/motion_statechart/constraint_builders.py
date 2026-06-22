@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
-from typing_extensions import Optional, Union
+from typing_extensions import Optional
 
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.data_types import DefaultWeights
@@ -25,6 +25,15 @@ class GeometricConstraintBuilder:
     The collection the produced constraints are written into.
     """
 
+    @staticmethod
+    def _indexed_constraint_name(name: Optional[str], index: int) -> Optional[str]:
+        """
+        Builds a per-axis constraint name, or None so the collection assigns an index-based name.
+        """
+        if name is None:
+            return None
+        return f"{name}/{index}"
+
     def add_point_goal_constraints(
         self,
         frame_P_current: Point3,
@@ -39,8 +48,6 @@ class GeometricConstraintBuilder:
         :param frame_P_current: a vector describing a 3D point
         :param frame_P_goal: a vector describing a 3D point
         :param reference_velocity: m/s
-        :param quadratic_weight:
-        :param name:
         """
 
         frame_V_error = frame_P_goal - frame_P_current
@@ -50,7 +57,7 @@ class GeometricConstraintBuilder:
                 equality_bound=frame_V_error[i],
                 quadratic_weight=quadratic_weight,
                 reference_velocity=reference_velocity,
-                name=f"{name}/{i}",
+                name=self._indexed_constraint_name(name, i),
             )
 
     def add_position_constraint(
@@ -74,30 +81,6 @@ class GeometricConstraintBuilder:
             name=name,
         )
 
-    def add_position_range_constraint(
-        self,
-        expr_current: sm.SymbolicScalar,
-        expr_min: sm.ScalarData,
-        expr_max: sm.ScalarData,
-        reference_velocity: sm.ScalarData,
-        quadratic_weight: sm.ScalarData = DefaultWeights.WEIGHT_BELOW_CA,
-        name: Optional[str] = None,
-    ) -> None:
-        """
-        A wrapper around add_constraint. Will add a constraint that keeps expr_current between expr_min and expr_max.
-        """
-
-        error_min = expr_min - expr_current
-        error_max = expr_max - expr_current
-        self.collection.add_inequality_constraint(
-            reference_velocity=reference_velocity,
-            lower_error=error_min,
-            upper_error=error_max,
-            quadratic_weight=quadratic_weight,
-            task_expression=expr_current,
-            name=name,
-        )
-
     def add_vector_goal_constraints(
         self,
         frame_V_current: Vector3,
@@ -112,8 +95,6 @@ class GeometricConstraintBuilder:
         :param frame_V_current: a vector describing a 3D vector
         :param frame_V_goal: a vector describing a 3D vector
         :param reference_velocity: rad/s
-        :param quadratic_weight:
-        :param name:
         """
 
         angle = sm.safe_acos(frame_V_current.dot(frame_V_goal))
@@ -131,7 +112,7 @@ class GeometricConstraintBuilder:
                 equality_bound=error[i],
                 reference_velocity=reference_velocity,
                 quadratic_weight=quadratic_weight,
-                name=f"{name}/{i}",
+                name=self._indexed_constraint_name(name, i),
             )
 
     def add_rotation_goal_constraints(
@@ -148,8 +129,6 @@ class GeometricConstraintBuilder:
         :param frame_R_current: current rotation as rotation matrix
         :param frame_R_goal: goal rotation as rotation matrix
         :param reference_velocity: rad/s
-        :param quadratic_weight:
-        :param name:
         """
 
         # avoid singularity
@@ -169,27 +148,7 @@ class GeometricConstraintBuilder:
                 equality_bound=-q_error[i],
                 quadratic_weight=quadratic_weight,
                 reference_velocity=reference_velocity,
-                name=f"{name}/{i}",
-            )
-
-    def add_velocity_eq_constraint_vector(
-        self,
-        velocity_goals: Union[sm.Scalar, Vector3, Point3, list[sm.ScalarData]],
-        reference_velocities: Union[sm.Scalar, Vector3, Point3, list[sm.ScalarData]],
-        quadratic_weight: Union[sm.Scalar, Vector3, Point3, list[sm.ScalarData]],
-        task_expression: Union[sm.Scalar, Vector3, Point3, list[sm.SymbolicScalar]],
-        names: list[str],
-    ) -> None:
-        for i in range(len(velocity_goals)):
-            name_suffix = names[i] if names else None
-            self.collection.add_velocity_eq_constraint(
-                velocity_goal=velocity_goals[i],
-                quadratic_weight=quadratic_weight[i],
-                velocity_limit=reference_velocities[i],
-                task_expression=task_expression[i],
-                name=name_suffix,
-                lower_slack_limit=-np.inf,
-                upper_slack_limit=np.inf,
+                name=self._indexed_constraint_name(name, i),
             )
 
     def add_translational_velocity_limit(
@@ -204,10 +163,7 @@ class GeometricConstraintBuilder:
         Adds constraints to limit the translational velocity of frame_P_current. Be aware that the velocity is relative
         to frame.
         :param frame_P_current: a vector describing a 3D point
-        :param max_velocity:
-        :param quadratic_weight:
         :param max_violation: m/s
-        :param name:
         """
 
         trans_error = frame_P_current.norm()
@@ -236,9 +192,6 @@ class GeometricConstraintBuilder:
         frame.
         :param frame_R_current: Rotation matrix describing the current rotation.
         :param max_velocity: rad/s
-        :param quadratic_weight:
-        :param max_violation:
-        :param name:
         """
 
         root_Q_tipCurrent = frame_R_current.to_quaternion()

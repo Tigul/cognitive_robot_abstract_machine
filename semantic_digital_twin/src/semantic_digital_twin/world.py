@@ -579,7 +579,7 @@ class World(HasSimulatorProperties):
         return possible_roots[0]
 
     @property
-    def active_degrees_of_freedom(self) -> list[DegreeOfFreedom]:
+    def active_degrees_of_freedom(self) -> List[DegreeOfFreedom]:
         """
         The deduplicated, order-preserving list of active degrees of freedom across all connections.
         """
@@ -590,7 +590,7 @@ class World(HasSimulatorProperties):
         )
 
     @property
-    def passive_degrees_of_freedom(self) -> list[DegreeOfFreedom]:
+    def passive_degrees_of_freedom(self) -> List[DegreeOfFreedom]:
         """
         The deduplicated, order-preserving list of passive degrees of freedom across all connections.
         """

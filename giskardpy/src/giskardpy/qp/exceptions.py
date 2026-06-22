@@ -1,24 +1,28 @@
+"""
+Exceptions raised while building and solving the quadratic program.
+"""
+
 from giskardpy.data_types.exceptions import GiskardException, DontPrintStackTrace
 
 
 class QPSolverException(GiskardException):
-    pass
+    """Base class for errors raised by the QP solvers."""
 
 
 class InfeasibleException(QPSolverException):
-    pass
+    """Raised when the QP has no feasible solution."""
 
 
 class VelocityLimitUnreachableException(QPSolverException):
-    pass
+    """Raised when a degree of freedom cannot reach its velocity limit within the prediction horizon."""
 
 
 class OutOfJointLimitsException(InfeasibleException):
-    pass
+    """Raised when a degree of freedom is outside its position limits and cannot recover."""
 
 
 class HardConstraintsViolatedException(InfeasibleException):
-    pass
+    """Raised when hard constraints cannot be satisfied."""
 
 
 class EmptyProblemException(InfeasibleException, DontPrintStackTrace):

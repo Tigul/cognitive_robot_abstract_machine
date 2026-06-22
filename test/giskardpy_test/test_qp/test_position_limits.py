@@ -9,6 +9,7 @@ from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, Joi
 from giskardpy.qp.dof_limits import DofLimits
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.connections import ActiveConnection
 
 TARGET_FREQUENCY = 20
 PREDICTION_HORIZON = 10
@@ -63,7 +64,6 @@ def test_joint_goal_clamped_to_upper_limit(pr2_world_state_reset):
     kin_sim.tick_until_end()
 
     assert np.isclose(connection.position, upper, atol=0.01)
-    assert connection.position <= upper + 0.01
 
 
 def test_joint_goal_clamped_to_lower_limit(pr2_world_state_reset):
@@ -86,7 +86,6 @@ def test_joint_goal_clamped_to_lower_limit(pr2_world_state_reset):
     kin_sim.tick_until_end()
 
     assert np.isclose(connection.position, lower, atol=0.01)
-    assert connection.position >= lower - 0.01
 
 
 def test_joint_above_upper_limit_recovers(pr2_world_state_reset):
@@ -188,7 +187,7 @@ def _compute_limits(world: World) -> DofLimits:
     return DofLimits.create(world.active_degrees_of_freedom, config=_default_config())
 
 
-def _connection(world: World):
+def _connection(world: World) -> ActiveConnection:
     return world.controlled_connections[0]
 
 

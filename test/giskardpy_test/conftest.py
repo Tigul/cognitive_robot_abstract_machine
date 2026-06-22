@@ -94,12 +94,10 @@ def mini_world():
 def init_rospy():
 
     rospy.init_node("giskard")
-    rospy.node.get_logger().info("init ros")
 
     try:
         yield None
     finally:
-        print("kill ros")
         # Cleanly reset TF and shutdown ROS2 node/executor
         rospy.shutdown()
 
@@ -167,11 +165,6 @@ def kitchen_setup(giskard_better_pose: GiskardTester) -> GiskardTester:
 
 
 @pytest.fixture()
-def dlr_kitchen_setup(better_pose: GiskardTester) -> GiskardTester:
-    raise NotImplementedError("DLR kitchen setup is not yet implemented")
-
-
-@pytest.fixture()
 def apartment_setup(giskard_better_pose: GiskardTester) -> GiskardTester:
     giskard_better_pose.default_env_name = "iai_apartment"
     kitchen_urdf = load_xacro("package://iai_apartment/urdf/apartment.urdf")
@@ -188,101 +181,59 @@ def apartment_setup(giskard_better_pose: GiskardTester) -> GiskardTester:
     return giskard_better_pose
 
 
-@pytest.fixture()
-def prismatic_bot():
+def _symmetric_prismatic_limits(
+    position: float | None, velocity: float
+) -> DegreeOfFreedomLimits:
+    """
+    Builds symmetric prismatic degree-of-freedom limits with no acceleration or jerk bound.
+    """
+    return DegreeOfFreedomLimits(
+        lower=DerivativeMap(
+            position=None if position is None else -position,
+            velocity=-velocity,
+            acceleration=None,
+            jerk=None,
+        ),
+        upper=DerivativeMap(
+            position=position, velocity=velocity, acceleration=None, jerk=None
+        ),
+    )
+
+
+def _make_prismatic_world(dof_limits: list[DegreeOfFreedomLimits]) -> World:
+    """
+    Builds a world with one Z-axis prismatic connection per given degree-of-freedom limit set.
+    """
     world = World()
     with world.modify_world():
-        map = Body(name=PrefixedName("map"))
-        robot = Body(name=PrefixedName("robot"))
-        dof = DegreeOfFreedom(
-            limits=DegreeOfFreedomLimits(
-                lower=DerivativeMap(
-                    position=-1, velocity=-1, acceleration=None, jerk=None
-                ),
-                upper=DerivativeMap(
-                    position=1, velocity=1, acceleration=None, jerk=None
-                ),
-            ),
-            has_hardware_interface=True,
-        )
-        world.add_degree_of_freedom(dof)
-        map_C_robot = PrismaticConnection(
-            parent=map, child=robot, dof_id=dof.id, axis=Vector3.Z()
-        )
-        world.add_connection(map_C_robot)
+        map_body = Body(name=PrefixedName("map"))
+        for index, limits in enumerate(dof_limits):
+            child = Body(
+                name=PrefixedName("robot" if index == 0 else f"robot{index + 1}")
+            )
+            dof = DegreeOfFreedom(limits=limits, has_hardware_interface=True)
+            world.add_degree_of_freedom(dof)
+            world.add_connection(
+                PrismaticConnection(
+                    parent=map_body, child=child, dof_id=dof.id, axis=Vector3.Z()
+                )
+            )
     MinimalRobot.from_world(world)
     return world
+
+
+@pytest.fixture()
+def prismatic_bot():
+    return _make_prismatic_world([_symmetric_prismatic_limits(1, 1)])
 
 
 @pytest.fixture()
 def prismatic_bot2():
-    world = World()
-    with world.modify_world():
-        map = Body(name=PrefixedName("map"))
-        robot = Body(name=PrefixedName("robot"))
-        dof = DegreeOfFreedom(
-            limits=DegreeOfFreedomLimits(
-                lower=DerivativeMap(
-                    position=-1, velocity=-1, acceleration=None, jerk=None
-                ),
-                upper=DerivativeMap(
-                    position=1, velocity=1, acceleration=None, jerk=None
-                ),
-            ),
-            has_hardware_interface=True,
-            name=PrefixedName("dof1"),
-        )
-        world.add_degree_of_freedom(dof)
-        world.add_connection(
-            PrismaticConnection(
-                parent=map, child=robot, dof_id=dof.id, axis=Vector3.Z()
-            )
-        )
-        robot2 = Body(name=PrefixedName("robot2"))
-        dof = DegreeOfFreedom(
-            limits=DegreeOfFreedomLimits(
-                lower=DerivativeMap(
-                    position=-0.5, velocity=-0.5, acceleration=None, jerk=None
-                ),
-                upper=DerivativeMap(
-                    position=0.5, velocity=0.5, acceleration=None, jerk=None
-                ),
-            ),
-            has_hardware_interface=True,
-            name=PrefixedName("dof2"),
-        )
-        world.add_degree_of_freedom(dof)
-        world.add_connection(
-            PrismaticConnection(
-                parent=map, child=robot2, dof_id=dof.id, axis=Vector3.Z()
-            )
-        )
-    MinimalRobot.from_world(world)
-    return world
+    return _make_prismatic_world(
+        [_symmetric_prismatic_limits(1, 1), _symmetric_prismatic_limits(0.5, 0.5)]
+    )
 
 
 @pytest.fixture()
 def prismatic_world_no_position_limits():
-    world = World()
-    with world.modify_world():
-        map = Body(name=PrefixedName("map"))
-        robot = Body(name=PrefixedName("robot"))
-        dof = DegreeOfFreedom(
-            limits=DegreeOfFreedomLimits(
-                lower=DerivativeMap(
-                    position=None, velocity=-1, acceleration=None, jerk=None
-                ),
-                upper=DerivativeMap(
-                    position=None, velocity=1, acceleration=None, jerk=None
-                ),
-            ),
-            has_hardware_interface=True,
-        )
-        world.add_degree_of_freedom(dof)
-        world.add_connection(
-            PrismaticConnection(
-                parent=map, child=robot, dof_id=dof.id, axis=Vector3.Z()
-            )
-        )
-    MinimalRobot.from_world(world)
-    return world
+    return _make_prismatic_world([_symmetric_prismatic_limits(None, 1)])

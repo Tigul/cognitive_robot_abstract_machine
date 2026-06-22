@@ -86,6 +86,7 @@ class JerkVariable(sm.FloatVariable):
 
 T = TypeVar("T")
 
+
 @dataclass
 class DegreeOfFreedomLimits(Generic[T]):
     """
@@ -122,7 +123,7 @@ class DegreeOfFreedom(WorldEntityWithID, SubclassJSONSerializer):
     and provides methods to get and set limits for these derivatives.
     """
 
-    limits: DegreeOfFreedomLimits = field(default=None)
+    limits: DegreeOfFreedomLimits[float] = field(default=None)
     """
     Lower and upper bounds for each derivative
     """

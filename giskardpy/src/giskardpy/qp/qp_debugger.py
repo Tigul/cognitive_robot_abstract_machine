@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 import logging
 from dataclasses import dataclass, field
 
@@ -10,8 +9,6 @@ import pandas as pd
 from giskardpy.qp.qp_data_symbolic import QPDataSymbolic
 
 logger = logging.getLogger(__name__)
-
-date_str = datetime.datetime.now().strftime("%Yy-%mm-%dd--%Hh-%Mm-%Ss")
 
 
 @dataclass
@@ -27,7 +24,11 @@ class QuadraticProgramDebugger:
     """
     current_solution: np.ndarray | None = field(default=None)
     """
-    The solution of the QP, None if there is none.
+    The raw solver solution of the QP, None if there is none.
+    """
+    padded_solution: np.ndarray = field(init=False)
+    """
+    The solution expanded to the full decision-variable layout, with nan in filtered-out slots.
     """
     direct_limits: pd.DataFrame = field(init=False)
     """
@@ -63,13 +64,13 @@ class QuadraticProgramDebugger:
         Updates the debugger with a new solution.
         """
         self.current_solution = current_solution
-        last_solution = (
+        padded_solution = (
             np.ones(self.qp_data_symbolic.box_lower_constraints.shape[0]) * np.nan
         )
         if self.current_solution is not None:
-            last_solution[self.quadratic_weight_filter] = self.current_solution
+            padded_solution[self.quadratic_weight_filter] = self.current_solution
 
-        self.current_solution = last_solution
+        self.padded_solution = padded_solution
         self.create_direct_limits()
         self.create_equality_constraints()
         self.create_inequality_constraints()
@@ -97,7 +98,7 @@ class QuadraticProgramDebugger:
         self.direct_limits = pd.DataFrame(
             {
                 "lower bounds": self.qp_data_symbolic.box_lower_constraints.evaluate(),
-                "solution": self.current_solution,
+                "solution": self.padded_solution,
                 "upper bounds": self.qp_data_symbolic.box_upper_constraints.evaluate(),
                 "quadratic weight": self.qp_data_symbolic.quadratic_weights.evaluate(),
                 "linear weight": self.qp_data_symbolic.linear_weights.evaluate(),
@@ -112,7 +113,7 @@ class QuadraticProgramDebugger:
         """
         eq_matrix_dofs_np = self.qp_data_symbolic.eq_matrix_dofs.evaluate()
         constraint_value_without_slack = (
-            eq_matrix_dofs_np @ self.current_solution[: eq_matrix_dofs_np.shape[1]]
+            eq_matrix_dofs_np @ self.padded_solution[: eq_matrix_dofs_np.shape[1]]
         )
         bounds = self.qp_data_symbolic.eq_bounds.evaluate()
         self.equality_constraints = pd.DataFrame(
@@ -137,7 +138,7 @@ class QuadraticProgramDebugger:
         """
         neq_matrix_dofs_np = self.qp_data_symbolic.neq_matrix_dofs.evaluate()
         constraint_value_without_slack = (
-            neq_matrix_dofs_np @ self.current_solution[: neq_matrix_dofs_np.shape[1]]
+            neq_matrix_dofs_np @ self.padded_solution[: neq_matrix_dofs_np.shape[1]]
         )
         lower_bounds = self.qp_data_symbolic.neq_lower_bounds.evaluate()
         upper_bounds = self.qp_data_symbolic.neq_upper_bounds.evaluate()
@@ -146,7 +147,6 @@ class QuadraticProgramDebugger:
                 {
                     "lower_bounds": lower_bounds,
                     "constraint value w/o slack": constraint_value_without_slack,
-                    # "slack": bounds - constraint_value_without_slack,
                     "upper_bounds": upper_bounds,
                 },
                 self.inequality_constr_names,
@@ -158,6 +158,9 @@ class QuadraticProgramDebugger:
                 self.degree_of_freedom_names,
                 dtype=float,
             )
+        else:
+            self.inequality_constraints = pd.DataFrame()
+            self.inequality_matrix = pd.DataFrame()
 
     @property
     def free_variable_names(self) -> list[str]:

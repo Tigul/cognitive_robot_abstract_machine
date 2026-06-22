@@ -9,7 +9,7 @@ import logging
 from copy import copy
 from dataclasses import dataclass
 from itertools import product
-from typing import List, TYPE_CHECKING, Type
+from typing import TYPE_CHECKING
 from uuid import UUID
 
 import giskardpy.utils.math as gm
@@ -45,8 +45,7 @@ def max_velocity_from_horizon_and_jerk_qp(
     acc_limit: float,
     jerk_limit: float,
     dt: float,
-    max_derivative: Derivatives,
-    solver_class: Type[QPSolver],
+    solver_class: type[QPSolver],
 ):
     """
     Computes the highest velocity reachable within the prediction horizon under the given
@@ -155,7 +154,7 @@ class DofLimitProfiler:
         dof_symbols: DerivativeMap[FloatVariable],
         lower_limits: DerivativeMap[float],
         upper_limits: DerivativeMap[float],
-        solver_class: Type[QPSolver],
+        solver_class: type[QPSolver],
         time_step: float,
         prediction_horizon: int,
     ) -> tuple[sm.Vector, sm.Vector, sm.Vector, sm.Scalar]:
@@ -244,7 +243,7 @@ class DofLimitProfiler:
         dof_symbols: DerivativeMap[FloatVariable],
         lower_limits: DerivativeMap[float],
         upper_limits: DerivativeMap[float],
-        solver_class: Type[QPSolver],
+        solver_class: type[QPSolver],
         time_step: float,
         prediction_horizon: int,
         epsilon: float = 0.00001,
@@ -323,7 +322,7 @@ class DofLimitProfiler:
         acceleration_lower_bounds = -acceleration_profile
         acceleration_upper_bounds = acceleration_profile
         jerk_lower_bounds = sm.min(jerk_profile, -jerk_profile) * time_step**2
-        jerk_upper_bounds = sm.max(jerk_profile, jerk_profile) * time_step**2
+        jerk_upper_bounds = sm.max(jerk_profile, -jerk_profile) * time_step**2
         return DegreeOfFreedomLimits[sm.Vector](
             lower=DerivativeMap(
                 velocity=velocity_lower_bound,
@@ -342,7 +341,7 @@ class DofLimitProfiler:
         prediction_horizon: int,
         time_step: float,
         target_velocity_limit: float,
-        solver_class: Type[QPSolver],
+        solver_class: type[QPSolver],
         almost_equal_threshold: float = 0.0001,
     ) -> float:
         """
@@ -364,7 +363,6 @@ class DofLimitProfiler:
                 acc_limit=np.inf,
                 jerk_limit=jerk_limit,
                 dt=time_step,
-                max_derivative=Derivatives.jerk,
                 solver_class=solver_class,
             )[0]
             if abs(vel_limit - target_velocity_limit) < abs(
@@ -409,8 +407,6 @@ class DofLimitProfiler:
         # %% vel limits
         lower_limits.velocity = degree_of_freedom.limits.lower.velocity
         upper_limits.velocity = degree_of_freedom.limits.upper.velocity
-        if config.prediction_horizon == 1:
-            raise NotImplementedError("tell ichumuh you actually need this")
 
         # %% acc limits
         if degree_of_freedom.limits.lower.acceleration is None:
@@ -423,7 +419,7 @@ class DofLimitProfiler:
             upper_limits.acceleration = degree_of_freedom.limits.upper.acceleration
 
         # %% jerk limits
-        if upper_limits.jerk is None:
+        if degree_of_freedom.limits.upper.jerk is None:
             upper_limits.jerk = self.find_best_jerk_limit(
                 config.prediction_horizon,
                 config.mpc_dt,
@@ -451,7 +447,6 @@ class DofLimitProfiler:
                 acc_limit=upper_limits.acceleration,
                 jerk_limit=upper_limits.jerk,
                 dt=config.mpc_dt,
-                max_derivative=max_derivative,
                 solver_class=config.qp_solver_class,
             )[0]
             if max_reachable_vel < upper_limits.velocity:
@@ -476,7 +471,7 @@ class DofLimits:
     @classmethod
     def create(
         cls,
-        degrees_of_freedom: List[DegreeOfFreedom],
+        degrees_of_freedom: list[DegreeOfFreedom],
         config: QPControllerConfig,
     ) -> DirectLimits:
         """
@@ -499,7 +494,7 @@ class DofLimits:
 
     def active_slots(
         self,
-        degrees_of_freedom: List[DegreeOfFreedom],
+        degrees_of_freedom: list[DegreeOfFreedom],
         config: QPControllerConfig,
     ):
         """
@@ -517,7 +512,7 @@ class DofLimits:
                 yield derivative, time_step, degree_of_freedom
 
     def make_names(
-        self, degrees_of_freedom: List[DegreeOfFreedom], config: QPControllerConfig
+        self, degrees_of_freedom: list[DegreeOfFreedom], config: QPControllerConfig
     ) -> list[str]:
         """
         Creates a debug name for every free variable slot.

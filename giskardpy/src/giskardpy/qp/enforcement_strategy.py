@@ -404,18 +404,15 @@ class VelocityStrategy(ExpressionEnforcementStrategy):
         quadratic_weights = []
         linear_weights = []
         names = []
-        for t in range(self.config.prediction_horizon):
+        for t in range(self.config.control_horizon):
             for c in self.constraints:
-                if t < self.config.prediction_horizon - 2:
-                    lower_slack.append(c.lower_slack_limit)
-                    upper_slack.append(c.upper_slack_limit)
-                    quadratic_weights.append(
-                        normalize_slack_weight(
-                            c.quadratic_weight, c.normalization_factor
-                        )
-                    )
-                    linear_weights.append(c.linear_weight)
-                    names.append(f"t{t:03}/{c.name}")
+                lower_slack.append(c.lower_slack_limit)
+                upper_slack.append(c.upper_slack_limit)
+                quadratic_weights.append(
+                    normalize_slack_weight(c.quadratic_weight, c.normalization_factor)
+                )
+                linear_weights.append(c.linear_weight)
+                names.append(f"t{t:03}/{c.name}")
         return DirectLimits(
             lower_bounds=sm.Vector(lower_slack),
             upper_bounds=sm.Vector(upper_slack),
@@ -430,11 +427,11 @@ class VelocityStrategy(ExpressionEnforcementStrategy):
         """
         Builds the bounds, one per constraint and control step.
         """
-        bounds2 = []
-        for t in range(self.config.control_horizon):
+        bounds = []
+        for _ in range(self.config.control_horizon):
             for c in self.constraints:
-                bounds2.append(bounds_getter(c) * self.config.mpc_dt)
-        return Vector(bounds2)
+                bounds.append(bounds_getter(c) * self.config.mpc_dt)
+        return Vector(bounds)
 
     def create_names(self) -> list[str]:
         """

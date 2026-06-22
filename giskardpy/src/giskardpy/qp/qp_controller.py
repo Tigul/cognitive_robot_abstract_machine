@@ -47,7 +47,7 @@ class QPController:
                 f'sample period: "{self.config.mpc_dt}"s\n'
                 f'max derivative: "{self.config.max_derivative.name}"\n'
                 f'prediction horizon: "{self.config.prediction_horizon}"\n'
-                f'QP solver: "{self.config.qp_solver_class.__class__.__name__}"'
+                f'QP solver: "{self.config.qp_solver_class.__name__}"'
             )
         self._set_active_dofs(degrees_of_freedom)
         generic_qp_data_symbolic = QPDataSymbolic(

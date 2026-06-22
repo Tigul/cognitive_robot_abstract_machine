@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 
-from typing_extensions import Optional, Union, TYPE_CHECKING
+from typing_extensions import Optional, TYPE_CHECKING
 
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.data_types.exceptions import (
@@ -214,7 +214,6 @@ class ConstraintCollection:
         """
         if task_expression.shape != (1, 1):
             raise InvalidConstraintExpressionShapeError(list(task_expression.shape))
-        name = name or ""
         lower_slack_limit = (
             lower_slack_limit if lower_slack_limit is not None else -float("inf")
         )
@@ -237,14 +236,14 @@ class ConstraintCollection:
 
     def add_velocity_constraint(
         self,
-        lower_velocity_limit: Union[sm.ScalarData, list[sm.ScalarData]],
-        upper_velocity_limit: Union[sm.ScalarData, list[sm.ScalarData]],
+        lower_velocity_limit: sm.ScalarData,
+        upper_velocity_limit: sm.ScalarData,
         quadratic_weight: sm.ScalarData,
         task_expression: sm.SymbolicScalar,
         velocity_limit: sm.ScalarData,
         name: Optional[str] = None,
-        lower_slack_limit: Union[sm.ScalarData, list[sm.ScalarData]] = -LargeNumber,
-        upper_slack_limit: Union[sm.ScalarData, list[sm.ScalarData]] = LargeNumber,
+        lower_slack_limit: sm.ScalarData = -LargeNumber,
+        upper_slack_limit: sm.ScalarData = LargeNumber,
     ) -> None:
         """
         Add a velocity constraint. Internally, this will be converted into multiple constraints, to ensure that the
@@ -275,13 +274,13 @@ class ConstraintCollection:
 
     def add_velocity_eq_constraint(
         self,
-        velocity_goal: Union[sm.ScalarData, list[sm.ScalarData]],
+        velocity_goal: sm.ScalarData,
         quadratic_weight: sm.ScalarData,
         task_expression: sm.SymbolicScalar,
         velocity_limit: sm.ScalarData,
         name: Optional[str] = None,
-        lower_slack_limit: Union[sm.ScalarData, list[sm.ScalarData]] = -LargeNumber,
-        upper_slack_limit: Union[sm.ScalarData, list[sm.ScalarData]] = LargeNumber,
+        lower_slack_limit: sm.ScalarData = -LargeNumber,
+        upper_slack_limit: sm.ScalarData = LargeNumber,
     ) -> None:
         """
         Add a velocity constraint. Internally, this will be converted into multiple constraints, to ensure that the

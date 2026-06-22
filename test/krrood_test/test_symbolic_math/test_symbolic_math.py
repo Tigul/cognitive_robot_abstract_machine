@@ -1181,10 +1181,12 @@ class TestMatrix:
         # Shape should be (n,1) like Vector
         assert flat.shape == (np_flat.size, 1)
 
-    def test_from_sparse_matrix(self):
-        matrix = sp.eye(100, format="csc")
+    @pytest.mark.parametrize("sparse_format", ["csc", "csr", "coo"])
+    def test_from_sparse_matrix(self, sparse_format):
+        dense = np.array([[1.0, 0.0, 2.0], [0.0, 3.0, 0.0], [4.0, 0.0, 5.0]])
+        matrix = sp.coo_matrix(dense).asformat(sparse_format)
         sm_matrix = sm.Matrix(matrix)
-        assert np.allclose(sm_matrix.to_np(), matrix.toarray())
+        assert np.allclose(sm_matrix.to_np(), dense)
 
     def test_flatten_empty(self):
         data = np.eye(0)

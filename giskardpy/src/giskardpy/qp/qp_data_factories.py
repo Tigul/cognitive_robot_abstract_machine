@@ -44,7 +44,7 @@ class QPDataFactory(Generic[T], ABC):
     @classmethod
     def qp_data_type(cls) -> type[T]:
         """
-        The semDT type for which this converter handles conversion.
+        The :class:`QPData` subtype this factory produces.
         """
         return get_args(cls.__orig_bases__[0])[0]
 
@@ -209,10 +209,19 @@ class QPDataExplicitFactory(QPDataFactory[QPDataExplicit]):
 
 @dataclass
 class QPDataTwoSidedInequalityFactory(QPDataFactory[QPDataTwoSidedInequality]):
+    """
+    Builds a :class:`QPDataTwoSidedInequality` by combining the equality and inequality blocks into a
+    single two-sided constraint matrix.
+    """
 
-    equality_matrix_compiled: CompiledFunction = field(init=False)
     inequality_matrix_compiled: CompiledFunction = field(init=False)
+    """
+    The compiled combined constraint matrix over all free variables.
+    """
     combined_vector_f: CompiledFunctionWithViews = field(init=False)
+    """
+    The compiled weights and bounds, with views for the lower and upper bound vectors.
+    """
 
     def compile(
         self,

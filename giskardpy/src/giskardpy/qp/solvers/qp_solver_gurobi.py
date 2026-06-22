@@ -87,14 +87,14 @@ class QPSolverGurobi(QPSolver[QPDataExplicit]):
             xQ_R=self.x,
             sense=GRB.MINIMIZE,
         )
-        if qp_data.equality_matrix.shape[0] * qp_data.equality_matrix.shape[1] != 0:
+        if qp_data.equality_matrix.size != 0:
             self.qpProblem.addMConstr(
                 qp_data.equality_matrix,
                 self.x,
                 gurobipy.GRB.EQUAL,
                 qp_data.equality_bounds,
             )
-        if qp_data.inequality_matrix.shape[0] * qp_data.inequality_matrix.shape[1] != 0:
+        if qp_data.inequality_matrix.size != 0:
             self.qpProblem.addMConstr(
                 qp_data.inequality_matrix,
                 self.x,
