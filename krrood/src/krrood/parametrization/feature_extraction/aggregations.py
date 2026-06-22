@@ -27,7 +27,7 @@ def aggregation_statistic(field_ref: list[Any]) -> Callable[[Callable], Callable
 
     def decorator(func: Callable) -> Callable:
         func._field_reference = field_ref
-        func.is_aggregation_statistic = True
+        func._is_aggregation_statistic_ = True
         return func
 
     return decorator
@@ -36,18 +36,21 @@ def aggregation_statistic(field_ref: list[Any]) -> Callable[[Callable], Callable
 @lru_cache(maxsize=None)
 def get_aggregation_class(owner: Type) -> Optional[Type[AggregationStatistic]]:
     """
-    Returns the :class:`AggregationStatistic` subclass whose generic ``T`` matches ``owner``.
+    Returns the most specific :class:`AggregationStatistic` subclass for ``owner``.
 
-    Modelled on :func:`~krrood.ormatic.data_access_objects.helper.get_dao_class`: discovery
-    is implicit — any concrete subclass of :class:`AggregationStatistic` that binds ``T``
-    to a domain class is automatically found here without explicit registration.
+    Walks the MRO of ``owner`` from most specific to least specific, returning the
+    first subclass of :class:`AggregationStatistic` whose generic ``T`` matches that
+    ancestor.  This means that if ``B`` extends ``A`` and only ``AggregationStatistic[A]``
+    exists, a lookup for ``B`` will return it.
 
     :param owner: The domain class to look up.
-    :return: The matching subclass, or ``None`` if none has been defined.
+    :return: The most specific matching subclass, or ``None`` if none has been defined.
     """
-    for subclass in recursive_subclasses(AggregationStatistic):
-        if subclass.get_generic_type() == owner:
-            return subclass
+    subclasses = list(recursive_subclasses(AggregationStatistic))
+    for ancestor in owner.__mro__:
+        for subclass in subclasses:
+            if subclass.get_generic_type() == ancestor:
+                return subclass
     return None
 
 
@@ -84,7 +87,7 @@ class AggregationStatistic(SubClassSafeGeneric[T]):
             for _, func in inspect.getmembers(
                 self.__class__, predicate=inspect.isfunction
             )
-            if hasattr(func, "is_aggregation_statistic")
+            if hasattr(func, "_is_aggregation_statistic_")
         ]
 
     def symbolic_aggregation_features_for(
@@ -134,10 +137,10 @@ def compute_aggregation_statistics(
     :return: A mapping from matched latent variables to their observed values.
     """
     latent_variable_by_name = {latent_variable.name: latent_variable for latent_variable in latent_variables}
-    aggregation_cls = get_aggregation_class(type(domain_object))
-    if aggregation_cls is None:
+    aggregation_class = get_aggregation_class(type(domain_object))
+    if aggregation_class is None:
         return {}
-    aggregation_instance = aggregation_cls(instance=domain_object)
+    aggregation_instance = aggregation_class(instance=domain_object)
     statistics = {}
     for feature_function in feature_functions:
         feature_name = feature_function._name_
