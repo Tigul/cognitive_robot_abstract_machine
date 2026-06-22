@@ -184,7 +184,9 @@ def _default_config() -> QPControllerConfig:
 
 
 def _compute_limits(world: World) -> DofLimits:
-    return DofLimits.create(world.active_degrees_of_freedom, config=_default_config())
+    return DofLimits.create(
+        world.active_degrees_of_freedom, qp_controller_config=_default_config()
+    )
 
 
 def _connection(world: World) -> ActiveConnection:

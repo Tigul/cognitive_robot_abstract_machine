@@ -73,7 +73,7 @@ def test_DofLimits(prismatic_bot):
     expected_jerk_limit = 1 / target_frequency
     limits = DofLimits.create(
         prismatic_bot.active_degrees_of_freedom,
-        config=QPControllerConfig(
+        qp_controller_config=QPControllerConfig(
             target_frequency=target_frequency, prediction_horizon=prediction_horizon
         ),
     )
@@ -112,7 +112,7 @@ def test_DofLimits_two_joints(prismatic_bot2):
     expected_jerk_limit2 = 1 / (target_frequency * 2)
     limits = DofLimits.create(
         prismatic_bot2.active_degrees_of_freedom,
-        config=QPControllerConfig(
+        qp_controller_config=QPControllerConfig(
             target_frequency=target_frequency, prediction_horizon=prediction_horizon
         ),
     )

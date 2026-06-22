@@ -142,7 +142,7 @@ class DofLimitProfiler:
     prediction horizon, including the MPC-based position-aware slowdown profiles.
     """
 
-    config: QPControllerConfig
+    qp_controller_config: QPControllerConfig
     """
     Controller configuration providing horizon length, time step, and solver.
     """
@@ -385,13 +385,12 @@ class DofLimitProfiler:
     def compute(
         self,
         degree_of_freedom: DegreeOfFreedom,
-        max_derivative: Derivatives,
     ) -> DegreeOfFreedomLimits[sm.Vector]:
         """
         Computes the horizon bounds for a single degree of freedom, filling in missing
         acceleration and jerk limits and raising when its velocity limit is unreachable.
         """
-        config = self.config
+        qp_controller_config = self.qp_controller_config
         lower_limits = DerivativeMap()
         upper_limits = DerivativeMap()
 
@@ -419,10 +418,10 @@ class DofLimitProfiler:
         # %% jerk limits
         if degree_of_freedom.limits.upper.jerk is None:
             upper_limits.jerk = self.find_best_jerk_limit(
-                config.prediction_horizon,
-                config.mpc_dt,
+                qp_controller_config.prediction_horizon,
+                qp_controller_config.mpc_dt,
                 upper_limits.velocity,
-                solver_class=config.qp_solver_class,
+                solver_class=qp_controller_config.qp_solver_class,
             )
             lower_limits.jerk = -upper_limits.jerk
         else:
@@ -434,26 +433,26 @@ class DofLimitProfiler:
                 dof_symbols=degree_of_freedom.variables,
                 lower_limits=lower_limits,
                 upper_limits=upper_limits,
-                solver_class=config.qp_solver_class,
-                time_step=config.mpc_dt,
-                prediction_horizon=config.prediction_horizon,
+                solver_class=qp_controller_config.qp_solver_class,
+                time_step=qp_controller_config.mpc_dt,
+                prediction_horizon=qp_controller_config.prediction_horizon,
             )
         except InfeasibleException:
             max_reachable_vel = max_velocity_from_horizon_and_jerk_qp(
-                prediction_horizon=config.prediction_horizon,
+                prediction_horizon=qp_controller_config.prediction_horizon,
                 vel_limit=100,
                 acc_limit=upper_limits.acceleration,
                 jerk_limit=upper_limits.jerk,
-                dt=config.mpc_dt,
-                solver_class=config.qp_solver_class,
+                dt=qp_controller_config.mpc_dt,
+                solver_class=qp_controller_config.qp_solver_class,
             )[0]
             if max_reachable_vel < upper_limits.velocity:
                 exception = VelocityLimitUnreachableException(
                     degree_of_freedom_name=degree_of_freedom.name,
                     velocity_limit=upper_limits.velocity,
-                    prediction_horizon=config.prediction_horizon,
+                    prediction_horizon=qp_controller_config.prediction_horizon,
                     jerk_limit=upper_limits.jerk,
-                    mpc_dt=config.mpc_dt,
+                    mpc_dt=qp_controller_config.mpc_dt,
                     max_reachable_velocity=max_reachable_vel,
                 )
                 logger.error(str(exception))
@@ -473,47 +472,51 @@ class DofLimits:
     def create(
         cls,
         degrees_of_freedom: list[DegreeOfFreedom],
-        config: QPControllerConfig,
+        qp_controller_config: QPControllerConfig,
     ) -> DirectLimits:
         """
         Builds the :class:`DirectLimits` for the given degrees of freedom and configuration.
         """
         self = cls()
         lower_bounds, upper_bounds = self.free_variable_bounds(
-            degrees_of_freedom, config
+            degrees_of_freedom, qp_controller_config
         )
         quadratic_weights, linear_weights = self.init_weights(
-            degrees_of_freedom, config
+            degrees_of_freedom, qp_controller_config
         )
         return DirectLimits(
             lower_bounds=lower_bounds,
             upper_bounds=upper_bounds,
             quadratic_weights=quadratic_weights,
             linear_weights=linear_weights,
-            names=self.make_names(degrees_of_freedom, config),
+            names=self.make_names(degrees_of_freedom, qp_controller_config),
         )
 
     def active_slots(
         self,
         degrees_of_freedom: list[DegreeOfFreedom],
-        config: QPControllerConfig,
+        qp_controller_config: QPControllerConfig,
     ):
         """
         Yields every active decision variable slot as a ``(derivative, time_step, dof)`` tuple.
         The order defines the layout shared by bounds, weights, and names so they stay aligned.
         """
-        max_derivative = config.max_derivative
+        max_derivative = qp_controller_config.max_derivative
         for derivative, time_step in product(
             [Derivatives.velocity, Derivatives.jerk],
-            range(config.prediction_horizon),
+            range(qp_controller_config.prediction_horizon),
         ):
-            if time_step >= config.prediction_horizon - (max_derivative - derivative):
+            if time_step >= qp_controller_config.prediction_horizon - (
+                max_derivative - derivative
+            ):
                 continue
             for degree_of_freedom in degrees_of_freedom:
                 yield derivative, time_step, degree_of_freedom
 
     def make_names(
-        self, degrees_of_freedom: list[DegreeOfFreedom], config: QPControllerConfig
+        self,
+        degrees_of_freedom: list[DegreeOfFreedom],
+        qp_controller_config: QPControllerConfig,
     ) -> list[str]:
         """
         Creates a debug name for every free variable slot.
@@ -522,30 +525,28 @@ class DofLimits:
         return [
             f"{dof.name}_{short_label[derivative]}_k_{time_step}"
             for derivative, time_step, dof in self.active_slots(
-                degrees_of_freedom, config
+                degrees_of_freedom, qp_controller_config
             )
         ]
 
     def free_variable_bounds(
         self,
         degrees_of_freedom: list[DegreeOfFreedom],
-        config: QPControllerConfig,
+        qp_controller_config: QPControllerConfig,
     ) -> tuple[sm.Vector, sm.Vector]:
         """
         Computes the lower and upper box limits of every free variable slot.
         """
-        max_derivative = config.max_derivative
         lower_bounds = []
         upper_bounds = []
-        profiler = DofLimitProfiler(config)
+        profiler = DofLimitProfiler(qp_controller_config)
         cache: dict[UUID, DegreeOfFreedomLimits[sm.Vector]] = {}
         for degree_of_freedom in degrees_of_freedom:
             cache[degree_of_freedom.id] = profiler.compute(
                 degree_of_freedom=degree_of_freedom,
-                max_derivative=max_derivative,
             )
         for derivative, t, degree_of_freedom in self.active_slots(
-            degrees_of_freedom, config
+            degrees_of_freedom, qp_controller_config
         ):
             lower_bounds.append(cache[degree_of_freedom.id].lower[derivative][t])
             upper_bounds.append(cache[degree_of_freedom.id].upper[derivative][t])
@@ -555,45 +556,54 @@ class DofLimits:
     def init_weights(
         self,
         degrees_of_freedom: list[DegreeOfFreedom],
-        config: QPControllerConfig,
+        qp_controller_config: QPControllerConfig,
     ) -> tuple[sm.Vector, sm.Vector]:
         """
         Computes the quadratic and linear objective weights of every free variable slot.
         """
         quadratic_weights = []
         for derivative, t, degree_of_freedom in self.active_slots(
-            degrees_of_freedom, config
+            degrees_of_freedom, qp_controller_config
         ):
             normalized_weight = self.normalize_dof_weight(
-                limit=degree_of_freedom.limits.upper[derivative],
-                base_weight=config.get_dof_weight(degree_of_freedom.name, derivative),
-                t=t,
-                horizon=config.prediction_horizon - 3,
-                alpha=config.horizon_weight_gain_scalar,
+                variable_limit=degree_of_freedom.limits.upper[derivative],
+                base_weight=qp_controller_config.get_dof_weight(
+                    degree_of_freedom.name, derivative
+                ),
+                point_in_horizon=t,
+                total_horizon_length=qp_controller_config.prediction_horizon - 3,
+                growth_factor=qp_controller_config.horizon_weight_gain_scalar,
             )
             quadratic_weights.append(normalized_weight)
         return sm.Vector(quadratic_weights), sm.Vector.zeros(len(quadratic_weights))
 
     def normalize_dof_weight(
         self,
-        limit: float | None,
+        variable_limit: float | None,
         base_weight: float,
-        t: int,
-        horizon: int,
-        alpha: float,
+        point_in_horizon: int,
+        total_horizon_length: int,
+        growth_factor: float,
     ) -> sm.Scalar:
         """
         Scales a free variable weight by its limit so derivatives become comparable, and ramps it
         over the horizon so later time steps are penalized more.
         """
 
-        def linear(x_in: float, weight: float, h: int, alpha: float) -> float:
-            start = weight * alpha
-            a = (weight - start) / h
-            return a * x_in + start
+        def linear(
+            point_in_horizon: float,
+            weight: float,
+            total_horizon_length: int,
+            growth_factor: float,
+        ) -> float:
+            start = weight * growth_factor
+            slope = (weight - start) / total_horizon_length
+            return slope * point_in_horizon + start
 
-        if limit is None:
+        if variable_limit is None:
             return 0.0
-        weight = linear(t, base_weight, horizon, alpha)
+        weight = linear(
+            point_in_horizon, base_weight, total_horizon_length, growth_factor
+        )
 
-        return weight * (1 / limit) ** 2
+        return weight * (1 / variable_limit) ** 2
