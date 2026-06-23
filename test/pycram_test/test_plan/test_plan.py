@@ -15,6 +15,7 @@ from krrood.parametrization.model_registries import (
 )
 from krrood.parametrization.parameterizer import UnderspecifiedParameters
 from probabilistic_model.probabilistic_circuit.rx.helper import fully_factorized
+<<<<<<<< HEAD:test/pycram_test/test_plan/test_plan.py
 from pycram.datastructures.dataclasses import Context
 from pycram.datastructures.enums import TaskStatus, ApproachDirection, VerticalAlignment
 from pycram.exceptions import MotionDidNotFinish
@@ -25,19 +26,36 @@ from pycram.plans.executables import GiskardExecutable
 from pycram.orm.ormatic_interface import *  # type: ignore
 from pycram.plans.factories import code, sequential, parallel, execute_single
 from pycram.plans.plan import (
+========
+from coraplex.datastructures.dataclasses import Context
+from coraplex.datastructures.enums import TaskStatus
+from coraplex.exceptions import MotionDidNotFinish
+from coraplex.language import CodeNode
+from coraplex.motion_executor import simulated_robot
+from coraplex.orm.ormatic_interface import *  # type: ignore
+from coraplex.plans.factories import code, sequential, parallel, execute_single
+from coraplex.plans.plan import (
+>>>>>>>> 7e59c5d004bed58d0ce568d637b1bf757fa3face:test/coraplex_test/test_plan.py
     Plan,
 )
-from pycram.plans.plan_node import (
+from coraplex.plans.plan_node import (
     PlanNode,
     ActionNode,
     MotionNode,
     UnderspecifiedNode,
 )
+<<<<<<<< HEAD:test/pycram_test/test_plan/test_plan.py
 from pycram.robot_plans import *
 from pycram.robot_plans.actions.core.navigation import NavigateAction
 from pycram.robot_plans.actions.core.pick_up import PickUpAction
 from pycram.robot_plans.actions.core.placing import PlaceAction
 from pycram.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
+========
+from coraplex.robot_plans import *
+from coraplex.robot_plans.actions.core.navigation import NavigateAction
+from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
+>>>>>>>> 7e59c5d004bed58d0ce568d637b1bf757fa3face:test/coraplex_test/test_plan.py
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.orm.model import (
@@ -60,7 +78,7 @@ def urdf_context():
             os.path.dirname(__file__),
             "../..",
             "..",
-            "pycram",
+            "coraplex",
             "resources",
             "robots",
             "pr2.urdf",

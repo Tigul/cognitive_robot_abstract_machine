@@ -14,7 +14,7 @@ except ImportError:
     Garmi = None
 
 try:
-    from pycram.datastructures.dataclasses import Context
+    from coraplex.datastructures.dataclasses import Context
 except ModuleNotFoundError:
     # ROS dependencies.
     Context = None
@@ -91,10 +91,10 @@ Some basic facts about fixtures:
     * This only works the requesting fixture is scoped less or equal the the requested fixture (function requesting session works)
  * The return/yield value of fixtures is being cached. 
     * In case of worlds this is important since always the same world is returned by a session scoped fixture
-    
+
 General Remarks:
     * Apparently generating the robot semantic view takes some time so it should be done in the session scoped setup
-    
+
 The structure of fixtures in this conftest: 
     * World setup fixtures: 
         These setup a world and return it, they are scoped for a whole session
@@ -155,6 +155,15 @@ def count_worlds():
 #############################################
 ############### Worlds ######################
 #############################################
+
+
+@pytest.fixture()
+def world_with_two_bodies() -> tuple[World, Body, Body]:
+    """A fresh world with an unconnected parent and child body, ready to receive a connection."""
+    world = World()
+    parent = Body(name=PrefixedName("parent"))
+    child = Body(name=PrefixedName("child"))
+    return world, parent, child
 
 
 @pytest.fixture()
@@ -375,11 +384,11 @@ def cylinder_bot_diff_world():
 
 
 def world_with_urdf_factory(
-    robot_semantic_annotation: Type[AbstractRobot],
-    drive_connection_type: Type[OmniDrive | DifferentialDrive],
-    robot_starting_pose: HomogeneousTransformationMatrix | None = None,
-    urdf_path_resolver: PathResolver | None = None,
-    robot_localization_pose: HomogeneousTransformationMatrix | None = None,
+        robot_semantic_annotation: Type[AbstractRobot],
+        drive_connection_type: Type[OmniDrive | DifferentialDrive],
+        robot_starting_pose: HomogeneousTransformationMatrix | None = None,
+        urdf_path_resolver: PathResolver | None = None,
+        robot_localization_pose: HomogeneousTransformationMatrix | None = None,
 ):
     """
     Builds this tree:
@@ -479,7 +488,7 @@ def _apartment_world_setup():
         os.path.join(
             os.path.dirname(__file__),
             "..",
-            "pycram",
+            "coraplex",
             "resources",
             "worlds",
             "apartment.urdf",
@@ -489,7 +498,7 @@ def _apartment_world_setup():
         os.path.join(
             os.path.dirname(__file__),
             "..",
-            "pycram",
+            "coraplex",
             "resources",
             "objects",
             "milk.stl",
@@ -499,7 +508,7 @@ def _apartment_world_setup():
         os.path.join(
             os.path.dirname(__file__),
             "..",
-            "pycram",
+            "coraplex",
             "resources",
             "objects",
             "breakfast_cereal.stl",
@@ -642,7 +651,7 @@ def _simple_apartment_setup():
         os.path.join(
             os.path.dirname(__file__),
             "..",
-            "pycram",
+            "coraplex",
             "resources",
             "objects",
             "milk.stl",

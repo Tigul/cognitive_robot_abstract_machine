@@ -6,11 +6,11 @@ from typing_extensions import TYPE_CHECKING, Type, List
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from krrood.entity_query_language.factories import ConditionType, get_false_statements
 from krrood.exceptions import DataclassException
-from pycram.plans.failures import PlanFailure
+from coraplex.plans.failures import PlanFailure
 
 if TYPE_CHECKING:
-    from designator import Designator
-    from pycram.robot_plans.actions.base import ActionDescription
+    from coraplex.plans.designator import Designator
+    from coraplex.robot_plans.actions.base import ActionDescription
 
 
 @dataclass
