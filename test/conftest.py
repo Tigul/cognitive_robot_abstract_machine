@@ -384,11 +384,11 @@ def cylinder_bot_diff_world():
 
 
 def world_with_urdf_factory(
-        robot_semantic_annotation: Type[AbstractRobot],
-        drive_connection_type: Type[OmniDrive | DifferentialDrive],
-        robot_starting_pose: HomogeneousTransformationMatrix | None = None,
-        urdf_path_resolver: PathResolver | None = None,
-        robot_localization_pose: HomogeneousTransformationMatrix | None = None,
+    robot_semantic_annotation: Type[AbstractRobot],
+    drive_connection_type: Type[OmniDrive | DifferentialDrive],
+    robot_starting_pose: HomogeneousTransformationMatrix | None = None,
+    urdf_path_resolver: PathResolver | None = None,
+    robot_localization_pose: HomogeneousTransformationMatrix | None = None,
 ):
     """
     Builds this tree:
@@ -766,7 +766,7 @@ def pr2_apartment_state_reset(pr2_apartment_world):
 ###############################
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="function")
 def rclpy_node():
     """
     You can use this fixture if you want to use the marker visualizer of semDT and need a ros node.

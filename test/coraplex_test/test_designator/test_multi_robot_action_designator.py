@@ -217,8 +217,6 @@ def test_navigate_multi(immutable_multiple_robot_apartment, rclpy_node):
     world, view, context = immutable_multiple_robot_apartment
     target_position = [2, -2, 0]
 
-    VizMarkerPublisher(_world=world, node=rclpy_node).with_tf_publisher()
-
     plan = execute_single(
         NavigateAction(
             Pose(Point3.from_iterable(target_position), reference_frame=world.root)
@@ -432,7 +430,6 @@ def test_grasping(immutable_multiple_robot_apartment):
 def test_pick_up_multi(mutable_multiple_robot_apartment, rclpy_node):
     world, view, context = mutable_multiple_robot_apartment
 
-    VizMarkerPublisher(_world=world, node=rclpy_node).with_tf_publisher()
     context.evaluate_conditions = False
 
     left_arm = ViewManager.get_arm_view(Arms.LEFT, view)
@@ -652,8 +649,6 @@ def test_facing(immutable_multiple_robot_apartment):
 def test_transport(mutable_multiple_robot_apartment, rclpy_node):
     world, robot, context = mutable_multiple_robot_apartment
 
-    VizMarkerPublisher(_world=world, node=rclpy_node).with_tf_publisher()
-
     description = TransportAction(
         object_designator=world.get_body_by_name("milk.stl"),
         target_location=Pose(
@@ -680,7 +675,6 @@ def test_transport(mutable_multiple_robot_apartment, rclpy_node):
 
 def test_move_to_reach(immutable_multiple_robot_apartment, rclpy_node):
     world, robot, context = immutable_multiple_robot_apartment
-    VizMarkerPublisher(_world=world, node=rclpy_node).with_tf_publisher()
     move_to_reach = MoveToReach(
         target_pose_offset_robot=Pose2D(0.2, -0.55),
         target_pose_end_effector=Pose.from_xyz_rpy(

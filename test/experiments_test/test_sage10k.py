@@ -103,8 +103,8 @@ def test_door_opening(wall_door_handle_world, _hsr_world_setup, rclpy_node):
         HomogeneousTransformationMatrix.from_xyz_rpy(x=1)
     )
 
-    viz_marker_publisher = VizMarkerPublisher(node=rclpy_node, _world=world)
-    viz_marker_publisher.with_tf_publisher()
+    # viz_marker_publisher = VizMarkerPublisher(node=rclpy_node, _world=world)
+    # viz_marker_publisher.with_tf_publisher()
 
     context = Context.from_world(world, query_backend=ProbabilisticBackend())
 

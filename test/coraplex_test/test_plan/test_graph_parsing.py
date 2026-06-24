@@ -38,8 +38,6 @@ def test_parse_simple_action(immutable_model_world):
 def test_merge_motions(immutable_model_world, rclpy_node):
     world, view, context = immutable_model_world
 
-    VizMarkerPublisher(_world=world, node=rclpy_node).with_tf_publisher()
-
     world.get_body_by_name("milk.stl").parent_connection.origin = (
         HomogeneousTransformationMatrix.from_xyz_rpy(2, 1.5, 0.7, 0, 0, 0)
     )
