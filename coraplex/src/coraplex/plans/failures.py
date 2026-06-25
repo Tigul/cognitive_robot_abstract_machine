@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from coraplex.validation.goal_validator import MultiJointPositionGoalValidator
     from coraplex.language import LanguageNode
     from semantic_digital_twin.datastructures.definitions import StaticJointState
+    from coraplex.plans.plan_node import PlanNode
 
 
 @dataclass
@@ -22,6 +23,8 @@ class PlanFailure(DataclassException):
     Base class for all exceptions that are related to plan errors.
     Can also be raised directly as a generic plan failure.
     """
+
+    node: PlanNode
 
     def error_message(self) -> str:
         return "Plan failed."
@@ -47,7 +50,8 @@ class AllChildrenFailed(PlanFailure):
     def suggest_correction(self) -> str:
         return ""
 
-#todo: rename when searchaction is refactored
+
+# todo: rename when searchaction is refactored
 # @dataclass
 # class PerceptionObjectNotFound(PlanFailure):
 #     search_action: SearchAction
@@ -151,9 +155,7 @@ class EndEffectorDidNotReachTarget(PlanFailure):
     """
 
     def error_message(self) -> str:
-        return (
-            f"EndEffector {self.end_effector} did not reach target {self.target}"
-        )
+        return f"EndEffector {self.end_effector} did not reach target {self.target}"
 
     def suggest_correction(self) -> str:
         return ""
