@@ -40,7 +40,7 @@ class CollisionVizMarkerPublisher(CollisionConsumer):
     The ROS2 node that will be used to publish the visualization marker.
     """
 
-    topic_name: str = "/semworld/collision_viz_marker"
+    topic_name: str = "/semworld/viz_marker"
     """
     The name of the topic to which the closest-points marker should be published.
     """
@@ -62,7 +62,7 @@ class CollisionVizMarkerPublisher(CollisionConsumer):
 
     qos_profile: QoSProfile = field(
         default_factory=lambda: QoSProfile(
-            depth=10, durability=DurabilityPolicy.VOLATILE
+            depth=10, durability=DurabilityPolicy.TRANSIENT_LOCAL
         )
     )
     """
@@ -112,7 +112,7 @@ class CollisionVizMarkerPublisher(CollisionConsumer):
         marker = Marker()
         marker.type = Marker.LINE_LIST
         marker.action = Marker.ADD
-        marker.ns = "closest_points"
+        marker.ns = "__closest_points__"
         marker.id = 0
         marker.header.frame_id = self._root_frame_name
         marker.frame_locked = True
