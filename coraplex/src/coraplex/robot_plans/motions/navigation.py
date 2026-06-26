@@ -1,5 +1,7 @@
 from dataclasses import dataclass
 
+from coraplex.datastructures.enums import ExecutionType
+from coraplex.plans.executables import GiskardExecutable
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetOdometry,
     SetSeedConfiguration,
@@ -30,7 +32,15 @@ class MoveMotion(BaseMotion):
 
     @property
     def _motion_chart(self):
-        return SetOdometry(
-            base_pose=self.target.to_homogeneous_matrix(),
-            odom_connection=self.robot.root.parent_connection,
+        return (
+            SetOdometry(
+                base_pose=self.target.to_homogeneous_matrix(),
+                odom_connection=self.robot.root.parent_connection,
+            )
+            if GiskardExecutable.execution_type == ExecutionType.SIMULATED
+            else CartesianPose(
+                root_link=self.world.root,
+                tip_link=self.robot.root,
+                goal_pose=self.target,
+            )
         )

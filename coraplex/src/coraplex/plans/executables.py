@@ -9,6 +9,9 @@ from typing_extensions import List, Dict, ClassVar, Optional, TYPE_CHECKING
 
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import LifeCycleValues
+from giskardpy.motion_statechart.goals.collision_avoidance import (
+    ExternalCollisionAvoidance,
+)
 from giskardpy.motion_statechart.graph_node import EndMotion, Task
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.qp.qp_controller_config import QPControllerConfig
@@ -82,6 +85,13 @@ class GiskardExecutable(Executable):
     execution_type: ClassVar[Optional[ExecutionType]] = None
     """
     The execution type used for all giskard executables, managed by
+    :py:class:`pycram.motion_executor.ExecutionEnvironment`.
+    """
+
+    collision_avoidance: ClassVar[bool] = False
+    """
+    Whether an :class:`~giskardpy.motion_statechart.goals.collision_avoidance.ExternalCollisionAvoidance`
+    is added to the motion state chart, managed by
     :py:class:`pycram.motion_executor.ExecutionEnvironment`.
     """
 
@@ -200,6 +210,9 @@ class GiskardExecutable(Executable):
                 post_monitor.observation_variable
             )
             motion_state_chart.add_node(post_cancel)
+
+        if GiskardExecutable.collision_avoidance:
+            motion_state_chart.add_node(ExternalCollisionAvoidance())
 
         end_motion = EndMotion()
         end_motion.start_condition = end_trigger
