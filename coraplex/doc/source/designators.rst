@@ -1,6 +1,6 @@
-=====================
+=======================
 Designators in CoraPlex
-=====================
+=======================
 
 .. contents::
    :local:
@@ -18,7 +18,7 @@ front of that drawer handle”) and are subsequently resolved into concrete para
 
 
 Why they matter in CoraPlex
-=========================
+===========================
 - Bridge from ideas to actions: Designators let you write tasks in everyday terms (e.g., pick up the cup, go to a good viewing spot) and leave the exact poses, motions, and timings to the system.
 - Late decisions: Because they stay abstract until the last moment, designators can adapt to the current scene, reachability, visibility, and robot configuration.
 - Reuse: The same high‑level instructions can be reused across different robots and environments; grounding takes care of the specifics.
@@ -52,7 +52,7 @@ The description the set of all possible options, given the constraints and the g
 that is picked from that set. If the grounded instance fails, the system can go back to the description and try another option.
 
 How they are created and used (conceptually)
-===========================================
+============================================
 1) Start with intent
 --------------------
 You describe the goal in abstract terms: which object, which kind of action, what constraints (arm preference, approach direction, safety, etc.). This is the description.
@@ -121,7 +121,7 @@ Typical usage patterns
 - Monitor results; if something goes wrong, iterate other candidates or choose a fallback action.
 
 Common pitfalls and how designators help
-=======================================
+========================================
 - Things move: Because choices are made late, the robot adapts to the new situation.
 - One‑size‑fits‑all fails: Different robots or rooms require different concrete parameters; descriptions abstract those away.
 - Over‑specification: Hard‑coding exact poses often breaks; location descriptions produce safe, reachable alternatives.

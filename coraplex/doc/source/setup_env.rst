@@ -3,7 +3,7 @@ Setup Development Environment
 =============================
 
 Setting up CoraPlex with PyCharm
-==============================
+================================
 
 .. _setup_env:
 

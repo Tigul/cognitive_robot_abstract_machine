@@ -8,9 +8,9 @@ This guide assumes you have already installed CoraPlex either via pip or from so
 If you haven't done so, please refer to the installation instructions in the documentation.
 
 
------------------------------
+------------------------------
 Intro to Semantic Digital Twin
------------------------------
+------------------------------
 
 CoraPlex uses the `semantic_digital_twin <https://github.com/cram2/cognitive_robot_abstract_machine/tree/main/semantic_digital_twin>`__ package to manage the belief
 state and the semantic information of it. To learn more about what the semantic digital twin is capable of refer to

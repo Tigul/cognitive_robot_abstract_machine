@@ -1,6 +1,6 @@
-===================
+=====================
 Resolving Designators
-===================
+=====================
 
 A designator description expresses intent and constraints; resolving (grounding) it turns it into a concrete,
 executable instance based on the current world and robot state. In CoraPlex this happens automatically while a plan is
