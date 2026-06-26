@@ -190,28 +190,21 @@ class NavigateActionServerTask(
 
         return artifacts
 
-    def on_start(self, context: MotionStatechartContext):
-        """
-        Creates a goal and sends it to the action server asynchronously.
-        """
-        future = self._action_client.send_goal_async(self._msg)
-        future.add_done_callback(self.goal_response_callback)
-
     def result_callback(self, future):
         """
         Stores the navigation result returned by the action server.
         """
-        result_response = future.result()
-        self._result = result_response
+        # TODO: Check the ._result.result calls against a running action server because I'm not sure if all of them are correct
+        super().result_callback(future)
         logger.info(
-            f"Finished navigation with response status: {result_response.result.status} and result code: {self._result.result.error_code}"
+            f"Finished navigation with response status: {self._result.result.status} and result code: {self._result.error_code}"
         )
 
     def on_tick(self, context: MotionStatechartContext) -> ObservationStateValues:
         if self._result.result:
             return (
                 ObservationStateValues.TRUE
-                if self._result.result.error_code == NavigateToPose.Result.NONE
+                if self._result.error_code == NavigateToPose.Result.NONE
                 else ObservationStateValues.FALSE
             )
         return ObservationStateValues.UNKNOWN
