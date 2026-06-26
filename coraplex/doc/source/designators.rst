@@ -69,28 +69,28 @@ Only when the plan gets to that step are concrete choices made. The system picks
 ----------------------
 The grounded designator is carried out. If it fails (e.g., object moved, pose blocked), the plan can try alternative candidates or recovery strategies.
 
-The four kinds of designators
+The kinds of designators
 =======================================
-- Action designators
+- Action designators (:class:`~coraplex.robot_plans.actions.base.ActionDescription`)
 
   - Express a task at the highest level of “do this,” such as grasping or opening something.
   - Internally, they can combine several motions, actions, locations, and sub‑steps.
   - They check basic conditions before and after, to ensure the task makes sense and succeeds.
 
-- Motion designators
+- Motion designators (:class:`~coraplex.robot_plans.motions.base.BaseMotion`)
 
   - Represent concrete robot movements (move joints, move a tool center point, open/close a gripper, etc.).
-  - They are the last step before sending commands to the robot controller (process module).
+  - They are the last step before the motion is turned into a giskard motion state chart and executed.
 
-- Location designators
+- Location designators (:class:`~coraplex.locations.base.Location`)
 
   - Propose good places and orientations for doing something (e.g., where to stand to see or reach an object, where to place an item).
   - They balance feasibility (reachability, visibility, collision‑free) and preference (shorter, safer, semantically meaningful).
 
-- Object designators
-
-  - Refer to “what” the robot acts on (e.g., a particular cup, drawer handle, or surface).
-  - Often come from the world model or perception; they can be precise (“this exact item”) or described more loosely upstream.
+Objects the robot acts on are not a separate designator class. They are referenced directly as ``Body`` instances of
+the semantic digital twin world, usually obtained from the world model (for example via ``world.get_body_by_name(...)``)
+or by querying the belief state with the Entity Query Language. Action designators that operate on an object take such a
+``Body`` as their ``object_designator`` argument.
 
 How designators fit into a plan
 ==============================================
