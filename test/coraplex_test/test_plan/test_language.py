@@ -19,7 +19,7 @@ from coraplex.language import (
     ParallelNode,
     TryInOrderNode,
 )
-from coraplex.motion_executor import simulated_robot
+from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import (
     sequential,
     parallel,

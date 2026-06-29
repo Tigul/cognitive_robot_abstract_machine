@@ -8,6 +8,7 @@ from typing_extensions import Optional, Any
 
 from coraplex.config.action_conf import ActionConfig
 from coraplex.plans.factories import sequential
+from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.actions.core.navigation import NavigateAction, LookAtAction
 from coraplex.robot_plans.parameter_mixins import JointStatesKept, TargetLookedAt
@@ -31,7 +32,8 @@ class FaceAtAction(TargetLookedAt, JointStatesKept, ActionDescription):
     Keep the joint states of the robot the same during the navigation.
     """
 
-    def execute(self) -> None:
+    @property
+    def _action_plan(self) -> PlanNode:
         # get the robot position
         robot_position = self.robot.root.global_transform
 
@@ -51,20 +53,11 @@ class FaceAtAction(TargetLookedAt, JointStatesKept, ActionDescription):
             reference_frame=self.world.root,
         )
 
-        self.add_subplan(
-            sequential(
-                [
-                    NavigateAction(
-                        target_location=new_robot_pose,
+        return sequential(
+            [
+                NavigateAction(target_location=new_robot_pose,
                         keep_joint_states=self.keep_joint_states,
                     ),  # turn robot
                     LookAtAction(look_at_target=self.look_at_target),  # look at the target
-                ]
-            )
-        ).perform()
-
-    def validate(
-        self, result: Optional[Any] = None, max_wait_time: Optional[timedelta] = None
-    ):
-        # The validation will be done in the LookAtActionPerformable.perform() method so no need to validate here.
-        pass
+            ]
+        )

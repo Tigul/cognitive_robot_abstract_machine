@@ -26,17 +26,21 @@ import coraplex.datastructures.grasp
 import coraplex.datastructures.grasp_scoring
 import coraplex.datastructures.trajectory
 import coraplex.exceptions
+import coraplex.execution_environment
 import coraplex.failure_handling.failure_handler
 import coraplex.failure_handling.failure_handling_strategy
 import coraplex.failure_handling.failure_refiner
 import coraplex.language
+import coraplex.language_giskard_templates
 import coraplex.locations.backends
 import coraplex.locations.base
 import coraplex.locations.pose_validator
-import coraplex.motion_executor
 import coraplex.orm.model
 import coraplex.perception
+import coraplex.plans.attachment_nodes
+import coraplex.plans.condition_nodes
 import coraplex.plans.designator
+import coraplex.plans.executables
 import coraplex.plans.failures
 import coraplex.plans.plan_callbacks
 import coraplex.plans.plan_entity
@@ -60,6 +64,7 @@ import coraplex.robot_plans.motions.robot_body
 import coraplex.robot_plans.parameter_mixins
 import coraplex.training_environments.training_environment
 import coraplex.view_manager
+import coraplex.visualization
 import datetime
 import enum
 import giskardpy.data_types.exceptions
@@ -124,6 +129,7 @@ import giskardpy.ros2_tools.force_torque_filter_node
 import giskardpy.ros_executor
 import giskardpy.tree.behaviors.publish_debug_expressions
 import krrood.adapters.json_serializer
+import krrood.entity_query_language.orm.model
 import krrood.ormatic.custom_types
 import krrood.ormatic.data_access_objects.alternative_mappings
 import krrood.ormatic.type_dict
@@ -313,22 +319,20 @@ class AreReachableByDAO_pose_sequence_association(Base, AssociationDataAccessObj
     )
 
 
-class MotionExecutorDAO_motions_association(Base, AssociationDataAccessObject):
-    __tablename__ = "_49684117974867564339412077050868075484548464831612793739254217"
+class ExecutableDAO_execution_list_association(Base, AssociationDataAccessObject):
+    __tablename__ = "_31695828069951430855150200526353359002150127570024185411549631"
 
     database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
 
-    source_motionexecutordao_id: Mapped[int] = mapped_column(
-        ForeignKey("MotionExecutorDAO.database_id")
+    source_executabledao_id: Mapped[int] = mapped_column(
+        ForeignKey("ExecutableDAO.database_id")
     )
-    target_motionstatechartnodedao_id: Mapped[int] = mapped_column(
-        ForeignKey("MotionStatechartNodeDAO.database_id")
+    target_executabledao_id: Mapped[int] = mapped_column(
+        ForeignKey("ExecutableDAO.database_id")
     )
 
-    target: Mapped[MotionStatechartNodeDAO] = relationship(
-        "MotionStatechartNodeDAO",
-        foreign_keys=[target_motionstatechartnodedao_id],
-        lazy="selectin",
+    target: Mapped[ExecutableDAO] = relationship(
+        "ExecutableDAO", foreign_keys=[target_executabledao_id], lazy="selectin"
     )
 
 
@@ -541,6 +545,44 @@ class _CancelBecauseSelfCollisionViolatedDAO_tasks_association(
     )
 
 
+class TryAllDAO_nodes_association(Base, AssociationDataAccessObject):
+    __tablename__ = "_86141508046484540185967231981675004294659265286664541237608165"
+
+    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    source_tryalldao_id: Mapped[int] = mapped_column(
+        ForeignKey("TryAllDAO.database_id")
+    )
+    target_motionstatechartnodedao_id: Mapped[int] = mapped_column(
+        ForeignKey("MotionStatechartNodeDAO.database_id")
+    )
+
+    target: Mapped[MotionStatechartNodeDAO] = relationship(
+        "MotionStatechartNodeDAO",
+        foreign_keys=[target_motionstatechartnodedao_id],
+        lazy="selectin",
+    )
+
+
+class TryInOrderDAO_nodes_association(Base, AssociationDataAccessObject):
+    __tablename__ = "_85401387078464098147708011211013014874882782547950726832522491"
+
+    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    source_tryinorderdao_id: Mapped[int] = mapped_column(
+        ForeignKey("TryInOrderDAO.database_id")
+    )
+    target_motionstatechartnodedao_id: Mapped[int] = mapped_column(
+        ForeignKey("MotionStatechartNodeDAO.database_id")
+    )
+
+    target: Mapped[MotionStatechartNodeDAO] = relationship(
+        "MotionStatechartNodeDAO",
+        foreign_keys=[target_motionstatechartnodedao_id],
+        lazy="selectin",
+    )
+
+
 class ParallelDAO_nodes_association(Base, AssociationDataAccessObject):
     __tablename__ = "_10288934319458771319424316944387084431856686905634225824003420"
 
@@ -693,6 +735,25 @@ class QPDataSymbolicDAO_degrees_of_freedom_association(
     target: Mapped[DegreeOfFreedomDAO] = relationship(
         "DegreeOfFreedomDAO",
         foreign_keys=[target_degreeoffreedomdao_id],
+        lazy="selectin",
+    )
+
+
+class SymbolGraphMappingDAO_instances_association(Base, AssociationDataAccessObject):
+    __tablename__ = "_81067648797638488542008423406786912563441407992272678641741406"
+
+    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    source_symbolgraphmappingdao_id: Mapped[int] = mapped_column(
+        ForeignKey("SymbolGraphMappingDAO.database_id")
+    )
+    target_wrappedinstancemappingdao_id: Mapped[int] = mapped_column(
+        ForeignKey("WrappedInstanceMappingDAO.database_id")
+    )
+
+    target: Mapped[WrappedInstanceMappingDAO] = relationship(
+        "WrappedInstanceMappingDAO",
+        foreign_keys=[target_wrappedinstancemappingdao_id],
         lazy="selectin",
     )
 
@@ -2711,6 +2772,40 @@ class ContextIsUnavailableDAO(
     )
 
 
+class UnknownExecutionTypeDAO(
+    Base, DataAccessObject[coraplex.exceptions.UnknownExecutionType]
+):
+    __tablename__ = "UnknownExecutionTypeDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    execution_type: Mapped[coraplex.datastructures.enums.ExecutionType] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+
+
+class ExecutionEnvironmentDAO(
+    Base, DataAccessObject[coraplex.execution_environment.ExecutionEnvironment]
+):
+    __tablename__ = "ExecutionEnvironmentDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    collision_avoidance: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
+
+    execution_type: Mapped[coraplex.datastructures.enums.ExecutionType] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+
+
 class FailureHandlerDAO(
     Base, DataAccessObject[coraplex.failure_handling.failure_handler.FailureHandler]
 ):
@@ -2758,6 +2853,16 @@ class FailureRefinerDAO(
     Base, DataAccessObject[coraplex.failure_handling.failure_refiner.FailureRefiner]
 ):
     __tablename__ = "FailureRefinerDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+
+class DeferredLocationDAO(
+    Base, DataAccessObject[coraplex.locations.base.DeferredLocation]
+):
+    __tablename__ = "DeferredLocationDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
         Integer, primary_key=True, use_existing_column=True
@@ -3022,6 +3127,63 @@ class AreReachableByDAO(
     }
 
 
+class IsObjectReachableByDAO(
+    PoseValidatorDAO,
+    DataAccessObject[coraplex.locations.pose_validator.IsObjectReachableBy],
+):
+    __tablename__ = "IsObjectReachableByDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(PoseValidatorDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    reverse: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
+    as_single_grasp: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
+
+    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+
+    object_designator_id: Mapped[int] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    grasp_description_id: Mapped[int] = mapped_column(
+        ForeignKey("GraspDescriptionDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    target_pose_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    object_designator: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    )
+    grasp_description: Mapped[GraspDescriptionDAO] = relationship(
+        "GraspDescriptionDAO",
+        uselist=False,
+        foreign_keys=[grasp_description_id],
+        post_update=True,
+    )
+    target_pose: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO", uselist=False, foreign_keys=[target_pose_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "IsObjectReachableByDAO",
+        "inherit_condition": database_id == PoseValidatorDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
 class IsReachableByDAO(
     PoseValidatorDAO, DataAccessObject[coraplex.locations.pose_validator.IsReachableBy]
 ):
@@ -3108,59 +3270,6 @@ class IsVisibleByDAO(
     }
 
 
-class ExecutionEnvironmentDAO(
-    Base, DataAccessObject[coraplex.motion_executor.ExecutionEnvironment]
-):
-    __tablename__ = "ExecutionEnvironmentDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        Integer, primary_key=True, use_existing_column=True
-    )
-
-    execution_type: Mapped[coraplex.datastructures.enums.ExecutionType] = mapped_column(
-        krrood.ormatic.custom_types.PolymorphicEnumType,
-        nullable=False,
-        use_existing_column=True,
-    )
-
-
-class MotionExecutorDAO(
-    Base, DataAccessObject[coraplex.motion_executor.MotionExecutor]
-):
-    __tablename__ = "MotionExecutorDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        Integer, primary_key=True, use_existing_column=True
-    )
-
-    world_id: Mapped[int] = mapped_column(
-        ForeignKey("WorldMappingDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-    plan_node_id: Mapped[int] = mapped_column(
-        ForeignKey("PlanNodeDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    motions: Mapped[builtins.list[MotionExecutorDAO_motions_association]] = (
-        relationship(
-            "MotionExecutorDAO_motions_association",
-            collection_class=builtins.list,
-            cascade="all, delete-orphan",
-            foreign_keys="[MotionExecutorDAO_motions_association.source_motionexecutordao_id]",
-            lazy="selectin",
-        )
-    )
-    world: Mapped[WorldMappingDAO] = relationship(
-        "WorldMappingDAO", uselist=False, foreign_keys=[world_id], post_update=True
-    )
-    plan_node: Mapped[PlanNodeDAO] = relationship(
-        "PlanNodeDAO", uselist=False, foreign_keys=[plan_node_id], post_update=True
-    )
-
-
 class PlanEdgeDAO(Base, DataAccessObject[coraplex.orm.model.PlanEdge]):
     __tablename__ = "PlanEdgeDAO"
 
@@ -3239,6 +3348,179 @@ class DesignatorDAO(Base, DataAccessObject[coraplex.plans.designator.Designator]
     __mapper_args__ = {
         "polymorphic_on": "polymorphic_type",
         "polymorphic_identity": "DesignatorDAO",
+    }
+
+
+class ExecutableDAO(Base, DataAccessObject[coraplex.plans.executables.Executable]):
+    __tablename__ = "ExecutableDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    polymorphic_type: Mapped[str] = mapped_column(
+        String(255), nullable=False, use_existing_column=True
+    )
+
+    context_id: Mapped[int] = mapped_column(
+        ForeignKey("ContextDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    execution_list: Mapped[builtins.list[ExecutableDAO_execution_list_association]] = (
+        relationship(
+            "ExecutableDAO_execution_list_association",
+            collection_class=builtins.list,
+            cascade="all, delete-orphan",
+            foreign_keys="[ExecutableDAO_execution_list_association.source_executabledao_id]",
+            lazy="selectin",
+        )
+    )
+    context: Mapped[ContextDAO] = relationship(
+        "ContextDAO", uselist=False, foreign_keys=[context_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_on": "polymorphic_type",
+        "polymorphic_identity": "ExecutableDAO",
+    }
+
+
+class ConditionExecutableDAO(
+    ExecutableDAO, DataAccessObject[coraplex.plans.executables.ConditionExecutable]
+):
+    __tablename__ = "ConditionExecutableDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ExecutableDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    condition_node_id: Mapped[int] = mapped_column(
+        ForeignKey("ConditionNodeDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    condition_node: Mapped[ConditionNodeDAO] = relationship(
+        "ConditionNodeDAO",
+        uselist=False,
+        foreign_keys=[condition_node_id],
+        post_update=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "ConditionExecutableDAO",
+        "inherit_condition": database_id == ExecutableDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class GiskardExecutableDAO(
+    ExecutableDAO, DataAccessObject[coraplex.plans.executables.GiskardExecutable]
+):
+    __tablename__ = "GiskardExecutableDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ExecutableDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    pre_condition_node_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
+        ForeignKey("ConditionNodeDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    post_condition_node_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
+        ForeignKey("ConditionNodeDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    pre_condition_node: Mapped[ConditionNodeDAO] = relationship(
+        "ConditionNodeDAO",
+        uselist=False,
+        foreign_keys=[pre_condition_node_id],
+        post_update=True,
+    )
+    post_condition_node: Mapped[ConditionNodeDAO] = relationship(
+        "ConditionNodeDAO",
+        uselist=False,
+        foreign_keys=[post_condition_node_id],
+        post_update=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "GiskardExecutableDAO",
+        "inherit_condition": database_id == ExecutableDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class ModelChangeExecutableDAO(
+    ExecutableDAO, DataAccessObject[coraplex.plans.executables.ModelChangeExecutable]
+):
+    __tablename__ = "ModelChangeExecutableDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ExecutableDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    body_id: Mapped[int] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    new_parent_id: Mapped[int] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    body: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[body_id], post_update=True
+    )
+    new_parent: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[new_parent_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "ModelChangeExecutableDAO",
+        "inherit_condition": database_id == ExecutableDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class UnderspecifiedExecutableDAO(
+    ExecutableDAO, DataAccessObject[coraplex.plans.executables.UnderspecifiedExecutable]
+):
+    __tablename__ = "UnderspecifiedExecutableDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ExecutableDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    node_id: Mapped[int] = mapped_column(
+        ForeignKey("UnderspecifiedNodeDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    node: Mapped[UnderspecifiedNodeDAO] = relationship(
+        "UnderspecifiedNodeDAO", uselist=False, foreign_keys=[node_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "UnderspecifiedExecutableDAO",
+        "inherit_condition": database_id == ExecutableDAO.database_id,
+        "polymorphic_load": "selectin",
     }
 
 
@@ -3407,6 +3689,24 @@ class ConfigurationNotReachedDAO(
 
     __mapper_args__ = {
         "polymorphic_identity": "ConfigurationNotReachedDAO",
+        "inherit_condition": database_id == PlanFailureDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class EmptyUnderspecifiedDAO(
+    PlanFailureDAO, DataAccessObject[coraplex.plans.failures.EmptyUnderspecified]
+):
+    __tablename__ = "EmptyUnderspecifiedDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(PlanFailureDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "EmptyUnderspecifiedDAO",
         "inherit_condition": database_id == PlanFailureDAO.database_id,
         "polymorphic_load": "selectin",
     }
@@ -3690,6 +3990,10 @@ class LanguageNodeDAO(PlanNodeDAO, DataAccessObject[coraplex.language.LanguageNo
         ForeignKey(PlanNodeDAO.database_id), primary_key=True, use_existing_column=True
     )
 
+    msc_template: Mapped[TypeType] = mapped_column(
+        TypeType, nullable=False, use_existing_column=True
+    )
+
     __mapper_args__ = {
         "polymorphic_identity": "LanguageNodeDAO",
         "inherit_condition": database_id == PlanNodeDAO.database_id,
@@ -3865,6 +4169,104 @@ class TryInOrderNodeDAO(
     }
 
 
+class ModelChangeNodeDAO(
+    PlanNodeDAO, DataAccessObject[coraplex.plans.attachment_nodes.ModelChangeNode]
+):
+    __tablename__ = "ModelChangeNodeDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(PlanNodeDAO.database_id), primary_key=True, use_existing_column=True
+    )
+
+    body_id: Mapped[int] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    new_parent_id: Mapped[int] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    body: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[body_id], post_update=True
+    )
+    new_parent: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[new_parent_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "ModelChangeNodeDAO",
+        "inherit_condition": database_id == PlanNodeDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class AttachNodeDAO(
+    ModelChangeNodeDAO, DataAccessObject[coraplex.plans.attachment_nodes.AttachNode]
+):
+    __tablename__ = "AttachNodeDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ModelChangeNodeDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "AttachNodeDAO",
+        "inherit_condition": database_id == ModelChangeNodeDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class DetachNodeDAO(
+    ModelChangeNodeDAO, DataAccessObject[coraplex.plans.attachment_nodes.DetachNode]
+):
+    __tablename__ = "DetachNodeDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ModelChangeNodeDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "DetachNodeDAO",
+        "inherit_condition": database_id == ModelChangeNodeDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class ConditionNodeDAO(
+    PlanNodeDAO, DataAccessObject[coraplex.plans.condition_nodes.ConditionNode]
+):
+    __tablename__ = "ConditionNodeDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(PlanNodeDAO.database_id), primary_key=True, use_existing_column=True
+    )
+
+    pre_condition: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
+
+    action_node_id: Mapped[int] = mapped_column(
+        ForeignKey("ActionNodeDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    action_node: Mapped[ActionNodeDAO] = relationship(
+        "ActionNodeDAO", uselist=False, foreign_keys=[action_node_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "ConditionNodeDAO",
+        "inherit_condition": database_id == PlanNodeDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
 class DesignatorNodeDAO(
     PlanNodeDAO, DataAccessObject[coraplex.plans.plan_node.DesignatorNode]
 ):
@@ -3902,13 +4304,8 @@ class ActionNodeDAO(
         use_existing_column=True,
     )
 
-    execution_data_id: Mapped[int] = mapped_column(
+    execution_data_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
         ForeignKey("ExecutionDataDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-    motion_executor_id: Mapped[int] = mapped_column(
-        ForeignKey("MotionExecutorDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -3917,12 +4314,6 @@ class ActionNodeDAO(
         "ExecutionDataDAO",
         uselist=False,
         foreign_keys=[execution_data_id],
-        post_update=True,
-    )
-    motion_executor: Mapped[MotionExecutorDAO] = relationship(
-        "MotionExecutorDAO",
-        uselist=False,
-        foreign_keys=[motion_executor_id],
         post_update=True,
     )
 
@@ -4373,68 +4764,43 @@ class TargetLocationMovedToDAO(
 
 
 class NavigateActionDAO(
-    ActionDescriptionDAO,
+    TargetLocationMovedToDAO,
     DataAccessObject[coraplex.robot_plans.actions.core.navigation.NavigateAction],
 ):
     __tablename__ = "NavigateActionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ActionDescriptionDAO.database_id),
+        ForeignKey(TargetLocationMovedToDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
     keep_joint_states: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
 
-    target_location_id: Mapped[int] = mapped_column(
-        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    target_location: Mapped[PoseMappingDAO] = relationship(
-        "PoseMappingDAO",
-        uselist=False,
-        foreign_keys=[target_location_id],
-        post_update=True,
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "NavigateActionDAO",
-        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
+        "inherit_condition": database_id == TargetLocationMovedToDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
 
 class MoveMotionDAO(
-    BaseMotionDAO, DataAccessObject[coraplex.robot_plans.motions.navigation.MoveMotion]
+    TargetLocationMovedToDAO,
+    DataAccessObject[coraplex.robot_plans.motions.navigation.MoveMotion],
 ):
     __tablename__ = "MoveMotionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(BaseMotionDAO.database_id),
+        ForeignKey(TargetLocationMovedToDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
     keep_joint_states: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
 
-    target_location_id: Mapped[int] = mapped_column(
-        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    target_location: Mapped[PoseMappingDAO] = relationship(
-        "PoseMappingDAO",
-        uselist=False,
-        foreign_keys=[target_location_id],
-        post_update=True,
-    )
-
     __mapper_args__ = {
         "polymorphic_identity": "MoveMotionDAO",
-        "inherit_condition": database_id == BaseMotionDAO.database_id,
+        "inherit_condition": database_id == TargetLocationMovedToDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -5996,6 +6362,33 @@ class ViewManagerDAO(Base, DataAccessObject[coraplex.view_manager.ViewManager]):
 
     database_id: Mapped[builtins.int] = mapped_column(
         Integer, primary_key=True, use_existing_column=True
+    )
+
+
+class GraphVisualizerDAO(
+    Base, DataAccessObject[coraplex.visualization.GraphVisualizer]
+):
+    __tablename__ = "GraphVisualizerDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    layout: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+    start: Mapped[typing.Optional[builtins.int]] = mapped_column(
+        use_existing_column=True
+    )
+    title: Mapped[builtins.str] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+    width: Mapped[builtins.int] = mapped_column(use_existing_column=True)
+    height: Mapped[builtins.int] = mapped_column(use_existing_column=True)
+    update_interval: Mapped[builtins.int] = mapped_column(use_existing_column=True)
+
+    attributes: Mapped[typing.List[builtins.str]] = mapped_column(
+        JSON, nullable=False, use_existing_column=True
     )
 
 
@@ -7827,6 +8220,25 @@ class MotionStatechartNodeDAO(
     }
 
 
+class PlanNodeStatusMonitorDAO(
+    MotionStatechartNodeDAO,
+    DataAccessObject[coraplex.plans.condition_nodes.PlanNodeStatusMonitor],
+):
+    __tablename__ = "PlanNodeStatusMonitorDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(MotionStatechartNodeDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "PlanNodeStatusMonitorDAO",
+        "inherit_condition": database_id == MotionStatechartNodeDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
 class ExternalCollisionDistanceMonitorDAO(
     MotionStatechartNodeDAO,
     DataAccessObject[
@@ -8081,6 +8493,52 @@ class GoalDAO(
     __mapper_args__ = {
         "polymorphic_identity": "GoalDAO",
         "inherit_condition": database_id == MotionStatechartNodeDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class TryAllDAO(GoalDAO, DataAccessObject[coraplex.language_giskard_templates.TryAll]):
+    __tablename__ = "TryAllDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(GoalDAO.database_id), primary_key=True, use_existing_column=True
+    )
+
+    nodes: Mapped[builtins.list[TryAllDAO_nodes_association]] = relationship(
+        "TryAllDAO_nodes_association",
+        collection_class=builtins.list,
+        cascade="all, delete-orphan",
+        foreign_keys="[TryAllDAO_nodes_association.source_tryalldao_id]",
+        lazy="selectin",
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "TryAllDAO",
+        "inherit_condition": database_id == GoalDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class TryInOrderDAO(
+    GoalDAO, DataAccessObject[coraplex.language_giskard_templates.TryInOrder]
+):
+    __tablename__ = "TryInOrderDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(GoalDAO.database_id), primary_key=True, use_existing_column=True
+    )
+
+    nodes: Mapped[builtins.list[TryInOrderDAO_nodes_association]] = relationship(
+        "TryInOrderDAO_nodes_association",
+        collection_class=builtins.list,
+        cascade="all, delete-orphan",
+        foreign_keys="[TryInOrderDAO_nodes_association.source_tryinorderdao_id]",
+        lazy="selectin",
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "TryInOrderDAO",
+        "inherit_condition": database_id == GoalDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -8617,6 +9075,32 @@ class TaskDAO(
     __mapper_args__ = {
         "polymorphic_identity": "TaskDAO",
         "inherit_condition": database_id == MotionStatechartNodeDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class PerceptionTaskDAO(
+    TaskDAO, DataAccessObject[coraplex.robot_plans.motions.misc.PerceptionTask]
+):
+    __tablename__ = "PerceptionTaskDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(TaskDAO.database_id), primary_key=True, use_existing_column=True
+    )
+
+    query_id: Mapped[int] = mapped_column(
+        ForeignKey("PerceptionQueryDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    query: Mapped[PerceptionQueryDAO] = relationship(
+        "PerceptionQueryDAO", uselist=False, foreign_keys=[query_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "PerceptionTaskDAO",
+        "inherit_condition": database_id == TaskDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -9733,6 +10217,27 @@ class PulseDAO(
 
     __mapper_args__ = {
         "polymorphic_identity": "PulseDAO",
+        "inherit_condition": database_id == MotionStatechartNodeDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class ThreadedPredicateMonitorDAO(
+    MotionStatechartNodeDAO,
+    DataAccessObject[
+        giskardpy.motion_statechart.monitors.payload_monitors.ThreadedPredicateMonitor
+    ],
+):
+    __tablename__ = "ThreadedPredicateMonitorDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(MotionStatechartNodeDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "ThreadedPredicateMonitorDAO",
         "inherit_condition": database_id == MotionStatechartNodeDAO.database_id,
         "polymorphic_load": "selectin",
     }
@@ -12185,6 +12690,37 @@ class QPDataPublisherConfigDAO(
     publish_weights: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
     publish_g: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
     publish_debug: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
+
+
+class SymbolGraphMappingDAO(
+    Base, DataAccessObject[krrood.entity_query_language.orm.model.SymbolGraphMapping]
+):
+    __tablename__ = "SymbolGraphMappingDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    instances: Mapped[builtins.list[SymbolGraphMappingDAO_instances_association]] = (
+        relationship(
+            "SymbolGraphMappingDAO_instances_association",
+            collection_class=builtins.list,
+            cascade="all, delete-orphan",
+            foreign_keys="[SymbolGraphMappingDAO_instances_association.source_symbolgraphmappingdao_id]",
+            lazy="selectin",
+        )
+    )
+
+
+class WrappedInstanceMappingDAO(
+    Base,
+    DataAccessObject[krrood.entity_query_language.orm.model.WrappedInstanceMapping],
+):
+    __tablename__ = "WrappedInstanceMappingDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
 
 
 class FBXGlobalSettingsDAO(
