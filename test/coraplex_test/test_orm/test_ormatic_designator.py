@@ -25,13 +25,13 @@ def simple_plan(immutable_model_world):
     plan = sequential(
         [
             NavigateAction(
-                Pose.from_xyz_quaternion(
+                target_location=Pose.from_xyz_quaternion(
                     1.6, 1.9, 0, 0, 0, 0, 1, reference_frame=world.root
                 ),
-                True,
+                keep_joint_states=True,
             ),
-            MoveTorsoAction(TorsoState.HIGH),
-            ParkArmsAction(Arms.BOTH),
+            MoveTorsoAction(torso_state=TorsoState.HIGH),
+            ParkArmsAction(arm=Arms.BOTH),
         ],
         context=context,
     ).plan

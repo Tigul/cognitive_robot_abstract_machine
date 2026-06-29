@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from time import sleep
 from typing import Tuple
 
@@ -22,34 +22,23 @@ from coraplex.datastructures.enums import (
     VerticalAlignment,
 )
 from coraplex.robot_plans.actions.base import ActionDescription, DescriptionType
+from coraplex.robot_plans.parameter_mixins import (
+    ObjectActedOn,
+    UsedArm,
+    UsedTechnique,
+    UsedTool,
+)
 
 
 @dataclass
-class MixingAction(ActionDescription):
+class MixingAction(ObjectActedOn, UsedTool, UsedArm, UsedTechnique, ActionDescription):
     """
     Mixes contents of an object using a tool in a spiral motion.
     """
 
-    object_: Body
-    """
-    The object to be mixed.
-    """
-    tool: SemanticAnnotation
-    """
-    The tool to be used for mixing.
-    """
-    arm: Arms
-    """
-    The arm to be used for the mixing action.
-    """
-    technique: Optional[str] = None
-    """
-    The technique to be used for mixing, e.g. 'Spiral Mixing'.
-    """
-
     def execute(self) -> None:
         lt = LocalTransformer()
-        obj = self.object_
+        obj = self.object_designator
         pose = lt.transform_to_object_frame(obj.pose, obj)
         height_offset = obj.size[2] + 0.05
 
@@ -63,34 +52,18 @@ class MixingAction(ActionDescription):
             spiral = lt.transform_pose(p, "map")
             spiral.pose.position.z += height_offset
             World.current_world.add_vis_axis(spiral)
-            MoveToolCenterPointMotion(spiral, self.arm).perform()
+            MoveToolCenterPointMotion(target_pose=spiral, arm=self.arm).perform()
 
         World.current_world.remove_vis_axis()
 
 
 @dataclass
-class PouringAction(ActionDescription):
+class PouringAction(ObjectActedOn, UsedTool, UsedArm, UsedTechnique, ActionDescription):
     """
     Performs a pouring action with a tool over an object, typically used for liquids.
     """
 
-    object_: Body
-    """
-    The object over which the pouring action is performed.
-    """
-    tool: SemanticAnnotation
-    """
-    The tool used for pouring, e.g., a jug or a bottle.
-    """
-    arm: Arms
-    """
-    The arm to be used for the pouring action.
-    """
-    technique: Optional[str] = None
-    """
-    The technique to be used for pouring, e.g., 'Pouring'.
-    """
-    angle: Optional[float] = 90
+    angle: Optional[float] = field(default=90, kw_only=True)
     """
     The angle at which the tool is tilted during the pouring action, in degrees.
     """
@@ -104,7 +77,7 @@ class PouringAction(ActionDescription):
             ApproachDirection.FRONT, VerticalAlignment.NoAlignment, False
         )
 
-        pose = lt.transform_pose(self.object_.pose, gripper_frame)
+        pose = lt.transform_pose(self.object_designator.pose, gripper_frame)
         pose.pose.position.x += 0.009
         pose.pose.position.y -= 0.125
         pose.pose.position.z += 0.17
@@ -115,8 +88,8 @@ class PouringAction(ActionDescription):
 
         World.current_world.add_vis_axis(pose)
         MoveToolCenterPointMotion(
-            pose,
-            self.arm,
+            target_pose=pose,
+            arm=self.arm,
             allow_gripper_collision=False,
             movement_type=MovementType.CARTESIAN,
         ).perform()
@@ -128,15 +101,15 @@ class PouringAction(ActionDescription):
         World.current_world.add_vis_axis(pour_pose)
 
         MoveToolCenterPointMotion(
-            pour_pose,
-            self.arm,
+            target_pose=pour_pose,
+            arm=self.arm,
             allow_gripper_collision=False,
             movement_type=MovementType.CARTESIAN,
         ).perform()
         sleep(3)
         MoveToolCenterPointMotion(
-            pose,
-            self.arm,
+            target_pose=pose,
+            arm=self.arm,
             allow_gripper_collision=False,
             movement_type=MovementType.CARTESIAN,
         ).perform()
@@ -145,28 +118,12 @@ class PouringAction(ActionDescription):
 
 
 @dataclass
-class CuttingAction(ActionDescription):
+class CuttingAction(ObjectActedOn, UsedTool, UsedArm, UsedTechnique, ActionDescription):
     """
     Performs a cutting action on an object using a specified tool.
     """
 
-    object_: Body
-    """
-    The object to be cut.
-    """
-    tool: SemanticAnnotation
-    """
-    The tool used for cutting, e.g., a knife or a saw.
-    """
-    arm: Arms
-    """
-    The arm to be used for the cutting action.
-    """
-    technique: Optional[str] = None
-    """
-    The technique to be used for cutting, e.g., 'Slicing', 'Halving', etc.
-    """
-    slice_thickness: Optional[float] = 0.03
+    slice_thickness: Optional[float] = field(default=0.03, kw_only=True)
     """
     The thickness of each slice to be cut from the object, in meters.
     """
@@ -175,7 +132,7 @@ class CuttingAction(ActionDescription):
         if self.technique is None:
             self.technique = "Slicing"
         lt = LocalTransformer()
-        obj = self.object_
+        obj = self.object_designator
         tool = self.tool
         pose = lt.transform_to_object_frame(obj.pose, obj)
 

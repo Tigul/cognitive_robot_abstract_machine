@@ -91,6 +91,6 @@ class Sage10kOpenDoor(ActionDescription):
 
         reach_action = reach_query.where(where_condition)
 
-        open_action = OpenAction(object_designator=self.door.handle.root, arm=arm)
+        open_action = OpenAction(handle=self.door.handle, arm=arm)
 
         self.add_subplan(sequential([reach_action, open_action])).perform()

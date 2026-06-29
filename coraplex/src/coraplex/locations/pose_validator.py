@@ -188,9 +188,9 @@ class AreReachableBy(PoseValidator):
                     pose = self.grasp_description._pose_sequence(pose)[1]
 
                 motion = alternative_motion(
-                    pose,
-                    correct_arm,
-                    True,
+                    target_pose=pose,
+                    arm=correct_arm,
+                    allow_gripper_collision=True,
                 )
                 node = PlanNode()
                 # Imagine a plan for the motion node

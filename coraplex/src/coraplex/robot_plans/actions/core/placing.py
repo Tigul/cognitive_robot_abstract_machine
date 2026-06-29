@@ -22,6 +22,11 @@ from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
     MoveToolCenterPointMotion,
 )
+from coraplex.robot_plans.parameter_mixins import (
+    ObjectActedOn,
+    TargetLocationMovedTo,
+    UsedArm,
+)
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.reasoning.predicates import allclose
@@ -32,22 +37,9 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 
 @dataclass
-class PlaceAction(ActionDescription):
+class PlaceAction(ObjectActedOn, TargetLocationMovedTo, UsedArm, ActionDescription):
     """
     Places an Object at a position using an arm.
-    """
-
-    object_designator: Body
-    """
-    Object designator_description describing the object that should be place
-    """
-    target_location: Pose
-    """
-    Pose in the world at which the object should be placed
-    """
-    arm: Arms
-    """
-    Arm that is currently holding the object
     """
 
     def execute(self) -> None:
@@ -69,13 +61,13 @@ class PlaceAction(ActionDescription):
             sequential(
                 [
                     ReachAction(
-                        self.target_location,
-                        self.arm,
-                        previous_grasp,
-                        self.object_designator,
-                        reverse_reach_order=True,
+                        target_pose=self.target_location,
+                        arm=self.arm,
+                        grasp_description=previous_grasp,
+                        object_designator=self.object_designator,
+                        reverse_pose_sequence=True,
                     ),
-                    MoveGripperMotion(GripperState.OPEN, self.arm),
+                    MoveGripperMotion(motion=GripperState.OPEN, arm=self.arm),
                 ]
             )
         ).perform()
@@ -98,7 +90,9 @@ class PlaceAction(ActionDescription):
         )
 
         self.add_subplan(
-            execute_single(MoveToolCenterPointMotion(retract_pose, self.arm))
+            execute_single(
+                MoveToolCenterPointMotion(target_pose=retract_pose, arm=self.arm)
+            )
         ).perform()
 
     @staticmethod

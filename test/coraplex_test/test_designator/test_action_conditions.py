@@ -18,9 +18,9 @@ def test_get_bound_variables(immutable_model_world):
     world, view, context = immutable_model_world
 
     pick_action = PickUpAction(
-        world.get_body_by_name("milk.stl"),
-        Arms.LEFT,
-        GraspDescription(
+        object_designator=world.get_body_by_name("milk.stl"),
+        arm=Arms.LEFT,
+        grasp_description=GraspDescription(
             ApproachDirection.FRONT,
             VerticalAlignment.NoAlignment,
             view.left_arm.end_effector,
@@ -31,9 +31,9 @@ def test_get_bound_variables(immutable_model_world):
 
     assert len(bound_variables) == 3
     assert list(bound_variables.keys()) == [
-        "object_designator",
-        "arm",
         "grasp_description",
+        "arm",
+        "object_designator",
     ]
     assert list(bound_variables["arm"]._domain_) == [Arms.LEFT]
     assert bound_variables["arm"]._type_ == Arms
@@ -47,9 +47,9 @@ def test_pick_up_pre_conditions(mutable_model_world):
     world, view, context = mutable_model_world
 
     pick_action = PickUpAction(
-        world.get_body_by_name("milk.stl"),
-        Arms.LEFT,
-        GraspDescription(
+        object_designator=world.get_body_by_name("milk.stl"),
+        arm=Arms.LEFT,
+        grasp_description=GraspDescription(
             ApproachDirection.FRONT,
             VerticalAlignment.NoAlignment,
             view.left_arm.end_effector,
@@ -94,9 +94,9 @@ def test_pick_up_pre_conditions(mutable_model_world):
 def test_pick_up_post_condition(mutable_model_world):
     world, view, context = mutable_model_world
     pick_action = PickUpAction(
-        world.get_body_by_name("milk.stl"),
-        Arms.LEFT,
-        GraspDescription(
+        object_designator=world.get_body_by_name("milk.stl"),
+        arm=Arms.LEFT,
+        grasp_description=GraspDescription(
             ApproachDirection.FRONT,
             VerticalAlignment.NoAlignment,
             view.left_arm.end_effector,
@@ -126,9 +126,9 @@ def test_context_evaluate_condition(mutable_model_world):
     world, view, context = mutable_model_world
 
     pick_action = PickUpAction(
-        world.get_body_by_name("milk.stl"),
-        Arms.LEFT,
-        GraspDescription(
+        object_designator=world.get_body_by_name("milk.stl"),
+        arm=Arms.LEFT,
+        grasp_description=GraspDescription(
             ApproachDirection.FRONT,
             VerticalAlignment.NoAlignment,
             view.left_arm.end_effector,

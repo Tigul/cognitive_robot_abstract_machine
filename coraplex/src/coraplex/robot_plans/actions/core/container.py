@@ -8,7 +8,6 @@ from typing_extensions import Any, Dict
 
 from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.factories import and_, ConditionType
-from coraplex.config.action_conf import ActionConfig
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
     Arms,
@@ -23,32 +22,26 @@ from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.actions.core.pick_up import GraspingAction
 from coraplex.robot_plans.motions.container import OpeningMotion, ClosingMotion
 from coraplex.robot_plans.motions.gripper import MoveGripperMotion
+from coraplex.robot_plans.parameter_mixins import (
+    HandleOperatedOn,
+    UsedArm,
+    UsedGraspingPreposeDistance,
+)
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.reasoning.robot_predicates import is_body_in_gripper
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
 from semantic_digital_twin.world_description.connections import ActiveConnection1DOF
-from semantic_digital_twin.world_description.world_entity import Body
 
 
 @dataclass
-class OpenAction(ActionDescription):
+class OpenAction(
+    HandleOperatedOn, UsedArm, UsedGraspingPreposeDistance, ActionDescription
+):
     """
     Opens a container like object
-    """
-
-    object_designator: Body
-    """
-    Object designator_description describing the object that should be opened
-    """
-    arm: Arms
-    """
-    Arm that should be used for opening the container
-    """
-    grasping_prepose_distance: float = ActionConfig.grasping_prepose_distance
-    """
-    The distance in meters the gripper should be at in the x-axis away from the handle.
     """
 
     def execute(self) -> None:
@@ -64,10 +57,16 @@ class OpenAction(ActionDescription):
         self.add_subplan(
             sequential(
                 [
-                    GraspingAction(self.object_designator, self.arm, grasp_description),
-                    OpeningMotion(self.object_designator, self.arm),
+                    GraspingAction(
+                        object_designator=self.handle.root,
+                        arm=self.arm,
+                        grasp_description=grasp_description,
+                    ),
+                    OpeningMotion(handle=self.handle, arm=self.arm),
                     MoveGripperMotion(
-                        GripperState.OPEN, self.arm, allow_gripper_collision=True
+                        motion=GripperState.OPEN,
+                        arm=self.arm,
+                        allow_gripper_collision=True,
                     ),
                 ]
             )
@@ -93,7 +92,7 @@ class OpenAction(ActionDescription):
                 robot=test_world.get_semantic_annotations_by_type(type(context.robot))[
                     0
                 ],
-                pose=kwargs["object_designator"].global_pose,
+                pose=kwargs["handle"].root.global_pose,
                 tip_link=end_effector.tool_frame,
                 grasp_description=GraspDescription(
                     ApproachDirection.FRONT,
@@ -111,13 +110,14 @@ class OpenAction(ActionDescription):
         The handle has to be in the gripper of the robot and the container has to be open.
         """
         end_effector = ViewManager.get_end_effector_view(kwargs["arm"], context.robot)
-        parent_connection = kwargs[
-            "object_designator"
-        ].get_first_parent_connection_of_type(ActiveConnection1DOF)
+        handle_body = kwargs["handle"].root
+        parent_connection = handle_body.get_first_parent_connection_of_type(
+            ActiveConnection1DOF
+        )
         return (
-            is_body_in_gripper(kwargs["object_designator"], end_effector) > 0.9
+            is_body_in_gripper(handle_body, end_effector) > 0.9
             or np.allclose(
-                kwargs["object_designator"].global_pose.to_position(),
+                handle_body.global_pose.to_position(),
                 ViewManager.get_end_effector_view(
                     kwargs["arm"], context.robot
                 ).tool_frame.global_pose.to_position(),
@@ -127,22 +127,11 @@ class OpenAction(ActionDescription):
 
 
 @dataclass
-class CloseAction(ActionDescription):
+class CloseAction(
+    HandleOperatedOn, UsedArm, UsedGraspingPreposeDistance, ActionDescription
+):
     """
     Closes a container like object.
-    """
-
-    object_designator: Body
-    """
-    Object designator_description describing the object that should be closed
-    """
-    arm: Arms
-    """
-    Arm that should be used for closing
-    """
-    grasping_prepose_distance: float = ActionConfig.grasping_prepose_distance
-    """
-    The distance in meters between the gripper and the handle before approaching to grasp.
     """
 
     def execute(self) -> None:
@@ -158,10 +147,16 @@ class CloseAction(ActionDescription):
         self.add_subplan(
             sequential(
                 [
-                    GraspingAction(self.object_designator, self.arm, grasp_description),
-                    ClosingMotion(self.object_designator, self.arm),
+                    GraspingAction(
+                        object_designator=self.handle.root,
+                        arm=self.arm,
+                        grasp_description=grasp_description,
+                    ),
+                    ClosingMotion(handle=self.handle, arm=self.arm),
                     MoveGripperMotion(
-                        GripperState.OPEN, self.arm, allow_gripper_collision=True
+                        motion=GripperState.OPEN,
+                        arm=self.arm,
+                        allow_gripper_collision=True,
                     ),
                 ]
             )
@@ -174,8 +169,8 @@ class CloseAction(ActionDescription):
         """
         The container has to be closed
         """
-        close_connection = kwargs[
-            "object_designator"
-        ].get_first_parent_connection_of_type(ActiveConnection1DOF)
+        close_connection = kwargs["handle"].root.get_first_parent_connection_of_type(
+            ActiveConnection1DOF
+        )
 
         return bool(close_connection.position < 0.1)

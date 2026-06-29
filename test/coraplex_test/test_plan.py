@@ -308,12 +308,12 @@ def test_interrupt_plan(immutable_model_world):
     def _interrupt_plan(code_node: CodeNode):
         code_node.plan.root.interrupt()
 
-    act1 = MoveTorsoAction(TorsoState.HIGH)
+    act1 = MoveTorsoAction(torso_state=TorsoState.HIGH)
 
     act2 = code(_interrupt_plan)
     act2.code = lambda: _interrupt_plan(act2)
 
-    act3 = MoveTorsoAction(TorsoState.LOW)
+    act3 = MoveTorsoAction(torso_state=TorsoState.LOW)
 
     plan = sequential([act1, act2, act3], context=context).plan
 
@@ -347,7 +347,7 @@ def test_pause_plan(immutable_model_world):
     code_node = code(function=lambda: None)
     code_node.code = lambda: pause_plan(code_node)
     sleep_node = code(lambda: node_sleep())
-    robot_plan = sequential([sleep_node, MoveTorsoAction(TorsoState.HIGH)])
+    robot_plan = sequential([sleep_node, MoveTorsoAction(torso_state=TorsoState.HIGH)])
     plan = parallel([code_node, robot_plan], context=context).plan
     with simulated_robot:
         plan.perform()
@@ -383,7 +383,7 @@ def test_algebra_sequential_plan(apartment_world_pr2_copy_with_context):
     )
 
     # resolved_navigate = next(pm_backend.evaluate(navigate_action))
-    plan = sequential([MoveTorsoAction(TorsoState.LOW), navigate_action], context).plan
+    plan = sequential([MoveTorsoAction(torso_state=TorsoState.LOW), navigate_action], context).plan
 
     with simulated_robot:
         plan.perform()

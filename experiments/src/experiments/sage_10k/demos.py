@@ -187,15 +187,15 @@ class Sage10kGymDemo(Sage10kAbstractDemoHSRB):
         plan = sequential(
             [
                 open_door,
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(arm=Arms.BOTH),
                 NavigateAction(
-                    Pose.from_xyz_rpy(2.81, -3.76, reference_frame=self.world.root)
+                    target_location=Pose.from_xyz_rpy(2.81, -3.76, reference_frame=self.world.root)
                 ),
                 NavigateAction(
-                    Pose.from_xyz_rpy(-0.75, -3.33, reference_frame=self.world.root)
+                    target_location=Pose.from_xyz_rpy(-0.75, -3.33, reference_frame=self.world.root)
                 ),
                 NavigateAction(
-                    Pose.from_xyz_rpy(0, 0.8, reference_frame=self.world.root)
+                    target_location=Pose.from_xyz_rpy(0, 0.8, reference_frame=self.world.root)
                 ),
                 MoveAndPickUpAction(
                     object_designator=body,
@@ -203,7 +203,7 @@ class Sage10kGymDemo(Sage10kAbstractDemoHSRB):
                     arm=arm,
                     grasp_description=grasp_description,
                 ),
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(arm=Arms.BOTH),
                 MoveAndPlaceAction(
                     object_designator=body,
                     standing_position=self.place_navigation_pose,
@@ -591,10 +591,10 @@ class Sage10kEclecticResidence(Sage10kAbstractDemoHSRB):
             rotate_gripper=True,
         )
         navigate1 = NavigateAction(
-            Pose.from_xyz_rpy(x=1.27, y=4.45, reference_frame=self.world.root)
+            target_location=Pose.from_xyz_rpy(x=1.27, y=4.45, reference_frame=self.world.root)
         )
         navigate2 = NavigateAction(
-            Pose.from_xyz_rpy(x=1.27, y=4.45, reference_frame=self.world.root)
+            target_location=Pose.from_xyz_rpy(x=1.27, y=4.45, reference_frame=self.world.root)
         )
         mpu = MoveAndPickUpAction(
             standing_position=self.pickup_navigation_pose,
@@ -639,7 +639,7 @@ class Sage10kSouthwesternStoreDemo(Sage10kAbstractDemoHSRB):
         plan = sequential(
             [
                 open_door,
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(arm=Arms.BOTH),
                 NavigateAction(
                     target_location=Pose.from_xyz_rpy(
                         x=0.81, y=4.81, reference_frame=self.world.root
@@ -651,7 +651,7 @@ class Sage10kSouthwesternStoreDemo(Sage10kAbstractDemoHSRB):
                     arm=arm,
                     grasp_description=grasp_description,
                 ),
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(arm=Arms.BOTH),
                 NavigateAction(
                     target_location=Pose.from_xyz_rpy(
                         x=0.81, y=4.81, reference_frame=self.world.root
@@ -663,7 +663,7 @@ class Sage10kSouthwesternStoreDemo(Sage10kAbstractDemoHSRB):
                     arm=arm,
                     target_location=self.place_pose,
                 ),
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(arm=Arms.BOTH),
                 NavigateAction(
                     target_location=Pose.from_xyz_rpy(
                         x=0.48, y=4.81, reference_frame=self.world.root
@@ -763,7 +763,7 @@ class Sage10kBrutalistStoreDemo(Sage10kAbstractDemoHSRB):
         plan = sequential(
             [
                 open_door,
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(arm=Arms.BOTH),
                 NavigateAction(
                     target_location=Pose.from_xyz_rpy(
                         x=12, y=8.13, reference_frame=self.world.root
@@ -775,7 +775,7 @@ class Sage10kBrutalistStoreDemo(Sage10kAbstractDemoHSRB):
                     arm=arm,
                     grasp_description=grasp_description,
                 ),
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(arm=Arms.BOTH),
                 MoveAndPlaceAction(
                     object_designator=self.world_P_object_of_interest,
                     standing_position=self.place_navigation_pose,
@@ -870,14 +870,14 @@ class Sage10kAmericanBuffetDemo(Sage10kAbstractDemoHSRB):
         plan = sequential(
             [
                 open_door,
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(arm=Arms.BOTH),
                 MoveAndPickUpAction(
                     object_designator=self.world_P_object_of_interest,
                     standing_position=self.pickup_navigation_pose,
                     arm=arm,
                     grasp_description=grasp_description,
                 ),
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(arm=Arms.BOTH),
                 NavigateAction(target_location=navigate),
                 MoveAndPlaceAction(
                     object_designator=self.world_P_object_of_interest,

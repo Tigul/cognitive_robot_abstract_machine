@@ -223,31 +223,35 @@ def build_plan() -> Plan:
 
     root = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
-            MoveTorsoAction(TorsoState.HIGH),
+            ParkArmsAction(arm=Arms.BOTH),
+            MoveTorsoAction(torso_state=TorsoState.HIGH),
             try_in_order(
                 [
                     code(_failing_step),
                     TransportAction(
-                        world.get_body_by_name("milk.stl"),
-                        Pose.from_xyz_rpy(
+                        object_designator=world.get_body_by_name("milk.stl"),
+                        target_location=Pose.from_xyz_rpy(
                             4.9, 3.3, 0.8, yaw=1.57, reference_frame=world.root
                         ),
-                        Arms.LEFT,
+                        arm=Arms.LEFT,
                     ),
                 ],
                 context=context,
             ),
             TransportAction(
-                world.get_body_by_name("bowl.stl"),
-                Pose.from_xyz_rpy(5.0, 3.3, 0.75, yaw=1.57, reference_frame=world.root),
-                Arms.LEFT,
+                object_designator=world.get_body_by_name("bowl.stl"),
+                target_location=Pose.from_xyz_rpy(
+                    5.0, 3.3, 0.75, yaw=1.57, reference_frame=world.root
+                ),
+                arm=Arms.LEFT,
             ),
             TransportAction(
-                world.get_body_by_name("spoon.stl"),
-                Pose.from_xyz_rpy(5.1, 3.3, 0.75, yaw=1.57, reference_frame=world.root),
-                Arms.LEFT,
-                GraspDescription(
+                object_designator=world.get_body_by_name("spoon.stl"),
+                target_location=Pose.from_xyz_rpy(
+                    5.1, 3.3, 0.75, yaw=1.57, reference_frame=world.root
+                ),
+                arm=Arms.LEFT,
+                grasp_description=GraspDescription(
                     ApproachDirection.FRONT,
                     VerticalAlignment.TOP,
                     pr2.left_arm.end_effector,

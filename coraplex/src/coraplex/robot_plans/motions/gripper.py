@@ -14,6 +14,17 @@ from semantic_digital_twin.robots.robot_parts import EndEffector
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
 from coraplex.robot_plans.motions.base import BaseMotion
+from coraplex.robot_plans.parameter_mixins import (
+    GripperCollisionAllowed,
+    GripperStateSet,
+    ObjectActedOn,
+    PoseSequenceReversed,
+    TargetPoseReached,
+    UsedArm,
+    UsedEndEffector,
+    UsedGraspDescription,
+    UsedMovementType,
+)
 from coraplex.datastructures.enums import (
     Arms,
     MovementType,
@@ -25,28 +36,17 @@ from coraplex.utils import translate_pose_along_local_axis
 
 
 @dataclass
-class ReachMotion(BaseMotion):
-    """ """
-
-    object_designator: Body
+class ReachMotion(
+    ObjectActedOn,
+    UsedArm,
+    UsedGraspDescription,
+    UsedMovementType,
+    PoseSequenceReversed,
+    BaseMotion,
+):
     """
-    Object designator_description describing the object that should be picked up
-    """
-    arm: Arms
-    """
-    The arm that should be used for pick up
-    """
-    grasp_description: GraspDescription
-    """
-    The grasp description that should be used for picking up the object
-    """
-    movement_type: MovementType = MovementType.CARTESIAN
-    """
-    The type of movement that should be performed.
-    """
-    reverse_pose_sequence: bool = False
-    """
-    Reverses the sequence of poses, i.e., moves away from the object instead of towards it. Used for placing objects.
+    Moves the arm toward a grasp pose for an object, or away from it when the pose sequence is
+    reversed (used for placing).
     """
 
     def _calculate_pose_sequence(self) -> List[Pose]:
@@ -92,22 +92,9 @@ class ReachMotion(BaseMotion):
 
 
 @dataclass
-class MoveGripperMotion(BaseMotion):
+class MoveGripperMotion(GripperStateSet, UsedArm, GripperCollisionAllowed, BaseMotion):
     """
     Opens or closes the gripper
-    """
-
-    motion: GripperState
-    """
-    Motion that should be performed, either 'open' or 'close'
-    """
-    gripper: Arms
-    """
-    Name of the gripper that should be moved
-    """
-    allow_gripper_collision: Optional[bool] = None
-    """
-    If the gripper is allowed to collide with something
     """
 
     def perform(self):
@@ -115,7 +102,7 @@ class MoveGripperMotion(BaseMotion):
 
     @property
     def _motion_chart(self):
-        arm = ViewManager().get_end_effector_view(self.gripper, self.robot)
+        arm = ViewManager().get_end_effector_view(self.arm, self.robot)
 
         return JointPositionList(
             goal_state=arm.get_joint_state_by_type(self.motion),
@@ -126,26 +113,15 @@ class MoveGripperMotion(BaseMotion):
 
 
 @dataclass
-class MoveToolCenterPointMotion(BaseMotion):
+class MoveToolCenterPointMotion(
+    TargetPoseReached,
+    UsedArm,
+    GripperCollisionAllowed,
+    UsedMovementType,
+    BaseMotion,
+):
     """
     Moves the Tool center point (TCP) of the robot
-    """
-
-    target: Pose
-    """
-    Target pose to which the TCP should be moved
-    """
-    arm: Arms
-    """
-    Arm with the TCP that should be moved to the target
-    """
-    allow_gripper_collision: Optional[bool] = None
-    """
-    If the gripper can collide with something
-    """
-    movement_type: Optional[MovementType] = MovementType.CARTESIAN
-    """
-    The type of movement that should be performed.
     """
 
     def perform(self):
@@ -165,7 +141,7 @@ class MoveToolCenterPointMotion(BaseMotion):
             task = CartesianPosition(
                 root_link=root,
                 tip_link=tip,
-                goal_point=self.target.to_position(),
+                goal_point=self.target_pose.to_position(),
                 name="MoveTCP",
                 weight=DefaultWeights.WEIGHT_BELOW_CA,
             )
@@ -173,7 +149,7 @@ class MoveToolCenterPointMotion(BaseMotion):
             task = CartesianPose(
                 root_link=root,
                 tip_link=tip,
-                goal_pose=self.target,
+                goal_pose=self.target_pose,
                 name="MoveTCP",
                 weight=DefaultWeights.WEIGHT_BELOW_CA,
             )
@@ -181,22 +157,14 @@ class MoveToolCenterPointMotion(BaseMotion):
 
 
 @dataclass
-class MoveTCPWaypointsMotion(BaseMotion):
+class MoveTCPWaypointsMotion(UsedArm, GripperCollisionAllowed, BaseMotion):
     """
     Moves the Tool center point (TCP) of the robot
     """
 
     waypoints: List[Pose]
     """
-    Waypoints the TCP should move along 
-    """
-    arm: Arms
-    """
-    Arm with the TCP that should be moved to the target
-    """
-    allow_gripper_collision: Optional[bool] = None
-    """
-    If the gripper can collide with something
+    Waypoints the TCP should move along
     """
     movement_type: WaypointsMovementType = (
         WaypointsMovementType.ENFORCE_ORIENTATION_FINAL_POINT
@@ -230,24 +198,11 @@ class MoveTCPWaypointsMotion(BaseMotion):
 
 
 @dataclass
-class MoveManipulatorMotion(BaseMotion):
+class MoveManipulatorMotion(
+    TargetPoseReached, UsedEndEffector, GripperCollisionAllowed, BaseMotion
+):
     """
     Moves the Tool center point (TCP) of the robot
-    """
-
-    target: Pose
-    """
-    Target pose to which the TCP should be moved
-    """
-
-    end_effector: EndEffector
-    """
-    The end effector to move to the target pose
-    """
-
-    allow_gripper_collision: bool = False
-    """
-    If the gripper can collide with something
     """
 
     @property
@@ -261,9 +216,9 @@ class MoveManipulatorMotion(BaseMotion):
 
         root = self.world.root if full_body_controlled else robot.root
         goal_pose = (
-            self.target
+            self.target_pose
             if full_body_controlled
-            else self.world.transform(self.target, root)
+            else self.world.transform(self.target_pose, root)
         )
         task = CartesianPose(
             root_link=root,

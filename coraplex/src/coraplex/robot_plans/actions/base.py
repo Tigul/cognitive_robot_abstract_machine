@@ -117,7 +117,10 @@ class ActionDescription(Designator):
         if evaluation:
             return True
         raise ConditionNotSatisfied(
-            pre_condition=True, action=self.__class__, condition=condition
+            pre_condition=True,
+            action=self.__class__,
+            condition=condition,
+            node=self.plan_node,
         )
 
     def evaluate_post_condition(self) -> bool:

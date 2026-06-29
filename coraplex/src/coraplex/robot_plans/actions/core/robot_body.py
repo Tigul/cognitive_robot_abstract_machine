@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 from typing import Tuple, List, Optional, Any
 
@@ -20,6 +20,15 @@ from coraplex.plans.factories import execute_single, sequential
 from coraplex.robot_plans.actions.base import ActionDescription, DescriptionType
 from coraplex.robot_plans.motions.gripper import MoveGripperMotion, MoveTCPWaypointsMotion
 from coraplex.robot_plans.motions.robot_body import MoveJointsMotion
+from coraplex.robot_plans.parameter_mixins import (
+    GripperCollisionAllowed,
+    GripperStateSet,
+    LinkAlignmentApplied,
+    TargetPoseReached,
+    TorsoStateSet,
+    UsedArm,
+    UsedEndEffector,
+)
 from coraplex.validation.goal_validator import create_multiple_joint_goal_validator
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import (
@@ -30,14 +39,9 @@ from semantic_digital_twin.datastructures.definitions import (
 
 
 @dataclass
-class MoveTorsoAction(ActionDescription):
+class MoveTorsoAction(TorsoStateSet, ActionDescription):
     """
     Move the torso of the robot up and down.
-    """
-
-    torso_state: TorsoState
-    """
-    The state of the torso that should be set
     """
 
     def execute(self) -> None:
@@ -63,38 +67,24 @@ class MoveTorsoAction(ActionDescription):
 
 
 @dataclass
-class SetGripperAction(ActionDescription):
+class SetGripperAction(UsedArm, GripperStateSet, ActionDescription):
     """
     Set the gripper state of the robot.
     """
 
-    gripper: Arms
-    """
-    The gripper that should be set 
-    """
-    motion: GripperState
-    """
-    The motion that should be set on the gripper
-    """
-
     def execute(self) -> None:
-        arms = [Arms.LEFT, Arms.RIGHT] if self.gripper == Arms.BOTH else [self.gripper]
+        arms = [Arms.LEFT, Arms.RIGHT] if self.arm == Arms.BOTH else [self.arm]
         self.add_subplan(
             sequential(
-                [MoveGripperMotion(gripper=arm, motion=self.motion) for arm in arms]
+                [MoveGripperMotion(arm=arm, motion=self.motion) for arm in arms]
             )
         ).perform()
 
 
 @dataclass
-class ParkArmsAction(ActionDescription):
+class ParkArmsAction(UsedArm, ActionDescription):
     """
     Park the arms of the robot.
-    """
-
-    arm: Arms
-    """
-    Entry from the enum for which arm should be parked.
     """
 
     def execute(self) -> None:
@@ -119,37 +109,17 @@ class ParkArmsAction(ActionDescription):
 
 
 @dataclass
-class CarryAction(ActionDescription):
+class CarryAction(UsedArm, LinkAlignmentApplied, ActionDescription):
     """
     Parks the robot's arms. And align the arm with the given Axis of a frame.
     """
 
-    arm: Arms
-    """
-    Entry from the enum for which arm should be parked.
-    """
-
-    align: Optional[bool] = False
-    """
-    If True, aligns the end-effector with a specified axis.
-    """
-
-    tip_link: Optional[str] = None
-    """
-    Name of the tip link to align with, e.g the object.
-    """
-
-    tip_axis: Optional[AxisIdentifier] = None
+    tip_axis: Optional[AxisIdentifier] = field(default=None, kw_only=True)
     """
     Tip axis of the tip link, that should be aligned.
     """
 
-    root_link: Optional[str] = None
-    """
-    Base link of the robot; typically set to the torso.
-    """
-
-    root_axis: Optional[AxisIdentifier] = None
+    root_axis: Optional[AxisIdentifier] = field(default=None, kw_only=True)
     """
     Goal axis of the root link, that should be used to align with.
     """
@@ -203,7 +173,7 @@ class CarryAction(ActionDescription):
 
 
 @dataclass
-class FollowToolCenterPointPathAction(ActionDescription):
+class FollowToolCenterPointPathAction(UsedArm, ActionDescription):
     """
     Represents an action to move a robotic arm's TCP (Tool Center Point) along a
     path of poses.
@@ -214,17 +184,12 @@ class FollowToolCenterPointPathAction(ActionDescription):
     Path poses for the TCP motion.
     """
 
-    arm: Arms
-    """
-    Entry from the enum for which arm should be parked.
-    """
-
     def execute(self) -> None:
         target_locations = list(self.target_locations.poses)
 
         motion = MoveTCPWaypointsMotion(
             target_locations,
-            self.arm,
+            arm=self.arm,
             allow_gripper_collision=True,
         )
 
@@ -239,33 +204,20 @@ class FollowToolCenterPointPathAction(ActionDescription):
 
 
 @dataclass
-class MoveManipulatorAction(ActionDescription):
+class MoveManipulatorAction(
+    TargetPoseReached, UsedEndEffector, GripperCollisionAllowed, ActionDescription
+):
     """
     Move the end_effector to a specific pose.
-    """
-
-    target_pose: Pose
-    """
-    The pose where the end_effector should be moved to.
-    """
-
-    end_effector: EndEffector
-    """
-    The end_effector that should be moved.
-    """
-
-    allow_gripper_collision: bool
-    """
-    If the gripper can collide with something.
     """
 
     def execute(self):
         self.add_subplan(
             execute_single(
                 MoveManipulatorMotion(
-                    self.target_pose,
-                    self.end_effector,
-                    self.allow_gripper_collision,
+                    target_pose=self.target_pose,
+                    end_effector=self.end_effector,
+                    allow_gripper_collision=self.allow_gripper_collision,
                 )
             )
         ).perform()

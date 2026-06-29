@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import logging
 from copy import deepcopy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from typing_extensions import Any, Dict
+from typing_extensions import Any, Dict, Optional
 
 from coraplex.locations.pose_validator import AreReachableBy
 from krrood.entity_query_language.core.base_expressions import SymbolicExpression
@@ -28,6 +28,13 @@ from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
     MoveToolCenterPointMotion,
 )
+from coraplex.robot_plans.parameter_mixins import (
+    ObjectActedOn,
+    PoseSequenceReversed,
+    TargetPoseReached,
+    UsedArm,
+    UsedGraspDescription,
+)
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.reasoning.predicates import allclose
@@ -40,47 +47,39 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ReachAction(ActionDescription):
+class ReachAction(
+    TargetPoseReached,
+    UsedArm,
+    UsedGraspDescription,
+    ObjectActedOn,
+    PoseSequenceReversed,
+    ActionDescription,
+):
     """
     Let the robot reach a specific pose.
     """
 
-    target_pose: Pose
-    """
-    Pose that should be reached.
-    """
-
-    arm: Arms
-    """
-    The arm that should be used for pick up
-    """
-
-    grasp_description: GraspDescription
-    """
-    The grasp description that should be used for picking up the object
-    """
-
-    object_designator: Body = None
+    object_designator: Optional[Body] = field(default=None, kw_only=True)
     """
     Object designator_description describing the object that should be picked up
     """
 
-    reverse_reach_order: bool = False
-
     def execute(self) -> None:
 
         target_pre_pose, target_pose, _ = self.grasp_description._pose_sequence(
-            self.target_pose, self.object_designator, reverse=self.reverse_reach_order
+            self.target_pose, self.object_designator, reverse=self.reverse_pose_sequence
         )
         self.add_subplan(
             sequential(
                 children=[
                     MoveToolCenterPointMotion(
-                        target_pre_pose, self.arm, allow_gripper_collision=False
+                        target_pose=target_pre_pose,
+                        arm=self.arm,
+                        allow_gripper_collision=False,
                     ),
                     MoveToolCenterPointMotion(
-                        target_pose,
-                        self.arm,
+                        target_pose=target_pose,
+                        arm=self.arm,
                         allow_gripper_collision=False,
                         movement_type=MovementType.CARTESIAN,
                     ),
@@ -102,7 +101,7 @@ class ReachAction(ActionDescription):
         grasp_pose_sequence = kwargs["grasp_description"]._pose_sequence(
             kwargs["target_pose"],
             kwargs["object_designator"],
-            reverse=kwargs["reverse_reach_order"],
+            reverse=kwargs["reverse_pose_sequence"],
         )
         return and_(
             AreReachableBy(
@@ -137,38 +136,23 @@ class ReachAction(ActionDescription):
 
 
 @dataclass
-class PickUpAction(ActionDescription):
+class PickUpAction(ActionDescription, ObjectActedOn, UsedArm, UsedGraspDescription):
     """
     Let the robot pick up an object.
-    """
-
-    object_designator: Body
-    """
-    Object designator_description describing the object that should be picked up
-    """
-
-    arm: Arms
-    """
-    The arm that should be used for pick up
-    """
-
-    grasp_description: GraspDescription
-    """
-    The GraspDescription that should be used for picking up the object
     """
 
     def execute(self) -> None:
         self.add_subplan(
             sequential(
                 children=[
-                    MoveGripperMotion(motion=GripperState.OPEN, gripper=self.arm),
+                    MoveGripperMotion(motion=GripperState.OPEN, arm=self.arm),
                     ReachAction(
                         target_pose=self.object_designator.global_pose,
                         object_designator=self.object_designator,
                         arm=self.arm,
                         grasp_description=self.grasp_description,
                     ),
-                    MoveGripperMotion(motion=GripperState.CLOSE, gripper=self.arm),
+                    MoveGripperMotion(motion=GripperState.CLOSE, arm=self.arm),
                 ]
             )
         ).perform()
@@ -186,8 +170,8 @@ class PickUpAction(ActionDescription):
         self.add_subplan(
             execute_single(
                 MoveToolCenterPointMotion(
-                    lift_to_pose,
-                    self.arm,
+                    target_pose=lift_to_pose,
+                    arm=self.arm,
                     allow_gripper_collision=True,
                     movement_type=MovementType.TRANSLATION,
                 )
@@ -237,22 +221,9 @@ class PickUpAction(ActionDescription):
 
 
 @dataclass
-class GraspingAction(ActionDescription):
+class GraspingAction(ObjectActedOn, UsedArm, UsedGraspDescription, ActionDescription):
     """
     Grasps an object described by the given Object Designator description
-    """
-
-    object_designator: Body
-    """
-    Object Designator for the object that should be grasped
-    """
-    arm: Arms
-    """
-    The arm that should be used to grasp
-    """
-    grasp_description: GraspDescription
-    """
-    The distance in meters the gripper should be at before grasping the object
     """
 
     def execute(self) -> None:
@@ -263,13 +234,17 @@ class GraspingAction(ActionDescription):
         self.add_subplan(
             sequential(
                 [
-                    MoveToolCenterPointMotion(pre_pose, self.arm),
-                    MoveGripperMotion(GripperState.OPEN, self.arm),
+                    MoveToolCenterPointMotion(target_pose=pre_pose, arm=self.arm),
+                    MoveGripperMotion(motion=GripperState.OPEN, arm=self.arm),
                     MoveToolCenterPointMotion(
-                        grasp_pose, self.arm, allow_gripper_collision=True
+                        target_pose=grasp_pose,
+                        arm=self.arm,
+                        allow_gripper_collision=True,
                     ),
                     MoveGripperMotion(
-                        GripperState.CLOSE, self.arm, allow_gripper_collision=True
+                        motion=GripperState.CLOSE,
+                        arm=self.arm,
+                        allow_gripper_collision=True,
                     ),
                 ]
             )

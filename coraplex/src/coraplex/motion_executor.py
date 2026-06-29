@@ -129,7 +129,7 @@ class MotionExecutor:
             ]
             failed_nodes = list(filter(None, failed_nodes))
             logger.error(f"Failed Nodes: {failed_nodes}")
-            raise MotionDidNotFinish(failed_nodes)
+            raise MotionDidNotFinish(failed_motions=failed_nodes, node=failed_nodes[0])
 
     def _monitor_interrupt(self, giskard_wrapper, kill_event: threading.Event):
         while True:

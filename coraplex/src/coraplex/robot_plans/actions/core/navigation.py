@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import timedelta
 
 from typing_extensions import Optional, Any, Dict
@@ -13,6 +13,12 @@ from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.motions.navigation import MoveMotion
 from coraplex.robot_plans.motions.robot_body import LookingMotion
+from coraplex.robot_plans.parameter_mixins import (
+    JointStatesKept,
+    TargetLocationMovedTo,
+    TargetLookedAt,
+    UsedCamera,
+)
 from semantic_digital_twin.reasoning.predicates import allclose
 from semantic_digital_twin.reasoning.robot_predicates import is_pose_free_for_robot
 from semantic_digital_twin.robots.robot_parts import Camera
@@ -20,24 +26,26 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 
 @dataclass
-class NavigateAction(ActionDescription):
+class NavigateAction(ActionDescription, TargetLocationMovedTo, JointStatesKept):
     """
     Navigates the Robot to a position.
     """
 
-    target_location: Pose
-    """
-    Location to which the robot should be navigated
-    """
-
-    keep_joint_states: bool = ActionConfig.navigate_keep_joint_states
+    keep_joint_states: bool = field(
+        default=ActionConfig.navigate_keep_joint_states, kw_only=True
+    )
     """
     Keep the joint states of the robot the same during the navigation.
     """
 
     def execute(self) -> None:
         self.add_subplan(
-            execute_single(MoveMotion(self.target_location, self.keep_joint_states))
+            execute_single(
+                MoveMotion(
+                    target_location=self.target_location,
+                    keep_joint_states=self.keep_joint_states,
+                )
+            )
         ).perform()
 
     @staticmethod
@@ -69,23 +77,15 @@ class NavigateAction(ActionDescription):
 
 
 @dataclass
-class LookAtAction(ActionDescription):
+class LookAtAction(TargetLookedAt, UsedCamera, ActionDescription):
     """
     Lets the robot look at a position.
-    """
-
-    target: Pose
-    """
-    Position at which the robot should look, given as 6D pose
-    """
-
-    camera: Camera = None
-    """
-    Camera that should be looking at the target
     """
 
     def execute(self) -> None:
         camera = self.camera or self.robot.get_default_camera()
         self.add_subplan(
-            execute_single(LookingMotion(target=self.target, camera=camera))
+            execute_single(
+                LookingMotion(look_at_target=self.look_at_target, camera=camera)
+            )
         ).perform()

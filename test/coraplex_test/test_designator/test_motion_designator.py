@@ -41,22 +41,24 @@ def test_pick_up_motion(immutable_model_world):
         view.left_arm.end_effector,
     )
     pick_up = PickUpAction(
-        test_world.get_body_by_name("milk.stl"), Arms.LEFT, grasp_description
+        object_designator=test_world.get_body_by_name("milk.stl"),
+        arm=Arms.LEFT,
+        grasp_description=grasp_description,
     )
 
     root = sequential(
         children=[
             ActionNode(
                 designator=NavigateAction(
-                    Pose(
+                    target_location=Pose(
                         Point3.from_iterable([1.7, 1.5, 0]),
                         Quaternion.from_iterable([0, 0, 0, 1]),
                         test_world.root,
                     ),
-                    True,
+                    keep_joint_states=True,
                 )
             ),
-            MoveTorsoAction(TorsoState.HIGH),
+            MoveTorsoAction(torso_state=TorsoState.HIGH),
             pick_up,
         ],
         context=Context.from_world(test_world),
@@ -82,7 +84,9 @@ def test_pick_up_motion(immutable_model_world):
 def test_move_motion_chart(immutable_model_world):
     world, view, context = immutable_model_world
     motion = MoveMotion(
-        Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+        target_location=Pose(
+            Point3.from_iterable([1, 1, 1]), reference_frame=world.root
+        )
     )
     plan = execute_single(
         motion,
@@ -99,7 +103,9 @@ def test_move_motion_chart(immutable_model_world):
 def test_alternative_mapping(hsr_apartment_world):
     world, view, context = hsr_apartment_world
     move_motion = MoveMotion(
-        Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+        target_location=Pose(
+            Point3.from_iterable([1, 1, 1]), reference_frame=world.root
+        )
     )
 
     plan = execute_single(move_motion, context=context)

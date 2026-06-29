@@ -6,40 +6,33 @@ from typing_extensions import List
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
 from giskardpy.motion_statechart.tasks.pointing import Pointing
 from coraplex.robot_plans.motions.base import BaseMotion
+from coraplex.robot_plans.parameter_mixins import (
+    LinkAlignmentApplied,
+    TargetLookedAt,
+    UsedCamera,
+)
 from semantic_digital_twin.robots.robot_parts import Camera
 from semantic_digital_twin.spatial_types import Vector3
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 
 @dataclass
-class MoveJointsMotion(BaseMotion):
+class MoveJointsMotion(LinkAlignmentApplied, BaseMotion):
     """
     Moves any joint on the robot
     """
 
     names: List[str]
     """
-    List of joint names that should be moved 
+    List of joint names that should be moved
     """
     positions: List[float]
     """
     Target positions of joints, should correspond to the list of names
     """
-    align: Optional[bool] = False
-    """
-    If True, aligns the end-effector with a specified axis (optional).
-    """
-    tip_link: Optional[str] = None
-    """
-    Name of the tip link to align with, e.g the object (optional).
-    """
     tip_normal: Optional[Vector3] = None
     """
     Normalized vector representing the current orientation axis of the end-effector (optional).
-    """
-    root_link: Optional[str] = None
-    """
-    Base link of the robot; typically set to the torso (optional).
     """
     root_normal: Optional[Vector3] = None
     """
@@ -58,19 +51,9 @@ class MoveJointsMotion(BaseMotion):
 
 
 @dataclass
-class LookingMotion(BaseMotion):
+class LookingMotion(TargetLookedAt, UsedCamera, BaseMotion):
     """
     Lets the robot look at a point
-    """
-
-    target: Pose
-    """
-    Target pose to look at
-    """
-
-    camera: Camera
-    """
-    Camera annotation that should look at the target
     """
 
     def perform(self):
@@ -82,6 +65,6 @@ class LookingMotion(BaseMotion):
         return Pointing(
             root_link=self.robot.get_torso().root,
             tip_link=self.camera.root,
-            goal_point=self.target.to_position(),
+            goal_point=self.look_at_target.to_position(),
             pointing_axis=self.camera.forward_facing_axis,
         )

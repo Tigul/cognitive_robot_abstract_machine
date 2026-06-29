@@ -13,6 +13,7 @@ from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import MoveManipulatorAction
+from coraplex.robot_plans.parameter_mixins import UsedGraspDescription
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
     RotationMatrix,
@@ -93,7 +94,7 @@ class DetectAction(ActionDescription):
 
 
 @dataclass
-class MoveToReach(ActionDescription):
+class MoveToReach(UsedGraspDescription, ActionDescription):
     """
     Let the robot move to a position facing the target and reach with a end_effector.
     """
@@ -113,11 +114,6 @@ class MoveToReach(ActionDescription):
     Pose that should be reached by the end_effector.
     """
 
-    grasp_description: GraspDescription
-    """
-    The semantic description for the reaching.
-    """
-
     def execute(self):
         grasp_orientation = self.grasp_description.grasp_orientation()
         target_pose = Pose(
@@ -131,10 +127,10 @@ class MoveToReach(ActionDescription):
         self.add_subplan(
             sequential(
                 [
-                    NavigateAction(self.standing_pose),
+                    NavigateAction(target_location=self.standing_pose),
                     MoveManipulatorAction(
-                        target_pose,
-                        self.grasp_description.end_effector,
+                        target_pose=target_pose,
+                        end_effector=self.grasp_description.end_effector,
                         allow_gripper_collision=False,
                     ),
                 ]

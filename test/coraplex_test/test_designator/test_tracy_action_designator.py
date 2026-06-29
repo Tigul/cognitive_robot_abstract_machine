@@ -103,7 +103,7 @@ def mutable_tracy_block_world(tracy_block_world):
 def test_park_arms_tracy(immutable_tracy_block_world):
     world, view, context = immutable_tracy_block_world
 
-    description = ParkArmsAction(Arms.BOTH)
+    description = ParkArmsAction(arm=Arms.BOTH)
     plan = execute_single(description, context=context).plan
     with simulated_robot:
         plan.perform()
@@ -137,7 +137,7 @@ def test_reach_action_multi(immutable_tracy_block_world):
 
     plan = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(arm=Arms.BOTH),
             ReachAction(
                 target_pose=Pose(
                     Point3.from_iterable([0.8, 0.5, 0.93]), reference_frame=world.root
@@ -167,7 +167,7 @@ def test_move_gripper_multi(immutable_tracy_block_world):
     world, view, context = immutable_tracy_block_world
 
     plan = execute_single(
-        SetGripperAction(Arms.LEFT, GripperState.OPEN), context=context
+        SetGripperAction(arm=Arms.LEFT, motion=GripperState.OPEN), context=context
     ).plan
 
     with simulated_robot:
@@ -181,7 +181,7 @@ def test_move_gripper_multi(immutable_tracy_block_world):
         assert connection.position == pytest.approx(target, abs=0.01)
 
     plan = execute_single(
-        SetGripperAction(Arms.LEFT, GripperState.CLOSE), context=context
+        SetGripperAction(arm=Arms.LEFT, motion=GripperState.CLOSE), context=context
     ).plan
 
     with simulated_robot:
@@ -201,10 +201,12 @@ def test_grasping(immutable_tracy_block_world):
         left_arm.end_effector,
     )
     description = GraspingAction(
-        world.get_body_by_name("box1"), Arms.LEFT, grasp_description
+        object_designator=world.get_body_by_name("box1"),
+        arm=Arms.LEFT,
+        grasp_description=grasp_description,
     )
     plan = sequential(
-        [ParkArmsAction(Arms.BOTH), description],
+        [ParkArmsAction(arm=Arms.BOTH), description],
         context=context,
     ).plan
     with simulated_robot:
@@ -226,8 +228,12 @@ def test_pick_up_tracy(mutable_tracy_block_world):
     )
     plan = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
-            PickUpAction(world.get_body_by_name("box1"), Arms.LEFT, grasp_description),
+            ParkArmsAction(arm=Arms.BOTH),
+            PickUpAction(
+                object_designator=world.get_body_by_name("box1"),
+                arm=Arms.LEFT,
+                grasp_description=grasp_description,
+            ),
         ],
         context=context,
     ).plan
@@ -258,12 +264,18 @@ def test_place_tracy(mutable_tracy_block_world):
 
     plan = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
-            PickUpAction(world.get_body_by_name("box1"), Arms.LEFT, grasp_description),
+            ParkArmsAction(arm=Arms.BOTH),
+            PickUpAction(
+                object_designator=world.get_body_by_name("box1"),
+                arm=Arms.LEFT,
+                grasp_description=grasp_description,
+            ),
             PlaceAction(
-                world.get_body_by_name("box1"),
-                Pose(Point3.from_iterable([0.9, 0, 0.93]), reference_frame=world.root),
-                Arms.LEFT,
+                object_designator=world.get_body_by_name("box1"),
+                target_location=Pose(
+                    Point3.from_iterable([0.9, 0, 0.93]), reference_frame=world.root
+                ),
+                arm=Arms.LEFT,
             ),
         ],
         context=context,

@@ -37,7 +37,13 @@ def test_ref_chain_after_copy_with_execute(immutable_model_world):
     )
 
     plan = sequential(
-        [NavigateAction(Pose.from_xyz_rpy(1, -1, 0, reference_frame=copy_world.root))],
+        [
+            NavigateAction(
+                target_location=Pose.from_xyz_rpy(
+                    1, -1, 0, reference_frame=copy_world.root
+                )
+            )
+        ],
         copy_context,
     )
 
@@ -59,16 +65,18 @@ def test_ref_chain_after_copy_with_execute_complex_plan(mutable_model_world):
     )
 
     description = TransportAction(
-        copy_world.get_body_by_name("milk.stl"),
-        Pose.from_xyz_quaternion(3.4, 2.2, 0.95, 0.0, 0.0, 1.0, 0.0, world.root),
-        Arms.RIGHT,
-        GraspDescription(
+        object_designator=copy_world.get_body_by_name("milk.stl"),
+        target_location=Pose.from_xyz_quaternion(
+            3.4, 2.2, 0.95, 0.0, 0.0, 1.0, 0.0, world.root
+        ),
+        arm=Arms.RIGHT,
+        grasp_description=GraspDescription(
             ApproachDirection.RIGHT,
             VerticalAlignment.NoAlignment,
             copy_robot.right_arm.end_effector,
         ),
     )
-    plan = sequential([MoveTorsoAction(TorsoState.HIGH), description], copy_context)
+    plan = sequential([MoveTorsoAction(torso_state=TorsoState.HIGH), description], copy_context)
     with simulated_robot:
         plan.perform()
 
