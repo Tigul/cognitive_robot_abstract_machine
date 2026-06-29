@@ -4,13 +4,13 @@ from giskardpy.motion_statechart.goals.open_close import Open, Close
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
 
 from coraplex.robot_plans.motions.base import BaseMotion
-from coraplex.robot_plans.parameter_mixins import HandleOperatedOn, UsedArm
+from coraplex.robot_plans.parameter_mixins import HandleOperationParameters
 from coraplex.datastructures.enums import Arms
 from coraplex.view_manager import ViewManager
 
 
 @dataclass
-class OpeningMotion(HandleOperatedOn, UsedArm, BaseMotion):
+class OpeningMotion(BaseMotion, HandleOperationParameters):
     """
     Designator for opening container
     """
@@ -25,7 +25,7 @@ class OpeningMotion(HandleOperatedOn, UsedArm, BaseMotion):
 
 
 @dataclass
-class ClosingMotion(HandleOperatedOn, UsedArm, BaseMotion):
+class ClosingMotion(BaseMotion, HandleOperationParameters):
     """
     Designator for closing a container
     """

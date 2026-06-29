@@ -30,9 +30,8 @@ from coraplex.robot_plans.motions.gripper import (
     MoveToolCenterPointMotion,
 )
 from coraplex.robot_plans.parameter_mixins import (
-    ObjectActedOn,
+    ObjectManipulationParameters,
     TargetLocationMovedTo,
-    UsedArm,
 )
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import GripperState
@@ -43,7 +42,7 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 
 @dataclass
-class PlaceAction(ObjectActedOn, TargetLocationMovedTo, UsedArm, ActionDescription):
+class PlaceAction(ActionDescription, ObjectManipulationParameters, TargetLocationMovedTo):
     """
     Places an Object at a position using an arm.
     """

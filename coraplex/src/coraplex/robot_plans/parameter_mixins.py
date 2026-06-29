@@ -270,3 +270,82 @@ class LinkAlignmentApplied:
     """
     The name of the root link to align against.
     """
+
+
+################################################
+######### Higher-order Parameter################
+################################################
+
+@dataclass(eq=False)
+class ObjectManipulationParameters(ObjectActedOn, UsedArm):
+    """
+    Bundle of the parameters shared by every behaviour that manipulates an object with an arm:
+    the object and the arm acting on it.
+    """
+
+
+@dataclass(eq=False)
+class GraspParameters(ObjectManipulationParameters, UsedGraspDescription):
+    """
+    Bundle of the parameters for grasping an object: the object, the arm, and the grasp the
+    arm approaches it with.
+    """
+
+
+@dataclass(eq=False)
+class ToolUsageParameters(ObjectManipulationParameters, UsedTool, UsedTechnique):
+    """
+    Bundle of the parameters for acting on an object with a held tool: the object, the arm,
+    the tool, and the technique.
+    """
+
+
+@dataclass(eq=False)
+class MobileManipulationParameters(
+    ObjectManipulationParameters, StandingPositionMovedTo, JointStatesKept
+):
+    """
+    Bundle of the parameters for manipulating an object after first driving the base to a
+    standing pose: the object, the arm, the standing pose, and whether joint states are kept.
+    """
+
+
+@dataclass(eq=False)
+class HandleOperationParameters(HandleOperatedOn, UsedArm):
+    """
+    Bundle of the parameters for articulating a handle with an arm: the handle and the arm.
+    """
+
+
+@dataclass(eq=False)
+class EndEffectorPoseParameters(
+    UsedEndEffector, TargetPoseReached, GripperCollisionAllowed
+):
+    """
+    Bundle of the parameters for driving an end effector to a target pose: the end effector,
+    the target pose, and whether gripper collision is allowed.
+    """
+
+
+@dataclass(eq=False)
+class CameraTargetParameters(UsedCamera, TargetLookedAt):
+    """
+    Bundle of the parameters for pointing a camera at a target: the camera and the pose it is
+    pointed at.
+    """
+
+
+@dataclass(eq=False)
+class NavigationParameters(TargetLocationMovedTo, JointStatesKept):
+    """
+    Bundle of the parameters for navigating the base to a destination: the destination and
+    whether joint states are kept.
+    """
+
+
+@dataclass(eq=False)
+class GripperActuationParameters(GripperStateSet, UsedArm):
+    """
+    Bundle of the parameters for setting a gripper to an open or closed state: the gripper
+    state and the arm.
+    """

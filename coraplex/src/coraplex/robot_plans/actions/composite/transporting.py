@@ -27,11 +27,9 @@ from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from coraplex.robot_plans.parameter_mixins import (
-    ObjectActedOn,
-    StandingPositionMovedTo,
+    GraspParameters,
+    MobileManipulationParameters,
     TargetLocationMovedTo,
-    JointStatesKept,
-    UsedArm,
     UsedGraspDescription,
 )
 from coraplex.view_manager import ViewManager
@@ -44,11 +42,9 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 @dataclass
 class TransportAction(
-    ObjectActedOn,
-    TargetLocationMovedTo,
-    UsedArm,
-    UsedGraspDescription,
     ActionDescription,
+    GraspParameters,
+    TargetLocationMovedTo,
 ):
     """
     Transports an object to a position using an arm
@@ -169,11 +165,9 @@ class TransportAction(
 
 @dataclass
 class PickAndPlaceAction(
-    ObjectActedOn,
-    TargetLocationMovedTo,
-    UsedArm,
-    UsedGraspDescription,
     ActionDescription,
+    GraspParameters,
+    TargetLocationMovedTo,
 ):
     """
     Transports an object to a position using an arm without moving the base of the robot
@@ -202,12 +196,9 @@ class PickAndPlaceAction(
 
 @dataclass
 class MoveAndPlaceAction(
-    StandingPositionMovedTo,
-    ObjectActedOn,
-    TargetLocationMovedTo,
-    UsedArm,
-    JointStatesKept,
     ActionDescription,
+    MobileManipulationParameters,
+    TargetLocationMovedTo,
 ):
     """
     Navigate to `standing_position`, then turn towards the target and place the object.
@@ -243,12 +234,9 @@ class MoveAndPlaceAction(
 
 @dataclass
 class MoveAndPickUpAction(
-    StandingPositionMovedTo,
-    ObjectActedOn,
-    UsedArm,
-    UsedGraspDescription,
-    JointStatesKept,
     ActionDescription,
+    MobileManipulationParameters,
+    UsedGraspDescription,
 ):
     """
     Navigate to `standing_position`, then turn towards the object and pick it up.

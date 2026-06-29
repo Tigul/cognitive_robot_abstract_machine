@@ -22,16 +22,11 @@ from coraplex.datastructures.enums import (
     VerticalAlignment,
 )
 from coraplex.robot_plans.actions.base import ActionDescription, DescriptionType
-from coraplex.robot_plans.parameter_mixins import (
-    ObjectActedOn,
-    UsedArm,
-    UsedTechnique,
-    UsedTool,
-)
+from coraplex.robot_plans.parameter_mixins import ToolUsageParameters
 
 
 @dataclass
-class MixingAction(ObjectActedOn, UsedTool, UsedArm, UsedTechnique, ActionDescription):
+class MixingAction(ActionDescription, ToolUsageParameters):
     """
     Mixes contents of an object using a tool in a spiral motion.
     """
@@ -58,7 +53,7 @@ class MixingAction(ObjectActedOn, UsedTool, UsedArm, UsedTechnique, ActionDescri
 
 
 @dataclass
-class PouringAction(ObjectActedOn, UsedTool, UsedArm, UsedTechnique, ActionDescription):
+class PouringAction(ActionDescription, ToolUsageParameters):
     """
     Performs a pouring action with a tool over an object, typically used for liquids.
     """
@@ -118,7 +113,7 @@ class PouringAction(ObjectActedOn, UsedTool, UsedArm, UsedTechnique, ActionDescr
 
 
 @dataclass
-class CuttingAction(ObjectActedOn, UsedTool, UsedArm, UsedTechnique, ActionDescription):
+class CuttingAction(ActionDescription, ToolUsageParameters):
     """
     Performs a cutting action on an object using a specified tool.
     """

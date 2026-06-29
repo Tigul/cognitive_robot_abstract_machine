@@ -98,7 +98,7 @@ class DetectAction(ActionDescription):
 
 
 @dataclass
-class MoveToReach(UsedGraspDescription, ActionDescription):
+class MoveToReach(ActionDescription, UsedGraspDescription):
     """
     Let the robot move to a position facing the target and reach with a end_effector.
     """

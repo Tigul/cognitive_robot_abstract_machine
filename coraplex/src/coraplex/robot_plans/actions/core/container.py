@@ -19,8 +19,7 @@ from coraplex.robot_plans.actions.core.pick_up import GraspingAction
 from coraplex.robot_plans.motions.container import OpeningMotion, ClosingMotion
 from coraplex.robot_plans.motions.gripper import MoveGripperMotion
 from coraplex.robot_plans.parameter_mixins import (
-    HandleOperatedOn,
-    UsedArm,
+    HandleOperationParameters,
     UsedGraspingPreposeDistance,
 )
 from coraplex.view_manager import ViewManager
@@ -39,7 +38,7 @@ from semantic_digital_twin.world_description.connections import ActiveConnection
 
 @dataclass
 class OpenAction(
-    HandleOperatedOn, UsedArm, UsedGraspingPreposeDistance, ActionDescription
+    ActionDescription, HandleOperationParameters, UsedGraspingPreposeDistance
 ):
     """
     Opens a container like object
@@ -121,7 +120,7 @@ class OpenAction(
 
 @dataclass
 class CloseAction(
-    HandleOperatedOn, UsedArm, UsedGraspingPreposeDistance, ActionDescription
+    ActionDescription, HandleOperationParameters, UsedGraspingPreposeDistance
 ):
     """
     Closes a container like object.

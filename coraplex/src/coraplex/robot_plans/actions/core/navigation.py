@@ -15,10 +15,8 @@ from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.motions.navigation import MoveMotion
 from coraplex.robot_plans.motions.robot_body import LookingMotion
 from coraplex.robot_plans.parameter_mixins import (
-    JointStatesKept,
-    TargetLocationMovedTo,
-    TargetLookedAt,
-    UsedCamera,
+    CameraTargetParameters,
+    NavigationParameters,
 )
 from semantic_digital_twin.reasoning.predicates import allclose
 from semantic_digital_twin.reasoning.robot_predicates import is_pose_free_for_robot
@@ -27,7 +25,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 
 @dataclass
-class NavigateAction(TargetLocationMovedTo, JointStatesKept, ActionDescription):
+class NavigateAction(ActionDescription, NavigationParameters):
     """
     Navigates the Robot to a position.
     """
@@ -77,7 +75,7 @@ class NavigateAction(TargetLocationMovedTo, JointStatesKept, ActionDescription):
 
 
 @dataclass
-class LookAtAction(TargetLookedAt, UsedCamera, ActionDescription):
+class LookAtAction(ActionDescription, CameraTargetParameters):
     """
     Lets the robot look at a position.
     """

@@ -129,7 +129,6 @@ import giskardpy.ros2_tools.force_torque_filter_node
 import giskardpy.ros_executor
 import giskardpy.tree.behaviors.publish_debug_expressions
 import krrood.adapters.json_serializer
-import krrood.entity_query_language.orm.model
 import krrood.ormatic.custom_types
 import krrood.ormatic.data_access_objects.alternative_mappings
 import krrood.ormatic.type_dict
@@ -735,25 +734,6 @@ class QPDataSymbolicDAO_degrees_of_freedom_association(
     target: Mapped[DegreeOfFreedomDAO] = relationship(
         "DegreeOfFreedomDAO",
         foreign_keys=[target_degreeoffreedomdao_id],
-        lazy="selectin",
-    )
-
-
-class SymbolGraphMappingDAO_instances_association(Base, AssociationDataAccessObject):
-    __tablename__ = "_81067648797638488542008423406786912563441407992272678641741406"
-
-    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
-
-    source_symbolgraphmappingdao_id: Mapped[int] = mapped_column(
-        ForeignKey("SymbolGraphMappingDAO.database_id")
-    )
-    target_wrappedinstancemappingdao_id: Mapped[int] = mapped_column(
-        ForeignKey("WrappedInstanceMappingDAO.database_id")
-    )
-
-    target: Mapped[WrappedInstanceMappingDAO] = relationship(
-        "WrappedInstanceMappingDAO",
-        foreign_keys=[target_wrappedinstancemappingdao_id],
         lazy="selectin",
     )
 
@@ -4597,15 +4577,25 @@ class LinkAlignmentAppliedDAO(
 
 
 class MoveJointsMotionDAO(
-    LinkAlignmentAppliedDAO,
+    BaseMotionDAO,
     DataAccessObject[coraplex.robot_plans.motions.robot_body.MoveJointsMotion],
 ):
     __tablename__ = "MoveJointsMotionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(LinkAlignmentAppliedDAO.database_id),
+        ForeignKey(BaseMotionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
+    )
+
+    align: Mapped[typing.Optional[builtins.bool]] = mapped_column(
+        use_existing_column=True
+    )
+    tip_link: Mapped[typing.Optional[builtins.str]] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+    root_link: Mapped[typing.Optional[builtins.str]] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
     )
 
     names: Mapped[typing.List[builtins.str]] = mapped_column(
@@ -4641,7 +4631,7 @@ class MoveJointsMotionDAO(
 
     __mapper_args__ = {
         "polymorphic_identity": "MoveJointsMotionDAO",
-        "inherit_condition": database_id == LinkAlignmentAppliedDAO.database_id,
+        "inherit_condition": database_id == BaseMotionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -4763,11 +4753,11 @@ class TargetLocationMovedToDAO(
     }
 
 
-class NavigateActionDAO(
+class NavigationParametersDAO(
     TargetLocationMovedToDAO,
-    DataAccessObject[coraplex.robot_plans.actions.core.navigation.NavigateAction],
+    DataAccessObject[coraplex.robot_plans.parameter_mixins.NavigationParameters],
 ):
-    __tablename__ = "NavigateActionDAO"
+    __tablename__ = "NavigationParametersDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
         ForeignKey(TargetLocationMovedToDAO.database_id),
@@ -4778,29 +4768,75 @@ class NavigateActionDAO(
     keep_joint_states: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
 
     __mapper_args__ = {
-        "polymorphic_identity": "NavigateActionDAO",
+        "polymorphic_identity": "NavigationParametersDAO",
         "inherit_condition": database_id == TargetLocationMovedToDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
 
-class MoveMotionDAO(
-    TargetLocationMovedToDAO,
-    DataAccessObject[coraplex.robot_plans.motions.navigation.MoveMotion],
+class NavigateActionDAO(
+    ActionDescriptionDAO,
+    DataAccessObject[coraplex.robot_plans.actions.core.navigation.NavigateAction],
 ):
-    __tablename__ = "MoveMotionDAO"
+    __tablename__ = "NavigateActionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(TargetLocationMovedToDAO.database_id),
+        ForeignKey(ActionDescriptionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
     keep_joint_states: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
 
+    target_location_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    target_location: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO",
+        uselist=False,
+        foreign_keys=[target_location_id],
+        post_update=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "NavigateActionDAO",
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class MoveMotionDAO(
+    BaseMotionDAO, DataAccessObject[coraplex.robot_plans.motions.navigation.MoveMotion]
+):
+    __tablename__ = "MoveMotionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(BaseMotionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    keep_joint_states: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
+
+    target_location_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    target_location: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO",
+        uselist=False,
+        foreign_keys=[target_location_id],
+        post_update=True,
+    )
+
     __mapper_args__ = {
         "polymorphic_identity": "MoveMotionDAO",
-        "inherit_condition": database_id == TargetLocationMovedToDAO.database_id,
+        "inherit_condition": database_id == BaseMotionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -4901,22 +4937,35 @@ class TargetLookedAtDAO(
 
 
 class FaceAtActionDAO(
-    TargetLookedAtDAO,
+    ActionDescriptionDAO,
     DataAccessObject[coraplex.robot_plans.actions.composite.facing.FaceAtAction],
 ):
     __tablename__ = "FaceAtActionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(TargetLookedAtDAO.database_id),
+        ForeignKey(ActionDescriptionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
     keep_joint_states: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
 
+    look_at_target_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    look_at_target: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO",
+        uselist=False,
+        foreign_keys=[look_at_target_id],
+        post_update=True,
+    )
+
     __mapper_args__ = {
         "polymorphic_identity": "FaceAtActionDAO",
-        "inherit_condition": database_id == TargetLookedAtDAO.database_id,
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -4977,20 +5026,28 @@ class TorsoStateSetDAO(
 
 
 class MoveTorsoActionDAO(
-    TorsoStateSetDAO,
+    ActionDescriptionDAO,
     DataAccessObject[coraplex.robot_plans.actions.core.robot_body.MoveTorsoAction],
 ):
     __tablename__ = "MoveTorsoActionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(TorsoStateSetDAO.database_id),
+        ForeignKey(ActionDescriptionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
+    torso_state: Mapped[semantic_digital_twin.datastructures.definitions.TorsoState] = (
+        mapped_column(
+            krrood.ormatic.custom_types.PolymorphicEnumType,
+            nullable=False,
+            use_existing_column=True,
+        )
+    )
+
     __mapper_args__ = {
         "polymorphic_identity": "MoveTorsoActionDAO",
-        "inherit_condition": database_id == TorsoStateSetDAO.database_id,
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -5017,21 +5074,413 @@ class UsedArmDAO(Base, DataAccessObject[coraplex.robot_plans.parameter_mixins.Us
     }
 
 
-class MoveAndPlaceActionDAO(
-    StandingPositionMovedToDAO,
-    DataAccessObject[
-        coraplex.robot_plans.actions.composite.transporting.MoveAndPlaceAction
-    ],
+class CarryActionDAO(
+    ActionDescriptionDAO,
+    DataAccessObject[coraplex.robot_plans.actions.core.robot_body.CarryAction],
 ):
-    __tablename__ = "MoveAndPlaceActionDAO"
+    __tablename__ = "CarryActionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(StandingPositionMovedToDAO.database_id),
+        ForeignKey(ActionDescriptionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
-    keep_joint_states: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
+    align: Mapped[typing.Optional[builtins.bool]] = mapped_column(
+        use_existing_column=True
+    )
+    tip_link: Mapped[typing.Optional[builtins.str]] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+    root_link: Mapped[typing.Optional[builtins.str]] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+
+    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+    tip_axis: Mapped[typing.Optional[coraplex.datastructures.enums.AxisIdentifier]] = (
+        mapped_column(
+            krrood.ormatic.custom_types.PolymorphicEnumType,
+            nullable=True,
+            use_existing_column=True,
+        )
+    )
+    root_axis: Mapped[typing.Optional[coraplex.datastructures.enums.AxisIdentifier]] = (
+        mapped_column(
+            krrood.ormatic.custom_types.PolymorphicEnumType,
+            nullable=True,
+            use_existing_column=True,
+        )
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "CarryActionDAO",
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class FollowToolCenterPointPathActionDAO(
+    ActionDescriptionDAO,
+    DataAccessObject[
+        coraplex.robot_plans.actions.core.robot_body.FollowToolCenterPointPathAction
+    ],
+):
+    __tablename__ = "FollowToolCenterPointPathActionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ActionDescriptionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+
+    target_locations_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseTrajectoryDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    target_locations: Mapped[PoseTrajectoryDAO] = relationship(
+        "PoseTrajectoryDAO",
+        uselist=False,
+        foreign_keys=[target_locations_id],
+        post_update=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "FollowToolCenterPointPathActionDAO",
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class ParkArmsActionDAO(
+    ActionDescriptionDAO,
+    DataAccessObject[coraplex.robot_plans.actions.core.robot_body.ParkArmsAction],
+):
+    __tablename__ = "ParkArmsActionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ActionDescriptionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "ParkArmsActionDAO",
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class MoveTCPWaypointsMotionDAO(
+    BaseMotionDAO,
+    DataAccessObject[coraplex.robot_plans.motions.gripper.MoveTCPWaypointsMotion],
+):
+    __tablename__ = "MoveTCPWaypointsMotionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(BaseMotionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    allow_gripper_collision: Mapped[typing.Optional[builtins.bool]] = mapped_column(
+        use_existing_column=True
+    )
+
+    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+    movement_type: Mapped[coraplex.datastructures.enums.WaypointsMovementType] = (
+        mapped_column(
+            krrood.ormatic.custom_types.PolymorphicEnumType,
+            nullable=False,
+            use_existing_column=True,
+        )
+    )
+
+    waypoints: Mapped[
+        builtins.list[MoveTCPWaypointsMotionDAO_waypoints_association]
+    ] = relationship(
+        "MoveTCPWaypointsMotionDAO_waypoints_association",
+        collection_class=builtins.list,
+        cascade="all, delete-orphan",
+        foreign_keys="[MoveTCPWaypointsMotionDAO_waypoints_association.source_movetcpwaypointsmotiondao_id]",
+        lazy="selectin",
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "MoveTCPWaypointsMotionDAO",
+        "inherit_condition": database_id == BaseMotionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class GripperActuationParametersDAO(
+    GripperStateSetDAO,
+    DataAccessObject[coraplex.robot_plans.parameter_mixins.GripperActuationParameters],
+):
+    __tablename__ = "GripperActuationParametersDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(GripperStateSetDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "GripperActuationParametersDAO",
+        "inherit_condition": database_id == GripperStateSetDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class SetGripperActionDAO(
+    ActionDescriptionDAO,
+    DataAccessObject[coraplex.robot_plans.actions.core.robot_body.SetGripperAction],
+):
+    __tablename__ = "SetGripperActionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ActionDescriptionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+    motion: Mapped[semantic_digital_twin.datastructures.definitions.GripperState] = (
+        mapped_column(
+            krrood.ormatic.custom_types.PolymorphicEnumType,
+            nullable=False,
+            use_existing_column=True,
+        )
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "SetGripperActionDAO",
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class MoveGripperMotionDAO(
+    BaseMotionDAO,
+    DataAccessObject[coraplex.robot_plans.motions.gripper.MoveGripperMotion],
+):
+    __tablename__ = "MoveGripperMotionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(BaseMotionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    allow_gripper_collision: Mapped[typing.Optional[builtins.bool]] = mapped_column(
+        use_existing_column=True
+    )
+
+    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+    motion: Mapped[semantic_digital_twin.datastructures.definitions.GripperState] = (
+        mapped_column(
+            krrood.ormatic.custom_types.PolymorphicEnumType,
+            nullable=False,
+            use_existing_column=True,
+        )
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "MoveGripperMotionDAO",
+        "inherit_condition": database_id == BaseMotionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class HandleOperationParametersDAO(
+    HandleOperatedOnDAO,
+    DataAccessObject[coraplex.robot_plans.parameter_mixins.HandleOperationParameters],
+):
+    __tablename__ = "HandleOperationParametersDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(HandleOperatedOnDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "HandleOperationParametersDAO",
+        "inherit_condition": database_id == HandleOperatedOnDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class ClosingMotionDAO(
+    BaseMotionDAO,
+    DataAccessObject[coraplex.robot_plans.motions.container.ClosingMotion],
+):
+    __tablename__ = "ClosingMotionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(BaseMotionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+
+    handle_id: Mapped[int] = mapped_column(
+        ForeignKey("HandleDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    handle: Mapped[HandleDAO] = relationship(
+        "HandleDAO", uselist=False, foreign_keys=[handle_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "ClosingMotionDAO",
+        "inherit_condition": database_id == BaseMotionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class StretchCloseDAO(
+    ClosingMotionDAO,
+    DataAccessObject[
+        coraplex.alternative_motion_mappings.stretch_motion_mapping.StretchClose
+    ],
+):
+    __tablename__ = "StretchCloseDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ClosingMotionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "StretchCloseDAO",
+        "inherit_condition": database_id == ClosingMotionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class OpeningMotionDAO(
+    BaseMotionDAO,
+    DataAccessObject[coraplex.robot_plans.motions.container.OpeningMotion],
+):
+    __tablename__ = "OpeningMotionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(BaseMotionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+
+    handle_id: Mapped[int] = mapped_column(
+        ForeignKey("HandleDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    handle: Mapped[HandleDAO] = relationship(
+        "HandleDAO", uselist=False, foreign_keys=[handle_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "OpeningMotionDAO",
+        "inherit_condition": database_id == BaseMotionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class ObjectManipulationParametersDAO(
+    ObjectActedOnDAO,
+    DataAccessObject[
+        coraplex.robot_plans.parameter_mixins.ObjectManipulationParameters
+    ],
+):
+    __tablename__ = "ObjectManipulationParametersDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ObjectActedOnDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "ObjectManipulationParametersDAO",
+        "inherit_condition": database_id == ObjectActedOnDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class PlaceActionDAO(
+    ActionDescriptionDAO,
+    DataAccessObject[coraplex.robot_plans.actions.core.placing.PlaceAction],
+):
+    __tablename__ = "PlaceActionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ActionDescriptionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
 
     arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
         krrood.ormatic.custom_types.PolymorphicEnumType,
@@ -5061,23 +5510,63 @@ class MoveAndPlaceActionDAO(
     )
 
     __mapper_args__ = {
-        "polymorphic_identity": "MoveAndPlaceActionDAO",
-        "inherit_condition": database_id == StandingPositionMovedToDAO.database_id,
+        "polymorphic_identity": "PlaceActionDAO",
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
 
-class PlaceActionDAO(
-    ObjectActedOnDAO,
-    DataAccessObject[coraplex.robot_plans.actions.core.placing.PlaceAction],
+class MobileManipulationParametersDAO(
+    ObjectManipulationParametersDAO,
+    DataAccessObject[
+        coraplex.robot_plans.parameter_mixins.MobileManipulationParameters
+    ],
 ):
-    __tablename__ = "PlaceActionDAO"
+    __tablename__ = "MobileManipulationParametersDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ObjectActedOnDAO.database_id),
+        ForeignKey(ObjectManipulationParametersDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
+
+    keep_joint_states: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
+
+    standing_position_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    standing_position: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO",
+        uselist=False,
+        foreign_keys=[standing_position_id],
+        post_update=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "MobileManipulationParametersDAO",
+        "inherit_condition": database_id == ObjectManipulationParametersDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class MoveAndPlaceActionDAO(
+    ActionDescriptionDAO,
+    DataAccessObject[
+        coraplex.robot_plans.actions.composite.transporting.MoveAndPlaceAction
+    ],
+):
+    __tablename__ = "MoveAndPlaceActionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ActionDescriptionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    keep_joint_states: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
 
     arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
         krrood.ormatic.custom_types.PolymorphicEnumType,
@@ -5090,6 +5579,16 @@ class PlaceActionDAO(
         nullable=True,
         use_existing_column=True,
     )
+    standing_position_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    object_designator_id: Mapped[int] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
 
     target_location: Mapped[PoseMappingDAO] = relationship(
         "PoseMappingDAO",
@@ -5097,265 +5596,19 @@ class PlaceActionDAO(
         foreign_keys=[target_location_id],
         post_update=True,
     )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "PlaceActionDAO",
-        "inherit_condition": database_id == ObjectActedOnDAO.database_id,
-        "polymorphic_load": "selectin",
-    }
-
-
-class CarryActionDAO(
-    UsedArmDAO,
-    DataAccessObject[coraplex.robot_plans.actions.core.robot_body.CarryAction],
-):
-    __tablename__ = "CarryActionDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(UsedArmDAO.database_id), primary_key=True, use_existing_column=True
-    )
-
-    align: Mapped[typing.Optional[builtins.bool]] = mapped_column(
-        use_existing_column=True
-    )
-    tip_link: Mapped[typing.Optional[builtins.str]] = mapped_column(
-        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
-    )
-    root_link: Mapped[typing.Optional[builtins.str]] = mapped_column(
-        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
-    )
-
-    tip_axis: Mapped[typing.Optional[coraplex.datastructures.enums.AxisIdentifier]] = (
-        mapped_column(
-            krrood.ormatic.custom_types.PolymorphicEnumType,
-            nullable=True,
-            use_existing_column=True,
-        )
-    )
-    root_axis: Mapped[typing.Optional[coraplex.datastructures.enums.AxisIdentifier]] = (
-        mapped_column(
-            krrood.ormatic.custom_types.PolymorphicEnumType,
-            nullable=True,
-            use_existing_column=True,
-        )
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "CarryActionDAO",
-        "inherit_condition": database_id == UsedArmDAO.database_id,
-        "polymorphic_load": "selectin",
-    }
-
-
-class FollowToolCenterPointPathActionDAO(
-    UsedArmDAO,
-    DataAccessObject[
-        coraplex.robot_plans.actions.core.robot_body.FollowToolCenterPointPathAction
-    ],
-):
-    __tablename__ = "FollowToolCenterPointPathActionDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(UsedArmDAO.database_id), primary_key=True, use_existing_column=True
-    )
-
-    target_locations_id: Mapped[int] = mapped_column(
-        ForeignKey("PoseTrajectoryDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    target_locations: Mapped[PoseTrajectoryDAO] = relationship(
-        "PoseTrajectoryDAO",
+    standing_position: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO",
         uselist=False,
-        foreign_keys=[target_locations_id],
+        foreign_keys=[standing_position_id],
         post_update=True,
     )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "FollowToolCenterPointPathActionDAO",
-        "inherit_condition": database_id == UsedArmDAO.database_id,
-        "polymorphic_load": "selectin",
-    }
-
-
-class ParkArmsActionDAO(
-    UsedArmDAO,
-    DataAccessObject[coraplex.robot_plans.actions.core.robot_body.ParkArmsAction],
-):
-    __tablename__ = "ParkArmsActionDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(UsedArmDAO.database_id), primary_key=True, use_existing_column=True
+    object_designator: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
     )
 
     __mapper_args__ = {
-        "polymorphic_identity": "ParkArmsActionDAO",
-        "inherit_condition": database_id == UsedArmDAO.database_id,
-        "polymorphic_load": "selectin",
-    }
-
-
-class SetGripperActionDAO(
-    UsedArmDAO,
-    DataAccessObject[coraplex.robot_plans.actions.core.robot_body.SetGripperAction],
-):
-    __tablename__ = "SetGripperActionDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(UsedArmDAO.database_id), primary_key=True, use_existing_column=True
-    )
-
-    motion: Mapped[semantic_digital_twin.datastructures.definitions.GripperState] = (
-        mapped_column(
-            krrood.ormatic.custom_types.PolymorphicEnumType,
-            nullable=False,
-            use_existing_column=True,
-        )
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "SetGripperActionDAO",
-        "inherit_condition": database_id == UsedArmDAO.database_id,
-        "polymorphic_load": "selectin",
-    }
-
-
-class ClosingMotionDAO(
-    HandleOperatedOnDAO,
-    DataAccessObject[coraplex.robot_plans.motions.container.ClosingMotion],
-):
-    __tablename__ = "ClosingMotionDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(HandleOperatedOnDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
-        krrood.ormatic.custom_types.PolymorphicEnumType,
-        nullable=False,
-        use_existing_column=True,
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "ClosingMotionDAO",
-        "inherit_condition": database_id == HandleOperatedOnDAO.database_id,
-        "polymorphic_load": "selectin",
-    }
-
-
-class StretchCloseDAO(
-    ClosingMotionDAO,
-    DataAccessObject[
-        coraplex.alternative_motion_mappings.stretch_motion_mapping.StretchClose
-    ],
-):
-    __tablename__ = "StretchCloseDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ClosingMotionDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "StretchCloseDAO",
-        "inherit_condition": database_id == ClosingMotionDAO.database_id,
-        "polymorphic_load": "selectin",
-    }
-
-
-class OpeningMotionDAO(
-    HandleOperatedOnDAO,
-    DataAccessObject[coraplex.robot_plans.motions.container.OpeningMotion],
-):
-    __tablename__ = "OpeningMotionDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(HandleOperatedOnDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
-        krrood.ormatic.custom_types.PolymorphicEnumType,
-        nullable=False,
-        use_existing_column=True,
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "OpeningMotionDAO",
-        "inherit_condition": database_id == HandleOperatedOnDAO.database_id,
-        "polymorphic_load": "selectin",
-    }
-
-
-class MoveGripperMotionDAO(
-    GripperStateSetDAO,
-    DataAccessObject[coraplex.robot_plans.motions.gripper.MoveGripperMotion],
-):
-    __tablename__ = "MoveGripperMotionDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(GripperStateSetDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    allow_gripper_collision: Mapped[typing.Optional[builtins.bool]] = mapped_column(
-        use_existing_column=True
-    )
-
-    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
-        krrood.ormatic.custom_types.PolymorphicEnumType,
-        nullable=False,
-        use_existing_column=True,
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "MoveGripperMotionDAO",
-        "inherit_condition": database_id == GripperStateSetDAO.database_id,
-        "polymorphic_load": "selectin",
-    }
-
-
-class MoveTCPWaypointsMotionDAO(
-    UsedArmDAO,
-    DataAccessObject[coraplex.robot_plans.motions.gripper.MoveTCPWaypointsMotion],
-):
-    __tablename__ = "MoveTCPWaypointsMotionDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(UsedArmDAO.database_id), primary_key=True, use_existing_column=True
-    )
-
-    allow_gripper_collision: Mapped[typing.Optional[builtins.bool]] = mapped_column(
-        use_existing_column=True
-    )
-
-    movement_type: Mapped[coraplex.datastructures.enums.WaypointsMovementType] = (
-        mapped_column(
-            krrood.ormatic.custom_types.PolymorphicEnumType,
-            nullable=False,
-            use_existing_column=True,
-        )
-    )
-
-    waypoints: Mapped[
-        builtins.list[MoveTCPWaypointsMotionDAO_waypoints_association]
-    ] = relationship(
-        "MoveTCPWaypointsMotionDAO_waypoints_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[MoveTCPWaypointsMotionDAO_waypoints_association.source_movetcpwaypointsmotiondao_id]",
-        lazy="selectin",
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "MoveTCPWaypointsMotionDAO",
-        "inherit_condition": database_id == UsedArmDAO.database_id,
+        "polymorphic_identity": "MoveAndPlaceActionDAO",
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -5389,60 +5642,114 @@ class UsedCameraDAO(
     }
 
 
+class CameraTargetParametersDAO(
+    UsedCameraDAO,
+    DataAccessObject[coraplex.robot_plans.parameter_mixins.CameraTargetParameters],
+):
+    __tablename__ = "CameraTargetParametersDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(UsedCameraDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    look_at_target_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    look_at_target: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO",
+        uselist=False,
+        foreign_keys=[look_at_target_id],
+        post_update=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "CameraTargetParametersDAO",
+        "inherit_condition": database_id == UsedCameraDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
 class LookAtActionDAO(
-    TargetLookedAtDAO,
+    ActionDescriptionDAO,
     DataAccessObject[coraplex.robot_plans.actions.core.navigation.LookAtAction],
 ):
     __tablename__ = "LookAtActionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(TargetLookedAtDAO.database_id),
+        ForeignKey(ActionDescriptionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
+    look_at_target_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
     camera_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
         ForeignKey("CameraDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
 
+    look_at_target: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO",
+        uselist=False,
+        foreign_keys=[look_at_target_id],
+        post_update=True,
+    )
     camera: Mapped[CameraDAO] = relationship(
         "CameraDAO", uselist=False, foreign_keys=[camera_id], post_update=True
     )
 
     __mapper_args__ = {
         "polymorphic_identity": "LookAtActionDAO",
-        "inherit_condition": database_id == TargetLookedAtDAO.database_id,
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
 
 class LookingMotionDAO(
-    TargetLookedAtDAO,
+    BaseMotionDAO,
     DataAccessObject[coraplex.robot_plans.motions.robot_body.LookingMotion],
 ):
     __tablename__ = "LookingMotionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(TargetLookedAtDAO.database_id),
+        ForeignKey(BaseMotionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
+    look_at_target_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
     camera_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
         ForeignKey("CameraDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
 
+    look_at_target: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO",
+        uselist=False,
+        foreign_keys=[look_at_target_id],
+        post_update=True,
+    )
     camera: Mapped[CameraDAO] = relationship(
         "CameraDAO", uselist=False, foreign_keys=[camera_id], post_update=True
     )
 
     __mapper_args__ = {
         "polymorphic_identity": "LookingMotionDAO",
-        "inherit_condition": database_id == TargetLookedAtDAO.database_id,
+        "inherit_condition": database_id == BaseMotionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -5479,16 +5786,14 @@ class UsedEndEffectorDAO(
     }
 
 
-class MoveManipulatorActionDAO(
-    TargetPoseReachedDAO,
-    DataAccessObject[
-        coraplex.robot_plans.actions.core.robot_body.MoveManipulatorAction
-    ],
+class EndEffectorPoseParametersDAO(
+    UsedEndEffectorDAO,
+    DataAccessObject[coraplex.robot_plans.parameter_mixins.EndEffectorPoseParameters],
 ):
-    __tablename__ = "MoveManipulatorActionDAO"
+    __tablename__ = "EndEffectorPoseParametersDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(TargetPoseReachedDAO.database_id),
+        ForeignKey(UsedEndEffectorDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
@@ -5497,12 +5802,55 @@ class MoveManipulatorActionDAO(
         use_existing_column=True
     )
 
+    target_pose_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    target_pose: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO", uselist=False, foreign_keys=[target_pose_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "EndEffectorPoseParametersDAO",
+        "inherit_condition": database_id == UsedEndEffectorDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class MoveManipulatorActionDAO(
+    ActionDescriptionDAO,
+    DataAccessObject[
+        coraplex.robot_plans.actions.core.robot_body.MoveManipulatorAction
+    ],
+):
+    __tablename__ = "MoveManipulatorActionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ActionDescriptionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    allow_gripper_collision: Mapped[typing.Optional[builtins.bool]] = mapped_column(
+        use_existing_column=True
+    )
+
+    target_pose_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
     end_effector_id: Mapped[int] = mapped_column(
         ForeignKey("EndEffectorDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
 
+    target_pose: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO", uselist=False, foreign_keys=[target_pose_id], post_update=True
+    )
     end_effector: Mapped[EndEffectorDAO] = relationship(
         "EndEffectorDAO",
         uselist=False,
@@ -5512,19 +5860,19 @@ class MoveManipulatorActionDAO(
 
     __mapper_args__ = {
         "polymorphic_identity": "MoveManipulatorActionDAO",
-        "inherit_condition": database_id == TargetPoseReachedDAO.database_id,
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
 
 class MoveManipulatorMotionDAO(
-    TargetPoseReachedDAO,
+    BaseMotionDAO,
     DataAccessObject[coraplex.robot_plans.motions.gripper.MoveManipulatorMotion],
 ):
     __tablename__ = "MoveManipulatorMotionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(TargetPoseReachedDAO.database_id),
+        ForeignKey(BaseMotionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
@@ -5533,12 +5881,20 @@ class MoveManipulatorMotionDAO(
         use_existing_column=True
     )
 
+    target_pose_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
     end_effector_id: Mapped[int] = mapped_column(
         ForeignKey("EndEffectorDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
 
+    target_pose: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO", uselist=False, foreign_keys=[target_pose_id], post_update=True
+    )
     end_effector: Mapped[EndEffectorDAO] = relationship(
         "EndEffectorDAO",
         uselist=False,
@@ -5548,7 +5904,7 @@ class MoveManipulatorMotionDAO(
 
     __mapper_args__ = {
         "polymorphic_identity": "MoveManipulatorMotionDAO",
-        "inherit_condition": database_id == TargetPoseReachedDAO.database_id,
+        "inherit_condition": database_id == BaseMotionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -5586,7 +5942,7 @@ class UsedGraspDescriptionDAO(
 
 
 class MoveAndPickUpActionDAO(
-    StandingPositionMovedToDAO,
+    ActionDescriptionDAO,
     DataAccessObject[
         coraplex.robot_plans.actions.composite.transporting.MoveAndPickUpAction
     ],
@@ -5594,12 +5950,275 @@ class MoveAndPickUpActionDAO(
     __tablename__ = "MoveAndPickUpActionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(StandingPositionMovedToDAO.database_id),
+        ForeignKey(ActionDescriptionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
     keep_joint_states: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
+
+    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+
+    grasp_description_id: Mapped[int] = mapped_column(
+        ForeignKey("GraspDescriptionDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    standing_position_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    object_designator_id: Mapped[int] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    grasp_description: Mapped[GraspDescriptionDAO] = relationship(
+        "GraspDescriptionDAO",
+        uselist=False,
+        foreign_keys=[grasp_description_id],
+        post_update=True,
+    )
+    standing_position: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO",
+        uselist=False,
+        foreign_keys=[standing_position_id],
+        post_update=True,
+    )
+    object_designator: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "MoveAndPickUpActionDAO",
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class MoveToReachDAO(
+    ActionDescriptionDAO,
+    DataAccessObject[coraplex.robot_plans.actions.core.misc.MoveToReach],
+):
+    __tablename__ = "MoveToReachDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ActionDescriptionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    hip_rotation: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+
+    grasp_description_id: Mapped[int] = mapped_column(
+        ForeignKey("GraspDescriptionDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    target_pose_offset_robot_id: Mapped[int] = mapped_column(
+        ForeignKey("Pose2DMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    target_pose_end_effector_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    grasp_description: Mapped[GraspDescriptionDAO] = relationship(
+        "GraspDescriptionDAO",
+        uselist=False,
+        foreign_keys=[grasp_description_id],
+        post_update=True,
+    )
+    target_pose_offset_robot: Mapped[Pose2DMappingDAO] = relationship(
+        "Pose2DMappingDAO",
+        uselist=False,
+        foreign_keys=[target_pose_offset_robot_id],
+        post_update=True,
+    )
+    target_pose_end_effector: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO",
+        uselist=False,
+        foreign_keys=[target_pose_end_effector_id],
+        post_update=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "MoveToReachDAO",
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class GraspParametersDAO(
+    ObjectManipulationParametersDAO,
+    DataAccessObject[coraplex.robot_plans.parameter_mixins.GraspParameters],
+):
+    __tablename__ = "GraspParametersDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ObjectManipulationParametersDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    grasp_description_id: Mapped[int] = mapped_column(
+        ForeignKey("GraspDescriptionDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    grasp_description: Mapped[GraspDescriptionDAO] = relationship(
+        "GraspDescriptionDAO",
+        uselist=False,
+        foreign_keys=[grasp_description_id],
+        post_update=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "GraspParametersDAO",
+        "inherit_condition": database_id == ObjectManipulationParametersDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class PickAndPlaceActionDAO(
+    ActionDescriptionDAO,
+    DataAccessObject[
+        coraplex.robot_plans.actions.composite.transporting.PickAndPlaceAction
+    ],
+):
+    __tablename__ = "PickAndPlaceActionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ActionDescriptionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+
+    target_location_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    grasp_description_id: Mapped[int] = mapped_column(
+        ForeignKey("GraspDescriptionDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    object_designator_id: Mapped[int] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    target_location: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO",
+        uselist=False,
+        foreign_keys=[target_location_id],
+        post_update=True,
+    )
+    grasp_description: Mapped[GraspDescriptionDAO] = relationship(
+        "GraspDescriptionDAO",
+        uselist=False,
+        foreign_keys=[grasp_description_id],
+        post_update=True,
+    )
+    object_designator: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "PickAndPlaceActionDAO",
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class TransportActionDAO(
+    ActionDescriptionDAO,
+    DataAccessObject[
+        coraplex.robot_plans.actions.composite.transporting.TransportAction
+    ],
+):
+    __tablename__ = "TransportActionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ActionDescriptionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
+        krrood.ormatic.custom_types.PolymorphicEnumType,
+        nullable=False,
+        use_existing_column=True,
+    )
+
+    target_location_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    grasp_description_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
+        ForeignKey("GraspDescriptionDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    object_designator_id: Mapped[int] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    target_location: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO",
+        uselist=False,
+        foreign_keys=[target_location_id],
+        post_update=True,
+    )
+    grasp_description: Mapped[GraspDescriptionDAO] = relationship(
+        "GraspDescriptionDAO",
+        uselist=False,
+        foreign_keys=[grasp_description_id],
+        post_update=True,
+    )
+    object_designator: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "TransportActionDAO",
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class GraspingActionDAO(
+    ActionDescriptionDAO,
+    DataAccessObject[coraplex.robot_plans.actions.core.pick_up.GraspingAction],
+):
+    __tablename__ = "GraspingActionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ActionDescriptionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
 
     arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
         krrood.ormatic.custom_types.PolymorphicEnumType,
@@ -5629,193 +6248,8 @@ class MoveAndPickUpActionDAO(
     )
 
     __mapper_args__ = {
-        "polymorphic_identity": "MoveAndPickUpActionDAO",
-        "inherit_condition": database_id == StandingPositionMovedToDAO.database_id,
-        "polymorphic_load": "selectin",
-    }
-
-
-class PickAndPlaceActionDAO(
-    ObjectActedOnDAO,
-    DataAccessObject[
-        coraplex.robot_plans.actions.composite.transporting.PickAndPlaceAction
-    ],
-):
-    __tablename__ = "PickAndPlaceActionDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ObjectActedOnDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
-        krrood.ormatic.custom_types.PolymorphicEnumType,
-        nullable=False,
-        use_existing_column=True,
-    )
-
-    grasp_description_id: Mapped[int] = mapped_column(
-        ForeignKey("GraspDescriptionDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-    target_location_id: Mapped[int] = mapped_column(
-        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    grasp_description: Mapped[GraspDescriptionDAO] = relationship(
-        "GraspDescriptionDAO",
-        uselist=False,
-        foreign_keys=[grasp_description_id],
-        post_update=True,
-    )
-    target_location: Mapped[PoseMappingDAO] = relationship(
-        "PoseMappingDAO",
-        uselist=False,
-        foreign_keys=[target_location_id],
-        post_update=True,
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "PickAndPlaceActionDAO",
-        "inherit_condition": database_id == ObjectActedOnDAO.database_id,
-        "polymorphic_load": "selectin",
-    }
-
-
-class TransportActionDAO(
-    ObjectActedOnDAO,
-    DataAccessObject[
-        coraplex.robot_plans.actions.composite.transporting.TransportAction
-    ],
-):
-    __tablename__ = "TransportActionDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ObjectActedOnDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
-        krrood.ormatic.custom_types.PolymorphicEnumType,
-        nullable=False,
-        use_existing_column=True,
-    )
-
-    grasp_description_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
-        ForeignKey("GraspDescriptionDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-    target_location_id: Mapped[int] = mapped_column(
-        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    grasp_description: Mapped[GraspDescriptionDAO] = relationship(
-        "GraspDescriptionDAO",
-        uselist=False,
-        foreign_keys=[grasp_description_id],
-        post_update=True,
-    )
-    target_location: Mapped[PoseMappingDAO] = relationship(
-        "PoseMappingDAO",
-        uselist=False,
-        foreign_keys=[target_location_id],
-        post_update=True,
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "TransportActionDAO",
-        "inherit_condition": database_id == ObjectActedOnDAO.database_id,
-        "polymorphic_load": "selectin",
-    }
-
-
-class MoveToReachDAO(
-    UsedGraspDescriptionDAO,
-    DataAccessObject[coraplex.robot_plans.actions.core.misc.MoveToReach],
-):
-    __tablename__ = "MoveToReachDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(UsedGraspDescriptionDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    hip_rotation: Mapped[builtins.float] = mapped_column(use_existing_column=True)
-
-    target_pose_offset_robot_id: Mapped[int] = mapped_column(
-        ForeignKey("Pose2DMappingDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-    target_pose_end_effector_id: Mapped[int] = mapped_column(
-        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    target_pose_offset_robot: Mapped[Pose2DMappingDAO] = relationship(
-        "Pose2DMappingDAO",
-        uselist=False,
-        foreign_keys=[target_pose_offset_robot_id],
-        post_update=True,
-    )
-    target_pose_end_effector: Mapped[PoseMappingDAO] = relationship(
-        "PoseMappingDAO",
-        uselist=False,
-        foreign_keys=[target_pose_end_effector_id],
-        post_update=True,
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "MoveToReachDAO",
-        "inherit_condition": database_id == UsedGraspDescriptionDAO.database_id,
-        "polymorphic_load": "selectin",
-    }
-
-
-class GraspingActionDAO(
-    ObjectActedOnDAO,
-    DataAccessObject[coraplex.robot_plans.actions.core.pick_up.GraspingAction],
-):
-    __tablename__ = "GraspingActionDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ObjectActedOnDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    arm: Mapped[coraplex.datastructures.enums.Arms] = mapped_column(
-        krrood.ormatic.custom_types.PolymorphicEnumType,
-        nullable=False,
-        use_existing_column=True,
-    )
-
-    grasp_description_id: Mapped[int] = mapped_column(
-        ForeignKey("GraspDescriptionDAO.database_id", use_alter=True),
-        nullable=True,
-        use_existing_column=True,
-    )
-
-    grasp_description: Mapped[GraspDescriptionDAO] = relationship(
-        "GraspDescriptionDAO",
-        uselist=False,
-        foreign_keys=[grasp_description_id],
-        post_update=True,
-    )
-
-    __mapper_args__ = {
         "polymorphic_identity": "GraspingActionDAO",
-        "inherit_condition": database_id == ObjectActedOnDAO.database_id,
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -5867,13 +6301,13 @@ class PickUpActionDAO(
 
 
 class ReachActionDAO(
-    TargetPoseReachedDAO,
+    ActionDescriptionDAO,
     DataAccessObject[coraplex.robot_plans.actions.core.pick_up.ReachAction],
 ):
     __tablename__ = "ReachActionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(TargetPoseReachedDAO.database_id),
+        ForeignKey(ActionDescriptionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
@@ -5888,8 +6322,8 @@ class ReachActionDAO(
         use_existing_column=True,
     )
 
-    object_designator_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
+    target_pose_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -5898,9 +6332,14 @@ class ReachActionDAO(
         nullable=True,
         use_existing_column=True,
     )
+    object_designator_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
 
-    object_designator: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    target_pose: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO", uselist=False, foreign_keys=[target_pose_id], post_update=True
     )
     grasp_description: Mapped[GraspDescriptionDAO] = relationship(
         "GraspDescriptionDAO",
@@ -5908,10 +6347,13 @@ class ReachActionDAO(
         foreign_keys=[grasp_description_id],
         post_update=True,
     )
+    object_designator: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    )
 
     __mapper_args__ = {
         "polymorphic_identity": "ReachActionDAO",
-        "inherit_condition": database_id == TargetPoseReachedDAO.database_id,
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -5941,13 +6383,13 @@ class UsedGraspingPreposeDistanceDAO(
 
 
 class CloseActionDAO(
-    HandleOperatedOnDAO,
+    ActionDescriptionDAO,
     DataAccessObject[coraplex.robot_plans.actions.core.container.CloseAction],
 ):
     __tablename__ = "CloseActionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(HandleOperatedOnDAO.database_id),
+        ForeignKey(ActionDescriptionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
@@ -5962,21 +6404,31 @@ class CloseActionDAO(
         use_existing_column=True,
     )
 
+    handle_id: Mapped[int] = mapped_column(
+        ForeignKey("HandleDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    handle: Mapped[HandleDAO] = relationship(
+        "HandleDAO", uselist=False, foreign_keys=[handle_id], post_update=True
+    )
+
     __mapper_args__ = {
         "polymorphic_identity": "CloseActionDAO",
-        "inherit_condition": database_id == HandleOperatedOnDAO.database_id,
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
 
 class OpenActionDAO(
-    HandleOperatedOnDAO,
+    ActionDescriptionDAO,
     DataAccessObject[coraplex.robot_plans.actions.core.container.OpenAction],
 ):
     __tablename__ = "OpenActionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(HandleOperatedOnDAO.database_id),
+        ForeignKey(ActionDescriptionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
@@ -5991,9 +6443,19 @@ class OpenActionDAO(
         use_existing_column=True,
     )
 
+    handle_id: Mapped[int] = mapped_column(
+        ForeignKey("HandleDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    handle: Mapped[HandleDAO] = relationship(
+        "HandleDAO", uselist=False, foreign_keys=[handle_id], post_update=True
+    )
+
     __mapper_args__ = {
         "polymorphic_identity": "OpenActionDAO",
-        "inherit_condition": database_id == HandleOperatedOnDAO.database_id,
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -6023,13 +6485,13 @@ class UsedMovementTypeDAO(
 
 
 class MoveToolCenterPointMotionDAO(
-    TargetPoseReachedDAO,
+    BaseMotionDAO,
     DataAccessObject[coraplex.robot_plans.motions.gripper.MoveToolCenterPointMotion],
 ):
     __tablename__ = "MoveToolCenterPointMotionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(TargetPoseReachedDAO.database_id),
+        ForeignKey(BaseMotionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
@@ -6049,9 +6511,19 @@ class MoveToolCenterPointMotionDAO(
         use_existing_column=True,
     )
 
+    target_pose_id: Mapped[int] = mapped_column(
+        ForeignKey("PoseMappingDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    target_pose: Mapped[PoseMappingDAO] = relationship(
+        "PoseMappingDAO", uselist=False, foreign_keys=[target_pose_id], post_update=True
+    )
+
     __mapper_args__ = {
         "polymorphic_identity": "MoveToolCenterPointMotionDAO",
-        "inherit_condition": database_id == TargetPoseReachedDAO.database_id,
+        "inherit_condition": database_id == BaseMotionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -6078,12 +6550,12 @@ class StretchMoveToolCenterPointDAO(
 
 
 class ReachMotionDAO(
-    ObjectActedOnDAO, DataAccessObject[coraplex.robot_plans.motions.gripper.ReachMotion]
+    BaseMotionDAO, DataAccessObject[coraplex.robot_plans.motions.gripper.ReachMotion]
 ):
     __tablename__ = "ReachMotionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ObjectActedOnDAO.database_id),
+        ForeignKey(BaseMotionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
@@ -6108,6 +6580,11 @@ class ReachMotionDAO(
         nullable=True,
         use_existing_column=True,
     )
+    object_designator_id: Mapped[int] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
 
     grasp_description: Mapped[GraspDescriptionDAO] = relationship(
         "GraspDescriptionDAO",
@@ -6115,10 +6592,13 @@ class ReachMotionDAO(
         foreign_keys=[grasp_description_id],
         post_update=True,
     )
+    object_designator: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    )
 
     __mapper_args__ = {
         "polymorphic_identity": "ReachMotionDAO",
-        "inherit_condition": database_id == ObjectActedOnDAO.database_id,
+        "inherit_condition": database_id == BaseMotionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -6175,14 +6655,47 @@ class UsedToolDAO(
     }
 
 
+class ToolUsageParametersDAO(
+    ObjectManipulationParametersDAO,
+    DataAccessObject[coraplex.robot_plans.parameter_mixins.ToolUsageParameters],
+):
+    __tablename__ = "ToolUsageParametersDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(ObjectManipulationParametersDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    technique: Mapped[typing.Optional[builtins.str]] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
+    )
+
+    tool_id: Mapped[int] = mapped_column(
+        ForeignKey("SemanticAnnotationDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    tool: Mapped[SemanticAnnotationDAO] = relationship(
+        "SemanticAnnotationDAO", uselist=False, foreign_keys=[tool_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "ToolUsageParametersDAO",
+        "inherit_condition": database_id == ObjectManipulationParametersDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
 class CuttingActionDAO(
-    ObjectActedOnDAO,
+    ActionDescriptionDAO,
     DataAccessObject[coraplex.robot_plans.actions.composite.tool_based.CuttingAction],
 ):
     __tablename__ = "CuttingActionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ObjectActedOnDAO.database_id),
+        ForeignKey(ActionDescriptionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
@@ -6205,26 +6718,34 @@ class CuttingActionDAO(
         nullable=True,
         use_existing_column=True,
     )
+    object_designator_id: Mapped[int] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
 
     tool: Mapped[SemanticAnnotationDAO] = relationship(
         "SemanticAnnotationDAO", uselist=False, foreign_keys=[tool_id], post_update=True
     )
+    object_designator: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    )
 
     __mapper_args__ = {
         "polymorphic_identity": "CuttingActionDAO",
-        "inherit_condition": database_id == ObjectActedOnDAO.database_id,
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
 
 class MixingActionDAO(
-    ObjectActedOnDAO,
+    ActionDescriptionDAO,
     DataAccessObject[coraplex.robot_plans.actions.composite.tool_based.MixingAction],
 ):
     __tablename__ = "MixingActionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ObjectActedOnDAO.database_id),
+        ForeignKey(ActionDescriptionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
@@ -6244,26 +6765,34 @@ class MixingActionDAO(
         nullable=True,
         use_existing_column=True,
     )
+    object_designator_id: Mapped[int] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
 
     tool: Mapped[SemanticAnnotationDAO] = relationship(
         "SemanticAnnotationDAO", uselist=False, foreign_keys=[tool_id], post_update=True
     )
+    object_designator: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    )
 
     __mapper_args__ = {
         "polymorphic_identity": "MixingActionDAO",
-        "inherit_condition": database_id == ObjectActedOnDAO.database_id,
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
 
 class PouringActionDAO(
-    ObjectActedOnDAO,
+    ActionDescriptionDAO,
     DataAccessObject[coraplex.robot_plans.actions.composite.tool_based.PouringAction],
 ):
     __tablename__ = "PouringActionDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ObjectActedOnDAO.database_id),
+        ForeignKey(ActionDescriptionDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
@@ -6286,14 +6815,22 @@ class PouringActionDAO(
         nullable=True,
         use_existing_column=True,
     )
+    object_designator_id: Mapped[int] = mapped_column(
+        ForeignKey("BodyDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
 
     tool: Mapped[SemanticAnnotationDAO] = relationship(
         "SemanticAnnotationDAO", uselist=False, foreign_keys=[tool_id], post_update=True
     )
+    object_designator: Mapped[BodyDAO] = relationship(
+        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    )
 
     __mapper_args__ = {
         "polymorphic_identity": "PouringActionDAO",
-        "inherit_condition": database_id == ObjectActedOnDAO.database_id,
+        "inherit_condition": database_id == ActionDescriptionDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -12690,37 +13227,6 @@ class QPDataPublisherConfigDAO(
     publish_weights: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
     publish_g: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
     publish_debug: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
-
-
-class SymbolGraphMappingDAO(
-    Base, DataAccessObject[krrood.entity_query_language.orm.model.SymbolGraphMapping]
-):
-    __tablename__ = "SymbolGraphMappingDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        Integer, primary_key=True, use_existing_column=True
-    )
-
-    instances: Mapped[builtins.list[SymbolGraphMappingDAO_instances_association]] = (
-        relationship(
-            "SymbolGraphMappingDAO_instances_association",
-            collection_class=builtins.list,
-            cascade="all, delete-orphan",
-            foreign_keys="[SymbolGraphMappingDAO_instances_association.source_symbolgraphmappingdao_id]",
-            lazy="selectin",
-        )
-    )
-
-
-class WrappedInstanceMappingDAO(
-    Base,
-    DataAccessObject[krrood.entity_query_language.orm.model.WrappedInstanceMapping],
-):
-    __tablename__ = "WrappedInstanceMappingDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        Integer, primary_key=True, use_existing_column=True
-    )
 
 
 class FBXGlobalSettingsDAO(

@@ -30,11 +30,9 @@ from coraplex.robot_plans.motions.gripper import (
     MoveToolCenterPointMotion,
 )
 from coraplex.robot_plans.parameter_mixins import (
-    ObjectActedOn,
+    GraspParameters,
     PoseSequenceReversed,
     TargetPoseReached,
-    UsedArm,
-    UsedGraspDescription,
 )
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import GripperState
@@ -49,12 +47,10 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ReachAction(
-    TargetPoseReached,
-    UsedArm,
-    UsedGraspDescription,
-    ObjectActedOn,
-    PoseSequenceReversed,
     ActionDescription,
+    GraspParameters,
+    TargetPoseReached,
+    PoseSequenceReversed,
 ):
     """
     Let the robot reach a specific pose.
@@ -129,7 +125,7 @@ class ReachAction(
 
 
 @dataclass
-class PickUpAction(ActionDescription, ObjectActedOn, UsedArm, UsedGraspDescription):
+class PickUpAction(ActionDescription, GraspParameters):
     """
     Let the robot pick up an object.
     """
@@ -204,7 +200,7 @@ class PickUpAction(ActionDescription, ObjectActedOn, UsedArm, UsedGraspDescripti
 
 
 @dataclass
-class GraspingAction(ObjectActedOn, UsedArm, UsedGraspDescription, ActionDescription):
+class GraspingAction(ActionDescription, GraspParameters):
     """
     Grasps an object described by the given Object Designator description
     """

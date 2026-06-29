@@ -26,13 +26,11 @@ from coraplex.robot_plans.motions.gripper import (
 )
 from coraplex.robot_plans.motions.robot_body import MoveJointsMotion
 from coraplex.robot_plans.parameter_mixins import (
-    GripperCollisionAllowed,
-    GripperStateSet,
+    EndEffectorPoseParameters,
+    GripperActuationParameters,
     LinkAlignmentApplied,
-    TargetPoseReached,
     TorsoStateSet,
     UsedArm,
-    UsedEndEffector,
 )
 from coraplex.validation.goal_validator import create_multiple_joint_goal_validator
 from coraplex.view_manager import ViewManager
@@ -44,7 +42,7 @@ from semantic_digital_twin.datastructures.definitions import (
 
 
 @dataclass
-class MoveTorsoAction(TorsoStateSet, ActionDescription):
+class MoveTorsoAction(ActionDescription, TorsoStateSet):
     """
     Move the torso of the robot up and down.
     """
@@ -73,7 +71,7 @@ class MoveTorsoAction(TorsoStateSet, ActionDescription):
 
 
 @dataclass
-class SetGripperAction(UsedArm, GripperStateSet, ActionDescription):
+class SetGripperAction(ActionDescription, GripperActuationParameters):
     """
     Set the gripper state of the robot.
     """
@@ -87,7 +85,7 @@ class SetGripperAction(UsedArm, GripperStateSet, ActionDescription):
 
 
 @dataclass
-class ParkArmsAction(UsedArm, ActionDescription):
+class ParkArmsAction(ActionDescription, UsedArm):
     """
     Park the arms of the robot.
     """
@@ -115,7 +113,7 @@ class ParkArmsAction(UsedArm, ActionDescription):
 
 
 @dataclass
-class CarryAction(UsedArm, LinkAlignmentApplied, ActionDescription):
+class CarryAction(ActionDescription, UsedArm, LinkAlignmentApplied):
     """
     Parks the robot's arms. And align the arm with the given Axis of a frame.
     """
@@ -179,7 +177,7 @@ class CarryAction(UsedArm, LinkAlignmentApplied, ActionDescription):
 
 
 @dataclass
-class FollowToolCenterPointPathAction(UsedArm, ActionDescription):
+class FollowToolCenterPointPathAction(ActionDescription, UsedArm):
     """
     Represents an action to move a robotic arm's TCP (Tool Center Point) along a
     path of poses.
@@ -211,9 +209,7 @@ class FollowToolCenterPointPathAction(UsedArm, ActionDescription):
 
 
 @dataclass
-class MoveManipulatorAction(
-    TargetPoseReached, UsedEndEffector, GripperCollisionAllowed, ActionDescription
-):
+class MoveManipulatorAction(ActionDescription, EndEffectorPoseParameters):
     """
     Move the end_effector to a specific pose.
     """

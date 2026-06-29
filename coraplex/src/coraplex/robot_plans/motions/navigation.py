@@ -8,12 +8,12 @@ from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
 )
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from coraplex.robot_plans.motions.base import BaseMotion
-from coraplex.robot_plans.parameter_mixins import JointStatesKept, TargetLocationMovedTo
+from coraplex.robot_plans.parameter_mixins import NavigationParameters
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 
 @dataclass
-class MoveMotion(TargetLocationMovedTo, JointStatesKept, BaseMotion):
+class MoveMotion(BaseMotion, NavigationParameters):
     """
     Moves the robot to a designated location
     """

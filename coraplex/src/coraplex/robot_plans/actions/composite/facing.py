@@ -19,7 +19,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 
 @dataclass
-class FaceAtAction(TargetLookedAt, JointStatesKept, ActionDescription):
+class FaceAtAction(ActionDescription, TargetLookedAt, JointStatesKept):
     """
     Turn the robot chassis such that is faces the ``look_at_target`` and after that perform a
     look at action.

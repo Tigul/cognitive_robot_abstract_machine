@@ -16,14 +16,13 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
 from coraplex.robot_plans.motions.base import BaseMotion
 from coraplex.robot_plans.parameter_mixins import (
+    EndEffectorPoseParameters,
+    GraspParameters,
+    GripperActuationParameters,
     GripperCollisionAllowed,
-    GripperStateSet,
-    ObjectActedOn,
     PoseSequenceReversed,
     TargetPoseReached,
     UsedArm,
-    UsedEndEffector,
-    UsedGraspDescription,
     UsedMovementType,
 )
 from coraplex.datastructures.enums import (
@@ -38,12 +37,10 @@ from coraplex.utils import translate_pose_along_local_axis
 
 @dataclass
 class ReachMotion(
-    ObjectActedOn,
-    UsedArm,
-    UsedGraspDescription,
+    BaseMotion,
+    GraspParameters,
     UsedMovementType,
     PoseSequenceReversed,
-    BaseMotion,
 ):
     """
     Moves the arm toward a grasp pose for an object, or away from it when the pose sequence is
@@ -93,7 +90,7 @@ class ReachMotion(
 
 
 @dataclass
-class MoveGripperMotion(GripperStateSet, UsedArm, GripperCollisionAllowed, BaseMotion):
+class MoveGripperMotion(BaseMotion, GripperActuationParameters, GripperCollisionAllowed):
     """
     Opens or closes the gripper
     """
@@ -115,11 +112,11 @@ class MoveGripperMotion(GripperStateSet, UsedArm, GripperCollisionAllowed, BaseM
 
 @dataclass
 class MoveToolCenterPointMotion(
+    BaseMotion,
     TargetPoseReached,
     UsedArm,
     GripperCollisionAllowed,
     UsedMovementType,
-    BaseMotion,
 ):
     """
     Moves the Tool center point (TCP) of the robot
@@ -158,7 +155,7 @@ class MoveToolCenterPointMotion(
 
 
 @dataclass
-class MoveTCPWaypointsMotion(UsedArm, GripperCollisionAllowed, BaseMotion):
+class MoveTCPWaypointsMotion(BaseMotion, UsedArm, GripperCollisionAllowed):
     """
     Moves the Tool center point (TCP) of the robot
     """
@@ -199,9 +196,7 @@ class MoveTCPWaypointsMotion(UsedArm, GripperCollisionAllowed, BaseMotion):
 
 
 @dataclass
-class MoveManipulatorMotion(
-    TargetPoseReached, UsedEndEffector, GripperCollisionAllowed, BaseMotion
-):
+class MoveManipulatorMotion(BaseMotion, EndEffectorPoseParameters):
     """
     Moves the Tool center point (TCP) of the robot
     """

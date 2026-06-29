@@ -5,12 +5,18 @@ from coraplex.datastructures.enums import (
 )
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.robot_plans.actions.core.container import OpenAction
+from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.motions.gripper import MoveGripperMotion
 from coraplex.robot_plans.parameter_mixins import (
+    GraspParameters,
+    GripperActuationParameters,
     GripperStateSet,
     HandleOperatedOn,
+    HandleOperationParameters,
+    NavigationParameters,
     ObjectActedOn,
+    ObjectManipulationParameters,
     UsedArm,
     UsedGraspDescription,
 )
@@ -22,6 +28,26 @@ def test_action_inherits_parameter_mixins():
     assert issubclass(PickUpAction, UsedArm)
     assert issubclass(PickUpAction, ObjectActedOn)
     assert issubclass(PickUpAction, UsedGraspDescription)
+
+
+def test_bundle_mixins_compose_leaf_mixins():
+    # bundles inherit their constituent leaf mixins ...
+    assert issubclass(GraspParameters, ObjectManipulationParameters)
+    assert issubclass(GraspParameters, UsedGraspDescription)
+    assert issubclass(ObjectManipulationParameters, ObjectActedOn)
+    assert issubclass(ObjectManipulationParameters, UsedArm)
+    assert issubclass(GripperActuationParameters, GripperStateSet)
+    assert issubclass(HandleOperationParameters, HandleOperatedOn)
+
+
+def test_classes_inherit_bundle_mixins():
+    # ... and concrete classes inherit the bundles while still exposing the leaf interface.
+    assert issubclass(PickUpAction, GraspParameters)
+    assert issubclass(PickUpAction, ObjectManipulationParameters)
+    assert issubclass(PickUpAction, UsedArm)
+    assert issubclass(NavigateAction, NavigationParameters)
+    assert issubclass(OpenAction, HandleOperationParameters)
+    assert issubclass(MoveGripperMotion, GripperActuationParameters)
 
 
 def test_pick_up_action_exposes_unified_parameters(immutable_model_world):
