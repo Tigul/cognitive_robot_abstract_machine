@@ -11,7 +11,10 @@ from semantic_digital_twin.datastructures.definitions import GripperState, Torso
 from semantic_digital_twin.robots.robot_parts import Camera, EndEffector
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
 from semantic_digital_twin.spatial_types.spatial_types import Pose
-from semantic_digital_twin.world_description.world_entity import Body, SemanticAnnotation
+from semantic_digital_twin.world_description.world_entity import (
+    Body,
+    SemanticAnnotation,
+)
 
 
 @dataclass(eq=False)
@@ -275,6 +278,7 @@ class LinkAlignmentApplied:
 ################################################
 ######### Higher-order Parameter################
 ################################################
+
 
 @dataclass(eq=False)
 class ObjectManipulationParameters(ObjectActedOn, UsedArm):
