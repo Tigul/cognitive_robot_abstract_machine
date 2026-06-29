@@ -269,6 +269,7 @@ def main():
             "https://github.com/code-iai/iai_weiss_wpg_300-120-gripper.git",
             "main",
             "iai_weiss_wpg_300-120-gripper",
+            ["griplink"],
         ),
     ]
 
