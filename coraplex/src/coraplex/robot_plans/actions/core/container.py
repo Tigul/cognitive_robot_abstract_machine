@@ -58,7 +58,7 @@ class OpenAction(
         return sequential(
             [
                 GraspingAction(
-                    object_designator=self.handle.root,
+                    target_object=self.handle,
                     arm=self.arm,
                     grasp_description=grasp_description,
                 ),
@@ -87,7 +87,7 @@ class OpenAction(
                 robot=context.robot,
                 world=context.world,
                 arm=kwargs["arm"],
-                object_designator=kwargs["handle"].root,
+                object_designator=kwargs["handle"],
                 as_single_grasp=True,
             ),
         )
@@ -140,7 +140,7 @@ class CloseAction(
         return sequential(
             [
                 GraspingAction(
-                    object_designator=self.handle.root,
+                    target_object=self.handle,
                     arm=self.arm,
                     grasp_description=grasp_description,
                 ),

@@ -16,6 +16,7 @@ from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Bowl,
+    Milk,
     Spoon,
     Drawer,
     Handle,
@@ -75,12 +76,10 @@ context = Context(world=world, robot=pr2, _debug=False, ros_node=node)
 with world.modify_world():
     world_reasoner = WorldReasoner(world)
     world_reasoner.reason()
-    world.add_semantic_annotations(
-        [
-            Bowl(root=world.get_body_by_name("bowl.stl")),
-            Spoon(root=world.get_body_by_name("spoon.stl")),
-        ]
-    )
+    milk = Milk(root=world.get_body_by_name("milk.stl"))
+    bowl_annotation = Bowl(root=world.get_body_by_name("bowl.stl"))
+    spoon_annotation = Spoon(root=world.get_body_by_name("spoon.stl"))
+    world.add_semantic_annotations([milk, bowl_annotation, spoon_annotation])
     world.add_semantic_annotation_recursively(
         Drawer(
             root=world.get_body_by_name("cabinet10_drawer_top"),
@@ -95,21 +94,21 @@ plan = sequential(
         ParkArmsAction(arm=Arms.BOTH),
         MoveTorsoAction(torso_state=TorsoState.HIGH),
         TransportAction(
-            object_designator=world.get_body_by_name("milk.stl"),
+            target_object=milk,
             target_location=Pose.from_xyz_rpy(
                 4.9, 3.3, 0.8, yaw=1.57, reference_frame=world.root
             ),
             arm=Arms.LEFT,
         ),
         TransportAction(
-            object_designator=world.get_body_by_name("bowl.stl"),
+            target_object=bowl_annotation,
             target_location=Pose.from_xyz_rpy(
                 5, 3.3, 0.75, yaw=1.57, reference_frame=world.root
             ),
             arm=Arms.LEFT,
         ),
         TransportAction(
-            object_designator=world.get_body_by_name("spoon.stl"),
+            target_object=spoon_annotation,
             target_location=Pose.from_xyz_rpy(
                 5.1, 3.3, 0.75, yaw=1.57, reference_frame=world.root
             ),

@@ -40,6 +40,7 @@ from coraplex.plans.factories import code, sequential, parallel, execute_single
 
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.definitions import TorsoState
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.orm.model import (
     Point3Mapping,
     QuaternionMapping,
@@ -577,12 +578,12 @@ def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
     world, robot_view, context = apartment_world_pr2_copy_with_context
     context.evaluate_conditions = False
 
-    milk = world.get_body_by_name("milk.stl")
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     milk_variable = variable_from([milk])
 
     pick_up_description = underspecified(PickUpAction)(
-        object_designator=milk_variable,
+        target_object=milk_variable,
         arm=...,
         grasp_description=underspecified(GraspDescription)(
             approach_direction=...,
@@ -667,7 +668,7 @@ def test_motion_order_pick_up(mutable_model_world):
     root = sequential(
         [
             PickUpAction(
-                object_designator=world.get_body_by_name("milk.stl"),
+                target_object=world.get_semantic_annotations_by_type(Milk)[0],
                 arm=Arms.LEFT,
                 grasp_description=grasp_description,
             ),
@@ -724,7 +725,7 @@ def test_motion_order_place(mutable_model_world):
     root = sequential(
         [
             PlaceAction(
-                object_designator=world.get_body_by_name("milk.stl"),
+                target_object=world.get_semantic_annotations_by_type(Milk)[0],
                 target_location=Pose.from_xyz_rpy(
                     0.8, -1.9, 0.7, reference_frame=world.root
                 ),
@@ -763,7 +764,7 @@ def test_node_expansion(immutable_model_world):
     plan = sequential(
         [
             PickUpAction(
-                object_designator=world.get_body_by_name("milk.stl"),
+                target_object=world.get_semantic_annotations_by_type(Milk)[0],
                 arm=Arms.RIGHT,
                 grasp_description=GraspDescription(
                     ApproachDirection.FRONT,
@@ -801,7 +802,7 @@ def test_context_back_reference(immutable_model_world):
         [
             MoveTorsoAction(torso_state=TorsoState.HIGH),
             PickUpAction(
-                object_designator=world.get_body_by_name("milk.stl"),
+                target_object=world.get_semantic_annotations_by_type(Milk)[0],
                 arm=Arms.RIGHT,
                 grasp_description=GraspDescription(
                     ApproachDirection.FRONT,
@@ -825,7 +826,7 @@ def test_action_nodes_unequal(immutable_model_world):
         [
             ParkArmsAction(arm=Arms.LEFT),
             PickUpAction(
-                object_designator=world.get_body_by_name("milk.stl"),
+                target_object=world.get_semantic_annotations_by_type(Milk)[0],
                 arm=Arms.LEFT,
                 grasp_description=GraspDescription(
                     ApproachDirection.FRONT,

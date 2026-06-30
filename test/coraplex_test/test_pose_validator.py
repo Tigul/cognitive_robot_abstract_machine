@@ -12,6 +12,7 @@ from coraplex.locations.pose_validator import (
     AreReachableBy,
     IsObjectReachableBy,
 )
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Point3
 
@@ -111,7 +112,7 @@ def test_is_object_reachable_by_copies_current_world_lazily(
     world state. We capture what the predicate hands to ``AreReachableBy``.
     """
     world, view, context = immutable_model_world
-    milk = world.get_body_by_name("milk.stl")
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     captured = {}
 
@@ -132,7 +133,7 @@ def test_is_object_reachable_by_copies_current_world_lazily(
     )
 
     # Move the object *after* the predicate has been constructed.
-    milk.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+    milk.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         2, 1.5, 0.7, 0, 0, 0
     )
 
@@ -144,7 +145,7 @@ def test_is_object_reachable_by_copies_current_world_lazily(
     copied_milk = captured["world"].get_body_by_name("milk.stl")
     assert np.allclose(
         copied_milk.global_pose.to_position().to_np()[:3],
-        milk.global_pose.to_position().to_np()[:3],
+        milk.root.global_pose.to_position().to_np()[:3],
     )
     # A full grasp sequence (pre-pose, grasp, lift) is generated.
     assert len(captured["pose_sequence"]) == 3
@@ -157,7 +158,7 @@ def test_is_object_reachable_by_uses_target_pose_sequence(
 ):
     """With a target pose set, the reach pose sequence is checked."""
     world, view, context = immutable_model_world
-    milk = world.get_body_by_name("milk.stl")
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
     target = Pose(Point3.from_iterable([2, 1.5, 0.7]), reference_frame=world.root)
 
     captured = {}
@@ -184,7 +185,7 @@ def test_is_object_reachable_by_single_grasp_delegates_to_is_reachable_by(
 ):
     """``as_single_grasp`` checks a single grasp pose at the object's pose."""
     world, view, context = immutable_model_world
-    milk = world.get_body_by_name("milk.stl")
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     seq_calls = []
     single_calls = []
@@ -197,7 +198,7 @@ def test_is_object_reachable_by_single_grasp_delegates_to_is_reachable_by(
         lambda self, *a, **k: single_calls.append(self.pose) or True,
     )
 
-    milk.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+    milk.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         2, 1.5, 0.7, 0, 0, 0
     )
 
@@ -214,15 +215,15 @@ def test_is_object_reachable_by_single_grasp_delegates_to_is_reachable_by(
     assert len(single_calls) == 1
     assert np.allclose(
         single_calls[0].to_position().to_np()[:3],
-        milk.global_pose.to_position().to_np()[:3],
+        milk.root.global_pose.to_position().to_np()[:3],
     )
 
 
 def test_is_object_reachable_by_reachable(immutable_model_world):
     """End-to-end: a graspable object in front of the robot is reachable."""
     world, view, context = immutable_model_world
-    milk = world.get_body_by_name("milk.stl")
-    milk.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    milk.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         2, 1.5, 0.7, 0, 0, 0
     )
 
@@ -238,8 +239,8 @@ def test_is_object_reachable_by_reachable(immutable_model_world):
 def test_is_object_reachable_by_not_reachable(immutable_model_world):
     """End-to-end: an object far away from the robot is not reachable."""
     world, view, context = immutable_model_world
-    milk = world.get_body_by_name("milk.stl")
-    milk.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    milk.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         5, 5, 0.7, 0, 0, 0
     )
 

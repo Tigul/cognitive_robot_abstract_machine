@@ -20,6 +20,7 @@ from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.robots.pr2 import PR2
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import Point3, Quaternion
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
@@ -41,7 +42,7 @@ def test_pick_up_motion(immutable_model_world):
         view.left_arm.end_effector,
     )
     pick_up = PickUpAction(
-        object_designator=test_world.get_body_by_name("milk.stl"),
+        target_object=test_world.get_semantic_annotations_by_type(Milk)[0],
         arm=Arms.LEFT,
         grasp_description=grasp_description,
     )

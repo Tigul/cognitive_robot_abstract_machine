@@ -37,6 +37,9 @@ from semantic_digital_twin.datastructures.definitions import (
 )
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.tracy import Tracy
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    GraspableObject,
+)
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Point3
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import Connection6DoF
@@ -133,7 +136,7 @@ def test_reach_action_multi(immutable_tracy_block_world):
         VerticalAlignment.TOP,
         left_arm.end_effector,
     )
-    box_body = world.get_body_by_name("box1")
+    box_object = GraspableObject(root=world.get_body_by_name("box1"))
 
     plan = sequential(
         [
@@ -142,7 +145,7 @@ def test_reach_action_multi(immutable_tracy_block_world):
                 target_pose=Pose(
                     Point3.from_iterable([0.8, 0.5, 0.93]), reference_frame=world.root
                 ),
-                object_designator=box_body,
+                target_object=box_object,
                 arm=Arms.LEFT,
                 grasp_description=grasp_description,
             ),
@@ -201,7 +204,7 @@ def test_grasping(immutable_tracy_block_world):
         left_arm.end_effector,
     )
     description = GraspingAction(
-        object_designator=world.get_body_by_name("box1"),
+        target_object=GraspableObject(root=world.get_body_by_name("box1")),
         arm=Arms.LEFT,
         grasp_description=grasp_description,
     )
@@ -230,7 +233,7 @@ def test_pick_up_tracy(mutable_tracy_block_world):
         [
             ParkArmsAction(arm=Arms.BOTH),
             PickUpAction(
-                object_designator=world.get_body_by_name("box1"),
+                target_object=GraspableObject(root=world.get_body_by_name("box1")),
                 arm=Arms.LEFT,
                 grasp_description=grasp_description,
             ),
@@ -266,12 +269,12 @@ def test_place_tracy(mutable_tracy_block_world):
         [
             ParkArmsAction(arm=Arms.BOTH),
             PickUpAction(
-                object_designator=world.get_body_by_name("box1"),
+                target_object=GraspableObject(root=world.get_body_by_name("box1")),
                 arm=Arms.LEFT,
                 grasp_description=grasp_description,
             ),
             PlaceAction(
-                object_designator=world.get_body_by_name("box1"),
+                target_object=GraspableObject(root=world.get_body_by_name("box1")),
                 target_location=Pose(
                     Point3.from_iterable([0.9, 0, 0.93]), reference_frame=world.root
                 ),

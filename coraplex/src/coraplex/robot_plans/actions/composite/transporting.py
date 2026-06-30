@@ -35,6 +35,7 @@ from coraplex.robot_plans.parameter_mixins import (
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.reasoning.predicates import InsideOf
+from semantic_digital_twin.semantic_annotations.mixins import IsGraspable
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Drawer
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
@@ -50,9 +51,9 @@ class TransportAction(
     Transports an object to a position using an arm
     """
 
-    object_designator: Body = field(repr=False, kw_only=True)
+    target_object: IsGraspable = field(repr=False, kw_only=True)
     """
-    Object designator_description describing the object that should be transported.
+    The graspable annotation describing the object that should be transported.
     """
 
     grasp_description: Optional[GraspDescription] = field(default=None, kw_only=True)
@@ -63,9 +64,9 @@ class TransportAction(
     def inside_container(self) -> List[Body]:
         bodies = []
         for body in self.world.bodies:
-            if body == self.object_designator:
+            if body == self.target_object.root:
                 continue
-            if InsideOf(self.object_designator, body).compute_containment_ratio() > 0.9:
+            if InsideOf(self.target_object.root, body).compute_containment_ratio() > 0.9:
                 bodies.append(body)
         return bodies
 
@@ -118,7 +119,7 @@ class TransportAction(
                         Pose,
                         domain=DeferredLocation(
                             lambda: reachability_location(
-                                self.object_designator,
+                                self.target_object.root,
                                 self.context,
                                 self.arm,
                                 self.grasp_description,
@@ -129,7 +130,7 @@ class TransportAction(
                     keep_joint_states=True,
                 ),
                 underspecified(PickUpAction)(
-                    object_designator=self.object_designator,
+                    target_object=self.target_object,
                     arm=self.arm,
                     grasp_description=self.grasp_description,
                 ),
@@ -137,7 +138,7 @@ class TransportAction(
                 MoveTorsoAction(torso_state=TorsoState.HIGH),
                 self._make_navigate_action_for_placing(self.grasp_description),
                 underspecified(PlaceAction)(
-                    object_designator=self.object_designator,
+                    target_object=self.target_object,
                     target_location=self.target_location,
                     arm=self.arm,
                 ),
@@ -179,13 +180,13 @@ class PickAndPlaceAction(
             [
                 ParkArmsAction(arm=Arms.BOTH),
                 PickUpAction(
-                    object_designator=self.object_designator,
+                    target_object=self.target_object,
                     arm=self.arm,
                     grasp_description=self.grasp_description,
                 ),
                 ParkArmsAction(arm=Arms.BOTH),
                 PlaceAction(
-                    object_designator=self.object_designator,
+                    target_object=self.target_object,
                     target_location=self.target_location,
                     arm=self.arm,
                 ),
@@ -224,7 +225,7 @@ class MoveAndPlaceAction(
                     keep_joint_states=self.keep_joint_states,
                 ),
                 PlaceAction(
-                    object_designator=self.object_designator,
+                    target_object=self.target_object,
                     target_location=self.target_location,
                     arm=self.arm,
                 ),
@@ -258,11 +259,11 @@ class MoveAndPickUpAction(
                     keep_joint_states=self.keep_joint_states,
                 ),
                 FaceAtAction(
-                    look_at_target=self.object_designator.global_pose,
+                    look_at_target=self.target_object.root.global_pose,
                     keep_joint_states=self.keep_joint_states,
                 ),
                 PickUpAction(
-                    object_designator=self.object_designator,
+                    target_object=self.target_object,
                     arm=self.arm,
                     grasp_description=self.grasp_description,
                 ),

@@ -13,7 +13,6 @@ from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
 from semantic_digital_twin.robots.robot_parts import EndEffector
 from semantic_digital_twin.spatial_types.spatial_types import Pose
-from semantic_digital_twin.world_description.world_entity import Body
 from coraplex.robot_plans.motions.base import BaseMotion
 from coraplex.robot_plans.parameter_mixins import (
     EndEffectorPoseParameters,
@@ -51,7 +50,7 @@ class ReachMotion(
         end_effector = ViewManager.get_end_effector_view(self.arm, self.robot_view)
 
         target_pose = GraspDescription.get_grasp_pose(
-            self.grasp_description, end_effector, self.object_designator
+            self.grasp_description, end_effector, self.target_object.root
         )
         target_pose.rotate_by_quaternion(
             GraspDescription.calculate_grasp_orientation(

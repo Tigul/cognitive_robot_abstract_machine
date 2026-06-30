@@ -2280,6 +2280,21 @@ class TracyDAO_sensors_association(Base, AssociationDataAccessObject):
     )
 
 
+class BowlDAO_objects_association(Base, AssociationDataAccessObject):
+    __tablename__ = "_64709452740350046204017116460738602346047288769652750160293285"
+
+    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    source_bowldao_id: Mapped[int] = mapped_column(ForeignKey("BowlDAO.database_id"))
+    target_hasrootbodydao_id: Mapped[int] = mapped_column(
+        ForeignKey("HasRootBodyDAO.database_id")
+    )
+
+    target: Mapped[HasRootBodyDAO] = relationship(
+        "HasRootBodyDAO", foreign_keys=[target_hasrootbodydao_id], lazy="selectin"
+    )
+
+
 class DishwasherDAO_drawers_association(Base, AssociationDataAccessObject):
     __tablename__ = "_77009511054531257172073748784620283583854564769907603991441130"
 
@@ -3156,7 +3171,7 @@ class IsObjectReachableByDAO(
     )
 
     object_designator_id: Mapped[int] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
+        ForeignKey("IsGraspableDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -3171,8 +3186,11 @@ class IsObjectReachableByDAO(
         use_existing_column=True,
     )
 
-    object_designator: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    object_designator: Mapped[IsGraspableDAO] = relationship(
+        "IsGraspableDAO",
+        uselist=False,
+        foreign_keys=[object_designator_id],
+        post_update=True,
     )
     grasp_description: Mapped[GraspDescriptionDAO] = relationship(
         "GraspDescriptionDAO",
@@ -4676,14 +4694,17 @@ class ObjectActedOnDAO(
         String(255), nullable=False, use_existing_column=True
     )
 
-    object_designator_id: Mapped[int] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
+    target_object_id: Mapped[int] = mapped_column(
+        ForeignKey("IsGraspableDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
 
-    object_designator: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    target_object: Mapped[IsGraspableDAO] = relationship(
+        "IsGraspableDAO",
+        uselist=False,
+        foreign_keys=[target_object_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
@@ -5520,8 +5541,8 @@ class PlaceActionDAO(
         nullable=True,
         use_existing_column=True,
     )
-    object_designator_id: Mapped[int] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
+    target_object_id: Mapped[int] = mapped_column(
+        ForeignKey("IsGraspableDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -5532,8 +5553,11 @@ class PlaceActionDAO(
         foreign_keys=[target_location_id],
         post_update=True,
     )
-    object_designator: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    target_object: Mapped[IsGraspableDAO] = relationship(
+        "IsGraspableDAO",
+        uselist=False,
+        foreign_keys=[target_object_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
@@ -5611,8 +5635,8 @@ class MoveAndPlaceActionDAO(
         nullable=True,
         use_existing_column=True,
     )
-    object_designator_id: Mapped[int] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
+    target_object_id: Mapped[int] = mapped_column(
+        ForeignKey("IsGraspableDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -5629,8 +5653,11 @@ class MoveAndPlaceActionDAO(
         foreign_keys=[standing_position_id],
         post_update=True,
     )
-    object_designator: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    target_object: Mapped[IsGraspableDAO] = relationship(
+        "IsGraspableDAO",
+        uselist=False,
+        foreign_keys=[target_object_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
@@ -6000,8 +6027,8 @@ class MoveAndPickUpActionDAO(
         nullable=True,
         use_existing_column=True,
     )
-    object_designator_id: Mapped[int] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
+    target_object_id: Mapped[int] = mapped_column(
+        ForeignKey("IsGraspableDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -6018,8 +6045,11 @@ class MoveAndPickUpActionDAO(
         foreign_keys=[standing_position_id],
         post_update=True,
     )
-    object_designator: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    target_object: Mapped[IsGraspableDAO] = relationship(
+        "IsGraspableDAO",
+        uselist=False,
+        foreign_keys=[target_object_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
@@ -6147,8 +6177,8 @@ class PickAndPlaceActionDAO(
         nullable=True,
         use_existing_column=True,
     )
-    object_designator_id: Mapped[int] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
+    target_object_id: Mapped[int] = mapped_column(
+        ForeignKey("IsGraspableDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -6165,8 +6195,11 @@ class PickAndPlaceActionDAO(
         foreign_keys=[grasp_description_id],
         post_update=True,
     )
-    object_designator: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    target_object: Mapped[IsGraspableDAO] = relationship(
+        "IsGraspableDAO",
+        uselist=False,
+        foreign_keys=[target_object_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
@@ -6206,8 +6239,8 @@ class TransportActionDAO(
         nullable=True,
         use_existing_column=True,
     )
-    object_designator_id: Mapped[int] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
+    target_object_id: Mapped[int] = mapped_column(
+        ForeignKey("IsGraspableDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -6224,8 +6257,11 @@ class TransportActionDAO(
         foreign_keys=[grasp_description_id],
         post_update=True,
     )
-    object_designator: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    target_object: Mapped[IsGraspableDAO] = relationship(
+        "IsGraspableDAO",
+        uselist=False,
+        foreign_keys=[target_object_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
@@ -6258,8 +6294,8 @@ class GraspingActionDAO(
         nullable=True,
         use_existing_column=True,
     )
-    object_designator_id: Mapped[int] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
+    target_object_id: Mapped[int] = mapped_column(
+        ForeignKey("IsGraspableDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -6270,8 +6306,11 @@ class GraspingActionDAO(
         foreign_keys=[grasp_description_id],
         post_update=True,
     )
-    object_designator: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    target_object: Mapped[IsGraspableDAO] = relationship(
+        "IsGraspableDAO",
+        uselist=False,
+        foreign_keys=[target_object_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
@@ -6304,8 +6343,8 @@ class PickUpActionDAO(
         nullable=True,
         use_existing_column=True,
     )
-    object_designator_id: Mapped[int] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
+    target_object_id: Mapped[int] = mapped_column(
+        ForeignKey("IsGraspableDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -6316,8 +6355,11 @@ class PickUpActionDAO(
         foreign_keys=[grasp_description_id],
         post_update=True,
     )
-    object_designator: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    target_object: Mapped[IsGraspableDAO] = relationship(
+        "IsGraspableDAO",
+        uselist=False,
+        foreign_keys=[target_object_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
@@ -6359,8 +6401,8 @@ class ReachActionDAO(
         nullable=True,
         use_existing_column=True,
     )
-    object_designator_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
+    target_object_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
+        ForeignKey("IsGraspableDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -6374,8 +6416,11 @@ class ReachActionDAO(
         foreign_keys=[grasp_description_id],
         post_update=True,
     )
-    object_designator: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    target_object: Mapped[IsGraspableDAO] = relationship(
+        "IsGraspableDAO",
+        uselist=False,
+        foreign_keys=[target_object_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
@@ -6607,8 +6652,8 @@ class ReachMotionDAO(
         nullable=True,
         use_existing_column=True,
     )
-    object_designator_id: Mapped[int] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
+    target_object_id: Mapped[int] = mapped_column(
+        ForeignKey("IsGraspableDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -6619,8 +6664,11 @@ class ReachMotionDAO(
         foreign_keys=[grasp_description_id],
         post_update=True,
     )
-    object_designator: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    target_object: Mapped[IsGraspableDAO] = relationship(
+        "IsGraspableDAO",
+        uselist=False,
+        foreign_keys=[target_object_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
@@ -6745,8 +6793,8 @@ class CuttingActionDAO(
         nullable=True,
         use_existing_column=True,
     )
-    object_designator_id: Mapped[int] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
+    target_object_id: Mapped[int] = mapped_column(
+        ForeignKey("IsGraspableDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -6754,8 +6802,11 @@ class CuttingActionDAO(
     tool: Mapped[SemanticAnnotationDAO] = relationship(
         "SemanticAnnotationDAO", uselist=False, foreign_keys=[tool_id], post_update=True
     )
-    object_designator: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    target_object: Mapped[IsGraspableDAO] = relationship(
+        "IsGraspableDAO",
+        uselist=False,
+        foreign_keys=[target_object_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
@@ -6792,8 +6843,8 @@ class MixingActionDAO(
         nullable=True,
         use_existing_column=True,
     )
-    object_designator_id: Mapped[int] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
+    target_object_id: Mapped[int] = mapped_column(
+        ForeignKey("IsGraspableDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -6801,8 +6852,11 @@ class MixingActionDAO(
     tool: Mapped[SemanticAnnotationDAO] = relationship(
         "SemanticAnnotationDAO", uselist=False, foreign_keys=[tool_id], post_update=True
     )
-    object_designator: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    target_object: Mapped[IsGraspableDAO] = relationship(
+        "IsGraspableDAO",
+        uselist=False,
+        foreign_keys=[target_object_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
@@ -6842,8 +6896,8 @@ class PouringActionDAO(
         nullable=True,
         use_existing_column=True,
     )
-    object_designator_id: Mapped[int] = mapped_column(
-        ForeignKey("BodyDAO.database_id", use_alter=True),
+    target_object_id: Mapped[int] = mapped_column(
+        ForeignKey("IsGraspableDAO.database_id", use_alter=True),
         nullable=True,
         use_existing_column=True,
     )
@@ -6851,8 +6905,11 @@ class PouringActionDAO(
     tool: Mapped[SemanticAnnotationDAO] = relationship(
         "SemanticAnnotationDAO", uselist=False, foreign_keys=[tool_id], post_update=True
     )
-    object_designator: Mapped[BodyDAO] = relationship(
-        "BodyDAO", uselist=False, foreign_keys=[object_designator_id], post_update=True
+    target_object: Mapped[IsGraspableDAO] = relationship(
+        "IsGraspableDAO",
+        uselist=False,
+        foreign_keys=[target_object_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
@@ -29366,6 +29423,25 @@ class HasRootRegionDAO(
     }
 
 
+class IsGraspableDAO(
+    HasRootBodyDAO,
+    DataAccessObject[semantic_digital_twin.semantic_annotations.mixins.IsGraspable],
+):
+    __tablename__ = "IsGraspableDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(HasRootBodyDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "IsGraspableDAO",
+        "inherit_condition": database_id == HasRootBodyDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
 class IsStorageSpaceDAO(
     HasRootBodyDAO,
     DataAccessObject[semantic_digital_twin.semantic_annotations.mixins.IsStorageSpace],
@@ -30233,7 +30309,7 @@ class BottleDAO(
 
 
 class BowlDAO(
-    HasSupportingSurfaceDAO,
+    IsGraspableDAO,
     DataAccessObject[
         semantic_digital_twin.semantic_annotations.semantic_annotations.Bowl
     ],
@@ -30241,7 +30317,7 @@ class BowlDAO(
     __tablename__ = "BowlDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(HasSupportingSurfaceDAO.database_id),
+        ForeignKey(IsGraspableDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
@@ -30250,9 +30326,29 @@ class BowlDAO(
         sqlalchemy.sql.sqltypes.Text, use_existing_column=True
     )
 
+    supporting_surface_id: Mapped[int] = mapped_column(
+        ForeignKey("RegionDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    objects: Mapped[builtins.list[BowlDAO_objects_association]] = relationship(
+        "BowlDAO_objects_association",
+        collection_class=builtins.list,
+        cascade="all, delete-orphan",
+        foreign_keys="[BowlDAO_objects_association.source_bowldao_id]",
+        lazy="selectin",
+    )
+    supporting_surface: Mapped[RegionDAO] = relationship(
+        "RegionDAO",
+        uselist=False,
+        foreign_keys=[supporting_surface_id],
+        post_update=True,
+    )
+
     __mapper_args__ = {
         "polymorphic_identity": "BowlDAO",
-        "inherit_condition": database_id == HasSupportingSurfaceDAO.database_id,
+        "inherit_condition": database_id == IsGraspableDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -30300,7 +30396,7 @@ class CookingContainerDAO(
 
 
 class CuttleryDAO(
-    HasRootBodyDAO,
+    IsGraspableDAO,
     DataAccessObject[
         semantic_digital_twin.semantic_annotations.semantic_annotations.Cuttlery
     ],
@@ -30308,14 +30404,14 @@ class CuttleryDAO(
     __tablename__ = "CuttleryDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(HasRootBodyDAO.database_id),
+        ForeignKey(IsGraspableDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
     __mapper_args__ = {
         "polymorphic_identity": "CuttleryDAO",
-        "inherit_condition": database_id == HasRootBodyDAO.database_id,
+        "inherit_condition": database_id == IsGraspableDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -30587,7 +30683,7 @@ class FloorDAO(
 
 
 class FoodDAO(
-    HasRootBodyDAO,
+    IsGraspableDAO,
     DataAccessObject[
         semantic_digital_twin.semantic_annotations.semantic_annotations.Food
     ],
@@ -30595,14 +30691,14 @@ class FoodDAO(
     __tablename__ = "FoodDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(HasRootBodyDAO.database_id),
+        ForeignKey(IsGraspableDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
     __mapper_args__ = {
         "polymorphic_identity": "FoodDAO",
-        "inherit_condition": database_id == HasRootBodyDAO.database_id,
+        "inherit_condition": database_id == IsGraspableDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -30682,6 +30778,10 @@ class CheezeItDAO(
 
     database_id: Mapped[builtins.int] = mapped_column(
         ForeignKey(FoodDAO.database_id), primary_key=True, use_existing_column=True
+    )
+
+    class_label: Mapped[typing.Optional[builtins.str]] = mapped_column(
+        sqlalchemy.sql.sqltypes.Text, use_existing_column=True
     )
 
     __mapper_args__ = {
@@ -31091,8 +31191,29 @@ class GelatinBoxDAO(
     }
 
 
+class GraspableObjectDAO(
+    IsGraspableDAO,
+    DataAccessObject[
+        semantic_digital_twin.semantic_annotations.semantic_annotations.GraspableObject
+    ],
+):
+    __tablename__ = "GraspableObjectDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(IsGraspableDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "GraspableObjectDAO",
+        "inherit_condition": database_id == IsGraspableDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
 class HandleDAO(
-    HasRootBodyDAO,
+    IsGraspableDAO,
     DataAccessObject[
         semantic_digital_twin.semantic_annotations.semantic_annotations.Handle
     ],
@@ -31100,14 +31221,14 @@ class HandleDAO(
     __tablename__ = "HandleDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(HasRootBodyDAO.database_id),
+        ForeignKey(IsGraspableDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
     __mapper_args__ = {
         "polymorphic_identity": "HandleDAO",
-        "inherit_condition": database_id == HasRootBodyDAO.database_id,
+        "inherit_condition": database_id == IsGraspableDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
@@ -31868,7 +31989,7 @@ class SaltDAO(
 
 
 class SaltContainerDAO(
-    HasRootBodyDAO,
+    IsGraspableDAO,
     DataAccessObject[
         semantic_digital_twin.semantic_annotations.semantic_annotations.SaltContainer
     ],
@@ -31876,7 +31997,7 @@ class SaltContainerDAO(
     __tablename__ = "SaltContainerDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(HasRootBodyDAO.database_id),
+        ForeignKey(IsGraspableDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
@@ -31887,7 +32008,7 @@ class SaltContainerDAO(
 
     __mapper_args__ = {
         "polymorphic_identity": "SaltContainerDAO",
-        "inherit_condition": database_id == HasRootBodyDAO.database_id,
+        "inherit_condition": database_id == IsGraspableDAO.database_id,
         "polymorphic_load": "selectin",
     }
 

@@ -23,6 +23,7 @@ from coraplex.robot_plans import MoveToolCenterPointMotion
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
+from semantic_digital_twin.semantic_annotations.mixins import IsGraspable
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import (
     FixedConnection,
@@ -277,9 +278,9 @@ class IsObjectReachableBy(PoseValidator):
     The arm whose end effector should reach the object.
     """
 
-    object_designator: Body
+    object_designator: IsGraspable
     """
-    The object that should be reachable.
+    The graspable object that should be reachable.
     """
 
     grasp_description: GraspDescription = field(default=None)
@@ -314,7 +315,7 @@ class IsObjectReachableBy(PoseValidator):
             return IsReachableBy(
                 world=world,
                 robot=robot,
-                pose=self.object_designator.global_pose,
+                pose=self.object_designator.root.global_pose,
                 tip_link=end_effector.tool_frame,
                 grasp_description=GraspDescription(
                     ApproachDirection.FRONT,
@@ -325,11 +326,11 @@ class IsObjectReachableBy(PoseValidator):
 
         if self.target_pose is not None:
             pose_sequence = self.grasp_description.pose_sequence(
-                self.target_pose, self.object_designator, reverse=self.reverse
+                self.target_pose, self.object_designator.root, reverse=self.reverse
             )
         else:
             pose_sequence = self.grasp_description.grasp_pose_sequence(
-                self.object_designator
+                self.object_designator.root
             )
 
         return AreReachableBy(

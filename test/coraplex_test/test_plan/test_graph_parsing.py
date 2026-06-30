@@ -15,6 +15,7 @@ from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
     VizMarkerPublisher,
 )
 from semantic_digital_twin.datastructures.definitions import TorsoState
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Point3
 
@@ -51,7 +52,7 @@ def test_merge_motions(immutable_model_world, rclpy_node):
                 VerticalAlignment.NoAlignment,
                 view.right_arm.end_effector,
             ),
-            object_designator=world.get_body_by_name("milk.stl"),
+            target_object=world.get_semantic_annotations_by_type(Milk)[0],
         ),
         context=context,
     )
@@ -74,7 +75,7 @@ def test_parse_pick_up(immutable_model_world):
 
     plan = execute_single(
         PickUpAction(
-            object_designator=world.get_body_by_name("milk.stl"),
+            target_object=world.get_semantic_annotations_by_type(Milk)[0],
             arm=Arms.RIGHT,
             grasp_description=GraspDescription(
                 ApproachDirection.FRONT,
@@ -107,7 +108,7 @@ def test_parse_pick_up_merges_motions_around_model_change(immutable_model_world)
 
     plan = execute_single(
         PickUpAction(
-            object_designator=world.get_body_by_name("milk.stl"),
+            target_object=world.get_semantic_annotations_by_type(Milk)[0],
             arm=Arms.RIGHT,
             grasp_description=GraspDescription(
                 ApproachDirection.FRONT,
@@ -137,7 +138,7 @@ def test_parse_complex_plan(immutable_model_world):
                 target_pose=Pose(
                     Point3.from_iterable([1, -2, 0.8]), reference_frame=world.root
                 ),
-                object_designator=world.get_body_by_name("milk.stl"),
+                target_object=world.get_semantic_annotations_by_type(Milk)[0],
                 arm=Arms.LEFT,
                 grasp_description=GraspDescription(
                     ApproachDirection.FRONT,
@@ -165,7 +166,7 @@ def test_parsing_two_actions_into_one_exec(immutable_model_world):
                 target_pose=Pose(
                     Point3.from_iterable([1, -2, 0.8]), reference_frame=world.root
                 ),
-                object_designator=world.get_body_by_name("milk.stl"),
+                target_object=world.get_semantic_annotations_by_type(Milk)[0],
                 arm=Arms.LEFT,
                 grasp_description=GraspDescription(
                     ApproachDirection.FRONT,
@@ -190,7 +191,7 @@ def test_parse_pick_place(immutable_model_world):
     plan = sequential(
         [
             PickUpAction(
-                object_designator=world.get_body_by_name("milk.stl"),
+                target_object=world.get_semantic_annotations_by_type(Milk)[0],
                 arm=Arms.RIGHT,
                 grasp_description=GraspDescription(
                     ApproachDirection.FRONT,
@@ -199,7 +200,7 @@ def test_parse_pick_place(immutable_model_world):
                 ),
             ),
             PlaceAction(
-                object_designator=world.get_body_by_name("milk.stl"),
+                target_object=world.get_semantic_annotations_by_type(Milk)[0],
                 target_location=Pose(reference_frame=world.root),
                 arm=Arms.RIGHT,
             ),
@@ -226,7 +227,7 @@ def test_parse_transport_plan(mutable_model_world, rclpy_node):
             MoveTorsoAction(torso_state=TorsoState.HIGH),
             ParkArmsAction(arm=Arms.BOTH),
             TransportAction(
-                object_designator=world.get_body_by_name("milk.stl"),
+                target_object=world.get_semantic_annotations_by_type(Milk)[0],
                 target_location=Pose.from_xyz_rpy(
                     2.37, 2.5, 1.05, reference_frame=world.root
                 ),

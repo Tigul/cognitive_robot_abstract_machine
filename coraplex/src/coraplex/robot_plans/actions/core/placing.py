@@ -38,7 +38,6 @@ from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.reasoning.predicates import allclose
 from semantic_digital_twin.reasoning.robot_predicates import is_body_in_gripper
 from semantic_digital_twin.spatial_types.spatial_types import Pose
-from semantic_digital_twin.world_description.world_entity import Body
 
 
 @dataclass
@@ -64,7 +63,7 @@ class PlaceAction(ActionDescription, ObjectManipulationParameters, TargetLocatio
         )
 
         _, _, retract_pose = previous_grasp.pose_sequence(
-            self.target_location, self.object_designator, reverse=True
+            self.target_location, self.target_object.root, reverse=True
         )
 
         return sequential(
@@ -73,11 +72,11 @@ class PlaceAction(ActionDescription, ObjectManipulationParameters, TargetLocatio
                     target_pose=self.target_location,
                     arm=self.arm,
                     grasp_description=previous_grasp,
-                    object_designator=self.object_designator,
+                    target_object=self.target_object,
                     reverse_pose_sequence=True,
                 ),
                 MoveGripperMotion(motion=GripperState.OPEN, arm=self.arm),
-                DetachNode(body=self.object_designator, new_parent=self.world.root),
+                DetachNode(body=self.target_object.root, new_parent=self.world.root),
                 MoveToolCenterPointMotion(target_pose=retract_pose, arm=self.arm),
             ],
             self.context,
@@ -95,7 +94,9 @@ class PlaceAction(ActionDescription, ObjectManipulationParameters, TargetLocatio
         )
         return or_(
             not_(GripperIsFree(end_effector)),
-            is_body_in_gripper(variable_from(kwargs["object_designator"]), end_effector)
+            is_body_in_gripper(
+                variable_from(kwargs["target_object"].root), end_effector
+            )
             > 0.9,
         )
 
@@ -111,10 +112,12 @@ class PlaceAction(ActionDescription, ObjectManipulationParameters, TargetLocatio
         )
         return and_(
             GripperIsFree(end_effector),
-            is_body_in_gripper(variable_from(kwargs["object_designator"]), end_effector)
+            is_body_in_gripper(
+                variable_from(kwargs["target_object"].root), end_effector
+            )
             < 0.1,
             allclose(
-                variable_from(kwargs["object_designator"]).global_pose,
+                variable_from(kwargs["target_object"].root).global_pose,
                 kwargs["target_location"],
                 atol=0.03,
             ),

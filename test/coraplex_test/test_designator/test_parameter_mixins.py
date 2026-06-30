@@ -21,7 +21,8 @@ from coraplex.robot_plans.parameter_mixins import (
     UsedGraspDescription,
 )
 from semantic_digital_twin.datastructures.definitions import GripperState
-from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
+from semantic_digital_twin.semantic_annotations.mixins import IsGraspable
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle, Milk
 
 
 def test_action_inherits_parameter_mixins():
@@ -50,25 +51,28 @@ def test_classes_inherit_bundle_mixins():
     assert issubclass(MoveGripperMotion, GripperActuationParameters)
 
 
-def test_pick_up_action_exposes_unified_parameters(immutable_model_world):
+def test_pick_up_action_acts_on_graspable_annotation(immutable_model_world):
     world, view, context = immutable_model_world
     grasp_description = GraspDescription(
         ApproachDirection.FRONT,
         VerticalAlignment.NoAlignment,
         view.left_arm.end_effector,
     )
-    body = world.get_body_by_name("milk.stl")
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    assert isinstance(milk, IsGraspable)
     action = PickUpAction(
-        object_designator=body, arm=Arms.LEFT, grasp_description=grasp_description
+        target_object=milk, arm=Arms.LEFT, grasp_description=grasp_description
     )
 
     assert action.arm is Arms.LEFT
-    assert action.object_designator is body
+    assert action.target_object is milk
+    assert action.target_object.root is world.get_body_by_name("milk.stl")
+    assert not hasattr(action, "object_designator")
     assert action.grasp_description is grasp_description
 
     parameters = action.designator_parameter
     assert parameters["arm"] is Arms.LEFT
-    assert parameters["object_designator"] is body
+    assert parameters["target_object"] is milk
     assert parameters["grasp_description"] is grasp_description
 
 
@@ -80,11 +84,11 @@ def test_combined_mixins_instantiate_without_ordering_error(immutable_model_worl
         view.left_arm.end_effector,
     )
     action = PickUpAction(
-        object_designator=world.get_body_by_name("milk.stl"),
+        target_object=world.get_semantic_annotations_by_type(Milk)[0],
         arm=Arms.LEFT,
         grasp_description=grasp_description,
     )
-    assert {"arm", "object_designator", "grasp_description"} <= set(
+    assert {"arm", "target_object", "grasp_description"} <= set(
         action.designator_parameter
     )
 

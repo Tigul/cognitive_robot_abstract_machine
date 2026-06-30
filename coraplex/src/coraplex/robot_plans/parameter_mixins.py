@@ -9,10 +9,10 @@ from coraplex.datastructures.enums import Arms, MovementType
 from coraplex.datastructures.grasp import GraspDescription
 from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
 from semantic_digital_twin.robots.robot_parts import Camera, EndEffector
+from semantic_digital_twin.semantic_annotations.mixins import IsGraspable
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import (
-    Body,
     SemanticAnnotation,
 )
 
@@ -32,12 +32,13 @@ class UsedArm:
 @dataclass(eq=False)
 class ObjectActedOn:
     """
-    Mixin for behaviours that act on a single body.
+    Mixin for behaviours that act on a single graspable object.
     """
 
-    object_designator: Body = field(kw_only=True)
+    target_object: IsGraspable = field(kw_only=True)
     """
-    The body the behaviour acts on.
+    The graspable annotation the behaviour acts on; its :attr:`root` body is used where the
+    underlying kinematic body is required.
     """
 
 

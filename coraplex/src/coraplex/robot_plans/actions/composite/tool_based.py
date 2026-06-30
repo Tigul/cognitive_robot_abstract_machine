@@ -32,8 +32,11 @@ class MixingAction(ActionDescription, ToolUsageParameters):
     """
 
     def execute(self) -> None:
+        # NOTE: This action is legacy PyCRAM code and is currently non-functional (it
+        # references undefined symbols such as ``LocalTransformer`` and ``World``). Reviving it
+        # is out of scope; only the renamed designator access is updated here.
         lt = LocalTransformer()
-        obj = self.object_designator
+        obj = self.target_object.root
         pose = lt.transform_to_object_frame(obj.pose, obj)
         height_offset = obj.size[2] + 0.05
 
@@ -72,7 +75,7 @@ class PouringAction(ActionDescription, ToolUsageParameters):
             ApproachDirection.FRONT, VerticalAlignment.NoAlignment, False
         )
 
-        pose = lt.transform_pose(self.object_designator.pose, gripper_frame)
+        pose = lt.transform_pose(self.target_object.root.pose, gripper_frame)
         pose.pose.position.x += 0.009
         pose.pose.position.y -= 0.125
         pose.pose.position.z += 0.17
@@ -127,7 +130,7 @@ class CuttingAction(ActionDescription, ToolUsageParameters):
         if self.technique is None:
             self.technique = "Slicing"
         lt = LocalTransformer()
-        obj = self.object_designator
+        obj = self.target_object.root
         tool = self.tool
         pose = lt.transform_to_object_frame(obj.pose, obj)
 

@@ -40,7 +40,7 @@ from semantic_digital_twin.reasoning.predicates import allclose
 from semantic_digital_twin.reasoning.robot_predicates import is_body_in_gripper
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
 from semantic_digital_twin.spatial_types.spatial_types import Pose
-from semantic_digital_twin.world_description.world_entity import Body
+from semantic_digital_twin.semantic_annotations.mixins import IsGraspable
 
 logger = logging.getLogger(__name__)
 
@@ -56,16 +56,19 @@ class ReachAction(
     Let the robot reach a specific pose.
     """
 
-    object_designator: Optional[Body] = field(default=None, kw_only=True)
+    target_object: Optional[IsGraspable] = field(default=None, kw_only=True)
     """
-    Object designator_description describing the object that should be picked up
+    The graspable annotation describing the object that should be reached for.
     """
 
     @property
     def _action_plan(self) -> PlanNode:
 
+        target_body = (
+            self.target_object.root if self.target_object is not None else None
+        )
         target_pre_pose, target_pose, _ = self.grasp_description.pose_sequence(
-            self.target_pose, self.object_designator, reverse=self.reverse_pose_sequence
+            self.target_pose, target_body, reverse=self.reverse_pose_sequence
         )
         return sequential(
             children=[
@@ -98,7 +101,7 @@ class ReachAction(
                 robot=context.robot,
                 world=context.world,
                 arm=variables["arm"],
-                object_designator=kwargs["object_designator"],
+                object_designator=kwargs["target_object"],
                 grasp_description=kwargs["grasp_description"],
                 target_pose=kwargs["target_pose"],
                 reverse=kwargs["reverse_pose_sequence"],
@@ -114,10 +117,12 @@ class ReachAction(
         """
         end_effector = ViewManager.get_end_effector_view(kwargs["arm"], context.robot)
         return or_(
-            is_body_in_gripper(variable_from(kwargs["object_designator"]), end_effector)
+            is_body_in_gripper(
+                variable_from(kwargs["target_object"].root), end_effector
+            )
             > 0.9,
             allclose(
-                variable_from(kwargs["object_designator"]).global_pose.to_position(),
+                variable_from(kwargs["target_object"].root).global_pose.to_position(),
                 variable_from(end_effector.tool_frame).global_pose.to_position(),
                 atol=3e-2,
             ),
@@ -134,20 +139,20 @@ class PickUpAction(ActionDescription, GraspParameters):
     def _action_plan(self) -> PlanNode:
 
         _, _, lift_to_pose = self.grasp_description.grasp_pose_sequence(
-            self.object_designator
+            self.target_object.root
         )
         return sequential(
             children=[
                 MoveGripperMotion(motion=GripperState.OPEN, arm=self.arm),
                 ReachAction(
-                    target_pose=self.object_designator.global_pose,
-                    object_designator=self.object_designator,
+                    target_pose=self.target_object.root.global_pose,
+                    target_object=self.target_object,
                     arm=self.arm,
                     grasp_description=self.grasp_description,
                 ),
                 MoveGripperMotion(motion=GripperState.CLOSE, arm=self.arm),
                 AttachNode(
-                    body=self.object_designator,
+                    body=self.target_object.root,
                     new_parent=ViewManager.get_end_effector_view(
                         self.arm, self.robot
                     ).tool_frame,
@@ -177,7 +182,7 @@ class PickUpAction(ActionDescription, GraspParameters):
                 robot=context.robot,
                 world=context.world,
                 arm=variables["arm"],
-                object_designator=kwargs["object_designator"],
+                object_designator=kwargs["target_object"],
                 grasp_description=kwargs["grasp_description"],
             ),
         )
@@ -194,7 +199,9 @@ class PickUpAction(ActionDescription, GraspParameters):
         )
         return or_(
             not_(GripperIsFree(end_effector)),
-            is_body_in_gripper(variable_from(kwargs["object_designator"]), end_effector)
+            is_body_in_gripper(
+                variable_from(kwargs["target_object"].root), end_effector
+            )
             > 0.9,
         )
 
@@ -208,7 +215,7 @@ class GraspingAction(ActionDescription, GraspParameters):
     @property
     def _action_plan(self) -> PlanNode:
         pre_pose, grasp_pose, _ = self.grasp_description.grasp_pose_sequence(
-            self.object_designator
+            self.target_object.root
         )
 
         return sequential(

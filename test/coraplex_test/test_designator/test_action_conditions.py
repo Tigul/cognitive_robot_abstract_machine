@@ -11,8 +11,8 @@ from coraplex.exceptions import ConditionNotSatisfied, MotionDidNotFinish
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
-from semantic_digital_twin.world_description.world_entity import Body
 
 
 def _construct_and_evaluate_condition(action, action_condition):
@@ -37,7 +37,7 @@ def test_get_bound_variables(immutable_model_world):
     world, view, context = immutable_model_world
 
     pick_action = PickUpAction(
-        object_designator=world.get_body_by_name("milk.stl"),
+        target_object=world.get_semantic_annotations_by_type(Milk)[0],
         arm=Arms.LEFT,
         grasp_description=GraspDescription(
             ApproachDirection.FRONT,
@@ -52,21 +52,21 @@ def test_get_bound_variables(immutable_model_world):
     assert list(bound_variables.keys()) == [
         "grasp_description",
         "arm",
-        "object_designator",
+        "target_object",
     ]
     assert list(bound_variables["arm"]._domain_) == [Arms.LEFT]
     assert bound_variables["arm"]._type_ == Arms
-    assert list(bound_variables["object_designator"]._domain_) == [
-        world.get_body_by_name("milk.stl")
+    assert list(bound_variables["target_object"]._domain_) == [
+        world.get_semantic_annotations_by_type(Milk)[0]
     ]
-    assert bound_variables["object_designator"]._type_ == Body
+    assert bound_variables["target_object"]._type_ == Milk
 
 
 def test_pick_up_pre_conditions(mutable_model_world):
     world, view, context = mutable_model_world
 
     pick_action = PickUpAction(
-        object_designator=world.get_body_by_name("milk.stl"),
+        target_object=world.get_semantic_annotations_by_type(Milk)[0],
         arm=Arms.LEFT,
         grasp_description=GraspDescription(
             ApproachDirection.FRONT,
@@ -116,7 +116,7 @@ def test_pick_up_pre_conditions(mutable_model_world):
 def test_pick_up_post_condition(mutable_model_world):
     world, view, context = mutable_model_world
     pick_action = PickUpAction(
-        object_designator=world.get_body_by_name("milk.stl"),
+        target_object=world.get_semantic_annotations_by_type(Milk)[0],
         arm=Arms.LEFT,
         grasp_description=GraspDescription(
             ApproachDirection.FRONT,
@@ -148,7 +148,7 @@ def test_context_evaluate_condition(mutable_model_world):
     world, view, context = mutable_model_world
 
     pick_action = PickUpAction(
-        object_designator=world.get_body_by_name("milk.stl"),
+        target_object=world.get_semantic_annotations_by_type(Milk)[0],
         arm=Arms.LEFT,
         grasp_description=GraspDescription(
             ApproachDirection.FRONT,

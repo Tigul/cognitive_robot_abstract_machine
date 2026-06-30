@@ -16,6 +16,7 @@ from typing_extensions import (
     Self,
     Set,
     Type,
+    Generator,
 )
 
 from krrood.class_diagrams.class_diagram import WrappedClass
@@ -48,6 +49,7 @@ from semantic_digital_twin.spatial_types import (
     Point3,
     HomogeneousTransformationMatrix,
     Vector3,
+    Pose,
 )
 from semantic_digital_twin.world_description.connections import (
     FixedConnection,
@@ -274,6 +276,16 @@ class HasRootBody(HasRootKinematicStructureEntity, ABC):
             active_axis=active_axis,
             connection_limits=connection_limits,
         )
+
+
+@dataclass(eq=False)
+class IsGraspable(HasRootBody, ABC):
+    """
+    A semantic annotation for objects that can be grasped by a hand or robotic gripper.
+    """
+
+    def grasp_pose(self) -> Generator[HomogeneousTransformationMatrix]:
+        return iter(self.global_transform)
 
 
 @dataclass(eq=False)
