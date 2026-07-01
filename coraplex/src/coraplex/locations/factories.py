@@ -89,12 +89,14 @@ def reachability_location(
         VerticalAlignment.NoAlignment,
         man,
     )
+
     costmap = OccupancyCostmap.default_map(context, target_pose) & RingCostmap(
         resolution=0.02,
         width=200,
         height=200,
         std=15,
-        distance=mean_distance_to_target,  # That needs to be replaced with an estimate of the reachability space of the robot arms
+        distance=ViewManager.get_arm_view(arm, context.robot).approximate_length()
+        * 0.66,  # That needs to be replaced with an estimate of the reachability space of the robot arms
         world=context.world,
         origin=target_pose,
     )

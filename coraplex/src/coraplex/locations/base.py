@@ -9,8 +9,11 @@ from typing_extensions import Callable, List, Iterator, Optional, Iterable
 
 from krrood.entity_query_language.predicate import Predicate
 from coraplex.datastructures.dataclasses import Context
+
 try:
-    from semantic_digital_twin.adapters.ros.visualization.viz_marker import VizMarkerPublisher
+    from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
+        VizMarkerPublisher,
+    )
 except ImportError:
     VizMarkerPublisher = None
 from semantic_digital_twin.collision_checking.collision_rules import (
@@ -81,7 +84,7 @@ class Location(Iterable[Pose]):
 
             test_world.collision_manager.clear_temporary_rules()
             test_world.collision_manager.add_temporary_rule(
-                AvoidExternalCollisions(robot=test_robot)
+                AvoidExternalCollisions(robot=test_robot, violated_distance=0.05)
             )
             test_world.collision_manager.add_temporary_rule(
                 AllowSelfCollisions(robot=test_robot)

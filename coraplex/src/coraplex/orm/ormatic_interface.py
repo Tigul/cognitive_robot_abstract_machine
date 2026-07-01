@@ -2793,6 +2793,8 @@ class ExecutionEnvironmentDAO(
         Integer, primary_key=True, use_existing_column=True
     )
 
+    collision_avoidance: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
+
     execution_type: Mapped[coraplex.datastructures.enums.ExecutionType] = mapped_column(
         krrood.ormatic.custom_types.PolymorphicEnumType,
         nullable=False,
