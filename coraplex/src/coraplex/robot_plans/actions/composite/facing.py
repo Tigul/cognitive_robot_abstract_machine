@@ -22,7 +22,8 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 class FaceAtAction(ActionDescription, TargetLookedAt, JointStatesKept):
     """
     Turn the robot chassis such that is faces the ``look_at_target`` and after that perform a
-    look at action.
+    look
+    at action.
     """
 
     keep_joint_states: bool = field(

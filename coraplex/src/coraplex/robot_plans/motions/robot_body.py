@@ -18,7 +18,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 @dataclass
 class MoveJointsMotion(BaseMotion, LinkAlignmentApplied):
     """
-    Moves any joint on the robot
+    Moves any joint on the robot.
     """
 
     names: List[str]
@@ -27,15 +27,17 @@ class MoveJointsMotion(BaseMotion, LinkAlignmentApplied):
     """
     positions: List[float]
     """
-    Target positions of joints, should correspond to the list of names
+    Target positions of joints, should correspond to the list of names.
     """
     tip_normal: Optional[Vector3] = None
     """
-    Normalized vector representing the current orientation axis of the end-effector (optional).
+    Normalized vector representing the current orientation axis of the end-effector
+    (optional).
     """
     root_normal: Optional[Vector3] = None
     """
-    Normalized vector representing the desired orientation axis to align with (optional).
+    Normalized vector representing the desired orientation axis to align with
+    (optional).
     """
 
     def perform(self):
@@ -52,7 +54,7 @@ class MoveJointsMotion(BaseMotion, LinkAlignmentApplied):
 @dataclass
 class LookingMotion(BaseMotion, CameraTargetParameters):
     """
-    Lets the robot look at a point
+    Lets the robot look at a point.
     """
 
     def perform(self):

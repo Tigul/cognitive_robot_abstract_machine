@@ -7,10 +7,10 @@ from typing import List
 from typing_extensions import Optional, Any
 
 from krrood.entity_query_language.factories import (
+    a,
     an,
     entity,
     variable,
-    underspecified,
 )
 from coraplex.config.action_conf import ActionConfig
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
@@ -48,7 +48,7 @@ class TransportAction(
     TargetLocationMovedTo,
 ):
     """
-    Transports an object to a position using an arm
+    Transports an object to a position using an arm.
     """
 
     target_object: IsGraspable = field(repr=False, kw_only=True)
@@ -58,7 +58,7 @@ class TransportAction(
 
     grasp_description: Optional[GraspDescription] = field(default=None, kw_only=True)
     """
-    Grasp Description that should be used for picking up the object
+    Grasp Description that should be used for picking up the object.
     """
 
     def inside_container(self) -> List[Body]:
@@ -86,7 +86,7 @@ class TransportAction(
         handle = drawer_annotation[0].handle
 
         return [
-            underspecified(NavigateAction)(
+            a(NavigateAction)(
                 target_location=variable(
                     Pose,
                     domain=reachability_location(
@@ -114,7 +114,7 @@ class TransportAction(
             [
                 ParkArmsAction(arm=Arms.BOTH),
                 # Tries to find a pick-up position for the robot that uses the given arm
-                underspecified(NavigateAction)(
+                a(NavigateAction)(
                     target_location=variable(
                         Pose,
                         domain=DeferredLocation(
@@ -123,13 +123,12 @@ class TransportAction(
                                 self.context,
                                 self.arm,
                                 self.grasp_description,
-                                mean_distance_to_target=0.5,
                             )
                         ),
                     ),
                     keep_joint_states=True,
                 ),
-                underspecified(PickUpAction)(
+                a(PickUpAction)(
                     target_object=self.target_object,
                     arm=self.arm,
                     grasp_description=self.grasp_description,
@@ -137,7 +136,7 @@ class TransportAction(
                 ParkArmsAction(arm=Arms.BOTH),
                 MoveTorsoAction(torso_state=TorsoState.HIGH),
                 self._make_navigate_action_for_placing(self.grasp_description),
-                underspecified(PlaceAction)(
+                a(PlaceAction)(
                     target_object=self.target_object,
                     target_location=self.target_location,
                     arm=self.arm,
@@ -153,7 +152,7 @@ class TransportAction(
         :param grasp_description: The grasp description that should be used for placing the object.
         :return: The navigate action that will be used to place the object.
         """
-        return underspecified(NavigateAction)(
+        return a(NavigateAction)(
             target_location=variable(
                 Pose,
                 domain=reachability_location(
@@ -171,7 +170,8 @@ class PickAndPlaceAction(
     TargetLocationMovedTo,
 ):
     """
-    Transports an object to a position using an arm without moving the base of the robot
+    Transports an object to a position using an arm without moving the base of
+    the robot.
     """
 
     @property
@@ -202,7 +202,8 @@ class MoveAndPlaceAction(
     TargetLocationMovedTo,
 ):
     """
-    Navigate to `standing_position`, then turn towards the target and place the object.
+    Navigate to `standing_position`, then turn towards the target and place the
+    object.
     """
 
     keep_joint_states: bool = field(
@@ -240,7 +241,8 @@ class MoveAndPickUpAction(
     UsedGraspDescription,
 ):
     """
-    Navigate to `standing_position`, then turn towards the object and pick it up.
+    Navigate to `standing_position`, then turn towards the object and pick it
+    up.
     """
 
     keep_joint_states: bool = field(

@@ -195,12 +195,14 @@ class CuttingAction(ActionDescription, ToolUsageParameters):
         pose_a, pose_b: Pose
     ) -> Tuple[int, float]:
         """
-        Compute a discrete rotation offset (-90 or 90 degrees) to align this pose's local axes with the direction
-        toward a target pose, based on which axis (X or Y) is more aligned.
+        Compute a discrete rotation offset (-90 or 90 degrees) to align this pose's
+        local axes with the direction toward a target pose, based on which axis (X or Y)
+        is more aligned.
 
         :param pose_a: The source pose.
         :param pose_b: The target pose to align with.
-        :return: Tuple of (rotation offset in degrees, signed angle difference in radians for Y axis).
+        :return: Tuple of (rotation offset in degrees, signed angle difference in
+            radians for Y axis).
         """
         fx, ax = pose_a.is_facing_2d_axis(pose_b, axis=AxisIdentifier.X)
         fy, ay = pose_a.is_facing_2d_axis(pose_b, axis=AxisIdentifier.Y)

@@ -41,7 +41,7 @@ class OpenAction(
     ActionDescription, HandleOperationParameters, UsedGraspingPreposeDistance
 ):
     """
-    Opens a container like object
+    Opens a container like object.
     """
 
     @property
@@ -76,7 +76,8 @@ class OpenAction(
         variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
-        The gripper with which to open the container has to be free and the handle has to be reachable.
+        The gripper with which to open the container has to be free and the handle has
+        to be reachable.
         """
         end_effector = ViewManager.get_end_effector_view(
             variables["arm"], context.robot
@@ -84,8 +85,11 @@ class OpenAction(
         return and_(
             GripperIsFree(end_effector),
             IsObjectReachableBy(
-                robot=context.robot,
-                world=context.world,
+                context=Context(
+                    robot=context.robot,
+                    world=context.world,
+                    alternative_motion_mappings=context.alternative_motion_mappings,
+                ),
                 arm=kwargs["arm"],
                 object_designator=kwargs["handle"],
                 as_single_grasp=True,
@@ -97,7 +101,8 @@ class OpenAction(
         variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
-        The handle has to be in the gripper of the robot and the container has to be open.
+        The handle has to be in the gripper of the robot and the container has to be
+        open.
         """
         end_effector = ViewManager.get_end_effector_view(kwargs["arm"], context.robot)
         handle_body = kwargs["handle"].root
@@ -158,7 +163,7 @@ class CloseAction(
         variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> SymbolicExpression | bool:
         """
-        The container has to be closed
+        The container has to be closed.
         """
         close_connection = kwargs["handle"].root.get_first_parent_connection_of_type(
             ActiveConnection1DOF

@@ -51,7 +51,8 @@ class NavigateAction(ActionDescription, NavigationParameters):
         variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
-        The robot needs to have a drive and the target location needs to be free from obstacles
+        The robot needs to have a drive and the target location needs to be free from
+        obstacles.
         """
         drive_variable = variable_from(context.robot.drive is not None)
         return and_(
@@ -64,9 +65,8 @@ class NavigateAction(ActionDescription, NavigationParameters):
         variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
-        The robot needs to be within 3 cm of the target location
+        The robot needs to be within 3 cm of the target location.
         """
-
         return allclose(
             variable_from(context.robot.root).global_pose,
             kwargs["target_location"],

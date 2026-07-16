@@ -94,12 +94,16 @@ class ReachAction(
         variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
-        The sequence in which the robot would reach the target pose needs to be achievable
+        The sequence in which the robot would reach the target pose needs to be
+        achievable.
         """
         return and_(
             IsObjectReachableBy(
-                robot=context.robot,
-                world=context.world,
+                context=Context(
+                    robot=context.robot,
+                    world=context.world,
+                    alternative_motion_mappings=context.alternative_motion_mappings,
+                ),
                 arm=variables["arm"],
                 object_designator=kwargs["target_object"],
                 grasp_description=kwargs["grasp_description"],
@@ -113,7 +117,7 @@ class ReachAction(
         variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
-        The end effector needs to be close to the target pose
+        The end effector needs to be close to the target pose.
         """
         end_effector = ViewManager.get_end_effector_view(kwargs["arm"], context.robot)
         return or_(
@@ -171,7 +175,8 @@ class PickUpAction(ActionDescription, GraspParameters):
         variables: Dict, context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
-        The gripper with which to grasp the object needs to be free and the object needs to be reachable
+        The gripper with which to grasp the object needs to be free and the object needs
+        to be reachable.
         """
         end_effector = ViewManager.get_end_effector_view(
             variables["arm"], context.robot
@@ -179,8 +184,11 @@ class PickUpAction(ActionDescription, GraspParameters):
         return and_(
             GripperIsFree(end_effector=end_effector),
             IsObjectReachableBy(
-                robot=context.robot,
-                world=context.world,
+                context=Context(
+                    robot=context.robot,
+                    world=context.world,
+                    alternative_motion_mappings=context.alternative_motion_mappings,
+                ),
                 arm=variables["arm"],
                 object_designator=kwargs["target_object"],
                 grasp_description=kwargs["grasp_description"],
@@ -192,7 +200,7 @@ class PickUpAction(ActionDescription, GraspParameters):
         variables: Dict, context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
-        The object needs to be in the gripper frame
+        The object needs to be in the gripper frame.
         """
         end_effector = ViewManager.get_end_effector_view(
             variables["arm"], context.robot
@@ -209,7 +217,7 @@ class PickUpAction(ActionDescription, GraspParameters):
 @dataclass
 class GraspingAction(ActionDescription, GraspParameters):
     """
-    Grasps an object described by the given Object Designator description
+    Grasps an object described by the given Object Designator description.
     """
 
     @property

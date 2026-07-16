@@ -12,7 +12,7 @@ from coraplex.view_manager import ViewManager
 @dataclass
 class OpeningMotion(BaseMotion, HandleOperationParameters):
     """
-    Designator for opening container
+    Designator for opening container.
     """
 
     def perform(self):
@@ -27,7 +27,7 @@ class OpeningMotion(BaseMotion, HandleOperationParameters):
 @dataclass
 class ClosingMotion(BaseMotion, HandleOperationParameters):
     """
-    Designator for closing a container
+    Designator for closing a container.
     """
 
     def perform(self):

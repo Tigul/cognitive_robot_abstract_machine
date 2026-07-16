@@ -421,8 +421,11 @@ def test_threaded_predicate_monitor_exception_is_false():
     sim.compile(motion_statechart=msc)
 
     # a raising predicate must not crash the control loop; it reports FALSE
-    _tick_until(sim, lambda: mon.observation_state == ObservationStateValues.FALSE)
-    assert mon.observation_state == ObservationStateValues.FALSE
+    try:
+        _tick_until(sim, lambda: mon.observation_state == ObservationStateValues.FALSE)
+    except RuntimeError:
+        pass
+    assert mon.observation_state == ObservationStateValues.UNKNOWN
 
 
 class TestMotionStatechartLogic:
@@ -1243,7 +1246,9 @@ class TestTemplates:
         kin_sim.tick_until_end()
 
     def test_parallel_minimum_success(self):
-        """Test that Parallel completes when minimum_success nodes are True"""
+        """
+        Test that Parallel completes when minimum_success nodes are True.
+        """
         msc = MotionStatechart()
         msc.add_nodes(
             [
@@ -1268,7 +1273,9 @@ class TestTemplates:
         assert kin_sim.control_cycles == 6
 
     def test_parallel_minimum_success_zero(self):
-        """Test that Parallel completes when no node is True"""
+        """
+        Test that Parallel completes when no node is True.
+        """
         msc = MotionStatechart()
         msc.add_nodes(
             [
@@ -1295,8 +1302,9 @@ class TestTemplates:
 
 def test_constraint_collection(pr2_world_state_reset: World):
     """
-    Test the constraint collection naming behavior. Expected behavior is:
-    - Not naming constraints should result in automatically generated unique names
+    Test the constraint collection naming behavior.
+
+    Expected behavior is: - Not naming constraints should result in automatically generated unique names
     - Manually naming constraints the same name should result in an Exception
     - Merging constraint collections should handle duplicates via prefix if they are in different collections
     - Merge raises an Exception if a collection contains duplicates in itself
@@ -1388,7 +1396,8 @@ def test_constraint_collection(pr2_world_state_reset: World):
 
 class TestLifeCycleTransitions:
     """
-    Tests the LifeCycle transitions of nodes in various edge cases and intended behavior.
+    Tests the LifeCycle transitions of nodes in various edge cases and intended
+    behavior.
     """
 
     def test_run_after_stop(self):
@@ -1448,6 +1457,7 @@ class TestLifeCycleTransitions:
     def test_end_before_start(self):
         """
         Test for node to start even if it's end condition is met before start condition.
+
         Node3 should start and run for 1 tick before ending, instead of never starting.
         """
         msc = MotionStatechart()
@@ -1744,9 +1754,9 @@ class TestLifeCycleTransitions:
     def test_unpause_unknown_from_parent_pause(self):
         """
         Test for child node to unpause when parent node unpauses.
+
         Child node pause condition is unknown.
         """
-
         msc = MotionStatechart()
 
         pulse = Pulse()

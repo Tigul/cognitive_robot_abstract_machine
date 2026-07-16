@@ -15,7 +15,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 @dataclass
 class MoveMotion(BaseMotion, NavigationParameters):
     """
-    Moves the robot to a designated location
+    Moves the robot to a designated location.
     """
 
     def perform(self):
