@@ -88,7 +88,7 @@ def test_parse_pick_up(immutable_model_world):
 
     plan.notify()
 
-    # plan.plan.plot()
+    # plan.plan.visualize()
 
     executable = plan.parse()
 
@@ -210,7 +210,7 @@ def test_parse_pick_place(immutable_model_world):
 
     plan.notify()
 
-    # plan.plan.plot()
+    # plan.plan.visualize()
 
     executable = plan.parse()
 
