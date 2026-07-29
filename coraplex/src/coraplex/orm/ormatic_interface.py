@@ -31,6 +31,7 @@ import coraplex.execution_environment
 import coraplex.failure_handling.failure_handler
 import coraplex.failure_handling.failure_handling_strategy
 import coraplex.failure_handling.failure_refiner
+import coraplex.failure_handling.strategies.underspecified_reparameterization_strategy
 import coraplex.language
 import coraplex.language_giskard_templates
 import coraplex.locations.backends
@@ -316,6 +317,46 @@ class AmbiguousFailureDetectorDAO_detectors_association(
     target: Mapped[FailureDetectorDAO] = relationship(
         "FailureDetectorDAO",
         foreign_keys=[target_failuredetectordao_id],
+        lazy="selectin",
+    )
+
+
+class AmbiguousFailureHandlingStrategyDAO_strategies_association(
+    Base, AssociationDataAccessObject
+):
+    __tablename__ = "_82295026668317610688837176999043383508369512475807402913234592"
+
+    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    source_ambiguousfailurehandlingstrategydao_id: Mapped[int] = mapped_column(
+        ForeignKey("AmbiguousFailureHandlingStrategyDAO.database_id")
+    )
+    target_failurehandlingstrategydao_id: Mapped[int] = mapped_column(
+        ForeignKey("FailureHandlingStrategyDAO.database_id")
+    )
+
+    target: Mapped[FailureHandlingStrategyDAO] = relationship(
+        "FailureHandlingStrategyDAO",
+        foreign_keys=[target_failurehandlingstrategydao_id],
+        lazy="selectin",
+    )
+
+
+class FailureHandlerDAO_strategies_association(Base, AssociationDataAccessObject):
+    __tablename__ = "_62605249396259716975288845802857141983500436783952923305705277"
+
+    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    source_failurehandlerdao_id: Mapped[int] = mapped_column(
+        ForeignKey("FailureHandlerDAO.database_id")
+    )
+    target_failurehandlingstrategydao_id: Mapped[int] = mapped_column(
+        ForeignKey("FailureHandlingStrategyDAO.database_id")
+    )
+
+    target: Mapped[FailureHandlingStrategyDAO] = relationship(
+        "FailureHandlingStrategyDAO",
+        foreign_keys=[target_failurehandlingstrategydao_id],
         lazy="selectin",
     )
 
@@ -2920,6 +2961,35 @@ class AmbiguousFailureDetectorDAO(
     )
 
 
+class AmbiguousFailureHandlingStrategyDAO(
+    Base, DataAccessObject[coraplex.exceptions.AmbiguousFailureHandlingStrategy]
+):
+    __tablename__ = "AmbiguousFailureHandlingStrategyDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    failure_id: Mapped[int] = mapped_column(
+        ForeignKey("PlanFailureDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    failure: Mapped[PlanFailureDAO] = relationship(
+        "PlanFailureDAO", uselist=False, foreign_keys=[failure_id], post_update=True
+    )
+    strategies: Mapped[
+        builtins.list[AmbiguousFailureHandlingStrategyDAO_strategies_association]
+    ] = relationship(
+        "AmbiguousFailureHandlingStrategyDAO_strategies_association",
+        collection_class=builtins.list,
+        cascade="all, delete-orphan",
+        foreign_keys="[AmbiguousFailureHandlingStrategyDAO_strategies_association.source_ambiguousfailurehandlingstrategydao_id]",
+        lazy="selectin",
+    )
+
+
 class ContextIsUnavailableDAO(
     Base, DataAccessObject[coraplex.exceptions.ContextIsUnavailable]
 ):
@@ -3109,6 +3179,15 @@ class FailureHandlerDAO(
     refiner: Mapped[FailureRefinerDAO] = relationship(
         "FailureRefinerDAO", uselist=False, foreign_keys=[refiner_id], post_update=True
     )
+    strategies: Mapped[builtins.list[FailureHandlerDAO_strategies_association]] = (
+        relationship(
+            "FailureHandlerDAO_strategies_association",
+            collection_class=builtins.list,
+            cascade="all, delete-orphan",
+            foreign_keys="[FailureHandlerDAO_strategies_association.source_failurehandlerdao_id]",
+            lazy="selectin",
+        )
+    )
 
 
 class FailureHandlingStrategyDAO(
@@ -3123,6 +3202,15 @@ class FailureHandlingStrategyDAO(
         Integer, primary_key=True, use_existing_column=True
     )
 
+    polymorphic_type: Mapped[str] = mapped_column(
+        String(255), nullable=False, use_existing_column=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_on": "polymorphic_type",
+        "polymorphic_identity": "FailureHandlingStrategyDAO",
+    }
+
 
 class FailureResolutionDAO(
     Base,
@@ -3135,6 +3223,136 @@ class FailureResolutionDAO(
     database_id: Mapped[builtins.int] = mapped_column(
         Integer, primary_key=True, use_existing_column=True
     )
+
+    polymorphic_type: Mapped[str] = mapped_column(
+        String(255), nullable=False, use_existing_column=True
+    )
+
+    failure_id: Mapped[int] = mapped_column(
+        ForeignKey("PlanFailureDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    failure: Mapped[PlanFailureDAO] = relationship(
+        "PlanFailureDAO", uselist=False, foreign_keys=[failure_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_on": "polymorphic_type",
+        "polymorphic_identity": "FailureResolutionDAO",
+    }
+
+
+class PropagateDAO(
+    FailureResolutionDAO,
+    DataAccessObject[coraplex.failure_handling.failure_handling_strategy.Propagate],
+):
+    __tablename__ = "PropagateDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(FailureResolutionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "PropagateDAO",
+        "inherit_condition": database_id == FailureResolutionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class RecoveryPlanStrategyDAO(
+    FailureHandlingStrategyDAO,
+    DataAccessObject[
+        coraplex.failure_handling.failure_handling_strategy.RecoveryPlanStrategy
+    ],
+):
+    __tablename__ = "RecoveryPlanStrategyDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(FailureHandlingStrategyDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "RecoveryPlanStrategyDAO",
+        "inherit_condition": database_id == FailureHandlingStrategyDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class TargetedResolutionDAO(
+    FailureResolutionDAO,
+    DataAccessObject[
+        coraplex.failure_handling.failure_handling_strategy.TargetedResolution
+    ],
+):
+    __tablename__ = "TargetedResolutionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(FailureResolutionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    target_node_id: Mapped[int] = mapped_column(
+        ForeignKey("PlanNodeDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    target_node: Mapped[PlanNodeDAO] = relationship(
+        "PlanNodeDAO", uselist=False, foreign_keys=[target_node_id], post_update=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "TargetedResolutionDAO",
+        "inherit_condition": database_id == FailureResolutionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class ReparameterizeDAO(
+    TargetedResolutionDAO,
+    DataAccessObject[
+        coraplex.failure_handling.failure_handling_strategy.Reparameterize
+    ],
+):
+    __tablename__ = "ReparameterizeDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(TargetedResolutionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "ReparameterizeDAO",
+        "inherit_condition": database_id == TargetedResolutionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class RetryNodeDAO(
+    TargetedResolutionDAO,
+    DataAccessObject[coraplex.failure_handling.failure_handling_strategy.RetryNode],
+):
+    __tablename__ = "RetryNodeDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(TargetedResolutionDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "RetryNodeDAO",
+        "inherit_condition": database_id == TargetedResolutionDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
 
 
 class FailureDetectorDAO(
@@ -3165,6 +3383,27 @@ class FailureRefinerDAO(
         foreign_keys="[FailureRefinerDAO_failure_detectors_association.source_failurerefinerdao_id]",
         lazy="selectin",
     )
+
+
+class UnderspecifiedReparameterizationStrategyDAO(
+    FailureHandlingStrategyDAO,
+    DataAccessObject[
+        coraplex.failure_handling.strategies.underspecified_reparameterization_strategy.UnderspecifiedReparameterizationStrategy
+    ],
+):
+    __tablename__ = "UnderspecifiedReparameterizationStrategyDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(FailureHandlingStrategyDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "UnderspecifiedReparameterizationStrategyDAO",
+        "inherit_condition": database_id == FailureHandlingStrategyDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
 
 
 class DeferredLocationDAO(

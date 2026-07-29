@@ -48,6 +48,8 @@ class FailureDetector(ABC):
         if not isinstance(failure, self.input_failure_type):
             return False
         action_node = failure.action_node
+        if action_node is None:
+            return False
         return all(
             isinstance(action_node.action, mixin)
             for mixin in self.required_parameter_mixins

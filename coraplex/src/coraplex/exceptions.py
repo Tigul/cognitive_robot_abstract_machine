@@ -11,6 +11,9 @@ from coraplex.plans.failures import PlanFailure
 
 if TYPE_CHECKING:
     from coraplex.failure_handling.failure_refiner import FailureDetector
+    from coraplex.failure_handling.failure_handling_strategy import (
+        FailureHandlingStrategy,
+    )
     from coraplex.plans.designator import Designator
     from coraplex.robot_plans.actions.base import ActionDescription
     from semantic_digital_twin.robots.robot_parts import AbstractRobot
@@ -208,6 +211,33 @@ class FailureRefinementCycle(DataclassException):
 
     def suggest_correction(self) -> str:
         return "ensure the detectors refine failures towards more specific types only."
+
+
+@dataclass
+class AmbiguousFailureHandlingStrategy(DataclassException):
+    """
+    Raised when several failure handling strategies are equally specific for the same
+    failure, so the handler cannot decide which one resolves it.
+    """
+
+    failure: PlanFailure
+    """
+    The failure that several strategies claim with the same specificity.
+    """
+
+    strategies: List[FailureHandlingStrategy]
+    """
+    The strategies that are equally specific for the failure.
+    """
+
+    def error_message(self) -> str:
+        return f"Strategies {self.strategies} are equally specific for {self.failure}"
+
+    def suggest_correction(self) -> str:
+        return (
+            "narrow one strategy down by declaring a more specific handled failure "
+            "type."
+        )
 
 
 @dataclass
