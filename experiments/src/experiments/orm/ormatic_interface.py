@@ -309,6 +309,48 @@ class PoseTrajectoryDAO_poses_association(Base, AssociationDataAccessObject):
     )
 
 
+class AmbiguousFailureDetectorDAO_detectors_association(
+    Base, AssociationDataAccessObject
+):
+    __tablename__ = "_13336470654401876020863585449287185382343831214422840505057526"
+
+    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    source_ambiguousfailuredetectordao_id: Mapped[int] = mapped_column(
+        ForeignKey("AmbiguousFailureDetectorDAO.database_id")
+    )
+    target_failuredetectordao_id: Mapped[int] = mapped_column(
+        ForeignKey("FailureDetectorDAO.database_id")
+    )
+
+    target: Mapped[FailureDetectorDAO] = relationship(
+        "FailureDetectorDAO",
+        foreign_keys=[target_failuredetectordao_id],
+        lazy="selectin",
+    )
+
+
+class FailureRefinerDAO_failure_detectors_association(
+    Base, AssociationDataAccessObject
+):
+    __tablename__ = "_46168911511882698974819280479182576962607627663425275677836392"
+
+    database_id: Mapped[int] = mapped_column(Integer, primary_key=True)
+
+    source_failurerefinerdao_id: Mapped[int] = mapped_column(
+        ForeignKey("FailureRefinerDAO.database_id")
+    )
+    target_failuredetectordao_id: Mapped[int] = mapped_column(
+        ForeignKey("FailureDetectorDAO.database_id")
+    )
+
+    target: Mapped[FailureDetectorDAO] = relationship(
+        "FailureDetectorDAO",
+        foreign_keys=[target_failuredetectordao_id],
+        lazy="selectin",
+    )
+
+
 class LocationDAO_validators_association(Base, AssociationDataAccessObject):
     __tablename__ = "_60607665480754785774481176718069032944618754234528296681709804"
 
@@ -2878,6 +2920,35 @@ class PoseTrajectoryDAO(
     )
 
 
+class AmbiguousFailureDetectorDAO(
+    Base, DataAccessObject[coraplex.exceptions.AmbiguousFailureDetector]
+):
+    __tablename__ = "AmbiguousFailureDetectorDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    failure_id: Mapped[int] = mapped_column(
+        ForeignKey("PlanFailureDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    failure: Mapped[PlanFailureDAO] = relationship(
+        "PlanFailureDAO", uselist=False, foreign_keys=[failure_id], post_update=True
+    )
+    detectors: Mapped[
+        builtins.list[AmbiguousFailureDetectorDAO_detectors_association]
+    ] = relationship(
+        "AmbiguousFailureDetectorDAO_detectors_association",
+        collection_class=builtins.list,
+        cascade="all, delete-orphan",
+        foreign_keys="[AmbiguousFailureDetectorDAO_detectors_association.source_ambiguousfailuredetectordao_id]",
+        lazy="selectin",
+    )
+
+
 class ContextIsUnavailableDAO(
     Base, DataAccessObject[coraplex.exceptions.ContextIsUnavailable]
 ):
@@ -2895,6 +2966,30 @@ class ContextIsUnavailableDAO(
 
     instance: Mapped[DesignatorDAO] = relationship(
         "DesignatorDAO", uselist=False, foreign_keys=[instance_id], post_update=True
+    )
+
+
+class FailureRefinementCycleDAO(
+    Base, DataAccessObject[coraplex.exceptions.FailureRefinementCycle]
+):
+    __tablename__ = "FailureRefinementCycleDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    repeated_failure_type: Mapped[TypeType] = mapped_column(
+        TypeType, nullable=False, use_existing_column=True
+    )
+
+    failure_id: Mapped[int] = mapped_column(
+        ForeignKey("PlanFailureDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    failure: Mapped[PlanFailureDAO] = relationship(
+        "PlanFailureDAO", uselist=False, foreign_keys=[failure_id], post_update=True
     )
 
 
@@ -3088,6 +3183,16 @@ class FailureRefinerDAO(
 
     database_id: Mapped[builtins.int] = mapped_column(
         Integer, primary_key=True, use_existing_column=True
+    )
+
+    failure_detectors: Mapped[
+        builtins.list[FailureRefinerDAO_failure_detectors_association]
+    ] = relationship(
+        "FailureRefinerDAO_failure_detectors_association",
+        collection_class=builtins.list,
+        cascade="all, delete-orphan",
+        foreign_keys="[FailureRefinerDAO_failure_detectors_association.source_failurerefinerdao_id]",
+        lazy="selectin",
     )
 
 

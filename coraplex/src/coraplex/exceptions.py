@@ -10,6 +10,7 @@ from coraplex.datastructures.enums import Arms, ExecutionType
 from coraplex.plans.failures import PlanFailure
 
 if TYPE_CHECKING:
+    from coraplex.failure_handling.failure_refiner import FailureDetector
     from coraplex.plans.designator import Designator
     from coraplex.robot_plans.actions.base import ActionDescription
     from semantic_digital_twin.robots.robot_parts import AbstractRobot
@@ -153,6 +154,60 @@ class MotionDidNotFinish(PlanFailure):
 
     def suggest_correction(self) -> str:
         return ""
+
+
+@dataclass
+class AmbiguousFailureDetector(DataclassException):
+    """
+    Raised when several failure detectors are equally specific for the same failure, so
+    the refiner cannot decide which one refines it.
+    """
+
+    failure: PlanFailure
+    """
+    The failure that several detectors claim with the same specificity.
+    """
+
+    detectors: List[FailureDetector]
+    """
+    The detectors that are equally specific for the failure.
+    """
+
+    def error_message(self) -> str:
+        return f"Detectors {self.detectors} are equally specific for {self.failure}"
+
+    def suggest_correction(self) -> str:
+        return (
+            "narrow one detector down by declaring a more specific input failure type or "
+            "more required parameter mixins."
+        )
+
+
+@dataclass
+class FailureRefinementCycle(DataclassException):
+    """
+    Raised when a chain of failure detectors refines a failure back into a failure type
+    it already produced, which would refine forever.
+    """
+
+    failure: PlanFailure
+    """
+    The failure whose refinement cycled.
+    """
+
+    repeated_failure_type: Type[PlanFailure]
+    """
+    The failure type the chain produced for the second time.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"Refining {self.failure} produced {self.repeated_failure_type.__name__} "
+            f"again."
+        )
+
+    def suggest_correction(self) -> str:
+        return "ensure the detectors refine failures towards more specific types only."
 
 
 @dataclass
