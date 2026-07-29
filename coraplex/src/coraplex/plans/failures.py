@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
-from typing_extensions import TYPE_CHECKING
+from typing_extensions import Optional, TYPE_CHECKING
 
 from krrood.exceptions import DataclassException
 from coraplex.datastructures.enums import Arms
@@ -14,7 +14,9 @@ if TYPE_CHECKING:
     from coraplex.validation.goal_validator import MultiJointPositionGoalValidator
     from coraplex.language import LanguageNode
     from semantic_digital_twin.datastructures.definitions import StaticJointState
-    from coraplex.plans.plan_node import PlanNode
+    from coraplex.datastructures.dataclasses import Context
+    from coraplex.failure_handling.failure_handling_strategy import FailureResolution
+    from coraplex.plans.plan_node import ActionNode, PlanNode
 
 
 @dataclass
@@ -26,11 +28,46 @@ class PlanFailure(DataclassException):
 
     node: PlanNode
 
+    refined_from: Optional[PlanFailure] = field(default=None, kw_only=True)
+    """
+    The failure this one was refined from by a
+    :class:`~coraplex.failure_handling.failure_refiner.FailureDetector`, or None if
+    this failure has not been refined.
+    """
+
+    resolution: Optional[FailureResolution] = field(default=None, kw_only=True)
+    """
+    The resolution the failure handler decided on for this failure, or None if it has
+    not been handled yet.
+    """
+
     def error_message(self) -> str:
         return "Plan failed."
 
     def suggest_correction(self) -> str:
         return ""
+
+    @property
+    def action_node(self) -> Optional[ActionNode]:
+        """
+        :return: The node itself if it is an :class:`ActionNode`, otherwise the nearest
+            ancestor that is one, or None if there is no such ancestor.
+        """
+        from coraplex.plans.plan_node import ActionNode
+
+        if isinstance(self.node, ActionNode):
+            return self.node
+        for ancestor in self.node.path:
+            if isinstance(ancestor, ActionNode):
+                return ancestor
+        return None
+
+    @property
+    def context(self) -> Context:
+        """
+        :return: The context of the plan in which this failure occurred.
+        """
+        return self.node.plan.context
 
 
 @dataclass

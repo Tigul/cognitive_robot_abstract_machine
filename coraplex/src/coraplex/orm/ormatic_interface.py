@@ -3029,6 +3029,19 @@ class FailureHandlingStrategyDAO(
     )
 
 
+class FailureResolutionDAO(
+    Base,
+    DataAccessObject[
+        coraplex.failure_handling.failure_handling_strategy.FailureResolution
+    ],
+):
+    __tablename__ = "FailureResolutionDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+
 class FailureDetectorDAO(
     Base, DataAccessObject[coraplex.failure_handling.failure_refiner.FailureDetector]
 ):
@@ -3725,9 +3738,31 @@ class PlanFailureDAO(Base, DataAccessObject[coraplex.plans.failures.PlanFailure]
         nullable=True,
         use_existing_column=True,
     )
+    refined_from_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
+        ForeignKey("PlanFailureDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+    resolution_id: Mapped[typing.Optional[builtins.int]] = mapped_column(
+        ForeignKey("FailureResolutionDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
 
     node: Mapped[PlanNodeDAO] = relationship(
         "PlanNodeDAO", uselist=False, foreign_keys=[node_id], post_update=True
+    )
+    refined_from: Mapped[PlanFailureDAO] = relationship(
+        "PlanFailureDAO",
+        uselist=False,
+        foreign_keys=[refined_from_id],
+        post_update=True,
+    )
+    resolution: Mapped[FailureResolutionDAO] = relationship(
+        "FailureResolutionDAO",
+        uselist=False,
+        foreign_keys=[resolution_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
