@@ -14,6 +14,7 @@ from giskardpy.motion_statechart.graph_node import CancelMotion, EndMotion
 from giskardpy.motion_statechart.monitors.payload_monitors import (
     ThreadedPredicateMonitor,
 )
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
@@ -44,7 +45,7 @@ def reach_action_executable(immutable_model_world):
                 VerticalAlignment.NoAlignment,
                 view.right_arm.end_effector,
             ),
-            target_object=world.get_body_by_name("milk.stl"),
+            target_object=world.get_semantic_annotations_by_type(Milk)[0],
         ),
         context=context,
     )
