@@ -269,23 +269,34 @@ class PlanNode(PlanEntity):
     def perform(self):
         """
         Perform the node and update the fields of this node.
-        """
-        for parent in self.path:
-            if parent.status == TaskStatus.INTERRUPTED:
-                self.status = TaskStatus.INTERRUPTED
-                return
 
-        self.status = TaskStatus.RUNNING
-        try:
-            self.notify()
-            self.result = self.parse().execute()
-        except PlanFailure as e:
-            self.status = TaskStatus.FAILED
-            self.reason = e
-            raise e
-        finally:
-            self.end_time = datetime.now()
-        self.status = TaskStatus.SUCCEEDED
+        A raised :class:`~coraplex.plans.failures.PlanFailure` is handed to the
+        context's failure handler once; the decided resolution interprets itself at
+        every frame it passes through: returning from
+        :meth:`~coraplex.failure_handling.failure_handling_strategy.FailureResolution.apply`
+        re-runs this frame, raising hands the failure to the parent frame.
+        """
+        while True:
+            for parent in self.path:
+                if parent.status == TaskStatus.INTERRUPTED:
+                    self.status = TaskStatus.INTERRUPTED
+                    return
+
+            self.status = TaskStatus.RUNNING
+            try:
+                self.notify()
+                self.result = self.parse().execute()
+            except PlanFailure as failure:
+                if failure.resolution is None:
+                    failure.resolution = self.plan.context.failure_handler.handle(
+                        failure
+                    )
+                failure.resolution.apply(self)
+                continue
+            finally:
+                self.end_time = datetime.now()
+            self.status = TaskStatus.SUCCEEDED
+            return
 
     def mount_subplan(self, root: PlanNode):
         """

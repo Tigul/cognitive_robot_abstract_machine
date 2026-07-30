@@ -198,13 +198,15 @@ def test_perform_repeat(immutable_model_world):
 def test_exception_sequential(immutable_model_world):
     world, robot_view, context = immutable_model_world
 
-    def raise_except():
-        raise PlanFailure(node=None)
-
     act = NavigateAction(
         target_location=Pose.from_xyz_rpy(1, -1, reference_frame=world.root)
     )
-    act2 = code(raise_except)
+    act2 = code(lambda: None)
+
+    def raise_except():
+        raise PlanFailure(node=act2)
+
+    act2.code = raise_except
 
     plan = sequential(
         [act, act2],
@@ -224,13 +226,15 @@ def test_exception_sequential(immutable_model_world):
 def test_exception_try_in_order(immutable_model_world):
     world, robot_view, context = immutable_model_world
 
-    def raise_except():
-        raise PlanFailure(None)
-
     act = NavigateAction(
         target_location=Pose.from_xyz_rpy(1, -1, reference_frame=world.root)
     )
-    act2 = code(raise_except)
+    act2 = code(lambda: None)
+
+    def raise_except():
+        raise PlanFailure(node=act2)
+
+    act2.code = raise_except
 
     plan = try_in_order([act, act2], context).plan
     with simulated_robot:
@@ -242,13 +246,15 @@ def test_exception_try_in_order(immutable_model_world):
 def test_exception_parallel(immutable_model_world):
     world, robot_view, context = immutable_model_world
 
-    def raise_except():
-        raise PlanFailure(node=None)
-
     act = NavigateAction(
         target_location=Pose.from_xyz_rpy(x=-2, reference_frame=world.root)
     )
-    act2 = code(raise_except)
+    act2 = code(lambda: None)
+
+    def raise_except():
+        raise PlanFailure(node=act2)
+
+    act2.code = raise_except
 
     plan = parallel([act, act2], context).plan
     with pytest.raises(PlanFailure):
@@ -261,13 +267,15 @@ def test_exception_parallel(immutable_model_world):
 def test_exception_try_all(immutable_model_world):
     world, robot_view, context = immutable_model_world
 
-    def raise_except():
-        raise PlanFailure(node=None)
-
     act = NavigateAction(
         target_location=Pose.from_xyz_rpy(x=-2, reference_frame=world.root)
     )
-    act2 = code(raise_except)
+    act2 = code(lambda: None)
+
+    def raise_except():
+        raise PlanFailure(node=act2)
+
+    act2.code = raise_except
 
     plan = try_all([act, act2], context).plan
     with simulated_robot:

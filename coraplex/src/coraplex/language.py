@@ -261,7 +261,7 @@ class TryInOrderNode(ExecutesSequentially):
                 continue
         failed = all([child.status == TaskStatus.FAILED for child in self.children])
         if failed:
-            raise AllChildrenFailed(self)
+            raise AllChildrenFailed(node=self, language_node=self)
 
 
 @dataclass(eq=False)
@@ -278,7 +278,7 @@ class TryAllNode(ExecutesInParallel):
         self._perform_parallel(self.children)
         failed = all([child.status == TaskStatus.FAILED for child in self.children])
         if failed:
-            raise AllChildrenFailed(self)
+            raise AllChildrenFailed(node=self, language_node=self)
 
 
 @dataclass

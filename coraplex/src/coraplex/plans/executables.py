@@ -25,7 +25,6 @@ from krrood.entity_query_language.factories import evaluate_condition
 from coraplex.datastructures.enums import ExecutionType
 from coraplex.exceptions import (
     MotionDidNotFinish,
-    ConditionNotSatisfied,
     UnknownExecutionType,
 )
 from semantic_digital_twin.world_description.connections import (
@@ -43,7 +42,6 @@ from krrood.symbolic_math.symbolic_math import (
 
 if TYPE_CHECKING:
     from giskardpy.middleware.ros2.python_interface import GiskardWrapper
-    from coraplex.robot_plans.actions.base import ActionDescription
 
     from coraplex.plans.condition_nodes import ConditionNode
     from coraplex.plans.plan_node import MotionNode, UnderspecifiedNode, ActionNode
@@ -198,10 +196,7 @@ class GiskardExecutable(Executable):
             first_task.start_condition = pre_monitor.observation_variable
             # abort if the pre-condition is observed to be false
             pre_cancel = CancelMotion(
-                exception=self._condition_not_satisfied(
-                    self.pre_condition_node,
-                    action_node=self.pre_condition_node.action_node.action,
-                )
+                exception=self.pre_condition_node.not_satisfied_failure()
             )
             pre_cancel.start_condition = trinary_logic_not(
                 pre_monitor.observation_variable
@@ -216,10 +211,7 @@ class GiskardExecutable(Executable):
             end_trigger = post_monitor.observation_variable
             # abort if the post-condition is observed to be false
             post_cancel = CancelMotion(
-                exception=self._condition_not_satisfied(
-                    self.post_condition_node,
-                    action_node=self.post_condition_node.action_node.action,
-                )
+                exception=self.post_condition_node.not_satisfied_failure()
             )
             post_cancel.start_condition = trinary_logic_not(
                 post_monitor.observation_variable
@@ -277,18 +269,6 @@ class GiskardExecutable(Executable):
                     )
                 )
         return skip_end_conditions
-
-    @staticmethod
-    def _condition_not_satisfied(
-        condition_node: ConditionNode,
-        action_node: ActionDescription,
-    ) -> ConditionNotSatisfied:
-        return ConditionNotSatisfied(
-            node=condition_node,
-            pre_condition=condition_node.pre_condition,
-            action=action_node.__class__,
-            condition=condition_node.condition,
-        )
 
     @property
     def is_interrupted(self) -> bool:
@@ -392,11 +372,7 @@ class ConditionExecutable(Executable):
         """
         if evaluate_condition(self.condition_node.condition):
             return True
-        raise ConditionNotSatisfied(
-            pre_condition=self.condition_node.pre_condition,
-            action=self.condition_node.__class__,
-            condition=self.condition_node.condition,
-        )
+        raise self.condition_node.not_satisfied_failure()
 
 
 @dataclass

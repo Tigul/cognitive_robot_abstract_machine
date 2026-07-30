@@ -4475,12 +4475,23 @@ class ContextDAO(
         nullable=True,
         use_existing_column=True,
     )
+    failure_handler_id: Mapped[int] = mapped_column(
+        ForeignKey("FailureHandlerDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
 
     world: Mapped[WorldMappingDAO] = relationship(
         "WorldMappingDAO", uselist=False, foreign_keys=[world_id], post_update=True
     )
     robot: Mapped[AbstractRobotDAO] = relationship(
         "AbstractRobotDAO", uselist=False, foreign_keys=[robot_id], post_update=True
+    )
+    failure_handler: Mapped[FailureHandlerDAO] = relationship(
+        "FailureHandlerDAO",
+        uselist=False,
+        foreign_keys=[failure_handler_id],
+        post_update=True,
     )
 
     __mapper_args__ = {
