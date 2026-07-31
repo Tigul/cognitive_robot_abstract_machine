@@ -170,7 +170,7 @@ def child_of(parent: PlanNode) -> CodeNode:
 # %% resolution apply contract
 
 
-def test_propagate_records_the_failure_on_the_frame_and_raises_it(code_node):
+def test_propagate_records_the_failure_and_raises_it_at_the_root(code_node):
     failure = HandledFailure(node=code_node)
     resolution = Propagate(failure=failure)
 
@@ -183,7 +183,7 @@ def test_propagate_records_the_failure_on_the_frame_and_raises_it(code_node):
     assert failure.resolution is resolution
 
 
-def test_a_targeted_resolution_returns_at_its_target_frame(code_node):
+def test_a_targeted_resolution_returns_at_its_target(code_node):
     failure = HandledFailure(node=code_node)
     resolution = RetryNode(failure=failure, target_node=code_node)
     failure.resolution = resolution
@@ -194,18 +194,20 @@ def test_a_targeted_resolution_returns_at_its_target_frame(code_node):
     assert code_node.status == TaskStatus.CREATED
 
 
-def test_a_targeted_resolution_reraises_below_its_target_frame(code_node):
+def test_a_targeted_resolution_escalates_below_its_target(code_node):
+    """
+    Applied below its target the resolution records the failure and escalates along the
+    plan tree, so the target deals with it without needing a perform frame of its own.
+    """
     child = child_of(code_node)
     failure = HandledFailure(node=child)
     resolution = RetryNode(failure=failure, target_node=code_node)
 
-    with pytest.raises(HandledFailure) as raised:
-        resolution.apply(child)
+    resolution.apply(child)
 
-    assert raised.value is failure
     assert child.status == TaskStatus.FAILED
     assert child.reason is failure
-    assert failure.resolution is resolution
+    assert failure.resolution is None
 
 
 # %% strategy selection

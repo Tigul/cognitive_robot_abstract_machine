@@ -12,6 +12,7 @@ from typing_extensions import Union
 from coraplex.plans.designator import Designator
 from krrood.entity_query_language.query.match import Match
 from coraplex.datastructures.enums import TaskStatus
+from coraplex.exceptions import MotionDidNotFinish
 from coraplex.datastructures.execution_data import ExecutionData
 from coraplex.plans.executables import (
     Executable,
@@ -23,7 +24,7 @@ from coraplex.plans.plan_entity import PlanEntity
 from coraplex.utils import split_list_by_type
 
 if TYPE_CHECKING:
-    from giskardpy.motion_statechart.graph_node import Task
+    from giskardpy.motion_statechart.graph_node import MotionStatechartNode, Task
     from coraplex.robot_plans.actions.base import ActionDescription
     from coraplex.robot_plans.motions.base import BaseMotion
 
@@ -266,15 +267,43 @@ class PlanNode(PlanEntity):
     def is_paused(self) -> bool:
         return any(parent.status == TaskStatus.PAUSE for parent in [self] + self.path)
 
+    def handle_failure(self, failure: PlanFailure) -> None:
+        """
+        Deal with a failure that occurred at this node.
+
+        The context's failure handler decides once per failure how execution continues;
+        the resolution then interprets itself at this node. Returning means the failure
+        was dealt with and the work can be run again, raising means no node up to the
+        root of the plan could deal with it.
+
+        :param failure: The failure that occurred at this node.
+        """
+        if failure.resolution is None:
+            failure.resolution = self.plan.context.failure_handler.handle(failure)
+        failure.resolution.apply(self)
+
+    def escalate(self, failure: PlanFailure) -> None:
+        """
+        Hand a failure this node could not deal with to the node above it.
+
+        Escalation follows the plan tree rather than the call stack, because most nodes
+        run inside an enclosing node's merged execution list and never get a perform
+        frame of their own.
+
+        :param failure: The failure this node could not deal with.
+        :raises PlanFailure: When this node is the root, so the failure leaves the plan.
+        """
+        if self.parent is None:
+            raise failure
+        self.parent.handle_failure(failure)
+
     def perform(self):
         """
         Perform the node and update the fields of this node.
 
-        A raised :class:`~coraplex.plans.failures.PlanFailure` is handed to the
-        context's failure handler once; the decided resolution interprets itself at
-        every frame it passes through: returning from
-        :meth:`~coraplex.failure_handling.failure_handling_strategy.FailureResolution.apply`
-        re-runs this frame, raising hands the failure to the parent frame.
+        A raised :class:`~coraplex.plans.failures.PlanFailure` is handed to the node it
+        occurred at, which either deals with it - in which case the work is run again -
+        or escalates it along the plan tree until it leaves the plan.
         """
         while True:
             for parent in self.path:
@@ -287,11 +316,7 @@ class PlanNode(PlanEntity):
                 self.notify()
                 self.result = self.parse().execute()
             except PlanFailure as failure:
-                if failure.resolution is None:
-                    failure.resolution = self.plan.context.failure_handler.handle(
-                        failure
-                    )
-                failure.resolution.apply(self)
+                failure.node.handle_failure(failure)
                 continue
             finally:
                 self.end_time = datetime.now()
@@ -679,6 +704,17 @@ class MotionNode(DesignatorNode):
             if isinstance(node, ActionNode):
                 return node
         return None
+
+    def did_not_finish_failure(
+        self, failed_motions: List[MotionStatechartNode]
+    ) -> MotionDidNotFinish:
+        """
+        :param failed_motions: The motion state chart nodes that did not reach their
+            goal.
+        :return: The failure describing that this motion did not finish, attributed to
+            this node so it can be handled where it occurred.
+        """
+        return MotionDidNotFinish(node=self, failed_motions=failed_motions)
 
     def parse(self) -> Executable:
         task = self.motion.motion_chart

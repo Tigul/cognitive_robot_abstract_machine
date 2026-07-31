@@ -12,6 +12,7 @@ import pytest
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.graph_node import CancelMotion, EndMotion
 from giskardpy.motion_statechart.monitors.payload_monitors import (
+    CountControlCycles,
     ThreadedPredicateMonitor,
 )
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
@@ -97,5 +98,24 @@ def test_motion_state_chart_simulated_execution_adds_condition_and_pause_interru
     assert len(chart.get_nodes_by_type(PlanNodeStatusMonitor)) == 2 * task_count
     # pre- and post-condition monitors
     assert len(chart.get_nodes_by_type(ThreadedPredicateMonitor)) == 2
-    # abort paths for pre- and post-condition failing
-    assert len(chart.get_nodes_by_type(CancelMotion)) == 2
+    # abort paths for pre- and post-condition failing, plus one per task for the
+    # watchdog that reports a motion which spent its control cycle budget
+    assert len(chart.get_nodes_by_type(CancelMotion)) == 2 + task_count
+
+
+def test_motion_state_chart_simulated_execution_adds_a_watchdog_per_motion(
+    reach_action_executable,
+):
+    task_count = len(reach_action_executable.motion_mappings)
+
+    with simulated_robot:
+        chart = reach_action_executable.motion_state_chart
+
+    assert len(chart.get_nodes_by_type(CountControlCycles)) == task_count
+
+
+def test_motion_state_chart_real_execution_has_no_watchdogs(reach_action_executable):
+    with real_robot:
+        chart = reach_action_executable.motion_state_chart
+
+    assert chart.get_nodes_by_type(CountControlCycles) == []

@@ -21,11 +21,10 @@ class FailureResolution(ABC):
     The decision a :class:`FailureHandlingStrategy` made about how plan execution
     continues after a failure.
 
-    A resolution interprets itself inside the except block of
-    :meth:`~coraplex.plans.plan_node.PlanNode.perform`: :meth:`apply` *returning* means
-    "re-run this frame", :meth:`apply` *raising* means "propagate to the parent frame",
-    which applies the resolution again. The performing frame never branches on
-    resolution or node types.
+    A resolution interprets itself at the node that is handling the failure:
+    :meth:`apply` *returning* means "the failure was dealt with here", :meth:`apply`
+    *escalating* hands it to the node above, which applies the resolution again. The
+    handling node never branches on resolution or node types.
     """
 
     failure: PlanFailure
@@ -36,36 +35,36 @@ class FailureResolution(ABC):
     @abstractmethod
     def apply(self, node: PlanNode) -> None:
         """
-        Interpret this resolution at the given perform frame.
+        Interpret this resolution at the given node.
 
-        Returning re-runs the frame; raising the carried failure hands it to the parent
-        frame, which applies this resolution again.
+        Returning deals with the failure there; escalating the carried failure hands it
+        to the node above, which applies this resolution again.
 
-        :param node: The node whose perform frame is applying this resolution.
+        :param node: The node that is applying this resolution.
         """
 
     def propagate(self, node: PlanNode) -> None:
         """
-        Record the carried failure on the frame and raise it to the parent frame.
+        Record the carried failure on the node and escalate it along the plan tree.
 
-        The carried failure keeps a reference to this resolution, so the ancestor frame
-        that catches it applies the already decided resolution instead of consulting the
+        The carried failure keeps a reference to this resolution, so the node it is
+        escalated to applies the already decided resolution instead of consulting the
         handler again.
 
-        :param node: The node whose perform frame the failure passes through.
-        :raises PlanFailure: Always, with the carried failure.
+        :param node: The node the failure passes through.
+        :raises PlanFailure: Once escalation reaches the root of the plan.
         """
         node.status = TaskStatus.FAILED
         node.reason = self.failure
         self.failure.resolution = self
-        raise self.failure
+        node.escalate(self.failure)
 
 
 @dataclass
 class Propagate(FailureResolution):
     """
-    Give up on handling: the carried failure propagates through every enclosing frame
-    and finally out of the plan.
+    Give up on handling: the carried failure escalates through every enclosing node and
+    finally out of the plan.
     """
 
     def apply(self, node: PlanNode) -> None:
@@ -75,13 +74,13 @@ class Propagate(FailureResolution):
 @dataclass
 class TargetedResolution(FailureResolution, ABC):
     """
-    A resolution that re-runs one specific ancestor frame: it propagates through every
-    frame below the target and returns once the target frame applies it.
+    A resolution that re-runs one specific node: it escalates through every node below
+    the target and returns once the target applies it.
     """
 
     target_node: PlanNode
     """
-    The node whose perform frame is re-run.
+    The node whose work is run again.
     """
 
     def apply(self, node: PlanNode) -> None:
@@ -94,22 +93,21 @@ class TargetedResolution(FailureResolution, ABC):
 @dataclass
 class RetryNode(TargetedResolution):
     """
-    Re-run the target frame as it is, typically after a recovery sub-plan repaired the
-    situation the failure described.
+    Run the target's work again as it is, typically after a recovery sub-plan repaired
+    the situation the failure described.
     """
 
 
 @dataclass
 class Reparameterize(TargetedResolution):
     """
-    Re-run the frame of an enclosing underspecified node, which advances it to its next
-    action candidate.
+    Run an enclosing underspecified node again, which advances it to its next action
+    candidate.
     """
 
     target_node: UnderspecifiedNode
     """
-    The underspecified node that generates a fresh action candidate when its frame is
-    re-run.
+    The underspecified node that generates a fresh action candidate when it runs again.
     """
 
 
