@@ -28,6 +28,7 @@ import coraplex.datastructures.grasp_scoring
 import coraplex.datastructures.trajectory
 import coraplex.exceptions
 import coraplex.execution_environment
+import coraplex.failure_handling.detectors.motion_detectors
 import coraplex.failure_handling.failure_handler
 import coraplex.failure_handling.failure_handling_strategy
 import coraplex.failure_handling.failure_refiner
@@ -3392,6 +3393,82 @@ class FailureDetectorDAO(
     database_id: Mapped[builtins.int] = mapped_column(
         Integer, primary_key=True, use_existing_column=True
     )
+
+    polymorphic_type: Mapped[str] = mapped_column(
+        String(255), nullable=False, use_existing_column=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_on": "polymorphic_type",
+        "polymorphic_identity": "FailureDetectorDAO",
+    }
+
+
+class BodyUnfetchableDetectorDAO(
+    FailureDetectorDAO,
+    DataAccessObject[
+        coraplex.failure_handling.detectors.motion_detectors.BodyUnfetchableDetector
+    ],
+):
+    __tablename__ = "BodyUnfetchableDetectorDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(FailureDetectorDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "BodyUnfetchableDetectorDAO",
+        "inherit_condition": database_id == FailureDetectorDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class EndEffectorTargetDetectorDAO(
+    FailureDetectorDAO,
+    DataAccessObject[
+        coraplex.failure_handling.detectors.motion_detectors.EndEffectorTargetDetector
+    ],
+):
+    __tablename__ = "EndEffectorTargetDetectorDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(FailureDetectorDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    arrival_tolerance: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "EndEffectorTargetDetectorDAO",
+        "inherit_condition": database_id == FailureDetectorDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class NavigationGoalDetectorDAO(
+    FailureDetectorDAO,
+    DataAccessObject[
+        coraplex.failure_handling.detectors.motion_detectors.NavigationGoalDetector
+    ],
+):
+    __tablename__ = "NavigationGoalDetectorDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(FailureDetectorDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    arrival_tolerance: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+
+    __mapper_args__ = {
+        "polymorphic_identity": "NavigationGoalDetectorDAO",
+        "inherit_condition": database_id == FailureDetectorDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
 
 
 class FailureRefinerDAO(

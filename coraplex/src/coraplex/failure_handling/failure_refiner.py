@@ -81,16 +81,21 @@ class FailureRefiner:
     The failure detectors that narrow down the failure that happened.
     """
 
-    def most_specific_detector(self, failure: PlanFailure) -> Optional[FailureDetector]:
+    def most_specific_detector(
+        self,
+        failure: PlanFailure,
+        candidates: Optional[List[FailureDetector]] = None,
+    ) -> Optional[FailureDetector]:
         """
         :param failure: The failure to find a detector for.
+        :param candidates: The detectors to choose from, all of them by default.
         :return: The single most specific applicable detector, or None if no detector
             applies.
         :raises AmbiguousFailureDetector: If several detectors are equally specific.
         """
-        applicable = [
-            detector for detector in self.failure_detectors if detector.applies(failure)
-        ]
+        if candidates is None:
+            candidates = self.failure_detectors
+        applicable = [detector for detector in candidates if detector.applies(failure)]
         return sole_maximum(
             applicable,
             key=lambda detector: (
@@ -102,16 +107,43 @@ class FailureRefiner:
             ),
         )
 
+    def confirmed_refinement(self, failure: PlanFailure) -> Optional[PlanFailure]:
+        """
+        Let the applicable detectors examine the failure, most specific first, until one
+        confirms that its own failure type describes what happened.
+
+        A detector declines by returning the failure it was given, which hands the same
+        failure to the next most specific detector. An action can carry the parameters
+        of several detectors, so the most specific one is not necessarily the one that
+        recognises what went wrong.
+
+        :param failure: The failure to refine by one step.
+        :return: The refined failure, or None if no detector confirmed this failure.
+        """
+        candidates = list(self.failure_detectors)
+        while True:
+            detector = self.most_specific_detector(failure, candidates)
+            if detector is None:
+                return None
+
+            refined = detector.detect(failure)
+            if refined is not failure:
+                return refined
+
+            candidates = [
+                candidate for candidate in candidates if candidate is not detector
+            ]
+
     def refine(self, failure: PlanFailure) -> PlanFailure:
         """
-        Refine the failure until no detector applies to the result anymore.
+        Refine the failure until no detector confirms the result anymore.
 
         Every refinement step records where it came from, both as
         :attr:`~coraplex.plans.failures.PlanFailure.refined_from` and as the cause of the
         refined exception.
 
         :param failure: The failure that was raised during plan execution.
-        :return: The most specific failure the detectors could produce.
+        :return: The most specific failure the detectors could confirm.
         :raises FailureRefinementCycle: If the detectors produce a failure type that was
             already produced before.
         """
@@ -119,12 +151,8 @@ class FailureRefiner:
         seen_failure_types: Set[Type[PlanFailure]] = {type(failure)}
 
         while True:
-            detector = self.most_specific_detector(current)
-            if detector is None:
-                return current
-
-            refined = detector.detect(current)
-            if refined is current:
+            refined = self.confirmed_refinement(current)
+            if refined is None:
                 return current
 
             refined.refined_from = current
