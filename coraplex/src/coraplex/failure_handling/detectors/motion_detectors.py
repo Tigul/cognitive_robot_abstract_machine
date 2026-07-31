@@ -91,7 +91,7 @@ class EndEffectorTargetDetector(FailureDetector):
     output_failure_type = EndEffectorDidNotReachTarget
     required_parameter_mixins = (UsedEndEffector, TargetPoseReached)
 
-    arrival_tolerance: float = 0.03
+    arrival_tolerance: float = 0.1
     """
     How close the end effector has to be to its target to count as having reached it.
 
