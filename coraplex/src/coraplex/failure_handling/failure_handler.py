@@ -61,7 +61,7 @@ class FailureHandler:
         Refine the failure and resolve it with the most specific applicable strategy.
 
         :param failure: The failure that was raised during plan execution.
-        :return: The resolution the performing frames apply; a
+        :return: The resolution the handling nodes apply along the plan tree; a
             :class:`~coraplex.failure_handling.failure_handling_strategy.Propagate`
             carrying the refined failure when no strategy applies.
         """

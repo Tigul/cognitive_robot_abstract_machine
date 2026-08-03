@@ -10,7 +10,7 @@ from giskardpy.motion_statechart.monitors.payload_monitors import (
     ThreadedPredicateMonitor,
 )
 from krrood.entity_query_language.factories import ConditionType, evaluate_condition
-from coraplex.exceptions import ConditionNotSatisfied
+from coraplex.plans.failures import ConditionNotSatisfied
 from coraplex.plans.plan_node import PlanNode, ActionNode
 
 

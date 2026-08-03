@@ -418,9 +418,11 @@ class GiskardExecutable(Executable):
             not in [LifeCycleValues.DONE, LifeCycleValues.NOT_STARTED]
         ]
         logger.error(f"Failed Nodes: {failed_nodes}")
-        unfinished_motion = next(iter(self.motion_mappings))
-        if failed_nodes:
-            unfinished_motion = self.owning_motion_node(failed_nodes[0])
+        unfinished_motion = (
+            self.owning_motion_node(failed_nodes[0])
+            if failed_nodes
+            else next(iter(self.motion_mappings))
+        )
         raise unfinished_motion.did_not_finish_failure(failed_nodes)
 
     def _execute_real(self) -> None:

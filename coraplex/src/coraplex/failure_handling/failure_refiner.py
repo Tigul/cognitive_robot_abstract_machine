@@ -60,6 +60,9 @@ class FailureDetector(ABC):
         """
         Narrow the failure down to a more specific one.
 
+        ..warning:: Callers have to check :meth:`applies` first; detectors dereference
+            the failing action without guarding.
+
         :param failure: The failure to refine.
         :return: The refined failure, or the given failure itself if there is nothing to
             refine.

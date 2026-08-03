@@ -117,13 +117,18 @@ class ExecutesInParallel(LanguageNode, ABC):
     Base class for nodes that execute their children in parallel.
     """
 
-    @classmethod
-    def _perform_parallel(cls, nodes: List[PlanNode]):
+    _children_running: bool = field(init=False, default=False)
+    """
+    Whether the children are currently performing in their worker threads.
+    """
+
+    def _perform_parallel(self, nodes: List[PlanNode]):
         """
         Open threads for all nodes and wait for them to finish.
 
         :param nodes: A list of nodes which should be performed in parallel
         """
+        self._children_running = True
         threads = []
         for child in nodes:
             thread = threading.Thread(
@@ -134,6 +139,23 @@ class ExecutesInParallel(LanguageNode, ABC):
 
         for thread in threads:
             thread.join()
+        self._children_running = False
+
+@dataclass(eq=False)
+class ToleratesChildFailures(PlanNode, ABC):
+    """
+    A node whose :meth:`notify` already deals with failed children.
+
+    A failure escalating from below is raised back into the failing child's perform
+    frame instead of walking further up the tree, so neither this node nor its ancestors
+    are marked failed for a failure this node tolerates. Failures raised at the node
+    itself escalate normally.
+    """
+
+    def handle_failure(self, failure: PlanFailure) -> None:
+        if failure.node is not self:
+            raise failure
+        super().handle_failure(failure)
 
 
 @dataclass
@@ -157,6 +179,19 @@ class ParallelNode(ExecutesInParallel):
     """
 
     motion_state_chart_template = Parallel
+
+    def handle_failure(self, failure: PlanFailure) -> None:
+        """
+        Keep a child's failure inside its worker thread until all children finished.
+
+        The failure is re-raised on the main thread by :meth:`notify` afterwards, from
+        where it escalates normally.
+
+        :param failure: The failure that occurred at or below this node.
+        """
+        if failure.node is not self and self._children_running:
+            raise failure
+        super().handle_failure(failure)
 
     def notify(self):
         self._perform_parallel(self.children)
@@ -246,7 +281,7 @@ class MonitorNode(ExecutesSequentially):
 
 
 @dataclass(eq=False)
-class TryInOrderNode(ExecutesSequentially):
+class TryInOrderNode(ToleratesChildFailures, ExecutesSequentially):
     """
     Tries all children in order sequentially and fails if all children fail.
     """
@@ -265,7 +300,7 @@ class TryInOrderNode(ExecutesSequentially):
 
 
 @dataclass(eq=False)
-class TryAllNode(ExecutesInParallel):
+class TryAllNode(ToleratesChildFailures, ExecutesInParallel):
     """
     Executes all children in parallel.
 

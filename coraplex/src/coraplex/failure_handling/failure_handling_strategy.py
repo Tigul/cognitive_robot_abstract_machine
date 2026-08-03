@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from typing_extensions import ClassVar, Optional, TYPE_CHECKING, Type
 
@@ -72,7 +72,7 @@ class Propagate(FailureResolution):
 
 
 @dataclass
-class TargetedResolution(FailureResolution, ABC):
+class TargetedResolution(FailureResolution):
     """
     A resolution that re-runs one specific node: it escalates through every node below
     the target and returns once the target applies it.
@@ -143,7 +143,7 @@ class FailureHandlingStrategy(ABC):
         Decide how execution continues after the failure.
 
         :param failure: The refined failure to resolve.
-        :return: The resolution the performing frames apply.
+        :return: The resolution the handling nodes apply along the plan tree.
         """
 
 
@@ -161,6 +161,12 @@ class RecoveryPlanStrategy(FailureHandlingStrategy, ABC):
 
     ..note:: Recording the recovery sub-plan inside the failing plan's tree (via
         :meth:`~coraplex.plans.plan_node.PlanNode.mount_subplan`) is follow-up work.
+    """
+
+    _recovering: bool = field(init=False, default=False)
+    """
+    Whether this strategy is currently performing its recovery plan, which guards
+    against recovering from a failure of the recovery itself.
     """
 
     @abstractmethod
@@ -182,13 +188,38 @@ class RecoveryPlanStrategy(FailureHandlingStrategy, ABC):
         """
 
     def resolve(self, failure: PlanFailure) -> FailureResolution:
+        if self._recovering:
+            return Propagate(failure=failure)
         recovery_plan = self.recovery_plan(failure)
         if recovery_plan is None:
             return Propagate(failure=failure)
+        return self.perform_recovery(recovery_plan, failure)
 
-        recovery_root = execute_single(recovery_plan, context=failure.context)
+    def perform_recovery(
+        self, recovery_plan: ActionLike, failure: PlanFailure
+    ) -> FailureResolution:
+        """
+        Perform the recovery plan in the failing plan's context.
+
+        The recovery plan runs as a separate plan; the context is handed back to the
+        failing plan afterwards. A failure of the recovery itself is linked to the
+        propagated failure as its cause.
+
+        :param recovery_plan: The plan to perform before execution continues.
+        :param failure: The refined failure the recovery plan repairs.
+        :return: The follow-up resolution, or a :class:`Propagate` of the original
+            failure when the recovery failed.
+        """
+        context = failure.context
+        failing_plan = context.plan
+        recovery_root = execute_single(recovery_plan, context=context)
+        self._recovering = True
         try:
             recovery_root.perform()
-        except PlanFailure:
+        except PlanFailure as recovery_failure:
+            failure.__cause__ = recovery_failure
             return Propagate(failure=failure)
+        finally:
+            self._recovering = False
+            context.plan = failing_plan
         return self.resolution_after_recovery(failure)

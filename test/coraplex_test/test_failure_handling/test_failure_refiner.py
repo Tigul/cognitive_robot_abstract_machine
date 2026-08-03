@@ -183,6 +183,21 @@ class TargetLocationAndJointStatesRequiringDetector(FailureDetector):
 
 
 @dataclass
+class DecliningTargetLocationDetector(FailureDetector):
+    """
+    The most specific candidate for a navigation failure, yet it always declines by
+    handing the failure back.
+    """
+
+    input_failure_type = ExecutionFailure
+    output_failure_type = RefinedFailure
+    required_parameter_mixins = (TargetLocationMovedTo,)
+
+    def detect(self, failure: PlanFailure) -> PlanFailure:
+        return failure
+
+
+@dataclass
 class CycleOpeningDetector(FailureDetector):
     """
     Leaves the refined failure class behind, the first half of a refinement cycle.
@@ -309,6 +324,50 @@ def test_refinement_chains_detectors_until_none_applies(navigation_action_node):
     )
 
     assert isinstance(refiner.refine(failure), FurtherRefinedFailure)
+
+
+# %% declining detectors
+
+
+def test_a_declining_detector_hands_over_to_the_next_most_specific(
+    navigation_action_node,
+):
+    refiner = FailureRefiner(
+        failure_detectors=[DecliningTargetLocationDetector(), SingleHopDetector()]
+    )
+    failure = ExecutionFailure(node=navigation_action_node)
+
+    refined = refiner.refine(failure)
+
+    assert isinstance(refined, RefinedFailure)
+    assert refined.refined_from is failure
+
+
+def test_refinement_returns_the_failure_when_every_detector_declines(
+    navigation_action_node,
+):
+    refiner = FailureRefiner(
+        failure_detectors=[DecliningTargetLocationDetector(), NoOpDetector()]
+    )
+    failure = ExecutionFailure(node=navigation_action_node)
+
+    assert refiner.refine(failure) is failure
+
+
+def test_a_decline_that_leaves_equally_specific_detectors_is_ambiguous(
+    navigation_action_node,
+):
+    refiner = FailureRefiner(
+        failure_detectors=[
+            DecliningTargetLocationDetector(),
+            SingleHopDetector(),
+            AlternativeSingleHopDetector(),
+        ]
+    )
+    failure = ExecutionFailure(node=navigation_action_node)
+
+    with pytest.raises(AmbiguousFailureDetector):
+        refiner.refine(failure)
 
 
 # %% provenance

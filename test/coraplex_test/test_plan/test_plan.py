@@ -6,6 +6,7 @@ import pytest
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
     ApproachDirection,
+    TaskStatus,
     VerticalAlignment,
     Arms,
 )
@@ -378,6 +379,19 @@ def test_get_previous_nodes():
 
     assert node1.left_siblings == []
     assert node1.right_siblings == [node3]
+
+
+def test_an_interrupted_ancestor_short_circuits_before_execution():
+    parent = code(lambda: None, context=Context(world=None, robot=None))
+    executions = []
+    child = CodeNode(code=lambda: executions.append(True))
+    parent.add_child(child)
+    parent.interrupt()
+
+    child.perform()
+
+    assert child.status == TaskStatus.INTERRUPTED
+    assert executions == []
 
 
 # ---- Tests interacting with simulated robot/world ----

@@ -12,14 +12,13 @@ from typing_extensions import Union
 from coraplex.plans.designator import Designator
 from krrood.entity_query_language.query.match import Match
 from coraplex.datastructures.enums import TaskStatus
-from coraplex.exceptions import MotionDidNotFinish
 from coraplex.datastructures.execution_data import ExecutionData
 from coraplex.plans.executables import (
     Executable,
     GiskardExecutable,
     UnderspecifiedExecutable,
 )
-from coraplex.plans.failures import PlanFailure
+from coraplex.plans.failures import MotionDidNotFinish, PlanFailure
 from coraplex.plans.plan_entity import PlanEntity
 from coraplex.utils import split_list_by_type
 
@@ -276,11 +275,16 @@ class PlanNode(PlanEntity):
         was dealt with and the work can be run again, raising means no node up to the
         root of the plan could deal with it.
 
+        The resolution is stamped onto the failure that escalates (by
+        :meth:`~coraplex.failure_handling.failure_handling_strategy.FailureResolution.propagate`),
+        not here, so the resolution stays with exactly one failure object.
+
         :param failure: The failure that occurred at this node.
         """
-        if failure.resolution is None:
-            failure.resolution = self.plan.context.failure_handler.handle(failure)
-        failure.resolution.apply(self)
+        resolution = failure.resolution
+        if resolution is None:
+            resolution = self.plan.context.failure_handler.handle(failure)
+        resolution.apply(self)
 
     def escalate(self, failure: PlanFailure) -> None:
         """
@@ -296,6 +300,17 @@ class PlanNode(PlanEntity):
         if self.parent is None:
             raise failure
         self.parent.handle_failure(failure)
+
+    @property
+    def parent_action_node(self) -> Optional[ActionNode]:
+        """
+        :return: The nearest :class:`ActionNode` above this node, or None if there is
+            none.
+        """
+        for node in self.path:
+            if isinstance(node, ActionNode):
+                return node
+        return None
 
     def perform(self):
         """
@@ -606,17 +621,6 @@ class ActionNode(DesignatorNode):
             ]
         )
 
-    @property
-    def parent_action_node(self) -> Optional[ActionNode]:
-        """
-        Returns the next action node in the plan above this node, None if this is the
-        outermost action.
-        """
-        for node in self.path:
-            if isinstance(node, ActionNode):
-                return node
-        return None
-
     def notify(self):
 
         self.create_execution_data_pre_perform()
@@ -694,16 +698,6 @@ class MotionNode(DesignatorNode):
         """
         pass
         # return self.motion.perform()
-
-    @property
-    def parent_action_node(self) -> Optional[ActionNode]:
-        """
-        Returns the next resolved action node in the plan above this motion node.
-        """
-        for node in self.path:
-            if isinstance(node, ActionNode):
-                return node
-        return None
 
     def did_not_finish_failure(
         self, failed_motions: List[MotionStatechartNode]

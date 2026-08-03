@@ -33,9 +33,9 @@ from coraplex.datastructures.enums import (
 )
 from coraplex.exceptions import (
     MissingWaypoints,
-    MotionDidNotFinish,
     WipingTargetMissing,
 )
+from coraplex.plans.failures import MotionDidNotFinish
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription

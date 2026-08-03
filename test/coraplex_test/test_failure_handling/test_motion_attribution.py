@@ -1,104 +1,56 @@
-import pytest
-from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
-
-from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
-from coraplex.datastructures.grasp import GraspDescription
-from coraplex.exceptions import MotionDidNotFinish
-from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import ActionNode, MotionNode
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.motions.gripper import MoveToolCenterPointMotion
 
-# %% helpers
-
-
-def unreachable_pick_up(world, view, context) -> PickUpAction:
-    """
-    :return: A pick-up whose motions cannot succeed, because the robot is placed out of
-        reach of the object it grasps.
-    """
-    pick_up = PickUpAction(
-        target_object=world.get_semantic_annotations_by_type(Milk)[0],
-        arm=Arms.LEFT,
-        grasp_description=GraspDescription(
-            ApproachDirection.FRONT,
-            VerticalAlignment.NoAlignment,
-            view.left_arm.end_effector,
-        ),
-    )
-    view.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
-        1.0, 2, 0
-    )
-    context.evaluate_conditions = False
-    return pick_up
-
+from .conftest import PerformedMotionFailure
 
 # %% attribution of a motion that does not reach its goal
 
 
-def test_a_failing_motion_is_attributed_to_a_motion_node(mutable_model_world):
-    world, view, context = mutable_model_world
-    root = sequential([unreachable_pick_up(world, view, context)], context)
+def test_a_failing_motion_is_attributed_to_a_motion_node(attributed_motion_failure):
+    outcome: PerformedMotionFailure = attributed_motion_failure
 
-    with pytest.raises(MotionDidNotFinish) as raised:
-        with simulated_robot:
-            root.perform()
-
-    assert isinstance(raised.value.node, MotionNode)
+    assert isinstance(outcome.failure.node, MotionNode)
+    assert outcome.failure.node in outcome.root.plan.nodes
 
 
-def test_the_attributed_motion_node_belongs_to_the_failing_plan(mutable_model_world):
-    world, view, context = mutable_model_world
-    root = sequential([unreachable_pick_up(world, view, context)], context)
+def test_the_stuck_motion_itself_is_blamed(attributed_motion_failure):
+    """
+    The robot stands out of reach, so the reach towards the pre-grasp pose is the motion
+    that cannot finish; the gripper motions after it must not be blamed.
+    """
+    outcome: PerformedMotionFailure = attributed_motion_failure
+    blamed_motion = outcome.failure.node.designator
 
-    with pytest.raises(MotionDidNotFinish) as raised:
-        with simulated_robot:
-            root.perform()
-
-    assert raised.value.node in root.plan.nodes
+    assert isinstance(blamed_motion, MoveToolCenterPointMotion)
+    assert blamed_motion.allow_gripper_collision is False
 
 
 def test_an_attributed_failure_resolves_the_action_owning_the_motion(
-    mutable_model_world,
+    attributed_motion_failure,
 ):
     """
     The resolved action is the innermost one, so a failure inside a composite action
     names the sub-action that owns the motion rather than the whole composite.
     """
-    world, view, context = mutable_model_world
-    root = sequential([unreachable_pick_up(world, view, context)], context)
+    outcome: PerformedMotionFailure = attributed_motion_failure
+    action_node = outcome.failure.action_node
 
-    with pytest.raises(MotionDidNotFinish) as raised:
-        with simulated_robot:
-            root.perform()
-
-    action_node = raised.value.action_node
     assert isinstance(action_node, ActionNode)
-    assert action_node in raised.value.node.path
+    assert action_node in outcome.failure.node.path
     assert any(
         isinstance(ancestor, ActionNode) and isinstance(ancestor.action, PickUpAction)
-        for ancestor in raised.value.node.path
+        for ancestor in outcome.failure.node.path
     )
 
 
-def test_an_attributed_failure_resolves_its_context(mutable_model_world):
-    world, view, context = mutable_model_world
-    root = sequential([unreachable_pick_up(world, view, context)], context)
+def test_an_attributed_failure_resolves_its_context(attributed_motion_failure):
+    outcome: PerformedMotionFailure = attributed_motion_failure
 
-    with pytest.raises(MotionDidNotFinish) as raised:
-        with simulated_robot:
-            root.perform()
-
-    assert raised.value.context is context
+    assert outcome.failure.context is outcome.context
 
 
-def test_the_failed_motions_are_kept_for_diagnostics(mutable_model_world):
-    world, view, context = mutable_model_world
-    root = sequential([unreachable_pick_up(world, view, context)], context)
+def test_the_failed_motions_are_kept_for_diagnostics(attributed_motion_failure):
+    outcome: PerformedMotionFailure = attributed_motion_failure
 
-    with pytest.raises(MotionDidNotFinish) as raised:
-        with simulated_robot:
-            root.perform()
-
-    assert raised.value.failed_motions
+    assert outcome.failure.failed_motions

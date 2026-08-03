@@ -1,36 +1,51 @@
 import pytest
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
+from semantic_digital_twin.datastructures.definitions import StaticJointState
+
 from coraplex.datastructures.dataclasses import Context
-from coraplex.exceptions import ConditionNotSatisfied
+from coraplex.datastructures.enums import Arms
+from coraplex.plans.failures import ConditionNotSatisfied, MotionDidNotFinish
 from coraplex.language import CodeNode
 from coraplex.plans.condition_nodes import ConditionNode
 from coraplex.plans.executables import ConditionExecutable
 from coraplex.plans.factories import code, execute_single, sequential, try_in_order
-from coraplex.plans.failures import AllChildrenFailed, PlanFailure
+from coraplex.plans.failures import (
+    AllChildrenFailed,
+    BodyUnfetchable,
+    ConfigurationNotReached,
+    EmptyUnderspecified,
+    EndEffectorDidNotReachTarget,
+    NavigationGoalNotReachedError,
+    PlanFailure,
+    RobotInCollision,
+)
 from coraplex.plans.plan_node import ActionNode
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
+from coraplex.validation.goal_validator import MultiJointPositionGoalValidator
+
+from .conftest import FailingLeaf
 
 # %% refined_from provenance chain
 
 
 def test_refined_from_defaults_to_none():
-    failure = PlanFailure(node=None)
+    failure = PlanFailure(node=CodeNode(code=lambda: None))
 
     assert failure.refined_from is None
 
 
 def test_refined_from_links_to_the_failure_it_was_refined_from():
-    original = PlanFailure(node=None)
-    refined = PlanFailure(node=None, refined_from=original)
+    original = PlanFailure(node=CodeNode(code=lambda: None))
+    refined = PlanFailure(node=CodeNode(code=lambda: None), refined_from=original)
 
     assert refined.refined_from is original
 
 
 def test_refined_from_chain_can_be_walked_across_multiple_links():
-    first = PlanFailure(node=None)
-    second = PlanFailure(node=None, refined_from=first)
-    third = PlanFailure(node=None, refined_from=second)
+    first = PlanFailure(node=CodeNode(code=lambda: None))
+    second = PlanFailure(node=CodeNode(code=lambda: None), refined_from=first)
+    third = PlanFailure(node=CodeNode(code=lambda: None), refined_from=second)
 
     assert third.refined_from is second
     assert third.refined_from.refined_from is first
@@ -40,7 +55,7 @@ def test_refined_from_chain_can_be_walked_across_multiple_links():
 
 
 def test_resolution_defaults_to_none():
-    failure = PlanFailure(node=None)
+    failure = PlanFailure(node=CodeNode(code=lambda: None))
 
     assert failure.resolution is None
 
@@ -91,19 +106,8 @@ def test_context_returns_the_failing_plan_context(immutable_model_world):
 
 
 def test_a_try_in_order_of_failing_children_raises_a_well_formed_all_children_failed():
-    first_failing = CodeNode(code=lambda: None)
-    second_failing = CodeNode(code=lambda: None)
-
-    def fail_first():
-        raise PlanFailure(node=first_failing)
-
-    def fail_second():
-        raise PlanFailure(node=second_failing)
-
-    first_failing.code = fail_first
-    second_failing.code = fail_second
     root = try_in_order(
-        [first_failing, second_failing], Context(world=None, robot=None)
+        [FailingLeaf(), FailingLeaf()], Context(world=None, robot=None)
     )
 
     with pytest.raises(AllChildrenFailed) as raised:
@@ -126,3 +130,36 @@ def test_an_unsatisfied_condition_raises_a_well_formed_condition_not_satisfied()
     assert raised.value.node is condition_node
     assert raised.value.action is NavigateAction
     assert raised.value.pre_condition is True
+
+
+# %% every concrete failure constructs with its required kwargs
+
+
+def test_every_concrete_failure_is_constructible(immutable_model_world):
+    world, view, context = immutable_model_world
+    node = CodeNode(code=lambda: None)
+
+    failures = [
+        PlanFailure(node=node),
+        EmptyUnderspecified(node=node),
+        AllChildrenFailed(node=node, language_node=node),
+        RobotInCollision(node=node),
+        ConfigurationNotReached(
+            node=node,
+            goal_validator=MultiJointPositionGoalValidator(),
+            configuration_type=StaticJointState.PARK,
+        ),
+        NavigationGoalNotReachedError(node=node, current_pose=Pose(), goal_pose=Pose()),
+        BodyUnfetchable(node=node, body=world.root, arm=Arms.LEFT),
+        EndEffectorDidNotReachTarget(
+            node=node, end_effector=view.left_arm.end_effector, target=Pose()
+        ),
+        MotionDidNotFinish(node=node, failed_motions=[]),
+        ConditionNotSatisfied(
+            node=node, pre_condition=True, action=NavigateAction, condition=False
+        ),
+    ]
+
+    for failure in failures:
+        assert failure.node is node
+        assert failure.error_message()

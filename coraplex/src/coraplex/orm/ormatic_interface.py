@@ -4192,58 +4192,6 @@ class PlanFailureDAO(Base, DataAccessObject[coraplex.plans.failures.PlanFailure]
     }
 
 
-class ConditionNotSatisfiedDAO(
-    PlanFailureDAO, DataAccessObject[coraplex.exceptions.ConditionNotSatisfied]
-):
-    __tablename__ = "ConditionNotSatisfiedDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(PlanFailureDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    pre_condition: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
-
-    action: Mapped[TypeType] = mapped_column(
-        TypeType, nullable=False, use_existing_column=True
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "ConditionNotSatisfiedDAO",
-        "inherit_condition": database_id == PlanFailureDAO.database_id,
-        "polymorphic_load": "selectin",
-    }
-
-
-class MotionDidNotFinishDAO(
-    PlanFailureDAO, DataAccessObject[coraplex.exceptions.MotionDidNotFinish]
-):
-    __tablename__ = "MotionDidNotFinishDAO"
-
-    database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(PlanFailureDAO.database_id),
-        primary_key=True,
-        use_existing_column=True,
-    )
-
-    failed_motions: Mapped[
-        builtins.list[MotionDidNotFinishDAO_failed_motions_association]
-    ] = relationship(
-        "MotionDidNotFinishDAO_failed_motions_association",
-        collection_class=builtins.list,
-        cascade="all, delete-orphan",
-        foreign_keys="[MotionDidNotFinishDAO_failed_motions_association.source_motiondidnotfinishdao_id]",
-        lazy="selectin",
-    )
-
-    __mapper_args__ = {
-        "polymorphic_identity": "MotionDidNotFinishDAO",
-        "inherit_condition": database_id == PlanFailureDAO.database_id,
-        "polymorphic_load": "selectin",
-    }
-
-
 class AllChildrenFailedDAO(
     PlanFailureDAO, DataAccessObject[coraplex.plans.failures.AllChildrenFailed]
 ):
@@ -4304,6 +4252,30 @@ class BodyUnfetchableDAO(
 
     __mapper_args__ = {
         "polymorphic_identity": "BodyUnfetchableDAO",
+        "inherit_condition": database_id == PlanFailureDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class ConditionNotSatisfiedDAO(
+    PlanFailureDAO, DataAccessObject[coraplex.plans.failures.ConditionNotSatisfied]
+):
+    __tablename__ = "ConditionNotSatisfiedDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(PlanFailureDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    pre_condition: Mapped[builtins.bool] = mapped_column(use_existing_column=True)
+
+    action: Mapped[TypeType] = mapped_column(
+        TypeType, nullable=False, use_existing_column=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "ConditionNotSatisfiedDAO",
         "inherit_condition": database_id == PlanFailureDAO.database_id,
         "polymorphic_load": "selectin",
     }
@@ -4388,6 +4360,34 @@ class EndEffectorDidNotReachTargetDAO(
 
     __mapper_args__ = {
         "polymorphic_identity": "EndEffectorDidNotReachTargetDAO",
+        "inherit_condition": database_id == PlanFailureDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class MotionDidNotFinishDAO(
+    PlanFailureDAO, DataAccessObject[coraplex.plans.failures.MotionDidNotFinish]
+):
+    __tablename__ = "MotionDidNotFinishDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(PlanFailureDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    failed_motions: Mapped[
+        builtins.list[MotionDidNotFinishDAO_failed_motions_association]
+    ] = relationship(
+        "MotionDidNotFinishDAO_failed_motions_association",
+        collection_class=builtins.list,
+        cascade="all, delete-orphan",
+        foreign_keys="[MotionDidNotFinishDAO_failed_motions_association.source_motiondidnotfinishdao_id]",
+        lazy="selectin",
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "MotionDidNotFinishDAO",
         "inherit_condition": database_id == PlanFailureDAO.database_id,
         "polymorphic_load": "selectin",
     }
@@ -4785,38 +4785,62 @@ class SequentialNodeDAO(
     }
 
 
+class ToleratesChildFailuresDAO(
+    PlanNodeDAO, DataAccessObject[coraplex.language.ToleratesChildFailures]
+):
+    __tablename__ = "ToleratesChildFailuresDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(PlanNodeDAO.database_id), primary_key=True, use_existing_column=True
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "ToleratesChildFailuresDAO",
+        "inherit_condition": database_id == PlanNodeDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
 class TryAllNodeDAO(
-    ExecutesInParallelDAO, DataAccessObject[coraplex.language.TryAllNode]
+    ToleratesChildFailuresDAO, DataAccessObject[coraplex.language.TryAllNode]
 ):
     __tablename__ = "TryAllNodeDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ExecutesInParallelDAO.database_id),
+        ForeignKey(ToleratesChildFailuresDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
+    motion_state_chart_template: Mapped[TypeType] = mapped_column(
+        TypeType, nullable=False, use_existing_column=True
+    )
+
     __mapper_args__ = {
         "polymorphic_identity": "TryAllNodeDAO",
-        "inherit_condition": database_id == ExecutesInParallelDAO.database_id,
+        "inherit_condition": database_id == ToleratesChildFailuresDAO.database_id,
         "polymorphic_load": "selectin",
     }
 
 
 class TryInOrderNodeDAO(
-    ExecutesSequentiallyDAO, DataAccessObject[coraplex.language.TryInOrderNode]
+    ToleratesChildFailuresDAO, DataAccessObject[coraplex.language.TryInOrderNode]
 ):
     __tablename__ = "TryInOrderNodeDAO"
 
     database_id: Mapped[builtins.int] = mapped_column(
-        ForeignKey(ExecutesSequentiallyDAO.database_id),
+        ForeignKey(ToleratesChildFailuresDAO.database_id),
         primary_key=True,
         use_existing_column=True,
     )
 
+    motion_state_chart_template: Mapped[TypeType] = mapped_column(
+        TypeType, nullable=False, use_existing_column=True
+    )
+
     __mapper_args__ = {
         "polymorphic_identity": "TryInOrderNodeDAO",
-        "inherit_condition": database_id == ExecutesSequentiallyDAO.database_id,
+        "inherit_condition": database_id == ToleratesChildFailuresDAO.database_id,
         "polymorphic_load": "selectin",
     }
 

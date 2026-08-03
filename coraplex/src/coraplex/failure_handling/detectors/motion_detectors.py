@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import numpy as np
 
-from coraplex.exceptions import MotionDidNotFinish
+from coraplex.plans.failures import MotionDidNotFinish
 from coraplex.failure_handling.failure_refiner import FailureDetector
 from coraplex.locations.pose_validator import IsObjectReachableBy
 from coraplex.plans.failures import (

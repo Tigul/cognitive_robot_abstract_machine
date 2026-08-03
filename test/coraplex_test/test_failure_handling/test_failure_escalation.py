@@ -1,52 +1,22 @@
-from dataclasses import dataclass
+import time
 
 import pytest
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import TaskStatus
 from coraplex.failure_handling.failure_handler import FailureHandler
-from coraplex.failure_handling.failure_handling_strategy import (
-    FailureHandlingStrategy,
-    FailureResolution,
-    Propagate,
-    RetryNode,
-)
-from coraplex.language import CodeNode, SequentialNode
+from coraplex.language import CodeNode, ParallelNode, TryAllNode, TryInOrderNode
 from coraplex.plans.factories import sequential
-from coraplex.plans.failures import PlanFailure
+from coraplex.plans.failures import AllChildrenFailed, PlanFailure
 
+from .conftest import (
+    ConsultationCountingHandler,
+    FailingLeaf,
+    SequenceRetryingStrategy,
+    context_with,
+    sequence_over_a_leaf,
+)
 from .test_failure_handler import HandledFailure
-from .test_perform_integration import ConsultationCountingHandler, context_with
-
-# %% stub strategies
-
-
-@dataclass
-class SequenceRetryingStrategy(FailureHandlingStrategy):
-    """
-    Retries the nearest enclosing sequence, which never runs in a perform frame of its
-    own.
-    """
-
-    def resolve(self, failure: PlanFailure) -> FailureResolution:
-        for ancestor in failure.node.path:
-            if isinstance(ancestor, SequentialNode):
-                return RetryNode(failure=failure, target_node=ancestor)
-        return Propagate(failure=failure)
-
-
-# %% helpers
-
-
-def sequence_over_a_leaf(context: Context) -> tuple[SequentialNode, CodeNode]:
-    """
-    :param context: The context the plan is built in.
-    :return: A sequence and the leaf below it, neither of which the other performs in a
-        frame of its own.
-    """
-    leaf = CodeNode(code=lambda: None)
-    root = sequential([leaf], context)
-    return root, leaf
 
 
 # %% escalation along the plan tree
@@ -122,19 +92,128 @@ def test_the_handler_is_consulted_once_while_a_failure_escalates():
 
 def test_perform_hands_a_failure_to_the_node_that_raised_it():
     handler = FailureHandler(strategies=[SequenceRetryingStrategy()])
-    context = context_with(handler)
-    executions = []
-    leaf = CodeNode(code=lambda: None)
-    root = sequential([leaf], context)
-
-    def fail_once():
-        executions.append(len(executions))
-        if len(executions) < 2:
-            raise HandledFailure(node=leaf)
-
-    leaf.code = fail_once
+    leaf = FailingLeaf(failure_type=HandledFailure, remaining_failures=1)
+    root = sequential([leaf], context_with(handler))
 
     root.perform()
 
-    assert executions == [0, 1]
+    assert leaf.executions == 2
     assert root.status == TaskStatus.SUCCEEDED
+
+
+def test_a_sequence_target_reruns_all_of_the_sequences_work():
+    """
+    Re-running a targeted sequence runs its whole merged work again, including children
+    that already succeeded.
+    """
+    handler = FailureHandler(strategies=[SequenceRetryingStrategy()])
+    executions = []
+    first = CodeNode(code=lambda: executions.append("first"))
+    failing = FailingLeaf(failure_type=HandledFailure, remaining_failures=1)
+    root = sequential([first, failing], context_with(handler))
+
+    root.perform()
+
+    assert executions == ["first", "first"]
+    assert failing.executions == 2
+    assert root.status == TaskStatus.SUCCEEDED
+
+
+# %% failure-tolerant nodes stop the escalation walk
+
+
+def test_a_tolerated_failure_leaves_the_try_in_order_and_its_ancestors_unfailed():
+    handler = ConsultationCountingHandler()
+    executions = []
+    failing = FailingLeaf()
+    succeeding = CodeNode(code=lambda: executions.append(True))
+    try_node = TryInOrderNode()
+    root = sequential([try_node], context_with(handler))
+    try_node.add_child(failing)
+    try_node.add_child(succeeding)
+
+    root.perform()
+
+    assert executions == [True]
+    assert failing.status == TaskStatus.FAILED
+    assert try_node.status != TaskStatus.FAILED
+    assert root.status == TaskStatus.SUCCEEDED
+    assert root.reason is None
+    assert handler.consultations == 1
+
+
+def test_all_children_failing_escalates_from_the_try_in_order_node():
+    try_node = TryInOrderNode()
+    root = sequential([try_node], Context(world=None, robot=None))
+    try_node.add_child(FailingLeaf())
+    try_node.add_child(FailingLeaf())
+
+    with pytest.raises(AllChildrenFailed):
+        root.perform()
+
+    assert try_node.status == TaskStatus.FAILED
+    assert root.status == TaskStatus.FAILED
+
+
+def test_a_tolerated_failure_leaves_the_try_all_and_its_ancestors_unfailed():
+    handler = ConsultationCountingHandler()
+    executions = []
+    failing = FailingLeaf()
+    succeeding = CodeNode(code=lambda: executions.append(True))
+    try_node = TryAllNode()
+    root = sequential([try_node], context_with(handler))
+    try_node.add_child(failing)
+    try_node.add_child(succeeding)
+
+    root.perform()
+
+    assert executions == [True]
+    assert failing.status == TaskStatus.FAILED
+    assert try_node.status != TaskStatus.FAILED
+    assert root.status == TaskStatus.SUCCEEDED
+    assert handler.consultations == 1
+
+
+def test_all_children_failing_escalates_from_the_try_all_node():
+    try_node = TryAllNode()
+    root = sequential([try_node], Context(world=None, robot=None))
+    try_node.add_child(FailingLeaf())
+    try_node.add_child(FailingLeaf())
+
+    with pytest.raises(AllChildrenFailed):
+        root.perform()
+
+    assert try_node.status == TaskStatus.FAILED
+    assert root.status == TaskStatus.FAILED
+
+
+def test_a_parallel_child_failure_stays_in_its_thread_until_all_children_finished():
+    """
+    While the children perform in worker threads, a child's failure must not touch the
+    shared ancestors; the parallel node re-raises it on the main thread afterwards, from
+    where it escalates normally.
+    """
+    handler = ConsultationCountingHandler()
+    observed_root_statuses = []
+    failing = FailingLeaf()
+    parallel_node = ParallelNode()
+
+    def observe_root_after_the_failure():
+        deadline = time.time() + 2
+        while failing.status != TaskStatus.FAILED and time.time() < deadline:
+            time.sleep(0.001)
+        time.sleep(0.05)
+        observed_root_statuses.append(root.status)
+
+    observer = CodeNode(code=observe_root_after_the_failure)
+    root = sequential([parallel_node], context_with(handler))
+    parallel_node.add_child(failing)
+    parallel_node.add_child(observer)
+
+    with pytest.raises(PlanFailure):
+        root.perform()
+
+    assert observed_root_statuses == [TaskStatus.RUNNING]
+    assert parallel_node.status == TaskStatus.FAILED
+    assert root.status == TaskStatus.FAILED
+    assert handler.consultations == 1

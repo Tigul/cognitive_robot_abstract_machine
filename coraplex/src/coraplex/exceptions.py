@@ -3,8 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing_extensions import TYPE_CHECKING, Type, List
 
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode
-from krrood.entity_query_language.factories import ConditionType, get_false_statements
 from krrood.exceptions import DataclassException
 from coraplex.datastructures.enums import Arms, ExecutionType
 from coraplex.plans.failures import PlanFailure
@@ -15,7 +13,6 @@ if TYPE_CHECKING:
         FailureHandlingStrategy,
     )
     from coraplex.plans.designator import Designator
-    from coraplex.robot_plans.actions.base import ActionDescription
     from semantic_digital_twin.robots.robot_parts import AbstractRobot
     from semantic_digital_twin.world_description.world_entity import (
         KinematicStructureEntity,
@@ -127,36 +124,6 @@ class MissingToolFrame(DataclassException):
 
     def suggest_correction(self) -> str:
         return "ensure the arm's end effector defines a tool frame."
-
-
-@dataclass
-class ConditionNotSatisfied(PlanFailure):
-
-    pre_condition: bool
-    action: Type[ActionDescription]
-    condition: ConditionType
-
-    def error_message(self) -> str:
-        prefix = "Pre" if self.pre_condition else "Post"
-        if isinstance(self.condition, bool):
-            return f"{prefix}-Condition for Action '{self.action.__name__}' is not satisfied"
-        false_statements = get_false_statements(self.condition)
-        return f"{prefix}-Condition for Action '{self.action.__name__}' is not satisfied, following statements are false: {[s._name_ for s in false_statements]}"
-
-    def suggest_correction(self) -> str:
-        return ""
-
-
-@dataclass
-class MotionDidNotFinish(PlanFailure):
-
-    failed_motions: List[MotionStatechartNode]
-
-    def error_message(self) -> str:
-        return f"Motion did not finish, following motions failed: {self.failed_motions}"
-
-    def suggest_correction(self) -> str:
-        return ""
 
 
 @dataclass

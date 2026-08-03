@@ -4,6 +4,7 @@ import pytest
 from krrood.entity_query_language.factories import a
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
+from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import TaskStatus
 from coraplex.exceptions import AmbiguousFailureHandlingStrategy
 from coraplex.failure_handling.factories import baseline_failure_handler
@@ -19,11 +20,12 @@ from coraplex.failure_handling.failure_refiner import FailureDetector, FailureRe
 from coraplex.failure_handling.strategies.underspecified_reparameterization_strategy import (
     UnderspecifiedReparameterizationStrategy,
 )
-from coraplex.language import CodeNode
-from coraplex.plans.factories import code, execute_single
+from coraplex.plans.factories import execute_single
 from coraplex.plans.failures import PlanFailure
-from coraplex.plans.plan_node import PlanNode, UnderspecifiedNode
+from coraplex.plans.plan_node import UnderspecifiedNode
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
+
+from .conftest import child_of
 
 # %% stub failures
 
@@ -123,6 +125,19 @@ class RefinedFailureOnlyStrategy(FailureHandlingStrategy):
 
 
 @dataclass
+class RefinedRetryingStrategy(FailureHandlingStrategy):
+    """
+    Handles the detector's output type by retrying the failing node, so that the
+    original failure and the refined one part ways after refinement.
+    """
+
+    handled_failure_type = RefinedHandledFailure
+
+    def resolve(self, failure: PlanFailure) -> FailureResolution:
+        return RetryNode(failure=failure, target_node=failure.node)
+
+
+@dataclass
 class ExhaustibleRetryStrategy(FailureHandlingStrategy):
     """
     Retries a bounded number of times and propagates once its attempts are exhausted,
@@ -146,25 +161,6 @@ class ExhaustibleRetryStrategy(FailureHandlingStrategy):
             return Propagate(failure=failure)
         self.attempts += 1
         return RetryNode(failure=failure, target_node=failure.node)
-
-
-# %% fixtures
-
-
-@pytest.fixture
-def code_node() -> CodeNode:
-    return code(lambda: None)
-
-
-@pytest.fixture
-def underspecified_node() -> UnderspecifiedNode:
-    return execute_single(a(NavigateAction)(target_location=Pose()))
-
-
-def child_of(parent: PlanNode) -> CodeNode:
-    child = CodeNode(code=lambda: None)
-    parent.add_child(child)
-    return child
 
 
 # %% resolution apply contract
@@ -208,6 +204,27 @@ def test_a_targeted_resolution_escalates_below_its_target(code_node):
     assert child.status == TaskStatus.FAILED
     assert child.reason is failure
     assert failure.resolution is None
+
+
+def test_the_original_failure_carries_no_resolution_after_refinement():
+    """
+    Only the failure that escalates carries the resolution; a resolution decided for a
+    refined failure must not stick to the original one, which would otherwise never be
+    re-consulted for.
+    """
+    handler = FailureHandler(
+        refiner=FailureRefiner(failure_detectors=[RefiningDetector()]),
+        strategies=[RefinedRetryingStrategy()],
+    )
+    action_node = execute_single(
+        NavigateAction(target_location=Pose()),
+        context=Context(world=None, robot=None, failure_handler=handler),
+    )
+    original = HandledFailure(node=action_node)
+
+    action_node.handle_failure(original)
+
+    assert original.resolution is None
 
 
 # %% strategy selection

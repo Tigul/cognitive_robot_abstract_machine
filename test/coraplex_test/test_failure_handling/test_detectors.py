@@ -5,7 +5,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
-from coraplex.exceptions import MotionDidNotFinish
+from coraplex.plans.failures import MotionDidNotFinish
 from coraplex.failure_handling.detectors import (
     BodyUnfetchableDetector,
     EndEffectorTargetDetector,
@@ -20,20 +20,12 @@ from coraplex.plans.failures import (
     PlanFailure,
 )
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
-from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.robot_body import MoveManipulatorAction
 
+from .conftest import milk_pick_up, move_the_robot_out_of_reach
+
 # %% world setup
-
-
-def move_the_robot_out_of_reach(view) -> None:
-    """
-    Drive the robot away from the objects, so nothing it could act on is reachable.
-    """
-    view.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
-        1.0, 2, 0
-    )
 
 
 def move_the_robot_within_reach(view) -> None:
@@ -68,15 +60,7 @@ def arrived_navigation_failure(context) -> MotionDidNotFinish:
 
 
 def manipulation_failure(world, view, context) -> MotionDidNotFinish:
-    action = PickUpAction(
-        target_object=world.get_semantic_annotations_by_type(Milk)[0],
-        arm=Arms.LEFT,
-        grasp_description=GraspDescription(
-            ApproachDirection.FRONT,
-            VerticalAlignment.NoAlignment,
-            view.left_arm.end_effector,
-        ),
-    )
+    action = milk_pick_up(world, view)
     return MotionDidNotFinish(node=execute_single(action, context), failed_motions=[])
 
 
