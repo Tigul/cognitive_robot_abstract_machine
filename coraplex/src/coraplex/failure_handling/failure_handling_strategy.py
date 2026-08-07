@@ -137,6 +137,17 @@ class FailureHandlingStrategy(ABC):
         """
         return isinstance(failure, self.handled_failure_type)
 
+    def retried_node(self, failure: PlanFailure) -> PlanNode:
+        """
+        :param failure: The refined failure to find a retry target for.
+        :return: The node a targeted resolution runs again: the action the failure
+            happened in, or the failing node itself when no action encloses it.
+
+        A single motion of an action is rarely meaningful on its own, so the whole
+        action is repeated rather than the node that happened to raise.
+        """
+        return failure.action_node or failure.node
+
     @abstractmethod
     def resolve(self, failure: PlanFailure) -> FailureResolution:
         """

@@ -122,6 +122,17 @@ class PlanNode(PlanEntity):
         return result
 
     @property
+    def subtree(self) -> List[PlanNode]:
+        """
+        :return: This node followed by everything below it in depth-first order, which
+            is the order in which a plan executes its nodes.
+        """
+        result = [self]
+        for child in self.children:
+            result.extend(child.subtree)
+        return result
+
+    @property
     def path(self) -> List[PlanNode]:
         """
         :return: The ancestors of this node, ordered from the immediate parent

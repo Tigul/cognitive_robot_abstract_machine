@@ -34,7 +34,7 @@ PlanFailure raised during execute(), carrying the node it happened at
 
 Motion failures are attributed through `GiskardExecutable.motion_mappings`: a per-motion watchdog cancels the chart with a `MotionDidNotFinish` that names the `MotionNode` whose motion did not finish, and the timeout path resolves a failed statechart node to its owning motion by walking `parent_node` to the top level before inverting the mapping.
 
-`Context.failure_handler` is always present (`default_factory` builds a *baseline* handler: empty detector ensemble + one `UnderspecifiedReparameterizationStrategy`); it lives in `coraplex/src/coraplex/datastructures/dataclasses.py:89`. The baseline strategy reproduces the pre-subsystem semantics: if the failure occurred beneath an `UnderspecifiedNode` (walk `failure.node.path` — *strict* ancestors only, which is what lets `EmptyUnderspecified` terminate the iteration instead of re-targeting the exhausted node itself), return `Reparameterize(nearest UnderspecifiedNode)`; else `Propagate`. Running an `UnderspecifiedNode` again naturally advances to the next candidate, because its `parse().execute()` calls `advance()`.
+`Context.failure_handler` is always present (`default_factory=FailureHandler.baseline` builds a *baseline* handler: empty detector ensemble + one `UnderspecifiedReparameterizationStrategy`); it lives in `coraplex/src/coraplex/datastructures/dataclasses.py`. A plan opts into recovery by assigning `default_failure_handler()` to its context. The baseline strategy reproduces the pre-subsystem semantics: if the failure occurred beneath an `UnderspecifiedNode` (walk `failure.node.path` — *strict* ancestors only, which is what lets `EmptyUnderspecified` terminate the iteration instead of re-targeting the exhausted node itself), return `Reparameterize(nearest UnderspecifiedNode)`; else `Propagate`. Running an `UnderspecifiedNode` again naturally advances to the next candidate, because its `parse().execute()` calls `advance()`.
 
 **Key reuse:**
 - `krrood/src/krrood/patterns/specificity_ranking.py` — `sole_maximum`, `mro_depth` for detector/strategy selection (coraplex→krrood import is allowed).
@@ -161,28 +161,31 @@ Deviations from the original spec: every detector checks the world state and *de
 
 Tests: `test_detectors.py` — build `NavigateAction`/`PickUpAction` nodes without executing, hand-craft `MotionDidNotFinish`, assert `applies`/`detect` payloads and decline behaviour; refiner-level test that the ensemble picks different detectors for navigation vs. manipulation actions.
 
-### WP7 — Concrete recovery strategies + factory + end-to-end *(deps: WP4, WP5, WP6)*
-**Suggested model:** Opus — integration-heavy: recovery plans executing in simulated worlds, `Location`-based pose regeneration, and an end-to-end test that exercises the whole pipeline; failures here are debugging problems, not specification problems.
+### WP7 — Concrete recovery strategies + factory + end-to-end *(deps: WP4, WP5, WP6)* — **done**
 
-`coraplex/src/coraplex/failure_handling/strategies/`:
-- `retry_strategy.py` — `RetryStrategy(maximum_attempts: int = 3)`: no recovery plan, returns `RetryNode(failure.action_node or failure.node)` until exhausted, then `Propagate` (per-node attempt counts; nodes are `eq=False` so id-hashing works). Targeting `failure.action_node` only became viable with tree-based escalation — an `ActionNode` usually has no perform frame, so the original stack-based model could never have reached it.
-- `navigation_recovery_strategy.py` — for `NavigationGoalNotReachedError`: `RecoveryPlanStrategy` whose recovery plan is a `NavigateAction` to a re-generated standing pose (reuse `coraplex/src/coraplex/locations/base.py` `Location` candidates), then `RetryNode`.
-- `BodyUnfetchable` re-parameterization is already covered by WP3's baseline `UnderspecifiedReparameterizationStrategy`; add a subclass only if failure-specific behavior emerges.
-- Extend `failure_handling/factories.py` with `default_failure_handler() -> FailureHandler` wiring the full detector + strategy ensemble (baseline strategy included).
+`coraplex/src/coraplex/failure_handling/`:
+- `attempt_budget.py` — `AttemptBudget(maximum_attempts=3)`, per-node attempt counts behind a lock (parallel children consult one strategy instance from several threads). Both new strategies bound themselves with it, which is what makes `PlanNode.perform`'s unbounded retry loop terminate against a deterministic failure. Deviation from the original spec: the bound is this object rather than a `maximum_attempts` field per strategy, so it is written once.
+- `strategies/retry_strategy.py` — `RetryStrategy` (reusable base) plus `MotionRetryStrategy` (`MotionDidNotFinish`, a motion no detector recognised) and `EndEffectorRetryStrategy` (`EndEffectorDidNotReachTarget`). The base stays declared for `PlanFailure` and is therefore *not* registrable next to the baseline strategy — two strategies of equal specificity are ambiguous, so the shipped ones declare narrower types.
+- `strategies/navigation_recovery_strategy.py` — `NavigationRecoveryStrategy` for `NavigationGoalNotReachedError`: recovery plan is a `NavigateAction` to a standing pose regenerated from `occupancy_location(failure.goal_pose, failure.context)`, skipping the goal the robot just failed to reach; then `RetryNode` on the failing action. The budget is consulted before any pose is generated, so giving up costs no world iteration.
+- `FailureHandlingStrategy.retried_node(failure)` — `failure.action_node or failure.node`, shared by both strategies. Targeting the action node only became viable with tree-based escalation.
+- `factories.py` — `default_failure_handler()` wires all three detectors and `NavigationRecoveryStrategy`, `MotionRetryStrategy`, `EndEffectorRetryStrategy`, `UnderspecifiedReparameterizationStrategy` (which keeps answering `BodyUnfetchable`).
 
-Open considerations for this WP:
-- `PlanNode.perform`'s retry loop is unbounded; today only underspecified candidate exhaustion bounds retries, so `RetryStrategy`'s attempt bookkeeping is what makes targeted retries terminate against deterministic failures.
-- A targeted resolution only re-runs its target when the target is at or below the nearest enclosing perform frame; a `RetryStrategy` targeting `failure.action_node` beneath a `TryInOrder`/parallel child should account for that.
-- Parallel children share one handler and one strategy instance across threads; attempt bookkeeping in strategies needs to tolerate concurrent consultation.
+Import-cycle constraint that shaped the layout: `Context` defaults to a handler, and the detectors (via `locations`) and `NavigateAction` import `Context`. So `baseline_failure_handler()` became `FailureHandler.baseline()` (import-light, used by `Context`), `factories.py` is no longer on `Context`'s import path, and **`failure_handling/strategies/__init__.py` must stay empty** — `failure_handler.py` imports a module from that package, which would execute re-exports of the navigation strategy and rebuild the cycle.
 
-Tests: `test_strategies.py` (stub failures: exhaustion, recovery-plan failure → `Propagate`); `test_end_to_end.py` with `mutable_simple_pr2_world` under `simulated_robot`: a plan sabotaged to raise `MotionDidNotFinish` once inside a `NavigateAction` ends `SUCCEEDED` with `default_failure_handler()`, and the failure history shows the `NavigationGoalNotReachedError` refinement and the performed recovery plan. ORM regen; full `pytest test/coraplex_test/` run.
+Also fixed here, because the per-node budget surfaced it: plan nodes hashed by identity (`PlanNode.__hash__`) but inherited a *generated* `__eq__` from `PlanEntity`, which compares entities by the plan managing them — so every node of a plan equalled every other one, and `CodeNode`/`SequentialNode`/`ParallelNode`/`ConditionNode` were unhashable on top (plain `@dataclass` drops the inherited `__hash__`). `PlanEntity` and those node classes are now `eq=False`.
+
+That in turn exposed `Plan.nodes`, which promised depth-first order but returned `[root] + root.descendants` — and `descendants` is breadth-first. `test_depth_first_nodes_order` had been comparing lists of nodes that all compared equal, so it never checked anything. `PlanNode.subtree` now walks depth-first and `Plan.nodes` returns it, which also makes `PlanNode.previous_nodes` (documented as depth-first, used to find the action a later one follows) actually depth-first.
+
+Open consideration left standing: a targeted resolution only re-runs its target when the target is at or below the nearest enclosing perform frame, so a retry targeting `failure.action_node` beneath a `TryInOrder`/parallel child re-runs that child's whole work.
+
+Tests: `test_strategies.py` (budgets, retry targets, exhaustion, declared failure types, the shipped ensemble's selection per refined failure type, navigation recovery); `test_end_to_end.py` with `mutable_model_world` under `simulated_robot` — the first navigation chart raises the `MotionDidNotFinish` a stuck chart would raise, and with `default_failure_handler()` the plan ends `SUCCEEDED` with the robot at its goal, the blamed motion node recording the `NavigationGoalNotReachedError` refinement, and three charts run (failed attempt, recovery drive, retry). `test_plan.py::test_every_plan_node_is_identified_by_identity` covers the node-identity fix. `mutable_simple_pr2_world` was avoided: it returns the shared session world with a `Context` built on a throwaway copy, so `context.world` and `context.robot` belong to different worlds.
 
 ## Dependency graph
 
 ```
-WP0 ─┐                                   done: WP0..WP5, WP6
+WP0 ─┐                                   done: WP0..WP5, WP6, WP7
 WP1 ─┴→ WP2 → WP3 → WP4 → WP4a → WP4b → WP5 ─┬→ WP5a (open)
-              WP2 → WP6 ──────────────────────┴→ WP7 (open)
+              WP2 → WP6 ──────────────────────┴→ WP7
 ```
 
 End-to-end value from WP4 (refined failures surface to users); full recovery demo at WP7.

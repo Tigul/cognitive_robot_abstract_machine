@@ -104,14 +104,14 @@ class LanguageNode(PlanNode, ABC):
         return Executable(execution_list=exec_list, context=self.plan.context)
 
 
-@dataclass
+@dataclass(eq=False)
 class ExecutesSequentially(LanguageNode):
     """
     Base class for nodes that execute their children sequentially.
     """
 
 
-@dataclass
+@dataclass(eq=False)
 class ExecutesInParallel(LanguageNode, ABC):
     """
     Base class for nodes that execute their children in parallel.
@@ -141,6 +141,7 @@ class ExecutesInParallel(LanguageNode, ABC):
             thread.join()
         self._children_running = False
 
+
 @dataclass(eq=False)
 class ToleratesChildFailures(PlanNode, ABC):
     """
@@ -158,7 +159,7 @@ class ToleratesChildFailures(PlanNode, ABC):
         super().handle_failure(failure)
 
 
-@dataclass
+@dataclass(eq=False)
 class SequentialNode(ExecutesSequentially):
     """
     Executes all children sequentially.
@@ -169,7 +170,7 @@ class SequentialNode(ExecutesSequentially):
     motion_state_chart_template = Sequence
 
 
-@dataclass
+@dataclass(eq=False)
 class ParallelNode(ExecutesInParallel):
     """
     Executes all children in parallel by creating a thread per children and executing
@@ -316,7 +317,7 @@ class TryAllNode(ToleratesChildFailures, ExecutesInParallel):
             raise AllChildrenFailed(node=self, language_node=self)
 
 
-@dataclass
+@dataclass(eq=False)
 class CodeNode(LanguageNode):
     """
     Executable function in a plan.

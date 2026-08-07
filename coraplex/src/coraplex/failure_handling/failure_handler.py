@@ -13,6 +13,9 @@ from coraplex.failure_handling.failure_handling_strategy import (
     Propagate,
 )
 from coraplex.failure_handling.failure_refiner import FailureRefiner
+from coraplex.failure_handling.strategies.underspecified_reparameterization_strategy import (
+    UnderspecifiedReparameterizationStrategy,
+)
 from coraplex.plans.failures import PlanFailure
 
 # %% handler
@@ -34,6 +37,24 @@ class FailureHandler:
     """
     The strategies that resolve refined failures.
     """
+
+    @classmethod
+    def baseline(cls) -> FailureHandler:
+        """
+        :return: The handler every plan context starts with: no detectors and only the
+            baseline re-parameterization strategy, which reproduces the
+            pre-failure-handling execution semantics.
+
+        ..note:: This construction lives here rather than in
+            :mod:`coraplex.failure_handling.factories`, because
+            :class:`~coraplex.datastructures.dataclasses.Context` defaults to it and the
+            full ensemble in that module imports actions and locations, which in turn
+            import the context.
+        """
+        return cls(
+            refiner=FailureRefiner(),
+            strategies=[UnderspecifiedReparameterizationStrategy()],
+        )
 
     def most_specific_strategy(
         self, failure: PlanFailure

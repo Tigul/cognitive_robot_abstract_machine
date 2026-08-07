@@ -7,7 +7,6 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import TaskStatus
 from coraplex.exceptions import AmbiguousFailureHandlingStrategy
-from coraplex.failure_handling.factories import baseline_failure_handler
 from coraplex.failure_handling.failure_handler import FailureHandler
 from coraplex.failure_handling.failure_handling_strategy import (
     FailureHandlingStrategy,
@@ -278,9 +277,7 @@ def test_equally_specific_strategies_are_ambiguous(code_node):
 
 
 def test_an_exhausted_strategy_propagates(code_node):
-    handler = FailureHandler(
-        strategies=[ExhaustibleRetryStrategy(maximum_attempts=2)]
-    )
+    handler = FailureHandler(strategies=[ExhaustibleRetryStrategy(maximum_attempts=2)])
 
     first = handler.handle(HandledFailure(node=code_node))
     second = handler.handle(HandledFailure(node=code_node))
@@ -338,7 +335,7 @@ def test_the_baseline_handler_reparameterizes_under_an_underspecified_node(
     failing_leaf = child_of(underspecified_node)
     failure = HandledFailure(node=failing_leaf)
 
-    resolution = baseline_failure_handler().handle(failure)
+    resolution = FailureHandler.baseline().handle(failure)
 
     assert isinstance(resolution, Reparameterize)
     assert resolution.target_node is underspecified_node

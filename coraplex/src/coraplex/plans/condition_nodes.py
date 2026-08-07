@@ -14,7 +14,7 @@ from coraplex.plans.failures import ConditionNotSatisfied
 from coraplex.plans.plan_node import PlanNode, ActionNode
 
 
-@dataclass
+@dataclass(eq=False)
 class ConditionNode(PlanNode):
     """
     Node representing a pre or post condition of an action.

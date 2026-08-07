@@ -17,7 +17,6 @@ from krrood.entity_query_language.backends import (
     EntityQueryLanguageGenerativeBackend,
 )
 from krrood.class_diagrams.mocking import MockedClass, MockedModule
-from coraplex.failure_handling.factories import baseline_failure_handler
 from coraplex.failure_handling.failure_handler import FailureHandler
 from coraplex.plans.plan import Plan
 from coraplex.plans.plan_entity import PlanEntity
@@ -86,7 +85,7 @@ class Context(PlanEntity):
     use their default motion chart.
     """
 
-    failure_handler: FailureHandler = field(default_factory=baseline_failure_handler)
+    failure_handler: FailureHandler = field(default_factory=FailureHandler.baseline)
     """
     The handler execution consults when a node performed in this context fails.
 

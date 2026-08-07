@@ -221,6 +221,27 @@ def test_path_after_node_removal():
     assert root.depth == 0
 
 
+# %% node identity
+
+
+def test_every_plan_node_is_identified_by_identity():
+    """
+    Plan nodes are vertices of a graph, so two nodes carrying the same parameters are
+    still different nodes, and every node can key a dictionary.
+
+    ``PlanNode`` says so with its own ``__hash__``, but a subclass declared with a plain
+    ``@dataclass`` regenerates ``__eq__`` and thereby drops that hash.
+    """
+    node = CodeNode(code=lambda: None)
+    twin = CodeNode(code=node.code)
+
+    attempts = {node: 1, twin: 2}
+
+    assert node != twin
+    assert attempts[node] == 1
+    assert attempts[twin] == 2
+
+
 def test_plan_node_children():
 
     plan = Plan()

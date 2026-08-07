@@ -28,10 +28,13 @@ import coraplex.datastructures.grasp_scoring
 import coraplex.datastructures.trajectory
 import coraplex.exceptions
 import coraplex.execution_environment
+import coraplex.failure_handling.attempt_budget
 import coraplex.failure_handling.detectors.motion_detectors
 import coraplex.failure_handling.failure_handler
 import coraplex.failure_handling.failure_handling_strategy
 import coraplex.failure_handling.failure_refiner
+import coraplex.failure_handling.strategies.navigation_recovery_strategy
+import coraplex.failure_handling.strategies.retry_strategy
 import coraplex.failure_handling.strategies.underspecified_reparameterization_strategy
 import coraplex.language
 import coraplex.language_giskard_templates
@@ -3162,6 +3165,18 @@ class ExecutionEnvironmentDAO(
     )
 
 
+class AttemptBudgetDAO(
+    Base, DataAccessObject[coraplex.failure_handling.attempt_budget.AttemptBudget]
+):
+    __tablename__ = "AttemptBudgetDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        Integer, primary_key=True, use_existing_column=True
+    )
+
+    maximum_attempts: Mapped[builtins.int] = mapped_column(use_existing_column=True)
+
+
 class FailureHandlerDAO(
     Base, DataAccessObject[coraplex.failure_handling.failure_handler.FailureHandler]
 ):
@@ -3460,6 +3475,116 @@ class FailureRefinerDAO(
         foreign_keys="[FailureRefinerDAO_failure_detectors_association.source_failurerefinerdao_id]",
         lazy="selectin",
     )
+
+
+class NavigationRecoveryStrategyDAO(
+    RecoveryPlanStrategyDAO,
+    DataAccessObject[
+        coraplex.failure_handling.strategies.navigation_recovery_strategy.NavigationRecoveryStrategy
+    ],
+):
+    __tablename__ = "NavigationRecoveryStrategyDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(RecoveryPlanStrategyDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    arrival_tolerance: Mapped[builtins.float] = mapped_column(use_existing_column=True)
+
+    attempt_budget_id: Mapped[int] = mapped_column(
+        ForeignKey("AttemptBudgetDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    attempt_budget: Mapped[AttemptBudgetDAO] = relationship(
+        "AttemptBudgetDAO",
+        uselist=False,
+        foreign_keys=[attempt_budget_id],
+        post_update=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "NavigationRecoveryStrategyDAO",
+        "inherit_condition": database_id == RecoveryPlanStrategyDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class RetryStrategyDAO(
+    FailureHandlingStrategyDAO,
+    DataAccessObject[coraplex.failure_handling.strategies.retry_strategy.RetryStrategy],
+):
+    __tablename__ = "RetryStrategyDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(FailureHandlingStrategyDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    attempt_budget_id: Mapped[int] = mapped_column(
+        ForeignKey("AttemptBudgetDAO.database_id", use_alter=True),
+        nullable=True,
+        use_existing_column=True,
+    )
+
+    attempt_budget: Mapped[AttemptBudgetDAO] = relationship(
+        "AttemptBudgetDAO",
+        uselist=False,
+        foreign_keys=[attempt_budget_id],
+        post_update=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "RetryStrategyDAO",
+        "inherit_condition": database_id == FailureHandlingStrategyDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class EndEffectorRetryStrategyDAO(
+    RetryStrategyDAO,
+    DataAccessObject[
+        coraplex.failure_handling.strategies.retry_strategy.EndEffectorRetryStrategy
+    ],
+):
+    __tablename__ = "EndEffectorRetryStrategyDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(RetryStrategyDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "EndEffectorRetryStrategyDAO",
+        "inherit_condition": database_id == RetryStrategyDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
+
+
+class MotionRetryStrategyDAO(
+    RetryStrategyDAO,
+    DataAccessObject[
+        coraplex.failure_handling.strategies.retry_strategy.MotionRetryStrategy
+    ],
+):
+    __tablename__ = "MotionRetryStrategyDAO"
+
+    database_id: Mapped[builtins.int] = mapped_column(
+        ForeignKey(RetryStrategyDAO.database_id),
+        primary_key=True,
+        use_existing_column=True,
+    )
+
+    __mapper_args__ = {
+        "polymorphic_identity": "MotionRetryStrategyDAO",
+        "inherit_condition": database_id == RetryStrategyDAO.database_id,
+        "polymorphic_load": "selectin",
+    }
 
 
 class UnderspecifiedReparameterizationStrategyDAO(
