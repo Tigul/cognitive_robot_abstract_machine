@@ -47,10 +47,30 @@ flowchart TD
 - LanguageNodes define the order and concurrency of execution.
 - Action/Motion nodes actually perform work on the robot based on Designators (see below).
 
+```{figure} _static/images/plan-graph.png
+---
+width: 800px
+align: center
+alt: A plan tree mixing language, action, underspecified and motion nodes
+---
+One tree, several kinds of node. The dashed parts do not exist while the plan is being built —
+the chosen candidate and its motions appear only once execution reaches them.
+```
+
 ## PlanNodes in one sentence
 
 A `PlanNode` is a step in the Plan. It knows its status (created/running/succeeded/failed/paused), its position in the
 Plan (parent/children), and—if it is executable—how to perform its part.
+
+```{figure} _static/images/plan-lifecycle.png
+---
+width: 800px
+align: center
+alt: The notify, parse and execute stages, and the status a node moves through
+---
+Performing a node runs in three stages. Building a plan is cheap and side-effect free; only
+execution touches the robot or the world.
+```
 
 ## How Designators connect to the Plan (conceptually)
 

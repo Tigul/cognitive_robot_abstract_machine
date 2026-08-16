@@ -48,10 +48,6 @@ is the convenience classmethod {meth}`~coraplex.locations.costmaps.OccupancyCost
 occupancy = OccupancyCostmap.default_map(context, target_pose)
 ```
 
-You can see an image of the final Occupancy costmap with an inflation radius of 0.2 m below.
-
-![](_static/images/occupancy_costmap.png)
-
 ## Visibility Costmap
 
 Visibility costmaps show the visibility for a specific position in a restricted area. This means every position from
@@ -78,10 +74,6 @@ visibility = VisibilityCostmap(
 
 See {class}`~coraplex.locations.costmaps.VisibilityCostmap` for the full parameter reference.
 
-A simple visibility costmap with two objects can be seen below.
-
-![](_static/images/visibility_costmap.png)
-
 ## Gaussian Costmap
 
 A gaussian costmap is essentially a 2D gauss distribution with its peak at the centre of the the costmap. Gaussian
@@ -107,11 +99,6 @@ gauss = GaussianCostmap(
 ```
 
 See {class}`~coraplex.locations.costmaps.GaussianCostmap` for the full parameter reference.
-
-A plot of the gaussian costmap can be seen below. This is a matplotlib plot of the costmap to better show the
-distribution.
-
-![](_static/images/gaussian_costmap.png)
 
 ## Ring Costmap
 
@@ -147,8 +134,6 @@ from coraplex.locations.costmaps import plot_grid
 
 plot_grid(visibility.map)
 ```
-
-The image for the gaussian costmap shows such a matplotlib plot.
 
 ## Merging Costmaps
 

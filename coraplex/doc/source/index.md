@@ -11,6 +11,19 @@
 ```
 
 
+CoraPlex is the planning executive of the cognitive robot abstract machine: it turns a symbolic
+task description into what the robot actually does, reading and updating the semantic digital twin
+as it goes.
+
+```{figure} _static/images/architecture-overview.png
+---
+width: 560px
+align: center
+alt: The CRAM architecture, with the CoraPlex sector highlighted
+---
+Where CoraPlex sits in the wider system.
+```
+
 ## Key features
 
 - Intent-based task specification: express “what” to do using designators; the framework decides the concrete “how” at run time.
@@ -28,6 +41,16 @@
 - Tested examples and demos: runnable scenarios (e.g., PR2 pick-and-place) illustrate typical workflows and best practices.
 
 ## Why it matters
+
+```{figure} _static/images/layer-recap.png
+---
+width: 700px
+align: center
+alt: Designators, plan tree and executables, running on a simulated or a real robot
+---
+From a symbolic description to a moving robot, in four layers.
+```
+
 - ✅ Fewer brittle hacks, more reusable intent.
 - ✅ Faster iteration in simulation, safer rollouts on real robots.
 - ✅ Robust control that anticipates uncertainty—and recovers when reality disagrees.

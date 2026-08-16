@@ -39,6 +39,16 @@ managers. Entering an environment sets the class-level `execution_type` and `col
 {class}`~coraplex.plans.executables.GiskardExecutable`; leaving it restores the previous values, so environments can be
 nested safely.
 
+```{figure} _static/images/simulated-or-real.png
+---
+width: 800px
+align: center
+alt: The same plan branching into simulated or real execution at the lowest level
+---
+The same plan object runs in both cases. Only the lowest-level `execute()` call branches on the
+execution type — everything to the left of that branch is identical.
+```
+
 ```python
 from coraplex.execution_environment import simulated_robot, real_robot
 

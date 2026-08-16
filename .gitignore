@@ -23,6 +23,9 @@ msg/_*.py
 !.claude/hooks/tests/fixtures/set-up-clone/**/*.txt
 *.png
 !.claude/skills/plan-dashboard/example/screenshots/*.png
+# Documentation images are part of the docs and have to be committed.
+!**/doc/**/*.png
+!doc/**/*.png
 *.lprof
 tmp_data/
 tmp/

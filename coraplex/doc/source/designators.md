@@ -39,12 +39,16 @@ The concrete grounded instance is what is grounded from the description and subs
   - Chosen when the task runs, after checking the current world and robot state.
   - Contain the exact data needed to execute (a specific pose, a specific motion, a specific object instance).
 
-You can of the description and grounded layers like this:
+You can think of the description and grounded layers like this:
 
-```{image} _static/images/designators.png
-:alt: Designator Layers
-:align: center
-:width: 70%
+```{figure} _static/images/designator-card.png
+---
+width: 480px
+align: center
+alt: A TransportAction designator, its parameter types and the concrete values one task binds them to
+---
+A `TransportAction` description: the fields it declares, and the concrete values a single task
+binds them to. `_action_plan` is the plan the description expands into.
 ```
 
 The description the set of all possible options, given the constraints and the grounded instance is one specific option
@@ -69,6 +73,18 @@ Only when the plan gets to that step are concrete choices made. The system picks
 The grounded designator is carried out. If it fails (e.g., object moved, pose blocked), the plan can try alternative candidates or recovery strategies.
 
 ## The kinds of designators
+
+Action designators sit at three levels of abstraction: composite actions compose other actions,
+core actions bottom out in motions, and motions drive the robot.
+
+```{figure} _static/images/action-families.png
+---
+width: 800px
+align: center
+alt: Composite, core and motion designators, with TransportAction highlighted
+---
+One `TransportAction` reaches through every level below it.
+```
 
 - Action designators ({class}`~coraplex.robot_plans.actions.base.ActionDescription`)
 
@@ -96,6 +112,17 @@ or by querying the belief state with the Entity Query Language. Action designato
 Designators are what make up a plan. They are structured using the plan language to shape the control flow and error handling.
 The plan records the life cycle of a designator as well, meaning a designator description in the plan has its grounded
 instances as children.
+
+```{figure} _static/images/transport-plan.png
+---
+width: 800px
+align: center
+alt: The eight steps a TransportAction expands into
+---
+The plan a single `TransportAction` expands into. None of the poses are literals — every
+navigation target is itself a designator, grounded later. The first step exists only when the
+world says the object is inside something.
+```
 
 Key Points:
 
