@@ -3,8 +3,14 @@ from typing import Optional
 
 from typing_extensions import List
 
-from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
+from giskardpy.motion_statechart.goals.templates import Parallel
+from giskardpy.motion_statechart.tasks.joint_tasks import (
+    JointPositionList,
+    JointState,
+    JointVelocityLimit,
+)
 from giskardpy.motion_statechart.tasks.pointing import Pointing
+from coraplex.robot_plans.mixins import HasMaxJointVelocity
 from coraplex.robot_plans.motions.base import BaseMotion
 from coraplex.robot_plans.parameter_mixins import (
     CameraTargetParameters,
@@ -16,7 +22,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 
 @dataclass
-class MoveJointsMotion(BaseMotion, LinkAlignmentApplied):
+class MoveJointsMotion(BaseMotion, LinkAlignmentApplied, HasMaxJointVelocity):
     """
     Moves any joint on the robot.
     """
@@ -46,8 +52,18 @@ class MoveJointsMotion(BaseMotion, LinkAlignmentApplied):
     @property
     def _motion_chart(self):
         dofs = [self.world.get_connection_by_name(name) for name in self.names]
-        return JointPositionList(
-            goal_state=JointState.from_mapping(dict(zip(dofs, self.positions)))
+        joint_task = JointPositionList(
+            goal_state=JointState.from_mapping(dict(zip(dofs, self.positions))),
+        )
+        if self.max_joint_velocity is None:
+            return joint_task
+        return Parallel(
+            [
+                joint_task,
+                JointVelocityLimit(
+                    connections=dofs, max_velocity=self.max_joint_velocity
+                ),
+            ]
         )
 
 

@@ -22,9 +22,14 @@ from coraplex.datastructures.enums import (
     MovementType,
 )
 from coraplex.datastructures.grasp import GraspDescription
-from coraplex.plans.factories import sequential, execute_single
+from coraplex.plans.factories import sequential
 from coraplex.querying.predicates import GripperIsFree
 from coraplex.robot_plans.actions.base import ActionDescription
+from coraplex.robot_plans.mixins import (
+    HasGraspDetectionThreshold,
+    PickUpTuningParameters,
+    ReachTuningParameters,
+)
 from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
     MoveToolCenterPointMotion,
@@ -37,7 +42,7 @@ from coraplex.robot_plans.parameter_mixins import (
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.reasoning.predicates import allclose
-from semantic_digital_twin.reasoning.robot_predicates import is_body_in_gripper
+from semantic_digital_twin.reasoning.robot_predicates import is_body_gripped
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.semantic_annotations.mixins import IsGraspable
@@ -51,6 +56,7 @@ class ReachAction(
     GraspParameters,
     TargetPoseReached,
     PoseSequenceReversed,
+ReachTuningParameters, HasGraspDetectionThreshold
 ):
     """
     Let the robot reach a specific pose.
@@ -59,6 +65,12 @@ class ReachAction(
     target_object: Optional[IsGraspable] = field(default=None, kw_only=True)
     """
     The graspable annotation describing the object that should be reached for.
+    """
+
+    open_gripper_at_pre_pose: bool = False
+    """
+    Whether to open the gripper once the pre-pose is reached, used by
+    :class:`PickUpAction` to open before its slower final approach.
     """
 
     @property
@@ -70,21 +82,28 @@ class ReachAction(
         target_pre_pose, target_pose, _ = self.grasp_description.pose_sequence(
             self.target_pose, target_body, reverse=self.reverse_pose_sequence
         )
-        return sequential(
-            children=[
-                MoveToolCenterPointMotion(
-                    target_pose=target_pre_pose,
+        children = [
+            MoveToolCenterPointMotion(
+                target_pose=target_pre_pose,
                     arm=self.arm,
                     allow_gripper_collision=False,
-                ),
-                MoveToolCenterPointMotion(
-                    target_pose=target_pose,
-                    arm=self.arm,
-                    allow_gripper_collision=False,
-                    movement_type=MovementType.CARTESIAN,
-                ),
-            ],
+                max_linear_velocity=self.pre_approach_linear_velocity,
+            ),
+        ]
+        if self.open_gripper_at_pre_pose:
+            children.append(
+                MoveGripperMotion(motion=GripperState.OPEN, gripper=self.arm)
+            )
+        children.append(
+            MoveToolCenterPointMotion(
+                target_pose=target_pose,
+                arm=self.arm,
+                allow_gripper_collision=False,
+                movement_type=MovementType.CARTESIAN,
+                max_linear_velocity=self.final_approach_linear_velocity,
+            )
         )
+        return sequential(children=children)
 
     def execute(self) -> Any:
         self.add_subplan(self.action_plan).perform()
@@ -121,10 +140,11 @@ class ReachAction(
         """
         end_effector = ViewManager.get_end_effector_view(kwargs["arm"], context.robot)
         return or_(
-            is_body_in_gripper(
+            is_body_gripped(
                 variable_from(kwargs["target_object"].root), end_effector
-            )
-            > 0.9,
+            ,
+                threshold=kwargs["grasp_detection_threshold"],
+            ),
             allclose(
                 variable_from(kwargs["target_object"].root).global_pose.to_position(),
                 variable_from(end_effector.tool_frame).global_pose.to_position(),
@@ -134,7 +154,7 @@ class ReachAction(
 
 
 @dataclass
-class PickUpAction(ActionDescription, GraspParameters):
+class PickUpAction(ActionDescription, GraspParameters, PickUpTuningParameters, HasGraspDetectionThreshold):
     """
     Let the robot pick up an object.
     """
@@ -153,19 +173,40 @@ class PickUpAction(ActionDescription, GraspParameters):
                     target_object=self.target_object,
                     arm=self.arm,
                     grasp_description=self.grasp_description,
+                    pre_approach_linear_velocity=self.pre_approach_linear_velocity,
+                    final_approach_linear_velocity=self.final_approach_linear_velocity,
+                    open_gripper_at_pre_pose=True,
                 ),
-                MoveGripperMotion(motion=GripperState.CLOSE, arm=self.arm),
+                MoveGripperMotion(
+                    motion=GripperState.CLOSE,
+                    arm=self.arm,
+                    finger_velocity=self.grasp_closing_velocity,
+                    stall_minimum_time=self.grasp_stall_minimum_time,
+                    tolerate_stall=self.tolerate_grasp_stall,
+                ),
                 AttachNode(
                     body=self.target_object.root,
                     new_parent=ViewManager.get_end_effector_view(
                         self.arm, self.robot
                     ).tool_frame,
                 ),
+            ],
+        )
+
+    @property
+    def _action_plan(self) -> PlanNode:
+        _, _, lift_to_pose = self.grasp_description.grasp_pose_sequence(
+            self.object_designator
+        )
+        return sequential(
+            children=[
+                self._grasp_attempt_plan(),
                 MoveToolCenterPointMotion(
                     target_pose=lift_to_pose,
                     arm=self.arm,
                     allow_gripper_collision=True,
                     movement_type=MovementType.TRANSLATION,
+                    max_linear_velocity=self.lift_linear_velocity,
                 ),
             ],
         )
@@ -207,10 +248,11 @@ class PickUpAction(ActionDescription, GraspParameters):
         )
         return or_(
             not_(GripperIsFree(end_effector)),
-            is_body_in_gripper(
+            is_body_gripped(
                 variable_from(kwargs["target_object"].root), end_effector
-            )
-            > 0.9,
+            ,
+                threshold=kwargs["grasp_detection_threshold"],
+            ),
         )
 
 
