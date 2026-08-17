@@ -60,6 +60,7 @@ def test_get_bound_variables(immutable_model_world):
         "grasp_description",
         "arm",
         "target_object",
+        "tolerate_grasp_stall",
     ]
     assert list(bound_variables["arm"]._domain_) == [Arms.LEFT]
     assert bound_variables["arm"]._type_ == Arms

@@ -318,9 +318,9 @@ def test_detection_corrects_a_grasp_planned_before_it(immutable_model_world):
 
     plan = execute_single(
         PickUpAction(
-            milk_body,
-            Arms.RIGHT,
-            GraspDescription(
+            target_object=milk_body,
+            arm=Arms.RIGHT,
+            grasp_description=GraspDescription(
                 ApproachDirection.FRONT,
                 VerticalAlignment.NoAlignment,
                 view.right_arm.end_effector,

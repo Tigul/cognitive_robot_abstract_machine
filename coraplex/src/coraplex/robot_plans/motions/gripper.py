@@ -66,23 +66,6 @@ HasTcpGoalThresholds
     poses for an object.
     """
 
-    object_designator: Body
-    """
-    Object designator_description describing the object that should be picked up
-    """
-    arm: Arms
-    """
-    The arm that should be used for pick up
-    """
-    grasp_description: GraspDescription
-    """
-    The grasp description that should be used for picking up the object
-    """
-    movement_type: MovementType = MovementType.CARTESIAN
-    """
-    The type of movement that should be performed.
-    """
-
     def _calculate_pose_sequence(self) -> List[Pose]:
         end_effector = ViewManager.get_end_effector_view(self.arm, self.robot_view)
 

@@ -165,7 +165,7 @@ def test_reach_action_multi(immutable_stationary_block_world):
                 target_pose=Pose(
                     Point3.from_iterable(position), reference_frame=world.root
                 ),
-                target_object=box_object,
+                target_object=GraspableObject(root=box_body),
                 arm=Arms.LEFT,
                 grasp_description=grasp_description,
             ),

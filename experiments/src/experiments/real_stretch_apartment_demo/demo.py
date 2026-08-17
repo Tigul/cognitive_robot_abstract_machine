@@ -165,7 +165,7 @@ class StretchApartmentDemonstration(RobotDemonstration):
 
         return sequential(
             [
-                ParkArmsAction(Arms.BOTH),
+                ParkArmsAction(arm=Arms.BOTH),
                 NavigateAction(
                     Pose.from_xyz_rpy(
                         0.8, 0.6, 0, yaw=-np.pi / 2, reference_frame=world.root

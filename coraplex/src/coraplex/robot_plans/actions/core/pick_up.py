@@ -92,7 +92,7 @@ ReachTuningParameters, HasGraspDetectionThreshold
         ]
         if self.open_gripper_at_pre_pose:
             children.append(
-                MoveGripperMotion(motion=GripperState.OPEN, gripper=self.arm)
+                MoveGripperMotion(motion=GripperState.OPEN, arm=self.arm)
             )
         children.append(
             MoveToolCenterPointMotion(
@@ -159,6 +159,8 @@ class PickUpAction(ActionDescription, GraspParameters, PickUpTuningParameters, H
     Let the robot pick up an object.
     """
 
+    tolerate_grasp_stall: bool = field(kw_only=True, default=False)
+
     @property
     def _action_plan(self) -> PlanNode:
 
@@ -167,7 +169,6 @@ class PickUpAction(ActionDescription, GraspParameters, PickUpTuningParameters, H
         )
         return sequential(
             children=[
-                MoveGripperMotion(motion=GripperState.OPEN, arm=self.arm),
                 ReachAction(
                     target_pose=self.target_object.root.global_pose,
                     target_object=self.target_object,
@@ -189,24 +190,6 @@ class PickUpAction(ActionDescription, GraspParameters, PickUpTuningParameters, H
                     new_parent=ViewManager.get_end_effector_view(
                         self.arm, self.robot
                     ).tool_frame,
-                ),
-            ],
-        )
-
-    @property
-    def _action_plan(self) -> PlanNode:
-        _, _, lift_to_pose = self.grasp_description.grasp_pose_sequence(
-            self.object_designator
-        )
-        return sequential(
-            children=[
-                self._grasp_attempt_plan(),
-                MoveToolCenterPointMotion(
-                    target_pose=lift_to_pose,
-                    arm=self.arm,
-                    allow_gripper_collision=True,
-                    movement_type=MovementType.TRANSLATION,
-                    max_linear_velocity=self.lift_linear_velocity,
                 ),
             ],
         )

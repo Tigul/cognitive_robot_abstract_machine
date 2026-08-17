@@ -24,7 +24,7 @@ from coraplex.datastructures.grasp import GraspDescription
 from coraplex.plans.factories import sequential
 from coraplex.querying.predicates import GripperIsFree
 from coraplex.robot_plans.actions.base import ActionDescription
-from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.pick_up import PickUpAction, ReachAction
 from coraplex.robot_plans.mixins import (
     HasGraspDetectionThreshold,
     PlaceTuningParameters,
@@ -74,7 +74,7 @@ class PlaceAction(ActionDescription, ObjectManipulationParameters, TargetLocatio
                 ReachAction(
                     target_pose=self.target_location,
                     arm=self.arm,
-                    grasp_description=previous_grasp,
+                    grasp_description=previous_grasp_description,
                     target_object=self.target_object,
                     reverse_pose_sequence=True,
                 ),
@@ -121,7 +121,7 @@ class PlaceAction(ActionDescription, ObjectManipulationParameters, TargetLocatio
                 is_body_gripped(
                 variable_from(kwargs["target_object"].root), end_effector
             ,
-                    threshold=kwargs["grasp_release_threshold"],
+                    threshold=kwargs["grasp_detection_threshold"],
                 )
             ),
             allclose(
