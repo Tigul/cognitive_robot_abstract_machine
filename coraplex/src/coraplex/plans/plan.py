@@ -17,6 +17,7 @@ from typing_extensions import (
     Type,
 )
 
+from coraplex.exceptions import CannotInsertBesideRoot
 from coraplex.plans.plan_entity import PlanEntity
 from coraplex.plans.plan_node import (
     PlanNode,
@@ -252,6 +253,40 @@ class Plan:
         """
         self.add_edge(insert_below, insert_node)
 
+    def insert_before(self, reference_node: PlanNode, node: PlanNode):
+        """
+        Inserts a node as the left neighbour of a node of this plan.
+
+        :param reference_node: The node of the plan the given node is inserted before
+        :param node: The node to insert
+        """
+        self._insert_as_sibling(reference_node, node, reference_node.layer_index)
+
+    def insert_after(self, reference_node: PlanNode, node: PlanNode):
+        """
+        Inserts a node as the right neighbour of a node of this plan.
+
+        :param reference_node: The node of the plan the given node is inserted after
+        :param node: The node to insert
+        """
+        self._insert_as_sibling(reference_node, node, reference_node.layer_index + 1)
+
+    def _insert_as_sibling(
+        self, reference_node: PlanNode, node: PlanNode, layer_index: int
+    ):
+        """
+        Inserts a node under the parent of the reference node at the given position
+        among its children, shifting the later children to the right.
+
+        :param reference_node: The node of the plan whose parent takes the given node
+        :param node: The node to insert
+        :param layer_index: The position the given node takes among its new siblings
+        :raises CannotInsertBesideRoot: If the reference node is the root of the plan
+        """
+        if reference_node.parent is None:
+            raise CannotInsertBesideRoot(reference_node)
+        self.add_edge(reference_node.parent, node, layer_index)
+
     def perform(self) -> Any:
         """
         Performs the root node of this plan.
@@ -323,7 +358,9 @@ class Plan:
         GraphVisualizerBackend.PLOTLY: InteractiveGraphVisualizer,
         GraphVisualizerBackend.CYTOSCAPE: CytoscapeGraphVisualizer,
     }
-    """The visualizer to use for each rendering backend."""
+    """
+    The visualizer to use for each rendering backend.
+    """
 
     def visualize(
         self,
@@ -333,9 +370,9 @@ class Plan:
         """
         Open an interactive, real-time visualization of the plan graph.
 
-        Nodes appear as the plan is built, are labelled by their type, coloured by execution
-        status and reveal their status and timing when clicked. With the default physics layout
-        the nodes self-organize and bounce as the plan grows.
+        Nodes appear as the plan is built, are labelled by their type, coloured by
+        execution status and reveal their status and timing when clicked. With the
+        default physics layout the nodes self-organize and bounce as the plan grows.
 
         :param backend: The rendering technology to use.
         :param layout: The algorithm used to place the nodes.

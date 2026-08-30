@@ -12,6 +12,7 @@ from coraplex.plans.failures import PlanFailure
 
 if TYPE_CHECKING:
     from coraplex.plans.designator import Designator
+    from coraplex.plans.plan_node import PlanNode
     from coraplex.robot_plans.actions.base import ActionDescription
     from semantic_digital_twin.robots.robot_parts import AbstractRobot
     from semantic_digital_twin.world_description.world_entity import (
@@ -42,6 +43,27 @@ class ContextIsUnavailable(DataclassException):
         return (
             "did you forget to call `add_subplan` when creating plans inside actions?"
         )
+
+
+@dataclass
+class CannotInsertBesideRoot(DataclassException):
+    """
+    Raised when a node is to be inserted before or after the root node, which has no
+    parent that could hold the new sibling.
+    """
+
+    root: PlanNode
+    """
+    The root node that was given as the reference node.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.root} is the root of the plan and has no parent to hold a sibling."
+        )
+
+    def suggest_correction(self) -> str:
+        return "insert the node below the root instead"
 
 
 @dataclass
