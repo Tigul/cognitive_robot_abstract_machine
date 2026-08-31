@@ -98,7 +98,12 @@ from coraplex.robot_plans.transformation_rules import DetectBeforeGrasp
 
 context.transformation_rules.append(DetectBeforeGrasp())
 
-reach = execute_single(reach_for_the_milk(), context=context)
+reach = execute_single( ReachAction(
+        target_pose=Pose(reference_frame=milk.root),
+        arm=Arms.RIGHT,
+        grasp_description=grasp_description,
+        object_designator=milk,
+    ), context=context)
 reach.notify()
 
 show(reach)
