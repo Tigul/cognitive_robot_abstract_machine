@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from typing_extensions import List
+from typing_extensions import List, cast
 
 from coraplex.datastructures.enums import DetectionTechnique
 from coraplex.exceptions import PerceptionTargetMissing
@@ -38,7 +38,7 @@ class DetectBeforeGrasp(InsertionRule, ActionTransformationRule[ReachAction]):
         return self.final_approach(plan_node)
 
     def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
-        reach = plan_node.action
+        reach = cast(ReachAction, plan_node.action)
         if reach.object_designator is None:
             raise PerceptionTargetMissing(reach)
         return [
