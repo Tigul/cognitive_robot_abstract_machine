@@ -20,6 +20,7 @@ from krrood.patterns.subclass_safe_generic import (
     SubClassSafeGeneric,
 )
 from krrood.utils import get_generic_type_parameters
+from semantic_digital_twin.adapters.sensors.lidar import LaserReading
 from semantic_digital_twin.reasoning.predicates import LeftOf, RightOf
 from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.world_description.world_modification import (
@@ -44,6 +45,7 @@ TGenericRightFinger = TypeVar("TGenericRightFinger")
 TGenericFingers = TypeVarTuple("TGenericFingers")
 TGenericArms = TypeVarTuple("TGenericArms")
 TGenericSensors = TypeVarTuple("TGenericSensors")
+TGenericLaserScanner = TypeVar("TGenericLaserScanner")
 
 
 @dataclass(eq=False)
@@ -298,3 +300,27 @@ class HasNeck(Generic[TGenericNeck], SubClassSafeGeneric, RobotPartMixin, ABC):
 
     def validate(self):
         assert self.neck is not None, f"Expected neck, got None"
+
+
+@dataclass(eq=False)
+class HasLaserScanner(
+    Generic[TGenericLaserScanner], SubClassSafeGeneric, RobotPartMixin, ABC
+):
+    """
+    Mixin class for robots or robot parts that have a laser scanner as their direct
+    child.
+    """
+
+    laser_scanner: TGenericLaserScanner = field(default=None, kw_only=True)
+    """
+    The laser scanner attached to the robot part.
+    """
+
+    def validate(self):
+        assert self.laser_scanner is not None, "Expected laser scanner, got None"
+
+    def get_laser_reading(self) -> LaserReading:
+        """
+        :return: The most recent sweep of the attached laser scanner.
+        """
+        return self.laser_scanner.get_laser_reading()

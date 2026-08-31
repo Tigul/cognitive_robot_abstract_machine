@@ -30,6 +30,7 @@ from krrood.class_diagrams.attribute_introspector import (
 from krrood.entity_query_language.factories import variable, contains, a, entity
 from krrood.ormatic.utils import classproperty
 from krrood.utils import get_generic_type_parameters
+from semantic_digital_twin.adapters.sensors.lidar import Laser, LaserReading
 from semantic_digital_twin.datastructures.definitions import JointStateType
 from semantic_digital_twin.datastructures.field_of_view import FieldOfView
 from semantic_digital_twin.datastructures.joint_state import JointState
@@ -507,6 +508,29 @@ class Camera(Sensor, ABC):
             rotation_matrix=RotationMatrix.from_x_axis(root_V_forward),
             reference_frame=root_T_camera.reference_frame,
         )
+
+
+@dataclass(eq=False)
+class LaserScanner(Sensor, ABC):
+    """
+    A laser scanner is a sensor that measures the distance to the surfaces around it
+    along a fan of beams.
+    """
+
+    laser_source: Laser = field(kw_only=True)
+    """
+    Where the readings of this scanner come from, either a real scanner or the world.
+    """
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.laser_source.root = self.root
+
+    def get_laser_reading(self) -> LaserReading:
+        """
+        :return: The most recent sweep of this scanner.
+        """
+        return self.laser_source.get_laser_reading()
 
 
 @dataclass(eq=False)
