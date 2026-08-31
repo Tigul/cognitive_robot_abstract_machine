@@ -129,7 +129,7 @@ class WipingTargetMissing(DataclassException):
 @dataclass
 class PerceptionTargetMissing(DataclassException):
     """
-    Raised when an action is asked to perceive before grasping but names no object.
+    Raised when a rule is to perceive before grasping but the action names no object.
     """
 
     instance: Designator
@@ -138,10 +138,13 @@ class PerceptionTargetMissing(DataclassException):
     """
 
     def error_message(self) -> str:
-        return f"{self.instance} perceives before grasping but names no object."
+        return f"{self.instance} is to perceive before grasping but names no object."
 
     def suggest_correction(self) -> str:
-        return "provide an object_designator or leave perceive_before_grasp off."
+        return (
+            "provide an object_designator or drop the detect-before-grasp rule from the"
+            " context."
+        )
 
 
 @dataclass

@@ -45,7 +45,7 @@ def test_get_bound_variables(immutable_model_world):
 
     bound_variables = pick_action._create_variables()
 
-    assert len(bound_variables) == 12
+    assert len(bound_variables) == 11
     assert list(bound_variables.keys()) == [
         "grasp_detection_threshold",
         "pre_approach_linear_velocity",
@@ -58,7 +58,6 @@ def test_get_bound_variables(immutable_model_world):
         "arm",
         "grasp_description",
         "tolerate_grasp_stall",
-        "perceive_before_grasp",
     ]
     assert list(bound_variables["arm"]._domain_) == [Arms.LEFT]
     assert bound_variables["arm"]._type_ == Arms

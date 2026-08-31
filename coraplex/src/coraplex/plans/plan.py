@@ -42,6 +42,7 @@ if TYPE_CHECKING:
     from coraplex.plans.plan_callbacks import PlanCallback
     from coraplex.datastructures.dataclasses import Context
     from coraplex.plans.designator import Designator
+    from coraplex.plans.transformation_rules import TransformationRule
 
 
 logger = logging.getLogger(__name__)
@@ -243,15 +244,14 @@ class Plan:
         for node in nodes_for_adding:
             self.add_node(node)
 
-    def insert_below(self, insert_node: PlanNode, insert_below: PlanNode):
+    def insert_below(self, reference_node: PlanNode, node: PlanNode):
         """
-        Inserts a node below the given node.
+        Inserts a node as the last child of a node of this plan.
 
-        :param insert_node: The node to be inserted
-        :param insert_below: A node of the plan below which the given node should be
-            added
+        :param reference_node: The node of the plan the given node is inserted below
+        :param node: The node to insert
         """
-        self.add_edge(insert_below, insert_node)
+        self.add_edge(reference_node, node)
 
     def insert_before(self, reference_node: PlanNode, node: PlanNode):
         """
@@ -286,6 +286,25 @@ class Plan:
         if reference_node.parent is None:
             raise CannotInsertBesideRoot(reference_node)
         self.add_edge(reference_node.parent, node, layer_index)
+
+    @property
+    def transformation_rules(self) -> List[TransformationRule]:
+        """
+        The rules that rewrite this plan while it is expanded.
+
+        :return: The rules of this plan's context; a plan without a context has none.
+        """
+        return self.context.transformation_rules if self.context else []
+
+    def apply_transformation_rules(self, node: PlanNode):
+        """
+        Rewrites the plan with every rule that applies to the given node.
+
+        :param node: The node that was just expanded
+        """
+        for rule in self.transformation_rules:
+            if rule.applies_to(node):
+                rule.apply(node)
 
     def perform(self) -> Any:
         """
