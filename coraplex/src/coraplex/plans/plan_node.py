@@ -626,7 +626,7 @@ class ActionNode(DesignatorNode):
 
         if not self.children:
             self.action.expand()
-            self.plan.apply_transformation_rules(self)
+            self.plan.apply_plan_transformations(self)
 
         # recursively expand nested actions, conditions are only evaluated during execution
         for child in self.children:

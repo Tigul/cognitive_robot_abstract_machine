@@ -21,27 +21,27 @@ ActionType = TypeVar("ActionType", bound=ActionDescription)
 
 
 @dataclass
-class TransformationRule(Generic[NodeType], SubClassSafeGeneric, ABC):
+class PlanTransformation(Generic[NodeType], SubClassSafeGeneric, ABC):
     """
     Rewrites the part of a plan that a node expanded into.
 
-    A rule is applied to every node it applies to, right after that node has been
-    expanded and before the nodes below it are expanded in turn.
+    A transformation is applied to every node it applies to, right after that node has
+    been expanded and before the nodes below it are expanded in turn.
     """
 
     @property
     def node_type(self) -> Type[PlanNode]:
         """
-        :return: The type of node this rule rewrites.
+        :return: The type of node this transformation rewrites.
         """
         return get_generic_type_parameters(
-            type(self), TransformationRule, include_root_generic_base=False
+            type(self), PlanTransformation, include_root_generic_base=False
         )[0]
 
     def applies_to(self, plan_node: PlanNode) -> bool:
         """
         :param plan_node: The node that was just expanded
-        :return: Whether this rule rewrites the given node.
+        :return: Whether this transformation rewrites the given node.
         """
         return isinstance(plan_node, self.node_type)
 
@@ -50,13 +50,13 @@ class TransformationRule(Generic[NodeType], SubClassSafeGeneric, ABC):
         """
         Rewrites the plan around the given node.
 
-        :param plan_node: The node this rule applies to
+        :param plan_node: The node this transformation applies to
         """
 
 
 @dataclass
-class ActionTransformationRule(
-    TransformationRule[ActionNode], Generic[ActionType], SubClassSafeGeneric, ABC
+class ActionTransformation(
+    PlanTransformation[ActionNode], Generic[ActionType], SubClassSafeGeneric, ABC
 ):
     """
     Rewrites the plan of actions of the bound action type.
@@ -64,21 +64,21 @@ class ActionTransformationRule(
 
     @property
     def node_type(self) -> Type[PlanNode]:
-        # Concrete rules of this family bind the action type, so the node type is read
-        # from what the family itself binds.
+        # Concrete transformations of this family bind the action type, so the node
+        # type is read from what the family itself binds.
         return get_generic_type_parameters(
-            ActionTransformationRule,
-            TransformationRule,
+            ActionTransformation,
+            PlanTransformation,
             include_root_generic_base=False,
         )[0]
 
     @property
     def action_type(self) -> Type[ActionDescription]:
         """
-        :return: The type of action this rule rewrites the plan of.
+        :return: The type of action this transformation rewrites the plan of.
         """
         return get_generic_type_parameters(
-            type(self), ActionTransformationRule, include_root_generic_base=False
+            type(self), ActionTransformation, include_root_generic_base=False
         )[0]
 
     def applies_to(self, plan_node: PlanNode) -> bool:
@@ -91,7 +91,7 @@ class ActionTransformationRule(
 
 
 @dataclass
-class InsertionRule(ABC):
+class InsertionTransformation(ABC):
     """
     Rewrites a plan by inserting freshly built nodes next to an anchor node.
 
@@ -116,14 +116,14 @@ class InsertionRule(ABC):
     @abstractmethod
     def anchor(self, plan_node: PlanNode) -> PlanNode:
         """
-        :param plan_node: The node this rule applies to
+        :param plan_node: The node this transformation applies to
         :return: The node the new nodes are inserted next to.
         """
 
     @abstractmethod
     def nodes_to_insert(self, plan_node: PlanNode) -> List[ActionLike]:
         """
-        :param plan_node: The node this rule applies to
+        :param plan_node: The node this transformation applies to
         :return: The actions, motions or nodes to insert, in the order they take.
         """
 

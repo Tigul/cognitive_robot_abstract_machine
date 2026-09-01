@@ -9,9 +9,9 @@ from coraplex.orm.ormatic_interface import *  # type: ignore
 from coraplex.language import SequentialNode
 from coraplex.plans.factories import execute_single
 from coraplex.plans.plan_node import ActionLike, ActionNode, MotionNode, PlanNode
-from coraplex.plans.transformation_rules import (
-    ActionTransformationRule,
-    InsertionRule,
+from coraplex.plans.plan_transformation import (
+    ActionTransformation,
+    InsertionTransformation,
 )
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.navigation import LookAtAction
@@ -22,13 +22,13 @@ from coraplex.robot_plans.motions.gripper import (
     MoveToolCenterPointMotion,
 )
 from coraplex.robot_plans.motions.robot_body import MoveJointsMotion
-from coraplex.robot_plans.transformation_rules import DetectBeforeGrasp
+from coraplex.robot_plans.plan_transformations import DetectBeforeGrasp
 from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
 from .test_graph_parsing import detect_actions_of, reach_action
 
-# %% rules under test
+# %% transformations under test
 
 
 def motion_of(plan_node: ActionNode) -> MotionNode:
@@ -42,7 +42,7 @@ def motion_of(plan_node: ActionNode) -> MotionNode:
 
 @dataclass
 class MoveGrippersBesideTorsoMotion(
-    InsertionRule, ActionTransformationRule[MoveTorsoAction]
+    InsertionTransformation, ActionTransformation[MoveTorsoAction]
 ):
     """
     Puts two distinguishable gripper motions next to the motion a torso move expands
@@ -61,7 +61,7 @@ class MoveGrippersBesideTorsoMotion(
 
 @dataclass
 class ParkArmsBesideTorsoMotion(
-    InsertionRule, ActionTransformationRule[MoveTorsoAction]
+    InsertionTransformation, ActionTransformation[MoveTorsoAction]
 ):
     """
     Puts an action, which has a plan of its own, next to the motion a torso move expands
@@ -77,7 +77,7 @@ class ParkArmsBesideTorsoMotion(
 
 @dataclass
 class MoveGripperBelowTheReachBody(
-    InsertionRule, ActionTransformationRule[ReachAction]
+    InsertionTransformation, ActionTransformation[ReachAction]
 ):
     """
     Puts a gripper motion below the sequence a reach expands into.
@@ -104,12 +104,13 @@ def motions_of(plan_node: PlanNode) -> List[MotionNode]:
 # %% inserting
 
 
-def test_a_rule_inserts_its_nodes_before_the_anchor(immutable_model_world):
+def test_a_transformation_inserts_its_nodes_before_the_anchor(immutable_model_world):
     """
-    The nodes are placed in front of the anchor, keeping the order the rule gives them.
+    The nodes are placed in front of the anchor, keeping the order the transformation
+    gives them.
     """
     world, view, context = immutable_model_world
-    context.transformation_rules.append(MoveGrippersBesideTorsoMotion())
+    context.plan_transformations.append(MoveGrippersBesideTorsoMotion())
 
     plan = execute_single(MoveTorsoAction(TorsoState.HIGH), context=context)
     plan.notify()
@@ -126,13 +127,13 @@ def test_a_rule_inserts_its_nodes_before_the_anchor(immutable_model_world):
     ]
 
 
-def test_a_rule_inserts_its_nodes_after_the_anchor(immutable_model_world):
+def test_a_transformation_inserts_its_nodes_after_the_anchor(immutable_model_world):
     """
     Inserting after the anchor keeps the given order too, rather than reversing it by
     pushing every node into the same place behind the anchor.
     """
     world, view, context = immutable_model_world
-    context.transformation_rules.append(
+    context.plan_transformations.append(
         MoveGrippersBesideTorsoMotion(position=InsertionPosition.AFTER)
     )
 
@@ -151,13 +152,13 @@ def test_a_rule_inserts_its_nodes_after_the_anchor(immutable_model_world):
     ]
 
 
-def test_a_rule_inserts_its_nodes_below_the_anchor(immutable_model_world):
+def test_a_transformation_inserts_its_nodes_below_the_anchor(immutable_model_world):
     """
     Inserting below the anchor makes the node its last child instead of its sibling.
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    context.transformation_rules.append(
+    context.plan_transformations.append(
         MoveGripperBelowTheReachBody(position=InsertionPosition.BELOW)
     )
 
@@ -172,12 +173,12 @@ def test_a_rule_inserts_its_nodes_below_the_anchor(immutable_model_world):
     ]
 
 
-def test_a_rule_leaves_actions_of_another_type_alone(immutable_model_world):
+def test_a_transformation_leaves_actions_of_another_type_alone(immutable_model_world):
     """
-    A rule bound to one action type must not rewrite the plan of another one.
+    A transformation bound to one action type must not rewrite the plan of another one.
     """
     world, view, context = immutable_model_world
-    context.transformation_rules.append(MoveGrippersBesideTorsoMotion())
+    context.plan_transformations.append(MoveGrippersBesideTorsoMotion())
 
     plan = execute_single(ParkArmsAction(Arms.BOTH), context=context)
     plan.notify()
@@ -192,11 +193,11 @@ def test_a_rule_leaves_actions_of_another_type_alone(immutable_model_world):
 
 def test_an_inserted_action_is_expanded(immutable_model_world):
     """
-    Rules run while the plan is expanded, so an inserted action still gets a plan of its
-    own instead of staying an unexpanded leaf.
+    Transformations run while the plan is expanded, so an inserted action still gets a
+    plan of its own instead of staying an unexpanded leaf.
     """
     world, view, context = immutable_model_world
-    context.transformation_rules.append(ParkArmsBesideTorsoMotion())
+    context.plan_transformations.append(ParkArmsBesideTorsoMotion())
 
     plan = execute_single(MoveTorsoAction(TorsoState.HIGH), context=context)
     plan.notify()
@@ -221,7 +222,7 @@ def test_the_detection_asks_for_the_object_being_reached_for(immutable_model_wor
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    context.transformation_rules.append(DetectBeforeGrasp())
+    context.plan_transformations.append(DetectBeforeGrasp())
 
     plan = execute_single(reach_action(milk, view), context=context)
     plan.notify()
@@ -237,7 +238,7 @@ def test_the_perception_precedes_the_final_approach(immutable_model_world):
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    context.transformation_rules.append(DetectBeforeGrasp())
+    context.plan_transformations.append(DetectBeforeGrasp())
 
     plan = execute_single(reach_action(milk, view), context=context)
     plan.notify()
@@ -251,14 +252,14 @@ def test_the_perception_precedes_the_final_approach(immutable_model_world):
     ]
 
 
-def test_a_rule_on_reaches_also_fires_inside_a_pick_up(immutable_model_world):
+def test_a_transformation_on_reaches_also_fires_inside_a_pick_up(immutable_model_world):
     """
-    The reach a pick-up builds is expanded like any other, so a rule on reaches reaches
-    it without the pick-up having to pass anything down.
+    The reach a pick-up builds is expanded like any other, so a transformation on
+    reaches reaches it without the pick-up having to pass anything down.
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    context.transformation_rules.append(DetectBeforeGrasp())
+    context.plan_transformations.append(DetectBeforeGrasp())
 
     plan = execute_single(
         PickUpAction(milk, Arms.RIGHT, reach_action(milk, view).grasp_description),
@@ -277,7 +278,7 @@ def test_perceiving_without_an_object_to_detect_is_rejected(immutable_model_worl
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    context.transformation_rules.append(DetectBeforeGrasp())
+    context.plan_transformations.append(DetectBeforeGrasp())
 
     reach = reach_action(milk, view)
     reach.object_designator = None

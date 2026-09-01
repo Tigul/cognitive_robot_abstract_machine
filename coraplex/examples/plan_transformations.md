@@ -12,16 +12,16 @@ jupyter:
     name: python3
 ---
 
-# Transformation Rules
+# Plan Transformations
 
-An action describes the plan it expands into itself. A transformation rule changes that plan from the
-outside: it is applied to every node it matches, right after that node has been expanded and before
-the nodes below it are expanded in turn.
+An action describes the plan it expands into itself. A plan transformation changes that plan from
+the outside: it is applied to every node it matches, right after that node has been expanded and
+before the nodes below it are expanded in turn.
 
-That makes rules the place for behaviour that is not part of an action's own description, such as
-perceiving before a grasp or parking the arms before driving, without giving every action a
-parameter for it. Rules are registered on the `Context`, next to the alternative motion mappings, so
-they hold for every plan built with that context.
+That makes transformations the place for behaviour that is not part of an action's own description,
+such as perceiving before a grasp or parking the arms before driving, without giving every action a
+parameter for it. Transformations are registered on the `Context`, next to the alternative motion
+mappings, so they hold for every plan built with that context.
 
 # Setup a World
 
@@ -50,7 +50,7 @@ def show(node, depth=0):
         show(child, depth + 1)
 ```
 
-## A Reach Without Rules
+## A Reach Without Transformations
 
 `ReachAction` moves the gripper to a pre-pose and then makes its final approach onto the object. The
 plan is built by `notify`, which expands the whole plan without executing it.
@@ -94,9 +94,9 @@ already holds.
 approach acts on a freshly perceived pose. Registering it is the whole change:
 
 ```python
-from coraplex.robot_plans.transformation_rules import DetectBeforeGrasp
+from coraplex.robot_plans.plan_transformations import DetectBeforeGrasp
 
-context.transformation_rules.append(DetectBeforeGrasp())
+context.plan_transformations.append(DetectBeforeGrasp())
 
 reach = execute_single( ReachAction(
         target_pose=Pose(reference_frame=milk.root),
@@ -119,8 +119,8 @@ The same plan as an interactive graph:
 reach.plan.visualize()
 ```
 
-A rule fires wherever its action is expanded, so the one registration also covers the reach that
-`PickUpAction` builds. Nothing has to be passed down to it:
+A transformation fires wherever its action is expanded, so the one registration also covers the
+reach that `PickUpAction` builds. Nothing has to be passed down to it:
 
 ```python
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
@@ -134,18 +134,18 @@ show(pick_up)
 ```
 
 Running such a plan needs a perception source to answer the detection, which is why this notebook
-stops at the expanded plan here. The next section performs a plan that a rule rewrote.
+stops at the expanded plan here. The next section performs a plan that a transformation rewrote.
 
-## Writing a Rule
+## Writing a Transformation
 
-A rule answers two questions: which nodes it applies to, and how it rewrites their plan.
+A transformation answers two questions: which nodes it applies to, and how it rewrites their plan.
 
-The nodes come from the type it is bound to. `ActionTransformationRule[NavigateAction]` applies to
-the node of every navigation; `TransformationRule[SomeNode]` applies to every node of that type.
+The nodes come from the type it is bound to. `ActionTransformation[NavigateAction]` applies to the
+node of every navigation; `PlanTransformation[SomeNode]` applies to every node of that type.
 
-The rewrite comes from the base class it is built on. `InsertionRule` inserts nodes and asks for the
-`anchor` they are placed next to and the `nodes_to_insert`, which are built anew on every
-application, since a node belongs to the one plan it was inserted into.
+The rewrite comes from the base class it is built on. `InsertionTransformation` inserts nodes and
+asks for the `anchor` they are placed next to and the `nodes_to_insert`, which are built anew on
+every application, since a node belongs to the one plan it was inserted into.
 
 ```python
 from dataclasses import dataclass
@@ -153,13 +153,13 @@ from dataclasses import dataclass
 from typing_extensions import List
 
 from coraplex.plans.plan_node import ActionLike, ActionNode, MotionNode, PlanNode
-from coraplex.plans.transformation_rules import ActionTransformationRule, InsertionRule
+from coraplex.plans.plan_transformation import ActionTransformation, InsertionTransformation
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 
 
 @dataclass
-class ParkArmsBeforeNavigating(InsertionRule, ActionTransformationRule[NavigateAction]):
+class ParkArmsBeforeNavigating(InsertionTransformation, ActionTransformation[NavigateAction]):
     """
     Parks the arms before the robot drives off, so it does not carry them into the
     furniture it passes.
@@ -176,7 +176,7 @@ class ParkArmsBeforeNavigating(InsertionRule, ActionTransformationRule[NavigateA
 ```
 
 ```python
-context.transformation_rules = [ParkArmsBeforeNavigating()]
+context.plan_transformations = [ParkArmsBeforeNavigating()]
 
 navigate = execute_single(
     NavigateAction(Pose.from_xyz_rpy(1.5, 2.4, 0.0, reference_frame=world.root)),
@@ -198,14 +198,14 @@ print(navigate.status)
 
 ## Where the Nodes Land
 
-`InsertionRule` takes the position the nodes are inserted at: `BEFORE` or `AFTER` the anchor make
-them its siblings, `BELOW` makes them its last children. The same rule with another position parks
-the arms once the robot has arrived instead:
+`InsertionTransformation` takes the position the nodes are inserted at: `BEFORE` or `AFTER` the
+anchor make them its siblings, `BELOW` makes them its last children. The same transformation with
+another position parks the arms once the robot has arrived instead:
 
 ```python
 from coraplex.datastructures.enums import InsertionPosition
 
-context.transformation_rules = [
+context.plan_transformations = [
     ParkArmsBeforeNavigating(position=InsertionPosition.AFTER)
 ]
 
@@ -218,9 +218,9 @@ navigate.notify()
 show(navigate)
 ```
 
-A rule that has to look at more than the node type can override `applies_to`, which decides whether
-the rule rewrites a given node. Here the arms are only parked before drives that are free to move
-them:
+A transformation that has to look at more than the node type can override `applies_to`, which
+decides whether the transformation rewrites a given node. Here the arms are only parked before
+drives that are free to move them:
 
 ```python
 @dataclass
@@ -237,7 +237,7 @@ class ParkArmsBeforeFreeDrives(ParkArmsBeforeNavigating):
 ```
 
 ```python
-context.transformation_rules = [ParkArmsBeforeFreeDrives()]
+context.plan_transformations = [ParkArmsBeforeFreeDrives()]
 
 navigate = execute_single(
     NavigateAction(
@@ -251,4 +251,4 @@ navigate.notify()
 show(navigate)
 ```
 
-This drive has to keep its joint states, so the rule leaves its plan alone.
+This drive has to keep its joint states, so the transformation leaves its plan alone.

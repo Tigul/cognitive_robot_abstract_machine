@@ -33,7 +33,7 @@ from coraplex.robot_plans.actions.core.pick_up import ReachAction, PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
 from coraplex.robot_plans.motions.misc import DetectingMotion, PerceptionTask
-from coraplex.robot_plans.transformation_rules import DetectBeforeGrasp
+from coraplex.robot_plans.plan_transformations import DetectBeforeGrasp
 from coraplex.utils import split_list_by_type
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
@@ -563,10 +563,10 @@ def test_split_by_type_leading_and_trailing_match(immutable_model_world):
     assert splitted_list[2] == [last_model_change]
 
 
-def test_detect_before_grasp_rule_applies(immutable_model_world):
+def test_detect_before_grasp_transformation_applies(immutable_model_world):
     world, view, context = immutable_model_world
 
-    context.transformation_rules.append(DetectBeforeGrasp())
+    context.plan_transformations.append(DetectBeforeGrasp())
 
     plan = execute_single(PickUpAction(world.get_semantic_annotations_by_type(Milk)[0], Arms.RIGHT,
                                        GraspDescription(ApproachDirection.FRONT, VerticalAlignment.NoAlignment,

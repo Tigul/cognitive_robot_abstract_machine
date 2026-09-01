@@ -26,7 +26,7 @@ if TYPE_CHECKING:
     from coraplex.plans.plan import Plan
     from semantic_digital_twin.world import World
     from coraplex.alternative_motion_mapping import AlternativeMotion
-    from coraplex.plans.transformation_rules import TransformationRule
+    from coraplex.plans.plan_transformation import PlanTransformation
 
 try:
     import rclpy
@@ -110,12 +110,12 @@ class Context(PlanEntity):
     use their default motion chart.
     """
 
-    transformation_rules: List[TransformationRule] = field(default_factory=list)
+    plan_transformations: List[PlanTransformation] = field(default_factory=list)
     """
-    The rules that rewrite the plans of this context while they are expanded.
+    The transformations that rewrite the plans of this context while they are expanded.
 
-    A rule is applied to every node it applies to, right after that node has been
-    expanded. If empty, actions are performed as they describe themselves.
+    A transformation is applied to every node it applies to, right after that node
+    has been expanded. If empty, actions are performed as they describe themselves.
     """
 
     _debug: bool = field(default=False)

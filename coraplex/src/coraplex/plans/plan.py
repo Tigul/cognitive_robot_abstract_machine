@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from coraplex.plans.plan_callbacks import PlanCallback
     from coraplex.datastructures.dataclasses import Context
     from coraplex.plans.designator import Designator
-    from coraplex.plans.transformation_rules import TransformationRule
+    from coraplex.plans.plan_transformation import PlanTransformation
 
 
 logger = logging.getLogger(__name__)
@@ -288,23 +288,24 @@ class Plan:
         self.add_edge(reference_node.parent, node, layer_index)
 
     @property
-    def transformation_rules(self) -> List[TransformationRule]:
+    def plan_transformations(self) -> List[PlanTransformation]:
         """
-        The rules that rewrite this plan while it is expanded.
+        The transformations that rewrite this plan while it is expanded.
 
-        :return: The rules of this plan's context; a plan without a context has none.
+        :return: The transformations of this plan's context; a plan without a context
+            has none.
         """
-        return self.context.transformation_rules if self.context else []
+        return self.context.plan_transformations if self.context else []
 
-    def apply_transformation_rules(self, node: PlanNode):
+    def apply_plan_transformations(self, node: PlanNode):
         """
-        Rewrites the plan with every rule that applies to the given node.
+        Rewrites the plan with every transformation that applies to the given node.
 
         :param node: The node that was just expanded
         """
-        for rule in self.transformation_rules:
-            if rule.applies_to(node):
-                rule.apply(node)
+        for transformation in self.plan_transformations:
+            if transformation.applies_to(node):
+                transformation.apply(node)
 
     def perform(self) -> Any:
         """

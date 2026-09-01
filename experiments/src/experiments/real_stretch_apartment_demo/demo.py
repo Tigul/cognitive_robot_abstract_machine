@@ -53,7 +53,7 @@ from coraplex.robot_plans.actions.core.robot_body import (
     ParkArmsAction,
     SetGripperAction,
 )
-from coraplex.robot_plans.transformation_rules import DetectBeforeGrasp
+from coraplex.robot_plans.plan_transformations import DetectBeforeGrasp
 from coraplex.view_manager import ViewManager
 from krrood.entity_query_language.factories import a
 from semantic_digital_twin.api import (
@@ -159,7 +159,7 @@ class StretchApartmentDemonstration(RobotDemonstration):
             ros_node=self.ros_node,
             evaluate_conditions=False,
             alternative_motion_mappings=self.alternative_motion_mappings,
-            transformation_rules=[DetectBeforeGrasp()],
+            plan_transformations=[DetectBeforeGrasp()],
         )
 
     def build_plan(self, context: Context) -> PlanNode:
