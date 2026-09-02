@@ -70,11 +70,7 @@ class ActionDescription(Designator):
         action_node = ActionNode(designator=copy(self))
 
         pre_condition_node = ConditionNode(
-            condition=self.pre_condition(
-                self.bound_variables,
-                self.context,
-                self.designator_parameter,
-            ),
+            condition=self.build_pre_condition(),
             pre_condition=True,
             action_node=action_node,
         )
@@ -84,11 +80,7 @@ class ActionDescription(Designator):
         sub_plan_root.plan.add_edge(action_node, sub_plan_root)
 
         post_condition_node = ConditionNode(
-            condition=self.post_condition(
-                self.bound_variables,
-                self.context,
-                self.designator_parameter,
-            ),
+            condition=self.build_post_condition(),
             pre_condition=False,
             action_node=action_node,
         )
@@ -96,6 +88,28 @@ class ActionDescription(Designator):
         sub_plan_root.plan.add_edge(action_node, post_condition_node)
 
         return action_node
+
+    def build_pre_condition(self) -> SymbolicExpression | bool:
+        """
+        Builds this action's pre-condition against the world its plan currently points
+        at.
+
+        :return: The condition, bound to the entities it reads at this moment.
+        """
+        return self.pre_condition(
+            self.bound_variables, self.context, self.designator_parameter
+        )
+
+    def build_post_condition(self) -> SymbolicExpression | bool:
+        """
+        Builds this action's post-condition against the world its plan currently points
+        at.
+
+        :return: The condition, bound to the entities it reads at this moment.
+        """
+        return self.post_condition(
+            self.bound_variables, self.context, self.designator_parameter
+        )
 
     @property
     @abstractmethod

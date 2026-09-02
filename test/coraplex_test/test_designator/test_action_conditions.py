@@ -1,3 +1,5 @@
+from copy import deepcopy
+
 import pytest
 
 from krrood.entity_query_language.factories import (
@@ -9,8 +11,10 @@ from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlign
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.exceptions import ConditionNotSatisfied, MotionDidNotFinish
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import sequential
+from coraplex.plans.factories import execute_single, sequential
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
+from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
@@ -117,6 +121,58 @@ def test_pick_up_pre_conditions(mutable_model_world):
     assert evaluate_condition(pre_condition) == False
     _construct_and_evaluate_condition(pick_action, pick_action.post_condition)
     assert _construct_and_evaluate_condition(pick_action, pick_action.post_condition)
+
+
+# %% conditions follow the plan's world
+
+
+def test_built_conditions_read_the_plans_current_world(immutable_model_world):
+    """
+    A condition binds the world entities it reads at the moment it is built, so building
+    it again after the plan is switched onto a copied world reads that world instead of
+    the one the action was expanded against.
+    """
+    world, view, context = immutable_model_world
+
+    action = MoveTorsoAction(TorsoState.HIGH)
+    action_node = execute_single(action, context=context)
+    action_node.notify()
+
+    other_context = context.copy_for_other_world(deepcopy(world))
+    other_context.robot.get_torso().get_joint_state_by_type(TorsoState.HIGH).apply_to(
+        other_context.world
+    )
+    action_node.plan.context = other_context
+
+    # The condition built while the action was expanded still reads the original world,
+    # where the torso never moved.
+    assert not evaluate_condition(action_node.children[-1].condition)
+    assert evaluate_condition(action.build_post_condition())
+
+
+def test_expansion_builds_the_condition_nodes_from_the_built_conditions(
+    immutable_model_world,
+):
+    """
+    Expanding an action stores the same conditions the build methods produce, so there
+    is one definition of what an action's conditions are.
+    """
+    world, view, context = immutable_model_world
+
+    action = MoveTorsoAction(TorsoState.HIGH)
+    action_node = execute_single(action, context=context)
+    action_node.notify()
+
+    pre_condition_node, post_condition_node = (
+        action_node.children[0],
+        action_node.children[-1],
+    )
+
+    assert pre_condition_node.pre_condition
+    assert not post_condition_node.pre_condition
+    assert evaluate_condition(post_condition_node.condition) == evaluate_condition(
+        action.build_post_condition()
+    )
 
 
 def test_pick_up_post_condition(mutable_model_world):
