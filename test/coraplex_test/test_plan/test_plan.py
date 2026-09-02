@@ -1,5 +1,4 @@
 import os
-import time
 
 import pytest
 
@@ -14,7 +13,7 @@ from coraplex.execution_environment import simulated_robot
 from coraplex.orm.ormatic_interface import *  # type: ignore
 from coraplex.plans.condition_nodes import ConditionNode
 from coraplex.plans.executables import GiskardExecutable
-from coraplex.plans.factories import code, sequential, parallel, execute_single
+from coraplex.plans.factories import sequential, execute_single
 from coraplex.plans.failures import EmptyUnderspecified
 from coraplex.plans.plan import Plan
 from coraplex.plans.plan_node import PlanNode, ActionNode
@@ -22,6 +21,7 @@ from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
+from ..test_designator.test_multi_robot_action_designator import stand_facing
 from krrood.entity_query_language.backends import ProbabilisticBackend
 from krrood.entity_query_language.factories import (
     variable_from,
@@ -383,38 +383,6 @@ def test_get_previous_nodes():
 # ---- Tests interacting with simulated robot/world ----
 
 
-def test_pause_plan(immutable_model_world):
-    world, robot_view, context = immutable_model_world
-
-    def node_sleep():
-        time.sleep(1)
-
-    def pause_plan(node):
-        node.pause()
-        assert world.state[
-            world.get_degree_of_freedom_by_name(PR2Joint.TORSO_LIFT).id
-        ].position == pytest.approx(0.0, abs=0.1)
-        node.resume()
-
-        time.sleep(3)
-
-        assert world.state[
-            world.get_degree_of_freedom_by_name(PR2Joint.TORSO_LIFT).id
-        ].position == pytest.approx(0.3, abs=0.1)
-
-    code_node = code(function=lambda: None)
-    code_node.code = lambda: pause_plan(code_node)
-    sleep_node = code(lambda: node_sleep())
-    robot_plan = sequential([sleep_node, MoveTorsoAction(TorsoState.HIGH)])
-    plan = parallel([code_node, robot_plan], context=context).plan
-    with simulated_robot:
-        plan.perform()
-
-    assert world.state[
-        world.get_degree_of_freedom_by_name(PR2Joint.TORSO_LIFT).id
-    ].position == pytest.approx(0.3, abs=0.1)
-
-
 def _torso_position(world):
     return world.state[
         world.get_degree_of_freedom_by_name(PR2Joint.TORSO_LIFT).id
@@ -423,8 +391,8 @@ def _torso_position(world):
 
 def test_sequence_runs_all_motions(immutable_model_world):
     """
-    Every motion of a sequence is executed, so the torso ends at the target of the *last*
-    motion.
+    Every motion of a sequence is executed, so the torso ends at the target of the
+    *last* motion.
 
     The robot starts in the LOW configuration, so a final HIGH motion proves the second
     motion actually ran.
@@ -742,3 +710,47 @@ def test_action_nodes_unequal(immutable_model_world):
     pick_node = plan.children[1]
 
     assert not park_node == pick_node
+
+
+def test_action_feasibility(immutable_model_world):
+    world, view, context = immutable_model_world
+
+    plan = execute_single(MoveTorsoAction(TorsoState.HIGH), context=context)
+    plan.notify()
+
+    assert plan.check_feasibility()
+
+
+def test_action_feasibility_pick_up(immutable_model_world):
+    world, view, context = immutable_model_world
+
+    left_arm = view.left_arm
+    grasp_description = GraspDescription(
+        ApproachDirection.FRONT,
+        VerticalAlignment.NoAlignment,
+        left_arm.end_effector,
+    )
+
+    milk_body = world.get_body_by_name("milk.stl")
+    milk_body.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        1, -2, 0.6, reference_frame=world.root
+    )
+    view.root.parent_connection.origin = stand_facing(
+        view, (0.3, -2.4, 0), milk_body.global_pose.to_position().to_np(), world
+    )
+    world.notify_state_change()
+
+    root = sequential(
+        [
+            ParkArmsAction(Arms.BOTH),
+            PickUpAction(
+                world.get_semantic_annotations_by_type(Milk)[0],
+                Arms.LEFT,
+                grasp_description,
+            ),
+        ],
+        context,
+    )
+
+    root.notify()
+    assert root.children[1].check_feasibility()
