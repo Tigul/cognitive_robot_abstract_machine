@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from copy import copy
 from dataclasses import dataclass, field
 
 from typing_extensions import (
@@ -17,7 +18,7 @@ from krrood.entity_query_language.backends import (
     EntityQueryLanguageGenerativeBackend,
 )
 from krrood.class_diagrams.mocking import MockedClass, MockedModule
-from krrood.utils import memoize
+from krrood.utils import detach_memoization_cache, memoize
 from coraplex.plans.plan import Plan
 from coraplex.plans.plan_entity import PlanEntity
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
@@ -190,3 +191,22 @@ class Context(PlanEntity):
         if plan:
             plan.add_plan_entity(result)
         return result
+
+    def copy_for_other_world(self, world: World) -> Context:
+        """
+        Copies this context for another world.
+
+        The robot is resolved by id, which survives :meth:`~semantic_digital_twin.world.
+        World.__deepcopy__`, so this works for a copy of this context's own world.
+
+        :param world: The world the copy references.
+        :return: A new context that references the given world and the robot in that
+            world.
+        """
+        copy_context = copy(self)
+        copy_context.world = world
+        copy_context.robot = world.get_semantic_annotation_by_id(self.robot.id)
+        # A shallow copy shares the memoization cache, so without this the giskard
+        # wrapper built for the given world would be retained by this context too.
+        detach_memoization_cache(copy_context)
+        return copy_context
