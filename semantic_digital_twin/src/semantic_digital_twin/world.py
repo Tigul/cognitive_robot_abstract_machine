@@ -69,6 +69,7 @@ from semantic_digital_twin.spatial_computations.raytracer import RayTracer
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
     Quaternion,
+    Point2,
     Point3,
 )
 from semantic_digital_twin.spatial_types.derivatives import Derivatives
@@ -2511,6 +2512,8 @@ class World(HasSimulatorProperties):
 
         - If the object is a Quaternion, compute its rotation matrix, transform it, and
           convert back to a Quaternion.
+        - If the object is a Point2, transform it as a Point3 and project the result
+          back onto the target frame's x-y plane.
         - For other types, apply the transformation matrix directly.
 
         :param spatial_object: The spatial object to be transformed.
@@ -2533,6 +2536,13 @@ class World(HasSimulatorProperties):
                 reference_frame_R = spatial_object.to_rotation_matrix()
                 target_frame_R = target_frame_T_reference_frame @ reference_frame_R
                 return target_frame_R.to_quaternion()
+            case Point2():
+                target_frame_P = (
+                    target_frame_T_reference_frame @ spatial_object.to_point3()
+                )
+                return Point2(
+                    target_frame_P.x, target_frame_P.y, reference_frame=target_frame
+                )
             case _:
                 return target_frame_T_reference_frame @ spatial_object
 

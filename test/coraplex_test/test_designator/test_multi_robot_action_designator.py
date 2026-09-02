@@ -28,7 +28,11 @@ from coraplex.robot_plans.actions.composite.facing import FaceAtAction
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.container import OpenAction, CloseAction
 from coraplex.robot_plans.actions.core.misc import DetectAction, MoveToReach
-from coraplex.robot_plans.actions.core.navigation import NavigateAction, LookAtAction
+from coraplex.robot_plans.actions.core.navigation import (
+    NavigateAction,
+    LookAtAction,
+    GCSNavigateAction,
+)
 from coraplex.robot_plans.actions.core.pick_up import (
     ReachAction,
     GraspingAction,
@@ -858,3 +862,26 @@ def test_a_location_validates_a_candidate_where_navigating_to_it_would_stand(
         robot.mobile_base.pose_facing(heading).to_homogeneous_matrix().to_np(),
         atol=1e-9,
     )
+
+
+def test_multi_robot_gcs_navigation(immutable_multiple_robot_apartment):
+    """
+    The robot ends up at the target, having driven around the furniture between it and
+    where it started rather than through it.
+    """
+    world, robot, context = immutable_multiple_robot_apartment
+    target_position = [5, 1]
+
+    plan = execute_single(
+        GCSNavigateAction(
+            Pose.from_xyz_rpy(*target_position, 0, reference_frame=world.root)
+        ),
+        context=context,
+    )
+
+    with simulated_robot:
+        plan.perform()
+
+    robot_base_position = robot.global_transform.to_position().to_np().flatten()
+
+    assert robot_base_position[:2] == pytest.approx(target_position, abs=0.01)

@@ -32,6 +32,11 @@ class MoveMotion(BaseMotion):
 
     @property
     def _motion_chart(self):
+        return CartesianPose(
+                root_link=self.world.root,
+                tip_link=self.robot.root,
+                goal_pose=self.target,
+            )
         return (
             SetOdometry(
                 base_pose=self.target.to_homogeneous_matrix(),

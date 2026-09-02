@@ -32,7 +32,11 @@ from semantic_digital_twin.world_description.geometry import (
     VolumetricBoundingBox,
     Color,
 )
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Point3
+from semantic_digital_twin.spatial_types import (
+    HomogeneousTransformationMatrix,
+    Point2,
+    Point3,
+)
 
 BoxT = TypeVar("BoxT", bound=AxisAlignedBox)
 """
@@ -288,6 +292,15 @@ class BoundingBoxCollection(Generic[BoxT], ShapeCollection):
         return Event.from_simple_sets(
             *[box.simple_event for box in self.bounding_boxes]
         )
+
+    def contains(self, point: Point2 | Point3) -> bool:
+        """
+        Check whether a point lies in any of the bounding boxes.
+
+        :param point: The point to check, in any reference frame.
+        :return: True if one of the bounding boxes contains the point.
+        """
+        return any(box.contains(point) for box in self.bounding_boxes)
 
     def merge(self, other: Self) -> Self:
         """

@@ -55,6 +55,7 @@ from semantic_digital_twin.world_description.graph_of_convex_sets.base import (
 )
 from semantic_digital_twin.world_description.graph_of_convex_sets.exceptions import (
     AmbiguousSelectedVariableError,
+    PointOutsideSearchSpaceError,
 )
 from semantic_digital_twin.world_description.shape_collection import (
     BoundingBoxCollection,
@@ -268,9 +269,27 @@ class GraphOfBoundingBoxes(
                 return node
         return None
 
+    def free_node_of_point(self, point: PointT) -> BoxT:
+        """
+        Find the free-space node that contains a point.
+
+        :param point: The point to locate, in any reference frame.
+        :return: The node that contains the point.
+        :raises PointOutsideSearchSpaceError: If the point lies beyond the region this
+            graph was built over, so whether it is free was never determined.
+        :raises PointOccupiedError: If the point lies within that region but in none of
+            its free-space nodes.
+        """
+        if not self.search_space.contains(point):
+            raise PointOutsideSearchSpaceError(point, self.search_space.bounding_box())
+        node = self.node_of_point(point)
+        if node is None:
+            raise PointOccupiedError(point)
+        return node
+
     def path_from_to(self, start: PointT, goal: PointT) -> Optional[List[PointT]]:
         """
-        Calculate a connected path from a start pose to a goal pose.
+        Calculate a connected path from a start point to a goal point.
 
         .. note::
             Uses a single-source Dijkstra search, weighted by the Euclidean distance
@@ -285,20 +304,21 @@ class GraphOfBoundingBoxes(
             straight line can bypass without leaving free space is dropped. See
             :meth:`_shortcut_waypoints`.
 
-        :param start: The start pose.
-        :param goal: The goal pose.
-        :return: The path as a sequence of points to navigate to or None if no path
-            exists.
+        :param start: The start point, in any reference frame.
+        :param goal: The goal point, in any reference frame.
+        :return: The path as a sequence of points to navigate to, in the search space's
+            reference frame, or None if no path exists.
+        :raises PointOutsideSearchSpaceError: If either point lies beyond the region
+            this graph was built over.
+        :raises PointOccupiedError: If either point lies within that region but in none
+            of its free-space nodes.
         """
-        # get poses from params
-        start_node = self.node_of_point(start)
-        goal_node = self.node_of_point(goal)
+        reference_frame = self.search_space.reference_frame
+        start = self.world.transform(start, reference_frame)
+        goal = self.world.transform(goal, reference_frame)
 
-        # validate if the poses are part of the graph
-        if start_node is None:
-            raise PointOccupiedError(start)
-        if goal_node is None:
-            raise PointOccupiedError(goal)
+        start_node = self.free_node_of_point(start)
+        goal_node = self.free_node_of_point(goal)
 
         if start_node == goal_node:
             return [start, goal]
@@ -319,21 +339,13 @@ class GraphOfBoundingBoxes(
 
         path = paths[goal_index]
 
-        # build the path
-        reference_frame = self.search_space.reference_frame
-        waypoints = [self.world.transform(start, reference_frame)]
-
+        waypoints = [start]
         for source, target in zip(path, path[1:]):
             intersection = self.graph.get_edge_data(source, target).intersection
             waypoints.append(intersection.center)
+        waypoints.append(goal)
 
-        waypoints.append(self.world.transform(goal, reference_frame))
-        waypoints = self._shortcut_waypoints(waypoints)
-
-        result = [start]
-        result.extend(waypoints[1:-1])
-        result.append(goal)
-        return result
+        return self._shortcut_waypoints(waypoints)
 
     def _shortcut_waypoints(self, waypoints: List[PointT]) -> List[PointT]:
         """
