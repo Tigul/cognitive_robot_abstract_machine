@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import logging
-import threading
 import time
 from dataclasses import dataclass, field
 from datetime import timedelta
 
 from typing_extensions import List, Dict, ClassVar, Optional, TYPE_CHECKING
 
+from coraplex.datastructures.enums import ExecutionType
+from coraplex.exceptions import UnknownExecutionType
+from coraplex.plans.failures import EmptyUnderspecified
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
@@ -18,6 +20,7 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
 )
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.graph_node import (
+    CancelMotion,
     EndMotion,
     MotionStatechartNode,
     Task,
@@ -27,27 +30,21 @@ from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from giskardpy.ros_executor import Ros2Executor
 from krrood.entity_query_language.factories import evaluate_condition
-from coraplex.datastructures.enums import ExecutionType
-from coraplex.exceptions import UnknownExecutionType
-from coraplex.plans.failures import EmptyUnderspecified
-from semantic_digital_twin.world_description.connections import (
-    Connection6DoF,
-    FixedConnection,
-)
-from semantic_digital_twin.world_description.world_entity import Body
-
-from giskardpy.motion_statechart.graph_node import CancelMotion
 from krrood.symbolic_math.symbolic_math import (
     trinary_logic_and,
     trinary_logic_not,
     trinary_logic_or,
 )
+from semantic_digital_twin.world_description.connections import (
+    Connection6DoF,
+)
+from semantic_digital_twin.world_description.world_entity import Body
 
 if TYPE_CHECKING:
     from giskardpy.middleware.ros2.python_interface import GiskardWrapper
 
     from coraplex.plans.condition_nodes import ConditionNode
-    from coraplex.plans.plan_node import MotionNode, UnderspecifiedNode, ActionNode
+    from coraplex.plans.plan_node import MotionNode, UnderspecifiedNode
     from coraplex.datastructures.dataclasses import Context
 
 logger = logging.getLogger(__name__)
@@ -478,18 +475,13 @@ class ModelChangeExecutable(Executable):
         )
         with self.context.world.modify_world():
             self.context.world.remove_connection(self.body.parent_connection)
-            # TODO: this shouldn't be fixed but 6DOF
-            connection = FixedConnection(
+            connection = Connection6DoF.create_with_dofs(
                 parent=self.new_parent,
                 child=self.body,
+                world=self.context.world,
                 parent_T_connection_expression=obj_transform,
             )
-
-            # connection = Connection6DoF.create_with_dofs(
-            #     parent=self.new_parent, child=self.body, world=self.context.world, parent_T_connection_expression=obj_transform
-            # )
             self.context.world.add_connection(connection)
-            # connection.origin = obj_transform
         if GiskardExecutable.execution_type == ExecutionType.REAL:
             time.sleep(self.giskard_idle_settle_delta.total_seconds())
 

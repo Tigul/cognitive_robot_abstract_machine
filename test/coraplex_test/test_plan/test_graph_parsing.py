@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 
 import numpy as np
+import pytest
+from typing_extensions import List
 
 from coraplex.datastructures.enums import (
     Arms,
@@ -18,7 +20,13 @@ from coraplex.plans.executables import (
     ModelChangeExecutable,
 )
 from coraplex.plans.factories import execute_single, sequential
-from coraplex.plans.plan_node import MotionNode, PlanNode, ExecutionBoundaryNode
+from coraplex.exceptions import PerceptionTargetMissing
+from coraplex.plans.plan_node import (
+    ActionNode,
+    ExecutionBoundaryNode,
+    MotionNode,
+    PlanNode,
+)
 from coraplex.robot_plans import MoveToolCenterPointMotion
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.misc import DetectAction
@@ -36,7 +44,7 @@ from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Point3
-from semantic_digital_twin.world_description.geometry import BoundingBox
+from semantic_digital_twin.world_description.geometry import VolumetricBoundingBox
 
 
 def test_parse_simple_action(immutable_model_world):
@@ -292,10 +300,16 @@ def test_execution_boundary_splits_the_merged_motion_chart(immutable_model_world
 
     plan = sequential(
         [
-            MoveToolCenterPointMotion(Pose(reference_frame=world.root), Arms.LEFT),
-            MoveToolCenterPointMotion(Pose(reference_frame=world.root), Arms.RIGHT),
+            MoveToolCenterPointMotion(
+                target_pose=Pose(reference_frame=world.root), arm=Arms.LEFT
+            ),
+            MoveToolCenterPointMotion(
+                target_pose=Pose(reference_frame=world.root), arm=Arms.RIGHT
+            ),
             BoundaryNode(),
-            MoveToolCenterPointMotion(Pose(reference_frame=world.root), Arms.LEFT),
+            MoveToolCenterPointMotion(
+                target_pose=Pose(reference_frame=world.root), arm=Arms.LEFT
+            ),
         ],
         context=context,
     )
@@ -323,7 +337,7 @@ def test_detecting_motion_merges_with_the_motions_around_it(immutable_model_worl
     world, view, context = immutable_model_world
     query = PerceptionQuery(
         Milk,
-        BoundingBox(
+        VolumetricBoundingBox(
             origin=HomogeneousTransformationMatrix(reference_frame=world.root),
             min_x=-10,
             min_y=-10,
@@ -338,9 +352,13 @@ def test_detecting_motion_merges_with_the_motions_around_it(immutable_model_worl
 
     plan = sequential(
         [
-            MoveToolCenterPointMotion(Pose(reference_frame=world.root), Arms.LEFT),
+            MoveToolCenterPointMotion(
+                target_pose=Pose(reference_frame=world.root), arm=Arms.LEFT
+            ),
             DetectingMotion(query=query),
-            MoveToolCenterPointMotion(Pose(reference_frame=world.root), Arms.RIGHT),
+            MoveToolCenterPointMotion(
+                target_pose=Pose(reference_frame=world.root), arm=Arms.RIGHT
+            ),
         ],
         context=context,
     )
@@ -378,6 +396,123 @@ def test_detect_action_parses_to_a_single_motion_chart(immutable_model_world):
     assert executable.post_condition_node
 
 
+# %% perceiving before the grasp
+
+
+def detect_actions_of(plan: PlanNode) -> List[DetectAction]:
+    """
+    :param plan: The expanded plan to search.
+    :return: The detections the plan performs, in no particular order.
+    """
+    return [
+        node.designator
+        for node in plan.descendants
+        if isinstance(node, ActionNode) and isinstance(node.designator, DetectAction)
+    ]
+
+
+def reach_action(milk: Milk, view, **kwargs) -> ReachAction:
+    """
+    :param milk: The object the reach is aimed at.
+    :param view: The robot reaching for it.
+    :param kwargs: The fields under test.
+    :return: A reach at the object's own frame.
+    """
+    return ReachAction(
+        target_pose=Pose(reference_frame=milk.root),
+        arm=Arms.RIGHT,
+        grasp_description=GraspDescription(
+            ApproachDirection.FRONT,
+            VerticalAlignment.NoAlignment,
+            view.right_arm.end_effector,
+        ),
+        target_object=milk,
+        **kwargs,
+    )
+
+
+def test_a_reach_does_not_perceive_by_default(immutable_model_world):
+    """
+    A reach acts on the pose the world already holds, so it must not spend a detection
+    the caller did not ask for.
+    """
+    world, view, context = immutable_model_world
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+
+    plan = execute_single(reach_action(milk, view), context=context)
+    plan.notify()
+
+    assert detect_actions_of(plan) == []
+
+
+def test_perceiving_before_the_grasp_detects_the_object_being_reached_for(
+    immutable_model_world,
+):
+    """
+    The detection has to ask for the object the reach was given, so that a plan grasping
+    something else does not query for the wrong thing.
+    """
+    world, view, context = immutable_model_world
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+
+    plan = execute_single(
+        reach_action(milk, view, perceive_before_grasp=True), context=context
+    )
+    plan.notify()
+
+    [detection] = detect_actions_of(plan)
+    assert detection.object_sem_annotation is type(milk)
+
+
+def test_a_pick_up_passes_perceiving_on_to_its_reach(immutable_model_world):
+    """
+    The flag is set on the pick-up, but the detection belongs to the reach inside it, so
+    it has to survive that hand-over.
+    """
+    world, view, context = immutable_model_world
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+
+    plan = execute_single(
+        PickUpAction(
+            target_object=milk,
+            arm=Arms.RIGHT,
+            grasp_description=GraspDescription(
+                ApproachDirection.FRONT,
+                VerticalAlignment.NoAlignment,
+                view.right_arm.end_effector,
+            ),
+            perceive_before_grasp=True,
+        ),
+        context=context,
+    )
+    plan.notify()
+
+    [detection] = detect_actions_of(plan)
+    assert detection.object_sem_annotation is type(milk)
+
+
+def test_perceiving_without_an_object_to_detect_is_rejected(immutable_model_world):
+    """
+    A reach may be given a pose without an object, but then there is nothing to build
+    the detection query from, so the contradiction is reported instead of guessed away.
+    """
+    world, view, context = immutable_model_world
+
+    reach = ReachAction(
+        target_pose=Pose(reference_frame=world.root),
+        arm=Arms.RIGHT,
+        grasp_description=GraspDescription(
+            ApproachDirection.FRONT,
+            VerticalAlignment.NoAlignment,
+            view.right_arm.end_effector,
+        ),
+        perceive_before_grasp=True,
+    )
+
+    with pytest.raises(PerceptionTargetMissing):
+        execute_single(reach, context=context).notify()
+
+
 # %% expansion-time pose capture
 
 
@@ -390,13 +525,14 @@ def test_pick_up_motions_follow_the_object_moved_after_expansion(immutable_model
     Keeping the motion targets in the object's own frame is what lets them follow it.
     """
     world, view, context = immutable_model_world
-    milk_body = world.get_body_by_name("milk.stl")
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    milk_body = milk.root
 
     plan = execute_single(
         PickUpAction(
-            milk_body,
-            Arms.RIGHT,
-            GraspDescription(
+            target_object=milk,
+            arm=Arms.RIGHT,
+            grasp_description=GraspDescription(
                 ApproachDirection.FRONT,
                 VerticalAlignment.NoAlignment,
                 view.right_arm.end_effector,
@@ -406,7 +542,7 @@ def test_pick_up_motions_follow_the_object_moved_after_expansion(immutable_model
     )
     plan.notify()
     targets = [
-        node.designator.target
+        node.designator.target_pose
         for node in plan.descendants
         if isinstance(node, MotionNode)
         and isinstance(node.designator, MoveToolCenterPointMotion)

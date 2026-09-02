@@ -41,7 +41,9 @@ class NavigateAction(ActionDescription, NavigationParameters):
     def _action_plan(self) -> PlanNode:
         return execute_single(
             MoveMotion(
-                target_location=self.target_location,
+                target_location=self.robot.mobile_base.pose_facing(
+                    self.target_location
+                ),
                 keep_joint_states=self.keep_joint_states,
             )
         )
@@ -65,11 +67,11 @@ class NavigateAction(ActionDescription, NavigationParameters):
         variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
-        The robot needs to be within 3 cm of the target location.
+        The robot needs to be within 3 cm of where the heading puts its base.
         """
         return allclose(
             variable_from(context.robot.root).global_pose,
-            kwargs["target_location"],
+            context.robot.mobile_base.pose_facing(kwargs["target_location"]),
             atol=0.03,
         )
 

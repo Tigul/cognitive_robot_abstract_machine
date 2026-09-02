@@ -48,6 +48,7 @@ from semantic_digital_twin.robots.robot_parts import (
 )
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Pose
 from semantic_digital_twin.robots.pr2 import PR2Joint
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
 
 @pytest.fixture(scope="session")

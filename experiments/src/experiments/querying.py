@@ -56,8 +56,8 @@ from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Bowl,
     Drawer,
-    GraspableObject,
     Handle,
+    Milk,
     Spoon,
 )
 from semantic_digital_twin.spatial_types.spatial_types import (
@@ -193,7 +193,7 @@ def build_plan() -> Plan:
         )
 
         ros_node = rclpy.create_node("viz_marker")
-        VizMarkerPublisher(_world=world, node=ros_node).with_tf_publisher()
+        VizMarkerPublisher(_world=world, node=ros_node)
     except ImportError:
         ros_node = None
 
@@ -229,9 +229,7 @@ def build_plan() -> Plan:
                 [
                     code(_failing_step),
                     TransportAction(
-                        target_object=GraspableObject(
-                            root=world.get_body_by_name("milk.stl")
-                        ),
+                        target_object=world.get_semantic_annotations_by_type(Milk)[0],
                         target_location=Pose.from_xyz_rpy(
                             4.9, 3.3, 0.8, yaw=1.57, reference_frame=world.root
                         ),
@@ -241,14 +239,14 @@ def build_plan() -> Plan:
                 context=context,
             ),
             TransportAction(
-                target_object=GraspableObject(root=world.get_body_by_name("bowl.stl")),
+                target_object=world.get_semantic_annotations_by_type(Bowl)[0],
                 target_location=Pose.from_xyz_rpy(
                     5.0, 3.3, 0.75, yaw=1.57, reference_frame=world.root
                 ),
                 arm=Arms.LEFT,
             ),
             TransportAction(
-                target_object=GraspableObject(root=world.get_body_by_name("spoon.stl")),
+                target_object=world.get_semantic_annotations_by_type(Spoon)[0],
                 target_location=Pose.from_xyz_rpy(
                     5.1, 3.3, 0.75, yaw=1.57, reference_frame=world.root
                 ),

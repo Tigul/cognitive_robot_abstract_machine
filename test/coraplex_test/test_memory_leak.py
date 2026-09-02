@@ -68,7 +68,7 @@ def test_ref_chain_after_copy_with_execute_complex_plan(mutable_model_world):
     description = TransportAction(
         target_object=copy_world.get_semantic_annotations_by_type(Milk)[0],
         target_location=Pose.from_xyz_quaternion(
-            3.4, 2.2, 0.95, 0.0, 0.0, 1.0, 0.0, world.root
+            3.1, 2.2, 0.95, 0.0, 0.0, 1.0, 0.0, world.root
         ),
         arm=Arms.RIGHT,
         grasp_description=GraspDescription(
@@ -77,7 +77,9 @@ def test_ref_chain_after_copy_with_execute_complex_plan(mutable_model_world):
             copy_robot.right_arm.end_effector,
         ),
     )
-    plan = sequential([MoveTorsoAction(torso_state=TorsoState.HIGH), description], copy_context)
+    plan = sequential(
+        [MoveTorsoAction(torso_state=TorsoState.HIGH), description], copy_context
+    )
     with simulated_robot:
         plan.perform()
 

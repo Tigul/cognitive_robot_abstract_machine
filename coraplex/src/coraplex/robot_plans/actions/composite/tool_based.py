@@ -39,6 +39,7 @@ from coraplex.plans.failures import MotionDidNotFinish
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
+from coraplex.robot_plans.mixins import HasTcpGoalThresholds
 from coraplex.view_manager import ViewManager
 from coraplex.robot_plans.actions.composite.tool_paths import (
     ToolPath,
@@ -103,7 +104,9 @@ class FullBodyControlledAction(ActionDescription, ABC):
 
 
 @dataclass(kw_only=True)
-class ToolMotionAction(FullBodyControlledAction, UsedArm, UsedTool, ABC):
+class ToolMotionAction(
+    FullBodyControlledAction, UsedArm, UsedTool, HasTcpGoalThresholds, ABC
+):
     """
     An action that moves a tool along a sampled tool path while keeping the tool aligned
     with its target.
@@ -178,6 +181,8 @@ class ToolMotionAction(FullBodyControlledAction, UsedArm, UsedTool, ABC):
                     allow_gripper_collision=True,
                     alignment_pairs=self._alignment_pairs,
                     tip=self.tool.get_tool_frame(),
+                    position_threshold=self.position_threshold,
+                    orientation_threshold=self.orientation_threshold,
                 )
             ]
         )
@@ -389,7 +394,7 @@ class WipingAction(ToolMotionAction):
 
 
 @dataclass(kw_only=True)
-class PouringAction(FullBodyControlledAction, UsedArm, UsedTool):
+class PouringAction(FullBodyControlledAction, UsedArm, UsedTool, HasTcpGoalThresholds):
     """
     Pour from a held source container into a target container by tilting the source next
     to the target's rim.
@@ -578,12 +583,16 @@ class PouringAction(FullBodyControlledAction, UsedArm, UsedTool):
                     self.arm,
                     allow_gripper_collision=True,
                     movement_type=MovementType.CARTESIAN,
+                    position_threshold=self.position_threshold,
+                    orientation_threshold=self.orientation_threshold,
                 ),
                 MoveToolCenterPointMotion(
                     pour_pose,
                     self.arm,
                     allow_gripper_collision=True,
                     movement_type=MovementType.CARTESIAN,
+                    position_threshold=self.position_threshold,
+                    orientation_threshold=self.orientation_threshold,
                 ),
             ]
         )

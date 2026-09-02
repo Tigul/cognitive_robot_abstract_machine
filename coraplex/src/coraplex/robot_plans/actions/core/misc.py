@@ -12,6 +12,7 @@ from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import MoveManipulatorAction
+from coraplex.robot_plans.mixins import HasTcpGoalThresholds
 from coraplex.robot_plans.parameter_mixins import UsedGraspDescription
 from coraplex.robot_plans.motions.misc import DetectingMotion
 from semantic_digital_twin.spatial_types import (
@@ -24,7 +25,7 @@ from semantic_digital_twin.spatial_types.spatial_types import (
     Point3,
     Pose2D,
 )
-from semantic_digital_twin.world_description.geometry import BoundingBox
+from semantic_digital_twin.world_description.geometry import VolumetricBoundingBox
 from semantic_digital_twin.world_description.world_entity import (
     Region,
     SemanticAnnotation,
@@ -75,9 +76,22 @@ class DetectAction(ActionDescription):
     :attr:`~coraplex.perception.PerceptionQuery.trust_detected_orientation`.
     """
 
+    accept_first_if_multiple: bool = False
+    """
+    Whether several candidates may be resolved by taking the first one.
+
+    When False, several candidates raise
+    :class:`~coraplex.exceptions.UnidentifiedDetections` instead of being chosen between.
+    """
+
     @property
     def _action_plan(self) -> PlanNode:
-        return execute_single(DetectingMotion(query=self._build_query()))
+        return execute_single(
+            DetectingMotion(
+                query=self._build_query(),
+                accept_first_if_multiple=self.accept_first_if_multiple,
+            )
+        )
 
     def _build_query(self) -> PerceptionQuery:
         """
@@ -94,7 +108,7 @@ class DetectAction(ActionDescription):
                 self.robot.root
             ).bounding_box
             if self.region
-            else BoundingBox(
+            else VolumetricBoundingBox(
                 origin=HomogeneousTransformationMatrix(reference_frame=self.robot.root),
                 min_x=-1,
                 min_y=-1,
@@ -117,7 +131,7 @@ class DetectAction(ActionDescription):
 
 
 @dataclass
-class MoveToReach(ActionDescription, UsedGraspDescription):
+class MoveToReach(ActionDescription, UsedGraspDescription, HasTcpGoalThresholds):
     """
     Let the robot move to a position facing the target and reach with a end_effector.
     """
@@ -157,6 +171,8 @@ class MoveToReach(ActionDescription, UsedGraspDescription):
                     target_pose=target_pose,
                     end_effector=self.grasp_description.end_effector,
                     allow_gripper_collision=False,
+                    position_threshold=self.position_threshold,
+                    orientation_threshold=self.orientation_threshold,
                 ),
             ]
         )

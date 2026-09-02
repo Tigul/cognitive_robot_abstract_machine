@@ -59,7 +59,7 @@ class ReachMotion(
     GraspParameters,
     UsedMovementType,
     PoseSequenceReversed,
-HasTcpGoalThresholds
+    HasTcpGoalThresholds,
 ):
     """
     Moves the tool center point through the grasp description's pre-grasp and grasp
@@ -110,9 +110,14 @@ HasTcpGoalThresholds
 
 
 @dataclass
-class MoveGripperMotion(BaseMotion, GripperActuationParameters, GripperCollisionAllowed, GripperStallToleranceParameters):
+class MoveGripperMotion(
+    BaseMotion,
+    GripperActuationParameters,
+    GripperCollisionAllowed,
+    GripperStallToleranceParameters,
+):
     """
-    Opens or closes the gripper
+    Opens or closes the gripper.
     """
 
     def perform(self):
@@ -160,10 +165,11 @@ class MoveToolCenterPointMotion(
     UsedArm,
     GripperCollisionAllowed,
     UsedMovementType,
-CartesianVelocityLimitParameters, HasTcpGoalThresholds
+    CartesianVelocityLimitParameters,
+    HasTcpGoalThresholds,
 ):
     """
-    Moves the Tool center point (TCP) of the robot
+    Moves the Tool center point (TCP) of the robot.
     """
 
     def perform(self):
@@ -232,15 +238,18 @@ CartesianVelocityLimitParameters, HasTcpGoalThresholds
 
 
 @dataclass
-class MoveTCPWaypointsMotion(BaseMotion, UsedArm, GripperCollisionAllowed):
+class MoveTCPWaypointsMotion(
+    BaseMotion, UsedArm, GripperCollisionAllowed, HasTcpGoalThresholds
+):
     """
-    Moves the Tool center point (TCP) of the robot
+    Moves the Tool center point (TCP) of the robot.
     """
 
     waypoints: List[Pose]
     """
-    Waypoints the TCP should move along
+    Waypoints the TCP should move along.
     """
+
     movement_type: WaypointsMovementType = (
         WaypointsMovementType.ENFORCE_ORIENTATION_FINAL_POINT
     )
@@ -260,12 +269,15 @@ class MoveTCPWaypointsMotion(BaseMotion, UsedArm, GripperCollisionAllowed):
             and self.robot.mobile_base.full_body_controlled
             else self.robot.root
         )
+        task_kwargs = dict(root_link=root, tip_link=tip)
+        if self.position_threshold is not None:
+            task_kwargs["translation_threshold"] = self.position_threshold
+        if self.orientation_threshold is not None:
+            task_kwargs["orientation_threshold"] = self.orientation_threshold
         nodes = [
             CartesianPose(
-                root_link=root,
-                tip_link=tip,
                 goal_pose=pose,
-                # threshold=0.005,
+                **task_kwargs,
             )
             for pose in self.waypoints
         ]
@@ -273,7 +285,7 @@ class MoveTCPWaypointsMotion(BaseMotion, UsedArm, GripperCollisionAllowed):
 
 
 @dataclass
-class MoveTCPWaypointsAlignedMotion(BaseMotion):
+class MoveTCPWaypointsAlignedMotion(BaseMotion, HasTcpGoalThresholds):
     """
     Moves the tool center point (TCP) of the robot along waypoints while keeping the
     given plane alignments.
@@ -283,21 +295,27 @@ class MoveTCPWaypointsAlignedMotion(BaseMotion):
     """
     Waypoints the TCP should move along.
     """
+
     arm: Arms
     """
     Arm with the TCP that should be moved along the waypoints.
     """
+
     alignment_pairs: List[AlignmentPair] = field(default_factory=list)
     """
     Normal pairs kept aligned during the motion.
     """
+
     allow_gripper_collision: Optional[bool] = None
     """
     If the gripper can collide with something.
     """
+
     tip: Optional[Body] = None
     """
-    The body that should follow the waypoints. Defaults to the arm's tool frame.
+    The body that should follow the waypoints.
+
+    Defaults to the arm's tool frame.
     """
 
     def perform(self):
@@ -343,16 +361,17 @@ class MoveTCPWaypointsAlignedMotion(BaseMotion):
             and self.robot.mobile_base.full_body_controlled
             else self.robot.root
         )
-        tasks = [
-            CartesianPositionTrajectory(
-                root_link=root_link,
-                tip_link=tip_link,
-                goal_points=self.waypoints,
-                maximum_skip_ahead=2,
-                weight=float(DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE),
-                name="MoveTCPWaypointsAligned",
-            )
-        ]
+        trajectory_kwargs = dict(
+            root_link=root_link,
+            tip_link=tip_link,
+            goal_points=self.waypoints,
+            maximum_skip_ahead=2,
+            weight=float(DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE),
+            name="MoveTCPWaypointsAligned",
+        )
+        if self.position_threshold is not None:
+            trajectory_kwargs["threshold"] = self.position_threshold
+        tasks = [CartesianPositionTrajectory(**trajectory_kwargs)]
         tasks.extend(
             AlignPlanes(
                 tip_link=tip_link,
@@ -375,9 +394,11 @@ class MoveTCPWaypointsAlignedMotion(BaseMotion):
 
 
 @dataclass
-class MoveManipulatorMotion(BaseMotion, EndEffectorPoseParameters, HasTcpGoalThresholds):
+class MoveManipulatorMotion(
+    BaseMotion, EndEffectorPoseParameters, HasTcpGoalThresholds
+):
     """
-    Moves the Tool center point (TCP) of the robot
+    Moves the Tool center point (TCP) of the robot.
     """
 
     @property

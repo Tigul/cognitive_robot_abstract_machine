@@ -63,10 +63,11 @@ class TransportAction(
 
     def inside_container(self) -> List[Body]:
         bodies = []
+        target_body = self.target_object.root
         for body in self.world.bodies:
-            if body == self.target_object.root:
+            if body == target_body:
                 continue
-            if InsideOf(self.target_object.root, body).compute_containment_ratio() > 0.9:
+            if InsideOf(target_body, body).compute_containment_ratio() > 0.9:
                 bodies.append(body)
         return bodies
 
@@ -170,8 +171,8 @@ class PickAndPlaceAction(
     TargetLocationMovedTo,
 ):
     """
-    Transports an object to a position using an arm without moving the base of
-    the robot.
+    Transports an object to a position using an arm without moving the base of the
+    robot.
     """
 
     @property
@@ -202,8 +203,7 @@ class MoveAndPlaceAction(
     TargetLocationMovedTo,
 ):
     """
-    Navigate to `standing_position`, then turn towards the target and place the
-    object.
+    Navigate to `standing_position`, then turn towards the target and place the object.
     """
 
     keep_joint_states: bool = field(
@@ -241,8 +241,7 @@ class MoveAndPickUpAction(
     UsedGraspDescription,
 ):
     """
-    Navigate to `standing_position`, then turn towards the object and pick it
-    up.
+    Navigate to `standing_position`, then turn towards the object and pick it up.
     """
 
     keep_joint_states: bool = field(

@@ -16,10 +16,10 @@ from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Bowl,
-    Milk,
-    Spoon,
     Drawer,
     Handle,
+    Milk,
+    Spoon,
 )
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -66,7 +66,7 @@ try:
     )
 
     node = rclpy.create_node("viz_marker")
-    v = VizMarkerPublisher(_world=world, node=node).with_tf_publisher()
+    v = VizMarkerPublisher(_world=world, node=node)
 except ImportError:
     node = None
 
