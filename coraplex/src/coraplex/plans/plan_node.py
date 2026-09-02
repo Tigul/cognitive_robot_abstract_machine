@@ -3,17 +3,18 @@ from __future__ import annotations
 import logging
 from abc import abstractmethod, ABC
 from collections import deque
+from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional, Any, List, Type, TYPE_CHECKING, Iterable, Iterator
 
 from typing_extensions import Union
 
-from coraplex.plans.designator import Designator
-from giskardpy.motion_statechart.graph_node import Goal
-from krrood.entity_query_language.query.match import Match
 from coraplex.datastructures.enums import TaskStatus
 from coraplex.datastructures.execution_data import ExecutionData
+from coraplex.exceptions import MotionDidNotFinish
+from coraplex.execution_environment import simulated_robot
+from coraplex.plans.designator import Designator
 from coraplex.plans.executables import (
     Executable,
     GiskardExecutable,
@@ -22,13 +23,15 @@ from coraplex.plans.executables import (
 from coraplex.plans.failures import PlanFailure
 from coraplex.plans.motion_state_chart_building import BuildsMotionStateChart
 from coraplex.plans.plan_entity import PlanEntity
+from giskardpy.motion_statechart.graph_node import Goal
+from krrood.entity_query_language.factories import evaluate_condition
+from krrood.entity_query_language.query.match import Match
 
 if TYPE_CHECKING:
     from giskardpy.motion_statechart.graph_node import Task
     from coraplex.datastructures.dataclasses import Context
     from coraplex.robot_plans.actions.base import ActionDescription
     from coraplex.robot_plans.motions.base import BaseMotion
-
 
 logger = logging.getLogger(__name__)
 
@@ -222,8 +225,19 @@ class PlanNode(PlanEntity):
             previous_nodes.append(search_node)
         return previous_nodes
 
+    @property
+    def parent_action_node(self) -> Optional[ActionNode]:
+        """
+        Returns the next action node in the plan above this node, None if this is the
+        outermost action.
+        """
+        for node in self.path:
+            if isinstance(node, ActionNode):
+                return node
+        return None
+
     def get_previous_node_by_designator_type(
-        self, *type_: Type[Designator]
+            self, *type_: Type[Designator]
     ) -> Optional[DesignatorNode]:
         """
         :param type_: The types of the designator to search for.
@@ -231,7 +245,7 @@ class PlanNode(PlanEntity):
         """
         for sibling in reversed(self.previous_nodes):
             if isinstance(sibling, DesignatorNode) and isinstance(
-                sibling.designator, type_
+                    sibling.designator, type_
             ):
                 return sibling
         return None
@@ -242,48 +256,13 @@ class PlanNode(PlanEntity):
     def __repr__(self, *args, **kwargs):
         return f"{type(self).__name__}"
 
-    def interrupt(self):
-        """
-        Interrupts the execution of this node and all nodes below.
-        """
-        self.status = TaskStatus.INTERRUPTED
-        logger.info(f"Interrupted node: {str(self)}")
-        # TODO: cancel giskard execution
-
-    def resume(self):
-        """
-        Resumes the execution of this node and all nodes below.
-        """
-        self.status = TaskStatus.RUNNING
-
-    def pause(self):
-        """
-        Suspends the execution of this node and all nodes below.
-        """
-        self.status = TaskStatus.PAUSE
-
     def add_child(self, child: PlanNode):
         self.plan.add_edge(self, child)
-
-    @property
-    def is_interrupted(self) -> bool:
-        return any(
-            parent.status == TaskStatus.INTERRUPTED for parent in [self] + self.path
-        )
-
-    @property
-    def is_paused(self) -> bool:
-        return any(parent.status == TaskStatus.PAUSE for parent in [self] + self.path)
 
     def perform(self):
         """
         Perform the node and update the fields of this node.
         """
-        for parent in self.path:
-            if parent.status == TaskStatus.INTERRUPTED:
-                self.status = TaskStatus.INTERRUPTED
-                return
-
         self.status = TaskStatus.RUNNING
         try:
             self.notify()
@@ -330,7 +309,7 @@ class PlanNode(PlanEntity):
         self.plan.remove_node(other)
 
     def redirect_node_reference(
-        self, replaced_node: PlanNode, replacement_node: PlanNode
+            self, replaced_node: PlanNode, replacement_node: PlanNode
     ) -> None:
         """
         Update references this node holds to ``replaced_node`` so they point to
@@ -350,7 +329,11 @@ class PlanNode(PlanEntity):
         Perform the node without managing the fields of this node.
         """
 
-    def parse(self) -> Executable: ...
+    def parse(self) -> Executable:
+        """
+        Parses this node into an executable that can be performed
+        """
+        ...
 
     @property
     def has_motions(self) -> bool:
@@ -529,8 +512,8 @@ class DesignatorNode(PlanNode, ABC):
             if type(self.designator) is not type(child.designator):
                 continue
             if (
-                self.designator.designator_parameter
-                != child.designator.designator_parameter
+                    self.designator.designator_parameter
+                    != child.designator.designator_parameter
             ):
                 continue
             self.merge(child)
@@ -606,20 +589,9 @@ class ActionNode(DesignatorNode, BuildsMotionStateChart):
         self.execution_data.execution_end_world_state = self.plan.world.state._data
         self.execution_data.added_world_modifications = (
             self.plan.world._model_manager.model_modification_blocks[
-                self._last_world_modification_block_pre_perform_index :
+                self._last_world_modification_block_pre_perform_index:
             ]
         )
-
-    @property
-    def parent_action_node(self) -> Optional[ActionNode]:
-        """
-        Returns the next action node in the plan above this node, None if this is the
-        outermost action.
-        """
-        for node in self.path:
-            if isinstance(node, ActionNode):
-                return node
-        return None
 
     def notify(self):
         if not self.children:
@@ -638,7 +610,7 @@ class ActionNode(DesignatorNode, BuildsMotionStateChart):
         return self.children[1:-1]
 
     def add_to_motion_state_chart(
-        self, parent_goal: Goal, executable: GiskardExecutable
+            self, parent_goal: Goal, executable: GiskardExecutable
     ) -> Goal:
         """
         Add this action's body as its own goal below `parent_goal`.
@@ -674,6 +646,53 @@ class ActionNode(DesignatorNode, BuildsMotionStateChart):
 
     def execute(self):
         self.parse().execute()
+
+    def check_feasibility(self) -> bool:
+        """
+        Checks the feasibility of the action's body by executing the parsed executable in a copied world.
+        Evaluation is done by successfully execution and evaluation of the pose condition.
+
+        The body is built, executed and checked while the plan points at the copy, so the
+        post-condition reads the world the body just ran in and the real world is left
+        untouched.
+
+        .. note:: The action has to be notified beforehand.
+
+        .. warning:: Parameters that reference world entities keep pointing at the
+            original world, so the result is only meaningful for actions whose motions
+            resolve what they move by name.
+
+        :return: True if feasible, False otherwise
+        """
+        prospection_world = deepcopy(self.plan.world)
+        prospection_context = self.plan.context.copy_for_other_world(prospection_world)
+
+        with self.switch_context(prospection_context):
+
+            action_executable = self.parse_children(self.body_children)
+            action_executable.context = prospection_context
+
+            try:
+                with simulated_robot:
+                    action_executable.execute()
+            except MotionDidNotFinish as error:
+                logger.error(error)
+                return False
+
+            return evaluate_condition(self.action.build_post_condition())
+
+    def switch_context(self, context: Context):
+        """
+        Creates a context manager that switches the current plan context with the given one and switches them back on exiting.
+
+    Example:
+
+        >>> with plan.switch_context(context):
+        >>>     do_something()
+        """
+        from coraplex.plans.plan import PlanContextSwitcher
+        return PlanContextSwitcher(self.plan, context)
+
 
 
 @dataclass(eq=False, repr=False)
@@ -721,7 +740,7 @@ class MotionNode(DesignatorNode, BuildsMotionStateChart):
         return True
 
     def add_to_motion_state_chart(
-        self, parent_goal: Goal, executable: GiskardExecutable
+            self, parent_goal: Goal, executable: GiskardExecutable
     ) -> Task:
         """
         Add this motion's giskard task below `parent_goal` and record it on

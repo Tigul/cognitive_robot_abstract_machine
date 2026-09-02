@@ -386,3 +386,30 @@ class Plan:
         for node in self.nodes:
             if node.is_leaf:
                 node.perform()
+
+@dataclass
+class PlanContextSwitcher:
+    """
+    Switches the context of a plan on enter and switches it back on exit
+    """
+    plan: Plan
+    """
+    Plan for which the context should be switched.
+    """
+
+    new_context: Context
+    """
+    New context that should be used within the with block.
+    """
+
+    old_context: Optional[Context] = field(default=None, init=False)
+    """
+    old context to which to switch back.
+    """
+
+    def __enter__(self):
+        self.old_context = self.plan.context
+        self.plan.context = self.new_context
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.plan.context = self.old_context
