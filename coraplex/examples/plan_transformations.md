@@ -136,6 +136,83 @@ show(pick_up)
 Running such a plan needs a perception source to answer the detection, which is why this notebook
 stops at the expanded plan here. The next section performs a plan that a transformation rewrote.
 
+## Opening What the Object Lies In
+
+`OpenDrawerBeforePickUp` puts a drive to the handle and an opening in front of a pick-up whose object
+lies in a drawer. To see it, the apartment needs a drawer that something lies in — a spoon in the top
+drawer of cabinet 10:
+
+```python
+import os
+
+import coraplex
+from semantic_digital_twin.adapters.mesh import STLParser
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Drawer, Handle, Spoon
+from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from semantic_digital_twin.world_description.connections import FixedConnection
+
+spoon = STLParser(
+    os.path.join(
+        os.path.dirname(coraplex.__file__), "..", "..", "resources", "objects", "spoon.stl"
+    )
+).parse()
+
+with world.modify_world():
+    world.merge_world(
+        spoon,
+        FixedConnection(
+            parent=world.get_body_by_name("cabinet10_drawer_top"),
+            child=spoon.root,
+            parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                -0.05, -0.05, 0
+            ),
+        ),
+    )
+
+with world.modify_world():
+    world.add_semantic_annotation(Spoon(root=world.get_body_by_name("spoon.stl")))
+    world.add_semantic_annotation_recursively(
+        Drawer(
+            root=world.get_body_by_name("cabinet10_drawer_top"),
+            handle=Handle(root=world.get_body_by_name("handle_cab10_t")),
+        )
+    )
+```
+
+The transformation is bound to `PickUpAction`, so it inserts next to the pick-up rather than inside
+it. That needs the pick-up to have a parent, which the surrounding `sequential` gives it:
+
+```python
+from coraplex.plans.factories import sequential
+from coraplex.robot_plans.plan_transformations import OpenDrawerBeforePickUp
+
+context.plan_transformations = [OpenDrawerBeforePickUp()]
+
+spoon_annotation = world.get_semantic_annotations_by_type(Spoon)[0]
+
+pick_up = sequential(
+    [PickUpAction(spoon_annotation, Arms.RIGHT, grasp_description)], context
+)
+pick_up.notify()
+
+show(pick_up)
+```
+
+The drive and the opening now precede the pick-up, and both were expanded in turn. The milk stands in
+the open, so the same registration leaves its pick-up alone:
+
+```python
+milk_pick_up = sequential([PickUpAction(milk, Arms.RIGHT, grasp_description)], context)
+milk_pick_up.notify()
+
+show(milk_pick_up)
+```
+
+`TransportAction` opens drawers itself rather than relying on this transformation. It drives to the
+object before it picks it up, and that drive is grounded against the world it finds — with the drawer
+still shut there is no pose from which the object can be reached, so the opening has to happen before
+the drive rather than before the pick-up.
+
 ## Writing a Transformation
 
 A transformation answers two questions: which nodes it applies to, and how it rewrites their plan.

@@ -638,8 +638,9 @@ def test_algebra_sequential_plan(apartment_world_pr2_copy_with_context):
     with simulated_robot:
         plan.perform()
 
-    assert isinstance(plan.root.children[1].children[0].designator, NavigateAction)
-    assert len(plan.root.children[1].children) == 1
+    underspecified = plan.root.children[1]
+    assert isinstance(underspecified.current_candidate.designator, NavigateAction)
+    assert len(underspecified.children) == 1
 
 
 def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
