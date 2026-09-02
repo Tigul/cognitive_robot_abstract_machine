@@ -15,7 +15,7 @@ from semantic_digital_twin.adapters.sensors.lidar import (
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
-from semantic_digital_twin.exceptions import InvalidScanPattern
+from semantic_digital_twin.exceptions import InvalidBeamCount, InvalidScanPattern
 from semantic_digital_twin.robots.robot_parts import LaserScanner
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -104,7 +104,7 @@ class ConstantLaser(Laser):
     def scan_pattern(self) -> ScanPattern:
         return forward_beam_pattern()
 
-    def get_laser_reading(self) -> LaserReading:
+    def get_laser_reading(self, root: KinematicStructureEntity) -> LaserReading:
         return self.reading
 
 
@@ -187,14 +187,41 @@ def test_scan_pattern_rejects_a_maximum_range_below_its_minimum_range():
         )
 
 
+# %% scan pattern derived from a beam count
+
+
+def test_pattern_from_a_beam_count_sweeps_exactly_that_many_beams():
+    pattern = ScanPattern.from_beam_count(
+        minimum_angle=-np.pi / 2,
+        maximum_angle=np.pi / 2,
+        beam_count=5,
+        minimum_range=0.0,
+        maximum_range=10.0,
+    )
+
+    assert pattern.beam_count == 5
+    assert pattern.angle_increment == pytest.approx(np.pi / 4)
+
+
+def test_pattern_from_a_beam_count_rejects_a_count_too_small_to_space_beams_by():
+    with pytest.raises(InvalidBeamCount):
+        ScanPattern.from_beam_count(
+            minimum_angle=0.0,
+            maximum_angle=np.pi,
+            beam_count=1,
+            minimum_range=0.0,
+            maximum_range=10.0,
+        )
+
+
 # %% simulated laser
 
 
 def test_simulated_laser_reports_the_distance_to_the_wall_surface():
     _, mount = world_with_walls(FAR_WALL_DISTANCE)
-    laser = SimulatedLaser(forward_beam_pattern(), root=mount)
+    laser = SimulatedLaser(forward_beam_pattern())
 
-    reading = laser.get_laser_reading()
+    reading = laser.get_laser_reading(mount)
 
     [distance] = reading.distance
     assert distance == pytest.approx(wall_surface_distance(FAR_WALL_DISTANCE))
@@ -209,9 +236,9 @@ def test_simulated_laser_reports_infinity_for_a_beam_that_hits_nothing():
         minimum_range=0.0,
         maximum_range=10.0,
     )
-    laser = SimulatedLaser(backward_beam, root=mount)
+    laser = SimulatedLaser(backward_beam)
 
-    reading = laser.get_laser_reading()
+    reading = laser.get_laser_reading(mount)
 
     assert reading.distance == [math.inf]
 
@@ -219,11 +246,9 @@ def test_simulated_laser_reports_infinity_for_a_beam_that_hits_nothing():
 def test_simulated_laser_reports_the_surface_behind_a_wall_closer_than_its_minimum_range():
     _, mount = world_with_walls(NEAR_WALL_DISTANCE, FAR_WALL_DISTANCE)
     minimum_range = wall_surface_distance(NEAR_WALL_DISTANCE) + WALL_THICKNESS + 0.1
-    laser = SimulatedLaser(
-        forward_beam_pattern(minimum_range=minimum_range), root=mount
-    )
+    laser = SimulatedLaser(forward_beam_pattern(minimum_range=minimum_range))
 
-    reading = laser.get_laser_reading()
+    reading = laser.get_laser_reading(mount)
 
     [distance] = reading.distance
     assert distance == pytest.approx(wall_surface_distance(FAR_WALL_DISTANCE))
@@ -232,13 +257,10 @@ def test_simulated_laser_reports_the_surface_behind_a_wall_closer_than_its_minim
 def test_simulated_laser_reports_infinity_beyond_its_maximum_range():
     _, mount = world_with_walls(FAR_WALL_DISTANCE)
     laser = SimulatedLaser(
-        forward_beam_pattern(
-            maximum_range=wall_surface_distance(FAR_WALL_DISTANCE) / 2
-        ),
-        root=mount,
+        forward_beam_pattern(maximum_range=wall_surface_distance(FAR_WALL_DISTANCE) / 2)
     )
 
-    reading = laser.get_laser_reading()
+    reading = laser.get_laser_reading(mount)
 
     assert reading.distance == [math.inf]
 
@@ -252,9 +274,9 @@ def test_simulated_laser_returns_one_direction_and_one_distance_per_beam():
         minimum_range=0.0,
         maximum_range=10.0,
     )
-    laser = SimulatedLaser(pattern, root=mount)
+    laser = SimulatedLaser(pattern)
 
-    reading = laser.get_laser_reading()
+    reading = laser.get_laser_reading(mount)
 
     assert len(reading.direction) == len(reading.distance) == pattern.beam_count
 
@@ -272,10 +294,12 @@ def test_laser_scanner_hands_back_the_reading_of_its_source():
     assert scanner.get_laser_reading() is reading
 
 
-def test_laser_scanner_anchors_its_source_to_its_own_root():
-    _, mount = world_with_walls()
-    source = SimulatedLaser(forward_beam_pattern())
+def test_laser_scanner_reads_its_source_from_its_own_root():
+    _, mount = world_with_walls(FAR_WALL_DISTANCE)
+    scanner = BodyMountedLaserScanner(
+        root=mount, laser_source=SimulatedLaser(forward_beam_pattern())
+    )
 
-    BodyMountedLaserScanner(root=mount, laser_source=source)
+    [distance] = scanner.get_laser_reading().distance
 
-    assert source.root is mount
+    assert distance == pytest.approx(wall_surface_distance(FAR_WALL_DISTANCE))

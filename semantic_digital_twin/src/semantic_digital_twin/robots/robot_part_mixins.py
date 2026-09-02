@@ -60,6 +60,34 @@ class RobotPartMixin(ABC):
         Validation method that describes assumptions made about the robot part.
         """
 
+    def validate_assumptions(self):
+        """
+        Checks the assumptions of every mixin this robot part combines.
+
+        ..note:: Calling :meth:`validate` would reach only one mixin, since a part
+            combining several of them resolves the name to the first.
+        """
+        for mixin in self._narrowest_mixins():
+            mixin.validate(self)
+
+    def _narrowest_mixins(self) -> list[Type[RobotPartMixin]]:
+        """
+        :return: The mixins stating this part's assumptions, leaving out every mixin
+            another one of them narrows.
+        """
+        mixins = [
+            ancestor
+            for ancestor in type(self).__mro__
+            if issubclass(ancestor, RobotPartMixin) and "validate" in vars(ancestor)
+        ]
+        return [
+            mixin
+            for mixin in mixins
+            if not any(
+                other is not mixin and issubclass(other, mixin) for other in mixins
+            )
+        ]
+
 
 @dataclass(eq=False)
 class HasFingers(

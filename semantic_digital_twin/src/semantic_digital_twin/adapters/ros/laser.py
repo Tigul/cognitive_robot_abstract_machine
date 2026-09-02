@@ -13,6 +13,9 @@ from semantic_digital_twin.adapters.ros.ros2_to_semdt_converters import (
 from semantic_digital_twin.adapters.sensors.lidar import Laser, LaserReading
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.exceptions import NoLaserScanReceived
+from semantic_digital_twin.world_description.world_entity import (
+    KinematicStructureEntity,
+)
 
 
 @dataclass
@@ -80,5 +83,5 @@ class SubscribedLaser(Laser):
             raise NoLaserScanReceived(self.topic_name)
         return self.latest_scan
 
-    def get_laser_reading(self) -> LaserReading:
-        return LaserScanToSemDTConverter.convert(self.received_scan, self.root._world)
+    def get_laser_reading(self, root: KinematicStructureEntity) -> LaserReading:
+        return LaserScanToSemDTConverter.convert(self.received_scan, root._world)

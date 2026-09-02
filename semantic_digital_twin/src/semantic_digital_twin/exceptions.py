@@ -1176,6 +1176,24 @@ class NoLaserScanReceived(UsageError):
 
 
 @dataclass
+class InvalidBeamCount(UsageError):
+    """
+    Raised when deriving a scan pattern from a beam count too small to space beams by.
+    """
+
+    beam_count: int
+    """
+    The beam count that was rejected.
+    """
+
+    def error_message(self) -> str:
+        return f"A scan pattern cannot be derived from {self.beam_count} beams."
+
+    def suggest_correction(self) -> str:
+        return "give at least two beams, or state the angle increment directly."
+
+
+@dataclass
 class InvalidScanPattern(UsageError):
     """
     Raised when a scan pattern describes a sweep a scanner cannot perform.

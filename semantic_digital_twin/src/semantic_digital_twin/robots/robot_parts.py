@@ -522,15 +522,11 @@ class LaserScanner(Sensor, ABC):
     Where the readings of this scanner come from, either a real scanner or the world.
     """
 
-    def __post_init__(self):
-        super().__post_init__()
-        self.laser_source.root = self.root
-
     def get_laser_reading(self) -> LaserReading:
         """
-        :return: The most recent sweep of this scanner.
+        :return: The most recent sweep of this scanner, taken from its own root.
         """
-        return self.laser_source.get_laser_reading()
+        return self.laser_source.get_laser_reading(self.root)
 
 
 @dataclass(eq=False)
@@ -831,7 +827,7 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
             1. Deepcopy the resulting world to ensure that all parts of the robot are initialized in the correct order
             2. Assert that the copied world is the same as the original world
             3. Assert that the robot semantic annotation has a default camera.
-            4. Call validate method on all robot parts inheriting froma RobotPartMixin
+            4. Check the assumptions of every mixin each robot part combines
 
         :return: True if the robot semantic annotation is valid, False otherwise.
         """
@@ -852,7 +848,7 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
             assert part._robot == self, f"Part {part} refers to wrong robot"
 
             if isinstance(part, RobotPartMixin):
-                part.validate()
+                part.validate_assumptions()
 
         return True
 

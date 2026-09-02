@@ -109,13 +109,11 @@ def test_subscribed_laser_reports_the_reading_of_its_latest_scan(
     rclpy_node, world_with_laser_body
 ):
     scan = laser_scan()
-    laser = SubscribedLaser(
-        node=rclpy_node, topic_name="/scan", root=world_with_laser_body.root
-    )
+    laser = SubscribedLaser(node=rclpy_node, topic_name="/scan")
     laser.latest_scan = scan
 
     expected = LaserScanToSemDTConverter.convert(scan, world_with_laser_body)
-    reading = laser.get_laser_reading()
+    reading = laser.get_laser_reading(world_with_laser_body.root)
 
     assert reading.distance == expected.distance
     assert [direction.to_np().tolist() for direction in reading.direction] == [
@@ -127,9 +125,7 @@ def test_subscribed_laser_takes_its_scan_pattern_from_its_latest_scan(
     rclpy_node, world_with_laser_body
 ):
     scan = laser_scan()
-    laser = SubscribedLaser(
-        node=rclpy_node, topic_name="/scan", root=world_with_laser_body.root
-    )
+    laser = SubscribedLaser(node=rclpy_node, topic_name="/scan")
     laser.latest_scan = scan
 
     assert laser.scan_pattern.minimum_angle == scan.angle_min
@@ -142,9 +138,7 @@ def test_subscribed_laser_takes_its_scan_pattern_from_its_latest_scan(
 def test_subscribed_laser_without_a_scan_cannot_be_read(
     rclpy_node, world_with_laser_body
 ):
-    laser = SubscribedLaser(
-        node=rclpy_node, topic_name="/scan", root=world_with_laser_body.root
-    )
+    laser = SubscribedLaser(node=rclpy_node, topic_name="/scan")
 
     with pytest.raises(NoLaserScanReceived):
-        laser.get_laser_reading()
+        laser.get_laser_reading(world_with_laser_body.root)

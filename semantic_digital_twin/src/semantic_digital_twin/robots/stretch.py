@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -10,6 +11,7 @@ from pathlib import Path
 from typing_extensions import Self, List
 
 from krrood.ormatic.utils import classproperty
+from semantic_digital_twin.adapters.sensors.lidar import SimulatedLaser
 from semantic_digital_twin.collision_checking.collision_rules import (
     AvoidExternalCollisions,
     SelfCollisionMatrixRule,
@@ -22,8 +24,10 @@ from semantic_digital_twin.datastructures.definitions import (
 from semantic_digital_twin.datastructures.field_of_view import FieldOfView
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasNeck,
+    HasLaserScanner,
     HasOneArm,
     HasTorso,
     HasMobileBase,
@@ -34,6 +38,7 @@ from semantic_digital_twin.robots.robot_parts import (
     Arm,
     Camera,
     Finger,
+    LaserScanner,
     Neck,
     Torso,
     MobileBase,
@@ -356,8 +361,56 @@ class StretchTorso(Torso, HasNeck[StretchNeck], HasOneArm[StretchArm]):
         )
 
 
+BASE_LASER_BEAM_COUNT = 360
+"""
+How many beams one sweep of the Stretch's base scanner holds.
+"""
+
+BASE_LASER_ANGLE_INCREMENT = 2 * math.pi / BASE_LASER_BEAM_COUNT
+"""
+The angle between two beams of the Stretch's base scanner, in radians.
+"""
+
+
 @dataclass(eq=False)
-class StretchMobileBase(MobileBase[DifferentialDrive], HasTorso[StretchTorso]):
+class StretchBaseLaserScanner(LaserScanner):
+    """
+    The RPLIDAR scanner sweeping the whole floor around the Stretch's base.
+
+    ..note:: The sweep closes a full circle, so its last beam stops one increment short
+        of its first rather than repeating it.
+    """
+
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(
+            root=robot_root._world.get_body_in_branch_by_name(robot_root, "laser"),
+            laser_source=SimulatedLaser(
+                ScanPattern(
+                    minimum_angle=0.0,
+                    maximum_angle=2 * math.pi - BASE_LASER_ANGLE_INCREMENT,
+                    angle_increment=BASE_LASER_ANGLE_INCREMENT,
+                    minimum_range=0.2,
+                    maximum_range=20.0,
+                )
+            ),
+        )
+
+
+@dataclass(eq=False)
+class StretchMobileBase(
+    MobileBase[DifferentialDrive],
+    HasTorso[StretchTorso],
+    HasLaserScanner[StretchBaseLaserScanner],
+):
 
     full_body_controlled: bool = field(default=True, kw_only=True)
 
