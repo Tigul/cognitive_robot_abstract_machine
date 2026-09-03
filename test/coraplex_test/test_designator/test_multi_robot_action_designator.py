@@ -4,7 +4,9 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pytest
-from semantic_digital_twin.adapters.ros.visualization.viz_marker import VizMarkerPublisher
+from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
+    VizMarkerPublisher,
+)
 
 from coraplex.alternative_motion_mappings.hsrb_motion_mapping import HSRBMoveMotion
 from coraplex.alternative_motion_mappings.stretch_motion_mapping import (
@@ -887,3 +889,33 @@ def test_multi_robot_gcs_navigation(immutable_multiple_robot_apartment, rclpy_no
     robot_base_position = robot.global_transform.to_position().to_np().flatten()
 
     assert robot_base_position[:2] == pytest.approx(target_position, abs=0.01)
+
+
+def test_gcs_navigation_arrives_at_each_waypoint_facing_the_next_one(
+    immutable_multiple_robot_apartment,
+):
+    """
+    Lining a waypoint's orientation up with the leg leaving it saves the next leg the
+    turn it would otherwise start with, which is what a differential drive pays for.
+    """
+    world, robot, context = immutable_multiple_robot_apartment
+
+    action = GCSNavigateAction(Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root))
+    execute_single(action, context=context)
+
+    waypoints = action._waypoints()
+    path = action._path()
+
+    # The path starts at the first waypoint the robot has to travel to, not at the
+    # waypoint it is already standing on.
+    assert len(path) == len(waypoints) - 1
+
+    for pose, waypoint, next_waypoint in zip(path, waypoints[1:], waypoints[2:]):
+        world_V_travel = np.array(
+            [float(next_waypoint.x - waypoint.x), float(next_waypoint.y - waypoint.y)]
+        )
+        world_V_facing = pose.to_rotation_matrix().to_np()[:2, 0]
+
+        assert world_V_facing == pytest.approx(
+            world_V_travel / np.linalg.norm(world_V_travel), abs=0.01
+        )
