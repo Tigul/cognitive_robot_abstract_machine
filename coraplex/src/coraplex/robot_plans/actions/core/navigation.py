@@ -31,6 +31,9 @@ from semantic_digital_twin.spatial_types.spatial_types import (
     Pose,
     HomogeneousTransformationMatrix,
     Point2,
+    Point3,
+    RotationMatrix,
+    Vector3,
 )
 
 
@@ -126,7 +129,7 @@ class GCSNavigateAction(ActionDescription):
 
     @property
     def _action_plan(self) -> PlanNode:
-        return sequential([MoveMotion(waypoint) for waypoint in self._waypoints()])
+        return sequential([MoveMotion(waypoint) for waypoint in self._path()])
 
     def _navigation_map(self, floor_level: float) -> PlanarGraphOfBoundingBoxes:
         """
@@ -160,24 +163,51 @@ class GCSNavigateAction(ActionDescription):
             bloat_obstacles=ActionConfig.navigation_map_clearance,
         )
 
-    def _waypoints(self) -> List[Pose]:
+    def _path(self) -> list[Pose]:
         """
-        The poses the robot drives through to get from where it stands to the target.
+        The poses the robot drives to, one per leg of the path.
 
-        The robot's own pose is not among them: the path starts where it already is.
+        Each pose faces the waypoint after it, so the leg leaving a waypoint no longer
+        has to begin by turning. The waypoint the robot already stands on is left out,
+        and the last pose is the requested target.
 
-        :return: The waypoints, the last of which is the target itself.
+        .. note::
+            The orientation aims the base's x-axis, which is the axis a drive travels
+            along, rather than the base's
+            :attr:`~semantic_digital_twin.robots.robot_parts.MobileBase.forward_axis`.
+            The two differ on a base whose front is not its direction of travel, and it
+            is travel that these orientations exist to line up.
+
+        :return: The poses to drive to, in order.
+        """
+        waypoints = self._waypoints()
+        poses = [
+            HomogeneousTransformationMatrix.from_point_rotation_matrix(
+                Point3(waypoint.x, waypoint.y, self.robot.root.global_pose.z, waypoint.reference_frame),
+                RotationMatrix.from_vectors(
+                    x=Vector3(
+                        next_waypoint.x - waypoint.x,
+                        next_waypoint.y - waypoint.y,
+                        0,
+                        reference_frame=waypoint.reference_frame,
+                    ),
+                    z=Vector3.Z(),
+                    reference_frame=waypoint.reference_frame,
+                ),
+                reference_frame=waypoint.reference_frame,
+            ).to_pose()
+            for waypoint, next_waypoint in zip(waypoints[1:], waypoints[2:])
+        ]
+        return poses + [self.target]
+
+    def _waypoints(self) -> list[Point2]:
+        """
+        The points the robot travels through to get from where it stands to the target.
+
+        :return: The path, beginning at the robot's own position and ending at the
+            target's.
         """
         base_pose = self.robot.root.global_pose
-        path = self._navigation_map(float(base_pose.z)).path_from_to(
+        return self._navigation_map(float(base_pose.z)).path_from_to(
             Point2.from_pose(base_pose), Point2.from_pose(self.target)
         )
-        return [
-            Pose.from_xyz_rpy(
-                waypoint.x,
-                waypoint.y,
-                base_pose.z,
-                reference_frame=waypoint.reference_frame,
-            )
-            for waypoint in path[1:-1]
-        ] + [self.target]
