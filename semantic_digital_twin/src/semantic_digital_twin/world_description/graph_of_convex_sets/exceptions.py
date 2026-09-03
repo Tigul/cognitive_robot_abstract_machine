@@ -3,9 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from krrood.entity_query_language.core.mapped_variable import CanBehaveLikeAVariable
-
 from semantic_digital_twin.exceptions import UsageError
-from semantic_digital_twin.spatial_types import Point2, Point3
+from semantic_digital_twin.spatial_types import Point2, Point3, Point
 from semantic_digital_twin.world_description.geometry import AxisAlignedBox
 
 
@@ -41,12 +40,12 @@ class UnreachableGoalError(UsageError):
     goal.
     """
 
-    start: Point3 | Point2
+    start: Point
     """
     Where the queried path was supposed to begin.
     """
 
-    goal: Point3 | Point2
+    goal: Point
     """
     Where the queried path was supposed to end.
     """
