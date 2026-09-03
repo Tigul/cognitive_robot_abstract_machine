@@ -26,6 +26,7 @@ from coraplex.datastructures.trajectory import PoseTrajectory
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import sequential, execute_single
 from coraplex.robot_plans.actions.composite.facing import FaceAtAction
+from coraplex.robot_plans.actions.composite.searching import SearchAction
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.container import OpenAction, CloseAction
 from coraplex.robot_plans.actions.core.misc import DetectAction, MoveToReach
@@ -968,3 +969,13 @@ def test_elevator_navigation(mutable_multiple_robot_apartment, rclpy_node):
     assert robot.root.global_transform.to_position().to_np().flatten()[
         :3
     ] == pytest.approx(expected_position, abs=0.01)
+
+
+def test_search_action(immutable_multiple_robot_apartment, rclpy_node):
+    world, robot, context = immutable_multiple_robot_apartment
+
+    plan = execute_single(SearchAction(Pose.from_xyz_rpy(2, 3, 1, reference_frame=world.root), object_semantic_annotation=Milk), context=context)
+
+    with simulated_robot:
+        plan.perform()
+
