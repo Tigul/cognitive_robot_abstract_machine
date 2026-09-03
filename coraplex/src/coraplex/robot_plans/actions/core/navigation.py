@@ -160,7 +160,7 @@ class GCSNavigateAction(ActionDescription):
                     min_z=floor_level,
                     max_x=extent.max_x,
                     max_y=extent.max_y,
-                    max_z=floor_level + ActionConfig.navigation_map_height,
+                    max_z=floor_level + self.robot.as_bounding_box_collection_in_frame(self.robot.root).bounding_box().scale.z,
                     origin=origin,
                 )
             ],
@@ -169,7 +169,7 @@ class GCSNavigateAction(ActionDescription):
         return PlanarGraphOfBoundingBoxes.navigation_map_from_world(
             self.world,
             search_space=search_space,
-            bloat_obstacles=ActionConfig.navigation_map_clearance,
+            bloat_obstacles=self.robot.mobile_base.base_radius,
         )
 
     def _path(self) -> list[Pose]:
