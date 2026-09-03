@@ -237,7 +237,7 @@ class PlanNode(PlanEntity):
         return None
 
     def get_previous_node_by_designator_type(
-            self, *type_: Type[Designator]
+        self, *type_: Type[Designator]
     ) -> Optional[DesignatorNode]:
         """
         :param type_: The types of the designator to search for.
@@ -245,7 +245,7 @@ class PlanNode(PlanEntity):
         """
         for sibling in reversed(self.previous_nodes):
             if isinstance(sibling, DesignatorNode) and isinstance(
-                    sibling.designator, type_
+                sibling.designator, type_
             ):
                 return sibling
         return None
@@ -309,7 +309,7 @@ class PlanNode(PlanEntity):
         self.plan.remove_node(other)
 
     def redirect_node_reference(
-            self, replaced_node: PlanNode, replacement_node: PlanNode
+        self, replaced_node: PlanNode, replacement_node: PlanNode
     ) -> None:
         """
         Update references this node holds to ``replaced_node`` so they point to
@@ -331,7 +331,7 @@ class PlanNode(PlanEntity):
 
     def parse(self) -> Executable:
         """
-        Parses this node into an executable that can be performed
+        Parses this node into an executable that can be performed.
         """
         ...
 
@@ -512,8 +512,8 @@ class DesignatorNode(PlanNode, ABC):
             if type(self.designator) is not type(child.designator):
                 continue
             if (
-                    self.designator.designator_parameter
-                    != child.designator.designator_parameter
+                self.designator.designator_parameter
+                != child.designator.designator_parameter
             ):
                 continue
             self.merge(child)
@@ -589,7 +589,7 @@ class ActionNode(DesignatorNode, BuildsMotionStateChart):
         self.execution_data.execution_end_world_state = self.plan.world.state._data
         self.execution_data.added_world_modifications = (
             self.plan.world._model_manager.model_modification_blocks[
-                self._last_world_modification_block_pre_perform_index:
+                self._last_world_modification_block_pre_perform_index :
             ]
         )
 
@@ -610,7 +610,7 @@ class ActionNode(DesignatorNode, BuildsMotionStateChart):
         return self.children[1:-1]
 
     def add_to_motion_state_chart(
-            self, parent_goal: Goal, executable: GiskardExecutable
+        self, parent_goal: Goal, executable: GiskardExecutable
     ) -> Goal:
         """
         Add this action's body as its own goal below `parent_goal`.
@@ -649,8 +649,9 @@ class ActionNode(DesignatorNode, BuildsMotionStateChart):
 
     def check_feasibility(self) -> bool:
         """
-        Checks the feasibility of the action's body by executing the parsed executable in a copied world.
-        Evaluation is done by successfully execution and evaluation of the pose condition.
+        Checks the feasibility of the action's body by executing the parsed executable
+        in a copied world. Evaluation is done by successfully execution and evaluation
+        of the pose condition.
 
         The body is built, executed and checked while the plan points at the copy, so the
         post-condition reads the world the body just ran in and the real world is left
@@ -683,16 +684,17 @@ class ActionNode(DesignatorNode, BuildsMotionStateChart):
 
     def switch_context(self, context: Context):
         """
-        Creates a context manager that switches the current plan context with the given one and switches them back on exiting.
+        Creates a context manager that switches the current plan context with the given
+        one and switches them back on exiting.
 
-    Example:
+        Example:
 
-        >>> with plan.switch_context(context):
-        >>>     do_something()
+            >>> with plan.switch_context(context):
+            >>>     do_something()
         """
         from coraplex.plans.plan import PlanContextSwitcher
-        return PlanContextSwitcher(self.plan, context)
 
+        return PlanContextSwitcher(self.plan, context)
 
 
 @dataclass(eq=False, repr=False)
@@ -715,15 +717,11 @@ class MotionNode(DesignatorNode, BuildsMotionStateChart):
 
     def notify(self):
         """
-        Performs this node by performing the respective MotionDesignator.
+        Does nothing, because a motion has no sub-plan to expand.
 
-        Additionally, checks if one of the parents has the status INTERRUPTED and aborts
-        the perform if that is the case.
-
-        :return: The return value of the Motion Designator
+        It contributes its giskard task to the chart of the action around it instead,
+        see :meth:`add_to_motion_state_chart`.
         """
-        pass
-        # return self.motion.perform()
 
     @property
     def parent_action_node(self) -> Optional[ActionNode]:
@@ -740,7 +738,7 @@ class MotionNode(DesignatorNode, BuildsMotionStateChart):
         return True
 
     def add_to_motion_state_chart(
-            self, parent_goal: Goal, executable: GiskardExecutable
+        self, parent_goal: Goal, executable: GiskardExecutable
     ) -> Task:
         """
         Add this motion's giskard task below `parent_goal` and record it on
