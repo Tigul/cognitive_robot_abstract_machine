@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pytest
+from semantic_digital_twin.adapters.ros.visualization.viz_marker import VizMarkerPublisher
+
 from coraplex.alternative_motion_mappings.hsrb_motion_mapping import HSRBMoveMotion
 from coraplex.alternative_motion_mappings.stretch_motion_mapping import (
     StretchMoveToolCenterPoint,
@@ -864,7 +866,7 @@ def test_a_location_validates_a_candidate_where_navigating_to_it_would_stand(
     )
 
 
-def test_multi_robot_gcs_navigation(immutable_multiple_robot_apartment):
+def test_multi_robot_gcs_navigation(immutable_multiple_robot_apartment, rclpy_node):
     """
     The robot ends up at the target, having driven around the furniture between it and
     where it started rather than through it.
