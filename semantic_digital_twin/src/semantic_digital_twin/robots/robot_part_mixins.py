@@ -2,12 +2,11 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, field
 from functools import cached_property
 from typing import Union
 
 from typing_extensions import (
-    TYPE_CHECKING,
     Type,
     TypeVar,
     Generic,
@@ -15,17 +14,12 @@ from typing_extensions import (
     Unpack,
 )
 
-from krrood.class_diagrams.class_diagram import WrappedClass
 from krrood.patterns.subclass_safe_generic import (
     SubClassSafeGeneric,
 )
 from krrood.utils import get_generic_type_parameters
 from semantic_digital_twin.datastructures.laser_reading import LaserReading
 from semantic_digital_twin.reasoning.predicates import LeftOf, RightOf
-from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
-from semantic_digital_twin.world_description.world_modification import (
-    synchronized_attribute_modification,
-)
 
 logger = logging.getLogger("semantic_digital_twin")
 
@@ -113,7 +107,7 @@ class HasFingers(
         list.
         """
         assert (
-            len(self.fingers) >= 3
+                len(self.fingers) >= 3
         ), f"Expected at least 3 fingers, got {len(self.fingers)}. If this RobotPart is supposed to only have two use HasTwoFingers instead."
 
     @property
@@ -141,7 +135,7 @@ class HasTwoFingers(
 
     def validate(self):
         assert (
-            len(self.fingers) == 2
+                len(self.fingers) == 2
         ), f"Expected exactly 2 fingers, got {len(self.fingers)}"
 
     @property
@@ -206,7 +200,7 @@ class HasArms(Generic[Unpack[TGenericArms]], SubClassSafeGeneric, RobotPartMixin
 
     def validate(self):
         assert (
-            len(self.arms) > 2
+                len(self.arms) > 2
         ), f"Expected at least three arms, got {len(self.arms)}. If your robot only has one arm, use HasOneArm instead. If it has two arms, consider using HasLeftRightArm instead."
 
 
@@ -253,7 +247,7 @@ class HasLeftRightArm(
         return self._assign_left_right_arms(RightOf)
 
     def _assign_left_right_arms(
-        self, relation: Type[Union[LeftOf, RightOf]]
+            self, relation: Type[Union[LeftOf, RightOf]]
     ) -> Union[TGenericLeftArm, TGenericRightArm]:
         """
         Assigns the left and right arms based on their position relative to the robot's
@@ -264,7 +258,7 @@ class HasLeftRightArm(
         :return: The arm that is on the left or right side of the robot.
         """
         assert (
-            len(self.arms) == 2
+                len(self.arms) == 2
         ), f"Must have exactly two arms to specify left and right arm, but found {len(self.arms)}."
         pov = self.root.global_transform
         [first_arm, second_arm] = self.arms
