@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import os
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -92,7 +91,7 @@ class StretchLeftFinger(Finger):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
+            cls, robot_root: KinematicStructureEntity
     ) -> Self:
         return cls(
             root=robot_root._world.get_body_in_branch_by_name(
@@ -115,7 +114,7 @@ class StretchRightFinger(Finger):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
+            cls, robot_root: KinematicStructureEntity
     ) -> Self:
         return cls(
             root=robot_root._world.get_body_in_branch_by_name(
@@ -152,7 +151,7 @@ class StretchGripper(EndEffector, HasTwoFingers[StretchLeftFinger, StretchRightF
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
+            cls, robot_root: KinematicStructureEntity
     ) -> Self:
         return cls(
             root=robot_root._world.get_body_in_branch_by_name(
@@ -188,7 +187,7 @@ class StretchArm(Arm[StretchGripper]):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
+            cls, robot_root: KinematicStructureEntity
     ) -> Self:
         return cls(
             root=robot_root._world.get_body_in_branch_by_name(robot_root, "link_lift"),
@@ -209,7 +208,7 @@ class StretchCameraColor(Camera):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
+            cls, robot_root: KinematicStructureEntity
     ) -> Self:
         return cls(
             root=robot_root._world.get_body_in_branch_by_name(
@@ -234,7 +233,7 @@ class StretchCameraDepth(Camera):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
+            cls, robot_root: KinematicStructureEntity
     ) -> Self:
         return cls(
             root=robot_root._world.get_body_in_branch_by_name(
@@ -258,7 +257,7 @@ class StretchCameraInfra1(Camera):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
+            cls, robot_root: KinematicStructureEntity
     ) -> Self:
         return cls(
             root=robot_root._world.get_body_in_branch_by_name(
@@ -282,7 +281,7 @@ class StretchCameraInfra2(Camera):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
+            cls, robot_root: KinematicStructureEntity
     ) -> Self:
         return cls(
             root=robot_root._world.get_body_in_branch_by_name(
@@ -313,7 +312,7 @@ class StretchNeck(
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
+            cls, robot_root: KinematicStructureEntity
     ) -> Self:
         return cls(
             root=robot_root._world.get_body_in_branch_by_name(robot_root, "link_head"),
@@ -353,23 +352,12 @@ class StretchTorso(Torso, HasNeck[StretchNeck], HasOneArm[StretchArm]):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
+            cls, robot_root: KinematicStructureEntity
     ) -> Self:
         return cls(
             root=robot_root._world.get_body_in_branch_by_name(robot_root, "link_mast"),
             tip=robot_root._world.get_body_in_branch_by_name(robot_root, "link_lift"),
         )
-
-
-BASE_LASER_BEAM_COUNT = 360
-"""
-How many beams one sweep of the Stretch's base scanner holds.
-"""
-
-BASE_LASER_ANGLE_INCREMENT = 2 * math.pi / BASE_LASER_BEAM_COUNT
-"""
-The angle between two beams of the Stretch's base scanner, in radians.
-"""
 
 
 @dataclass(eq=False)
@@ -383,7 +371,7 @@ class StretchBaseLaser(SimulatedLaser):
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
+            cls, robot_root: KinematicStructureEntity
     ) -> Self:
         return cls(
             root=robot_root._world.get_body_in_branch_by_name(robot_root, "laser"),
@@ -403,7 +391,6 @@ class StretchMobileBase(
     HasTorso[StretchTorso],
     HasLaser[StretchBaseLaser],
 ):
-
     full_body_controlled: bool = field(default=True, kw_only=True)
 
     @classproperty
@@ -418,7 +405,7 @@ class StretchMobileBase(
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
+            cls, robot_root: KinematicStructureEntity
     ) -> Self:
         return cls(
             root=robot_root._world.get_body_in_branch_by_name(robot_root, "base_link"),
