@@ -19,6 +19,12 @@ class SimulatedLaser(Laser, ABC):
     beam of its scan pattern.
     """
 
+    def setup_hardware_interfaces(self):
+        pass
+
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
     def get_laser_reading(self) -> LaserReading:
         world_T_laser = self.root.global_transform.to_np()
         world_V_beams = self.scan_pattern.beam_directions @ world_T_laser[:3, :3].T
