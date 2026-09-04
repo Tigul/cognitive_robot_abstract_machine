@@ -470,6 +470,22 @@ class HomogeneousTransformationMatrix(
     def dot(
         self, other: GenericHomogeneousSpatialType
     ) -> GenericHomogeneousSpatialType:
+        """
+        The product of this transformation and ``other``.
+
+        Composing this transformation onto an orientation is the quaternion product of
+        the two rotations; the translation does not act on an orientation and is
+        dropped.
+
+        :param other: The right-hand operand.
+        :return: The product, in this transformation's reference frame.
+        :raises UnsupportedOperationError: If ``other`` is not a spatial type this
+            transformation multiplies.
+        """
+        if isinstance(other, Quaternion):
+            result = self.to_quaternion().multiply(other)
+            result.reference_frame = self.reference_frame
+            return result
         if isinstance(
             other,
             (Vector3, Point3, RotationMatrix, HomogeneousTransformationMatrix, Pose),
@@ -737,6 +753,21 @@ class RotationMatrix(sm.SymbolicMathType, SpatialType, SubclassJSONSerializer):
         )
 
     def dot(self, other: GenericRotatableSpatialType) -> GenericRotatableSpatialType:
+        """
+        The product of this rotation and ``other``.
+
+        Composing this rotation onto an orientation is the quaternion product of the
+        two rotations.
+
+        :param other: The right-hand operand.
+        :return: The product, in this rotation's reference frame.
+        :raises UnsupportedOperationError: If ``other`` is not a spatial type this
+            rotation multiplies.
+        """
+        if isinstance(other, Quaternion):
+            result = self.to_quaternion().multiply(other)
+            result.reference_frame = self.reference_frame
+            return result
         if isinstance(
             other, (Vector3, RotationMatrix, HomogeneousTransformationMatrix, Pose)
         ):
@@ -1936,42 +1967,6 @@ class Quaternion(sm.SymbolicMathType, SpatialType, SubclassJSONSerializer):
             reference_frame=self.reference_frame,
         )
 
-    def __rmatmul__(
-        self, transformation: Union[RotationMatrix, HomogeneousTransformationMatrix]
-    ) -> Quaternion:
-        """
-        Compose a rotation onto this quaternion.
-
-        Rotating a rotation is their Hamilton product, so that is what multiplying a
-        rotation by a quaternion means. The translation of a
-        :class:`HomogeneousTransformationMatrix` does not act on an orientation and is
-        ignored.
-
-        :param transformation: The rotation to compose onto this quaternion.
-        :return: The composed rotation, in ``transformation``'s reference frame, or
-            ``NotImplemented`` if the left operand is not a rotation.
-        """
-        if not isinstance(
-            transformation, (RotationMatrix, HomogeneousTransformationMatrix)
-        ):
-            return NotImplemented
-        return transformation.to_quaternion().multiply(self)
-
-    def transform(
-        self, target_frame_T_reference_frame: HomogeneousTransformationMatrix
-    ) -> Quaternion:
-        """
-        This orientation re-expressed in ``target_frame_T_reference_frame``'s reference
-        frame.
-
-        :param target_frame_T_reference_frame: The transformation from this
-            orientation's reference frame to the frame it should be expressed in.
-        :return: The orientation in the transformation's reference frame.
-        """
-        return (
-            target_frame_T_reference_frame @ self.to_rotation_matrix()
-        ).to_quaternion()
-
     def diff(self, q: Quaternion) -> Quaternion:
         """
         :return: quaternion p, such that self*p=q
@@ -2590,6 +2585,7 @@ GenericHomogeneousSpatialType = TypeVar(
     Vector3,
     HomogeneousTransformationMatrix,
     RotationMatrix,
+    Quaternion,
 )
 
 GenericRotatableSpatialType = TypeVar(
@@ -2597,4 +2593,5 @@ GenericRotatableSpatialType = TypeVar(
     Vector3,
     HomogeneousTransformationMatrix,
     RotationMatrix,
+    Quaternion,
 )
