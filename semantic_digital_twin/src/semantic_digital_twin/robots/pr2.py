@@ -136,12 +136,12 @@ class PR2BaseLaserScanner(LaserScanner):
                 robot_root, "base_laser_link"
             ),
             laser_source=SimulatedLaser(
-                ScanPattern.from_beam_count(
+                ScanPattern(
                     minimum_angle=-2.2689,
                     maximum_angle=2.2689,
-                    beam_count=640,
-                    minimum_range=0.08,
-                    maximum_range=10.0,
+                    angle_increment=0.0043633,
+                    minimum_range=0.023,
+                    maximum_range=60.0,
                 )
             ),
         )

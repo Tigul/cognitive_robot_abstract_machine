@@ -435,11 +435,11 @@ class HSRBBaseLaserScanner(LaserScanner):
                 robot_root, "base_range_sensor_link"
             ),
             laser_source=SimulatedLaser(
-                ScanPattern.from_beam_count(
-                    minimum_angle=-2.1,
-                    maximum_angle=2.1,
-                    beam_count=721,
-                    minimum_range=0.05,
+                ScanPattern(
+                    minimum_angle=-2.098758,
+                    maximum_angle=2.098758,
+                    angle_increment=0.0043633,
+                    minimum_range=0.012,
                     maximum_range=60.0,
                 )
             ),

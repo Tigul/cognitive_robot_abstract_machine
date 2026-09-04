@@ -186,34 +186,6 @@ def test_scan_pattern_rejects_a_maximum_range_below_its_minimum_range():
             maximum_range=1.0,
         )
 
-
-# %% scan pattern derived from a beam count
-
-
-def test_pattern_from_a_beam_count_sweeps_exactly_that_many_beams():
-    pattern = ScanPattern.from_beam_count(
-        minimum_angle=-np.pi / 2,
-        maximum_angle=np.pi / 2,
-        beam_count=5,
-        minimum_range=0.0,
-        maximum_range=10.0,
-    )
-
-    assert pattern.beam_count == 5
-    assert pattern.angle_increment == pytest.approx(np.pi / 4)
-
-
-def test_pattern_from_a_beam_count_rejects_a_count_too_small_to_space_beams_by():
-    with pytest.raises(InvalidBeamCount):
-        ScanPattern.from_beam_count(
-            minimum_angle=0.0,
-            maximum_angle=np.pi,
-            beam_count=1,
-            minimum_range=0.0,
-            maximum_range=10.0,
-        )
-
-
 # %% simulated laser
 
 

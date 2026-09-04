@@ -8,6 +8,7 @@ from enum import StrEnum
 from importlib.resources import files
 from pathlib import Path
 
+import numpy as np
 from typing_extensions import Self, List
 
 from krrood.ormatic.utils import classproperty
@@ -395,11 +396,11 @@ class StretchBaseLaserScanner(LaserScanner):
             root=robot_root._world.get_body_in_branch_by_name(robot_root, "laser"),
             laser_source=SimulatedLaser(
                 ScanPattern(
-                    minimum_angle=0.0,
-                    maximum_angle=2 * math.pi - BASE_LASER_ANGLE_INCREMENT,
-                    angle_increment=BASE_LASER_ANGLE_INCREMENT,
-                    minimum_range=0.2,
-                    maximum_range=20.0,
+                    minimum_angle=-np.pi,
+                    maximum_angle=np.pi,
+                    angle_increment=0.005823156330734491,
+                    minimum_range=0.05,
+                    maximum_range=12.0,
                 )
             ),
         )

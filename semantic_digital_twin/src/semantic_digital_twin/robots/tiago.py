@@ -500,11 +500,11 @@ class TiagoBaseLaserScanner(LaserScanner):
             ),
             laser_source=SimulatedLaser(
                 ScanPattern(
-                    minimum_angle=-1.9198621771937625,
-                    maximum_angle=1.9198621771937625,
-                    angle_increment=math.radians(1 / 3),
+                    minimum_angle=-1.658133,
+                    maximum_angle=1.66347956,
+                    angle_increment=0.00581718,
                     minimum_range=0.05,
-                    maximum_range=25.0,
+                    maximum_range=10.0,
                 )
             ),
         )
