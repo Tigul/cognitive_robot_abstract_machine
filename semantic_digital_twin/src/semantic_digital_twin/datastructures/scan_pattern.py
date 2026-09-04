@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 from typing_extensions import TYPE_CHECKING, List, Optional
 
-from semantic_digital_twin.exceptions import InvalidBeamCount, InvalidScanPattern
+from semantic_digital_twin.exceptions import InvalidScanPattern
 from semantic_digital_twin.spatial_types.spatial_types import Vector3
 
 if TYPE_CHECKING:
@@ -69,45 +69,14 @@ class ScanPattern:
                 reason="the maximum range must be larger than the minimum range",
             )
 
-    @classmethod
-    def from_beam_count(
-        cls,
-        minimum_angle: float,
-        maximum_angle: float,
-        beam_count: int,
-        minimum_range: float,
-        maximum_range: float,
-    ) -> ScanPattern:
-        """
-        Builds a pattern from the beam count a robot description states, in place of the
-        angle between two beams.
-
-        :param minimum_angle: The angle of the first beam, in radians.
-        :param maximum_angle: The angle of the last beam, in radians.
-        :param beam_count: How many beams the sweep holds, both ends included.
-        :param minimum_range: The closest distance the scanner can measure, in meters.
-        :param maximum_range: The farthest distance the scanner can measure, in meters.
-        :raises InvalidBeamCount: If fewer than two beams are given, leaving no angle to
-            space them by.
-        """
-        if beam_count < 2:
-            raise InvalidBeamCount(beam_count=beam_count)
-        return cls(
-            minimum_angle=minimum_angle,
-            maximum_angle=maximum_angle,
-            angle_increment=(maximum_angle - minimum_angle) / (beam_count - 1),
-            minimum_range=minimum_range,
-            maximum_range=maximum_range,
-        )
-
     @property
     def beam_count(self) -> int:
         """
         :return: How many beams one scan holds.
         """
         return (
-            int(round((self.maximum_angle - self.minimum_angle) / self.angle_increment))
-            + 1
+                int(round((self.maximum_angle - self.minimum_angle) / self.angle_increment))
+                + 1
         )
 
     @property
@@ -127,7 +96,7 @@ class ScanPattern:
         return np.column_stack((np.cos(angles), np.sin(angles), np.zeros_like(angles)))
 
     def beam_directions_in_frame(
-        self, reference_frame: Optional[KinematicStructureEntity]
+            self, reference_frame: Optional[KinematicStructureEntity]
     ) -> List[Vector3]:
         """
         :param reference_frame: The frame the returned vectors are expressed in.
