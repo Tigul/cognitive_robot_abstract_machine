@@ -1,4 +1,5 @@
 import threading
+from dataclasses import dataclass
 from datetime import timedelta
 from functools import partial
 
@@ -10,7 +11,12 @@ from coraplex.datastructures.enums import (
     DetectionTechnique,
 )
 
-from coraplex.plans.failures import PlanCancelled, PlanFailure, RepetitionsExhausted
+from coraplex.plans.failures import (
+    AllChildrenFailed,
+    PlanCancelled,
+    PlanFailure,
+    RepetitionsExhausted,
+)
 from coraplex.fluent import Fluent
 from coraplex.language import (
     CancelMonitor,
@@ -36,6 +42,7 @@ from coraplex.robot_plans.motions.gripper import MoveToolCenterPointMotion
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
 from giskardpy.motion_statechart.exceptions import NoConvergingTaskError
 from giskardpy.motion_statechart.goals.templates import RepeatOnStall
+from giskardpy.motion_statechart.graph_node import Task
 from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     ConstFalseNode,
     ConstTrueNode,
@@ -173,6 +180,83 @@ def test_perform_parallel(immutable_model_world):
 
     for node in plan.nodes:
         assert node.status == TaskStatus.SUCCEEDED
+
+
+# %% expanding a plan does not execute it
+
+
+@pytest.mark.parametrize("build_node", [sequential, try_in_order, try_all])
+def test_a_language_node_expands_its_children_without_executing_them(
+    immutable_model_world, build_node
+):
+    """
+    ``notify`` expands the plan; what runs, and when, is decided afterwards by the goal
+    the node becomes.
+
+    A node that executes a child while expanding runs it before the actions in front of
+    it, and again once the chart it was merged into is executed.
+    """
+    world, robot_view, context = immutable_model_world
+    root = build_node([MoveTorsoAction(TorsoState.HIGH)], context)
+    torso = world.get_degree_of_freedom_by_name(PR2Joint.TORSO_LIFT)
+    position_before_expanding = world.state[torso.id].position
+
+    with simulated_robot:
+        root.notify()
+
+    assert [child.status for child in root.children] == [TaskStatus.CREATED]
+    assert world.state[torso.id].position == position_before_expanding
+
+
+# %% running out of alternatives
+
+
+@dataclass
+class FailingMotion(BaseMotion):
+    """
+    A motion that never reaches its goal, standing in for any reason one fails.
+
+    Lets a test say "this alternative does not work" without arranging the conditions
+    that would make a real motion fail.
+    """
+
+    @property
+    def _motion_chart(self) -> Task:
+        return ConstFalseNode()
+
+
+@pytest.mark.parametrize("build_node", [try_in_order, try_all])
+def test_trying_alternatives_that_cannot_be_expanded_fails(
+    immutable_model_world, build_node
+):
+    """
+    Alternatives exist so that one of them can carry the plan; when not one of them can
+    even be built, there is nothing left to try.
+    """
+    world, robot_view, context = immutable_model_world
+
+    def raise_except():
+        raise PlanFailure()
+
+    plan = build_node([code(raise_except), code(raise_except)], context).plan
+
+    with simulated_robot, pytest.raises(AllChildrenFailed):
+        plan.perform()
+
+
+@pytest.mark.parametrize("build_node", [try_in_order, try_all])
+def test_trying_alternatives_reports_that_every_one_of_them_failed(
+    immutable_model_world, build_node
+):
+    """
+    A plan that has run out of alternatives says so where it ran out, instead of leaving
+    the chart running until it exhausts its control cycles.
+    """
+    world, robot_view, context = immutable_model_world
+    plan = build_node([FailingMotion(), FailingMotion()], context).plan
+
+    with simulated_robot, pytest.raises(AllChildrenFailed):
+        plan.perform()
 
 
 def test_perform_repeat_runs_a_succeeding_motion_once(immutable_model_world):

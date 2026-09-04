@@ -27,6 +27,7 @@ from giskardpy.motion_statechart.graph_node import (
     Goal,
     MotionStatechartNode,
 )
+from giskardpy.motion_statechart.monitors.monitors import MonitoredNodeFailed
 from giskardpy.motion_statechart.monitors.payload_monitors import CountNodeResets
 from giskardpy.motion_statechart.monitors.templates import (
     MonitoredGoal,
@@ -151,12 +152,12 @@ class ParallelNode(ExecutesInParallel):
     """
 
     motion_state_chart_template: Type[Goal] = field(kw_only=True, default=Parallel)
-
-    def notify(self):
-        self._perform_parallel(self.children)
-        for child in self.children:
-            if child.status == TaskStatus.FAILED:
-                raise child.reason
+    #
+    # def notify(self):
+    #     self._perform_parallel(self.children)
+    #     for child in self.children:
+    #         if child.status == TaskStatus.FAILED:
+    #             raise child.reason
 
 
 @dataclass(eq=False)
@@ -239,39 +240,91 @@ class RepeatNode(ExecutesSequentially):
 
 
 @dataclass(eq=False)
-class TryInOrderNode(ExecutesSequentially):
+class TriesAlternatives(LanguageNode, ABC):
     """
-    Tries all children in order sequentially and fails if all children fail.
+    Runs its children as alternatives to one another.
+
+    It succeeds as soon as one of them succeeds, and fails only once all of them have
+    failed.
+    """
+
+    def notify(self):
+        """
+        Expand every alternative, tolerating one whose expansion already fails.
+
+        Which alternative runs is decided while the plan executes, by the goal this node
+        becomes, so expanding one here must not execute it.
+        """
+        expanded = []
+        for child in self.children:
+            child.notify()
+        #     try:
+        #         child.notify()
+        #         expanded.append(child)
+        #     except PlanFailure:
+        #         continue
+        # if not expanded:
+        #     raise AllChildrenFailed(self)
+
+    def parse(self) -> Executable:
+        """
+        Parse into a motion state chart holding this node, so that the alternatives are
+        built by :meth:`add_to_motion_state_chart` here too and not only where this node
+        is nested in another one.
+
+        An alternative that is separated by an execution boundary is parsed on its own,
+        as for every other language node, and is then not part of one chart to give up
+        on.
+        """
+        if self.contains_execution_boundary:
+            return super().parse()
+        return self.create_giskard_executable([self])
+
+    def add_to_motion_state_chart(
+        self, parent_goal: Goal, executable: GiskardExecutable
+    ) -> Goal:
+        """
+        Add the alternatives below a goal that ends the motion with
+        :class:`~coraplex.plans.failures.AllChildrenFailed` once every one of them has
+        failed.
+
+        The node ending the motion has to be a sibling of the alternatives, because a
+        transition condition may only name a sibling, and the goal holding the
+        alternatives reads them off its own children and would take it for one more of
+        them.
+        """
+        alternatives = self.create_goal()
+        gave_up = CancelledWhenTrue(
+            name=type(self).__name__,
+            monitor=MonitoredNodeFailed(
+                name=f"{type(self).__name__}/all_failed", monitored_node=alternatives
+            ),
+            monitored_node=alternatives,
+            exception=AllChildrenFailed(self),
+        )
+        parent_goal.add_node(gave_up)
+        gave_up.add_node(alternatives)
+        self.add_children_to_motion_state_chart(alternatives, self.children, executable)
+        return gave_up
+
+
+@dataclass(eq=False)
+class TryInOrderNode(TriesAlternatives, ExecutesSequentially):
+    """
+    Tries all children in order, starting the next one only once the previous one
+    failed.
     """
 
     motion_state_chart_template: Type[Goal] = field(kw_only=True, default=TryInOrder)
 
-    def notify(self):
-        for child in self.children:
-            try:
-                child.perform()
-            except PlanFailure:
-                continue
-        failed = all([child.status == TaskStatus.FAILED for child in self.children])
-        if failed:
-            raise AllChildrenFailed(self)
-
 
 @dataclass(eq=False)
-class TryAllNode(ExecutesInParallel):
+class TryAllNode(TriesAlternatives, ExecutesInParallel):
     """
-    Executes all children in parallel.
-
-    Only raise a failure if all children fail.
+    Tries all children in parallel.
     """
 
     motion_state_chart_template: Type[Goal] = field(kw_only=True, default=TryAll)
-
-    def notify(self):
-        self._perform_parallel(self.children)
-        failed = all([child.status == TaskStatus.FAILED for child in self.children])
-        if failed:
-            raise AllChildrenFailed(self)
 
 
 @dataclass(eq=False)
