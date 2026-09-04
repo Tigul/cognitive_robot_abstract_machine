@@ -28,11 +28,12 @@ from random_events.product_algebra import Event, SimpleEvent
 from semantic_digital_twin.exceptions import MismatchingWorld
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
-    Point3, Point,
+    Point3,
 )
 from semantic_digital_twin.world_description.geometry import (
     Shape,
     AxisAlignedBox,
+    PointT,
     VolumetricBoundingBox,
     Color,
 )
@@ -171,7 +172,7 @@ class ShapeCollection(SubclassJSONSerializer):
         return concatenate(transformed_meshes)
 
     def as_bounding_box_collection_at_origin(
-            self, origin: HomogeneousTransformationMatrix
+        self, origin: HomogeneousTransformationMatrix
     ) -> BoundingBoxCollection:
         """
         Provides the bounding box collection for this entity given a transformation
@@ -195,7 +196,7 @@ class ShapeCollection(SubclassJSONSerializer):
         )
 
     def as_bounding_box_collection_in_frame(
-            self, reference_frame: KinematicStructureEntity
+        self, reference_frame: KinematicStructureEntity
     ) -> BoundingBoxCollection:
         """
         Provides the bounding box collection for this entity in the given reference
@@ -255,7 +256,7 @@ class ShapeCollection(SubclassJSONSerializer):
 
 
 @dataclass
-class BoundingBoxCollection(Generic[BoxT], ShapeCollection):
+class BoundingBoxCollection(Generic[BoxT, PointT], ShapeCollection):
     """
     A collection of axis-aligned bounding boxes, sharing one reference frame.
 
@@ -264,6 +265,9 @@ class BoundingBoxCollection(Generic[BoxT], ShapeCollection):
     on the shared :class:`AxisAlignedBox` interface. ``as_shapes``/``from_shapes``
     additionally need :meth:`AxisAlignedBox.as_shape`, so they are only meaningful for
     a :class:`VolumetricBoundingBox` collection.
+
+    The second parameter is the point type the boxes are asked about. It follows from the
+    first, but Python cannot derive one type parameter from another, so both are spelled.
     """
 
     shapes: List[BoxT] = field(default_factory=list)
@@ -273,7 +277,7 @@ class BoundingBoxCollection(Generic[BoxT], ShapeCollection):
             raise ValueError("BoundingBoxCollection must have a reference frame.")
         for box in self.bounding_boxes:
             assert (
-                    box.origin.reference_frame == self.reference_frame
+                box.origin.reference_frame == self.reference_frame
             ), "All bounding boxes must have the same reference frame."
 
     def __iter__(self) -> Iterator[BoxT]:
@@ -292,7 +296,7 @@ class BoundingBoxCollection(Generic[BoxT], ShapeCollection):
             *[box.simple_event for box in self.bounding_boxes]
         )
 
-    def contains(self, point: Point) -> bool:
+    def contains(self, point: PointT) -> bool:
         """
         Check whether a point lies in any of the bounding boxes.
 
@@ -309,7 +313,7 @@ class BoundingBoxCollection(Generic[BoxT], ShapeCollection):
         :return: The merged bounding box collection.
         """
         assert (
-                self.reference_frame == other.reference_frame
+            self.reference_frame == other.reference_frame
         ), "The reference frames of the bounding box collections must be the same."
         return type(self)(
             reference_frame=self.reference_frame,
@@ -318,10 +322,10 @@ class BoundingBoxCollection(Generic[BoxT], ShapeCollection):
 
     @classmethod
     def merge_all(
-            cls,
-            collections: Iterable[BoundingBoxCollection[BoxT]],
-            reference_frame: KinematicStructureEntity,
-    ) -> BoundingBoxCollection[BoxT]:
+        cls,
+        collections: Iterable[BoundingBoxCollection[BoxT, PointT]],
+        reference_frame: KinematicStructureEntity,
+    ) -> BoundingBoxCollection[BoxT, PointT]:
         """
         Merge a sequence of bounding box collections into one.
 
@@ -337,12 +341,12 @@ class BoundingBoxCollection(Generic[BoxT], ShapeCollection):
 
     @classmethod
     def from_simple_event(
-            cls,
-            box_type: Type[BoxT],
-            reference_frame: KinematicStructureEntity,
-            simple_event: SimpleEvent,
-            keep_surface: bool = False,
-    ) -> BoundingBoxCollection[BoxT]:
+        cls,
+        box_type: Type[BoxT],
+        reference_frame: KinematicStructureEntity,
+        simple_event: SimpleEvent,
+        keep_surface: bool = False,
+    ) -> BoundingBoxCollection[BoxT, PointT]:
         """
         Create a collection of bounding boxes from a simple random event.
 
@@ -356,18 +360,18 @@ class BoundingBoxCollection(Generic[BoxT], ShapeCollection):
         """
         result = []
         for combination in itertools.product(
-                *(simple_event[axis.value].simple_sets for axis in box_type.axes())
+            *(simple_event[axis.value].simple_sets for axis in box_type.axes())
         ):
             origin_coordinates = np.array(
                 [interval.center() for interval in combination]
             )
             lower = (
-                    np.array([interval.lower for interval in combination])
-                    - origin_coordinates
+                np.array([interval.lower for interval in combination])
+                - origin_coordinates
             )
             upper = (
-                    np.array([interval.upper for interval in combination])
-                    - origin_coordinates
+                np.array([interval.upper for interval in combination])
+                - origin_coordinates
             )
             origin = HomogeneousTransformationMatrix.from_point_rotation_matrix(
                 point=Point3.from_iterable(_padded_to_3d(origin_coordinates)),
@@ -375,7 +379,7 @@ class BoundingBoxCollection(Generic[BoxT], ShapeCollection):
             )
             box = box_type.from_array_bounds(lower, upper, origin)
             if not keep_surface and any(
-                    np.isclose(dimension, 0) for dimension in box.dimensions
+                np.isclose(dimension, 0) for dimension in box.dimensions
             ):
                 continue
             result.append(box)
@@ -383,10 +387,10 @@ class BoundingBoxCollection(Generic[BoxT], ShapeCollection):
 
     @classmethod
     def from_event(
-            cls,
-            box_type: Type[BoxT],
-            reference_frame: KinematicStructureEntity,
-            event: Event,
+        cls,
+        box_type: Type[BoxT],
+        reference_frame: KinematicStructureEntity,
+        event: Event,
     ) -> Self:
         """
         Create a collection of bounding boxes from a random event.
@@ -401,8 +405,8 @@ class BoundingBoxCollection(Generic[BoxT], ShapeCollection):
                 box
                 for simple_event in event.simple_sets
                 for box in cls.from_simple_event(
-                box_type, reference_frame, simple_event
-            ).bounding_boxes
+                    box_type, reference_frame, simple_event
+                ).bounding_boxes
             ],
             reference_frame,
         )
@@ -419,7 +423,7 @@ class BoundingBoxCollection(Generic[BoxT], ShapeCollection):
             return cls(shapes=[])
         for shape in shapes:
             assert (
-                    shape.origin.reference_frame == shapes[0].origin.reference_frame
+                shape.origin.reference_frame == shapes[0].origin.reference_frame
             ), "All shapes must have the same reference frame."
 
         local_bbs = [shape.local_frame_bounding_box for shape in shapes]
@@ -450,7 +454,7 @@ class BoundingBoxCollection(Generic[BoxT], ShapeCollection):
 
 
 def _padded_to_3d(
-        coordinates: npt.NDArray[np.float64],
+    coordinates: npt.NDArray[np.float64],
 ) -> npt.NDArray[np.float64]:
     """
     :param coordinates: A 2- or 3-element coordinate array.
