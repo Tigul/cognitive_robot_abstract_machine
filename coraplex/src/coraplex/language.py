@@ -27,7 +27,6 @@ from giskardpy.motion_statechart.graph_node import (
     Goal,
     MotionStatechartNode,
 )
-from giskardpy.motion_statechart.monitors.monitors import MonitoredNodeFailed
 from giskardpy.motion_statechart.monitors.payload_monitors import CountNodeResets
 from giskardpy.motion_statechart.monitors.templates import (
     MonitoredGoal,
@@ -288,24 +287,16 @@ class TriesAlternatives(LanguageNode, ABC):
         :class:`~coraplex.plans.failures.AllChildrenFailed` once every one of them has
         failed.
 
-        The node ending the motion has to be a sibling of the alternatives, because a
-        transition condition may only name a sibling, and the goal holding the
-        alternatives reads them off its own children and would take it for one more of
-        them.
+        The node ending the motion sits among the alternatives and watches them, because
+        a transition condition may only name the owning node or a sibling of it.
         """
-        alternatives = self.create_goal()
-        gave_up = CancelledWhenTrue(
-            name=type(self).__name__,
-            monitor=MonitoredNodeFailed(
-                name=f"{type(self).__name__}/all_failed", monitored_node=alternatives
-            ),
-            monitored_node=alternatives,
-            exception=AllChildrenFailed(self),
+        goal = super().add_to_motion_state_chart(parent_goal, executable)
+        goal.add_node(
+            CancelMotion.when_all_false(
+                goal.non_terminal_nodes, AllChildrenFailed(self)
+            )
         )
-        parent_goal.add_node(gave_up)
-        gave_up.add_node(alternatives)
-        self.add_children_to_motion_state_chart(alternatives, self.children, executable)
-        return gave_up
+        return goal
 
 
 @dataclass(eq=False)
