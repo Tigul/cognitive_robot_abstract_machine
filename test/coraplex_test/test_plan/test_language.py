@@ -1,5 +1,3 @@
-import threading
-from dataclasses import dataclass
 from datetime import timedelta
 from functools import partial
 
@@ -10,14 +8,7 @@ from coraplex.datastructures.enums import (
     TaskStatus,
     DetectionTechnique,
 )
-
-from coraplex.plans.failures import (
-    AllChildrenFailed,
-    PlanCancelled,
-    PlanFailure,
-    RepetitionsExhausted,
-)
-from coraplex.fluent import Fluent
+from coraplex.execution_environment import simulated_robot
 from coraplex.language import (
     CancelMonitor,
     SequentialNode,
@@ -25,7 +16,6 @@ from coraplex.language import (
     ParallelNode,
     TryInOrderNode,
 )
-from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import (
     sequential,
     parallel,
@@ -35,11 +25,17 @@ from coraplex.plans.factories import (
     repeat,
     code,
 )
+from coraplex.plans.failures import (
+    AllChildrenFailed,
+    PlanCancelled,
+    PlanFailure,
+    RepetitionsExhausted,
+)
 from coraplex.robot_plans import *
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
-from coraplex.robot_plans.motions.gripper import MoveToolCenterPointMotion
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
+from coraplex.robot_plans.motions.gripper import MoveToolCenterPointMotion
 from giskardpy.motion_statechart.exceptions import NoConvergingTaskError
 from giskardpy.motion_statechart.goals.templates import RepeatOnStall
 from giskardpy.motion_statechart.graph_node import Task
@@ -48,8 +44,14 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     ConstTrueNode,
 )
 from semantic_digital_twin.datastructures.definitions import TorsoState
-from semantic_digital_twin.spatial_types import Pose
 from semantic_digital_twin.robots.pr2 import PR2Joint
+from semantic_digital_twin.spatial_types import Pose
+
+
+def _torso_position(world):
+    return world.state[
+        world.get_degree_of_freedom_by_name("torso_lift_joint").id
+    ].position
 
 
 def test_factory_construction():
@@ -162,24 +164,31 @@ def test_perform_single_designator(immutable_model_world):
     plan.validate()
 
 
-def test_perform_parallel(immutable_model_world):
+def test_parallel_performs_all_its_children(immutable_model_world):
+    """
+    Every child of a parallel node ends up in the one motion state chart that is
+    executed, so all of their targets are reached.
+    """
     world, robot_view, context = immutable_model_world
+    target = Pose.from_xyz_rpy(0.3, -1.3, 0, reference_frame=world.root)
 
-    def check_thread_id(main_id):
-        assert main_id != threading.get_ident()
-
-    main_thread_id = threading.get_ident()
-    act = code(lambda: check_thread_id(main_thread_id), context=context)
-    act2 = code(lambda: check_thread_id(main_thread_id), context=context)
-    act3 = code(lambda: check_thread_id(main_thread_id), context=context)
-
-    plan = parallel([act, act2, act3], context).plan
+    plan = parallel(
+        [NavigateAction(target), MoveTorsoAction(TorsoState.HIGH)], context
+    ).plan
     with simulated_robot:
         plan.perform()
-    plan.validate()
 
-    for node in plan.nodes:
-        assert node.status == TaskStatus.SUCCEEDED
+    np.testing.assert_almost_equal(
+        robot_view.root.global_transform.to_np()[:3, 3],
+        target.to_np()[:3, 3],
+        decimal=1,
+    )
+    [torso_up] = (
+        robot_view.get_torso().get_joint_state_by_type(TorsoState.HIGH).target_values
+    )
+    assert _torso_position(world) == pytest.approx(torso_up, abs=0.05)
+    assert plan.root.status == TaskStatus.SUCCEEDED
+    plan.validate()
 
 
 # %% expanding a plan does not execute it
@@ -226,25 +235,6 @@ class FailingMotion(BaseMotion):
 
 
 @pytest.mark.parametrize("build_node", [try_in_order, try_all])
-def test_trying_alternatives_that_cannot_be_expanded_fails(
-    immutable_model_world, build_node
-):
-    """
-    Alternatives exist so that one of them can carry the plan; when not one of them can
-    even be built, there is nothing left to try.
-    """
-    world, robot_view, context = immutable_model_world
-
-    def raise_except():
-        raise PlanFailure()
-
-    plan = build_node([code(raise_except), code(raise_except)], context).plan
-
-    with simulated_robot, pytest.raises(AllChildrenFailed):
-        plan.perform()
-
-
-@pytest.mark.parametrize("build_node", [try_in_order, try_all])
 def test_trying_alternatives_reports_that_every_one_of_them_failed(
     immutable_model_world, build_node
 ):
@@ -257,6 +247,29 @@ def test_trying_alternatives_reports_that_every_one_of_them_failed(
 
     with simulated_robot, pytest.raises(AllChildrenFailed):
         plan.perform()
+
+
+@pytest.mark.parametrize("build_node", [try_in_order, try_all])
+def test_trying_alternatives_succeeds_once_one_of_them_works(
+    immutable_model_world, build_node
+):
+    """
+    An alternative that fails does not fail the plan: the one that works carries it, and
+    it is that alternative's motion that is executed.
+    """
+    world, robot_view, context = immutable_model_world
+    target = Pose.from_xyz_rpy(0.3, -1.3, 0, reference_frame=world.root)
+    plan = build_node([FailingMotion(), NavigateAction(target)], context).plan
+
+    with simulated_robot:
+        plan.perform()
+
+    np.testing.assert_almost_equal(
+        robot_view.root.global_transform.to_np()[:3, 3],
+        target.to_np()[:3, 3],
+        decimal=1,
+    )
+    assert plan.root.status == TaskStatus.SUCCEEDED
 
 
 def test_perform_repeat_runs_a_succeeding_motion_once(immutable_model_world):
@@ -329,39 +342,6 @@ def test_exception_sequential(immutable_model_world):
     assert plan.root.status == TaskStatus.FAILED
 
 
-def test_exception_try_in_order(immutable_model_world):
-    world, robot_view, context = immutable_model_world
-
-    def raise_except():
-        raise PlanFailure()
-
-    act = NavigateAction(Pose.from_xyz_rpy(1, -1, reference_frame=world.root))
-    act2 = code(raise_except)
-
-    plan = try_in_order([act, act2], context).plan
-    with simulated_robot:
-        _ = plan.perform()
-    assert len(plan.root.children) == 2
-    assert plan.root.status == TaskStatus.SUCCEEDED
-
-
-def test_exception_try_all(immutable_model_world):
-    world, robot_view, context = immutable_model_world
-
-    def raise_except():
-        raise PlanFailure()
-
-    act = NavigateAction(Pose.from_xyz_rpy(x=-2, reference_frame=world.root))
-    act2 = code(raise_except)
-
-    plan = try_all([act, act2], context).plan
-    with simulated_robot:
-        _ = plan.perform()
-
-    assert type(plan.root) is TryAllNode
-    assert plan.root.status == TaskStatus.SUCCEEDED
-
-
 # %% monitored subtrees
 
 
@@ -373,12 +353,6 @@ def test_cancel_monitor_construction():
     assert isinstance(root, CancelMonitor)
     assert len(root.children) == 2
     root.plan.validate()
-
-
-def _torso_position(world):
-    return world.state[
-        world.get_degree_of_freedom_by_name("torso_lift_joint").id
-    ].position
 
 
 def test_cancel_monitor_stops_the_motion_it_wraps(immutable_model_world):

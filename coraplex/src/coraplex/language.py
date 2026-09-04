@@ -2,13 +2,11 @@
 from __future__ import annotations
 
 import logging
-import threading
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing_extensions import (
     Any,
     Callable,
-    List,
     Optional,
     Type,
 )
@@ -37,11 +35,9 @@ from coraplex.plans.executables import (
     GiskardExecutable,
     Executable,
 )
-from coraplex.datastructures.enums import TaskStatus
 from coraplex.plans.failures import (
     AllChildrenFailed,
     PlanCancelled,
-    PlanFailure,
     RepetitionsExhausted,
 )
 from coraplex.plans.motion_state_chart_building import BuildsMotionStateChart
@@ -72,6 +68,12 @@ class LanguageNode(PlanNode, BuildsMotionStateChart, ABC):
             self.merge(child)
 
     def notify(self):
+        """
+        Expand every child.
+
+        Which child runs, and when, is decided while the plan executes, by the goal this
+        node becomes, so expanding one here must not execute it.
+        """
         for child in self.children:
             child.notify()
 
@@ -111,24 +113,6 @@ class ExecutesInParallel(LanguageNode, ABC):
     Base class for nodes that execute their children in parallel.
     """
 
-    @classmethod
-    def _perform_parallel(cls, nodes: List[PlanNode]):
-        """
-        Open threads for all nodes and wait for them to finish.
-
-        :param nodes: A list of nodes which should be performed in parallel
-        """
-        threads = []
-        for child in nodes:
-            thread = threading.Thread(
-                target=child.perform,
-            )
-            thread.start()
-            threads.append(thread)
-
-        for thread in threads:
-            thread.join()
-
 
 @dataclass
 class SequentialNode(ExecutesSequentially):
@@ -151,12 +135,6 @@ class ParallelNode(ExecutesInParallel):
     """
 
     motion_state_chart_template: Type[Goal] = field(kw_only=True, default=Parallel)
-    #
-    # def notify(self):
-    #     self._perform_parallel(self.children)
-    #     for child in self.children:
-    #         if child.status == TaskStatus.FAILED:
-    #             raise child.reason
 
 
 @dataclass(eq=False)
@@ -246,24 +224,6 @@ class TriesAlternatives(LanguageNode, ABC):
     It succeeds as soon as one of them succeeds, and fails only once all of them have
     failed.
     """
-
-    def notify(self):
-        """
-        Expand every alternative, tolerating one whose expansion already fails.
-
-        Which alternative runs is decided while the plan executes, by the goal this node
-        becomes, so expanding one here must not execute it.
-        """
-        expanded = []
-        for child in self.children:
-            child.notify()
-        #     try:
-        #         child.notify()
-        #         expanded.append(child)
-        #     except PlanFailure:
-        #         continue
-        # if not expanded:
-        #     raise AllChildrenFailed(self)
 
     def parse(self) -> Executable:
         """
