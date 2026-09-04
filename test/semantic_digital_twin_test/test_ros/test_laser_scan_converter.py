@@ -12,7 +12,8 @@ from semantic_digital_twin.adapters.ros.msg_converter import (
 from semantic_digital_twin.adapters.ros.ros2_to_semdt_converters import (
     LaserScanToSemDTConverter,
 )
-from semantic_digital_twin.exceptions import NoLaserScanReceived
+from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
+from semantic_digital_twin.exceptions import NoLaserScanReceived, UselessConceptError
 from semantic_digital_twin.world import World
 
 # %% scan messages under test
@@ -25,6 +26,18 @@ Name of the body the scans below are expressed in.
 RANGES = [1.0, 2.0, 3.0]
 """
 Measured distances of the beams of :func:`laser_scan`.
+"""
+
+DECLARED_PATTERN = ScanPattern(
+    minimum_angle=-np.pi / 2,
+    maximum_angle=np.pi / 2,
+    angle_increment=np.pi / 2,
+    minimum_range=0.2,
+    maximum_range=5.0,
+)
+"""
+The pattern a laser is built with, chosen to differ from the one :func:`laser_scan`
+declares.
 """
 
 
@@ -105,15 +118,28 @@ def test_converter_is_found_by_the_registry(world_with_laser_body):
 # %% subscribed laser
 
 
+def subscribed_laser(node, world: World) -> SubscribedLaser:
+    """
+    :return: A laser on the world's root body, listening on ``/scan`` and sweeping
+        :data:`DECLARED_PATTERN` until a scan arrives.
+    """
+    return SubscribedLaser(
+        root=world.root,
+        scan_pattern=DECLARED_PATTERN,
+        node=node,
+        topic_name="/scan",
+    )
+
+
 def test_subscribed_laser_reports_the_reading_of_its_latest_scan(
     rclpy_node, world_with_laser_body
 ):
     scan = laser_scan()
-    laser = SubscribedLaser(node=rclpy_node, topic_name="/scan")
-    laser.latest_scan = scan
+    laser = subscribed_laser(rclpy_node, world_with_laser_body)
+    laser.store_scan(scan)
 
     expected = LaserScanToSemDTConverter.convert(scan, world_with_laser_body)
-    reading = laser.get_laser_reading(world_with_laser_body.root)
+    reading = laser.get_laser_reading()
 
     assert reading.distance == expected.distance
     assert [direction.to_np().tolist() for direction in reading.direction] == [
@@ -125,20 +151,40 @@ def test_subscribed_laser_takes_its_scan_pattern_from_its_latest_scan(
     rclpy_node, world_with_laser_body
 ):
     scan = laser_scan()
-    laser = SubscribedLaser(node=rclpy_node, topic_name="/scan")
-    laser.latest_scan = scan
+    laser = subscribed_laser(rclpy_node, world_with_laser_body)
 
-    assert laser.scan_pattern.minimum_angle == scan.angle_min
-    assert laser.scan_pattern.maximum_angle == scan.angle_max
-    assert laser.scan_pattern.angle_increment == scan.angle_increment
-    assert laser.scan_pattern.minimum_range == scan.range_min
-    assert laser.scan_pattern.maximum_range == scan.range_max
+    laser.store_scan(scan)
+
+    assert laser.scan_pattern == ScanPattern(
+        minimum_angle=scan.angle_min,
+        maximum_angle=scan.angle_max,
+        angle_increment=scan.angle_increment,
+        minimum_range=scan.range_min,
+        maximum_range=scan.range_max,
+    )
+
+
+def test_subscribed_laser_sweeps_its_declared_pattern_until_a_scan_arrives(
+    rclpy_node, world_with_laser_body
+):
+    laser = subscribed_laser(rclpy_node, world_with_laser_body)
+
+    assert laser.scan_pattern == DECLARED_PATTERN
 
 
 def test_subscribed_laser_without_a_scan_cannot_be_read(
     rclpy_node, world_with_laser_body
 ):
-    laser = SubscribedLaser(node=rclpy_node, topic_name="/scan")
+    laser = subscribed_laser(rclpy_node, world_with_laser_body)
 
     with pytest.raises(NoLaserScanReceived):
-        laser.get_laser_reading(world_with_laser_body.root)
+        laser.get_laser_reading()
+
+
+def test_a_subscribed_laser_cannot_be_set_up_from_a_robot_description(
+    world_with_laser_body,
+):
+    with pytest.raises(UselessConceptError):
+        SubscribedLaser.setup_default_configuration_in_world_below_robot_root(
+            world_with_laser_body.root
+        )

@@ -26,7 +26,7 @@ from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.robots.robot_part_mixins import (
-    HasLaserScanner,
+    HasLaser,
     HasLeftRightArm,
     HasMobileBase,
     HasNeck,
@@ -41,7 +41,6 @@ from semantic_digital_twin.robots.robot_parts import (
     Arm,
     Camera,
     Finger,
-    LaserScanner,
     MobileBase,
     Neck,
     Torso,
@@ -476,19 +475,13 @@ class TiagoTorso(
 
 
 @dataclass(eq=False)
-class TiagoBaseLaserScanner(LaserScanner):
+class TiagoBaseLaser(SimulatedLaser):
     """
     The SICK TIM551 scanner sweeping the floor in front of the Tiago's base.
 
     ..note:: The description's own beam count is not a whole number, so the scanner's
         angular resolution of a third of a degree gives the angle between two beams.
     """
-
-    def setup_hardware_interfaces(self):
-        pass
-
-    def setup_joint_states(self) -> List[JointState]:
-        return []
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
@@ -498,14 +491,12 @@ class TiagoBaseLaserScanner(LaserScanner):
             root=robot_root._world.get_body_in_branch_by_name(
                 robot_root, "base_laser_link"
             ),
-            laser_source=SimulatedLaser(
-                ScanPattern(
-                    minimum_angle=-1.658133,
-                    maximum_angle=1.66347956,
-                    angle_increment=0.00581718,
-                    minimum_range=0.05,
-                    maximum_range=10.0,
-                )
+            scan_pattern=ScanPattern(
+                minimum_angle=-1.658133,
+                maximum_angle=1.66347956,
+                angle_increment=0.00581718,
+                minimum_range=0.05,
+                maximum_range=10.0,
             ),
         )
 
@@ -514,7 +505,7 @@ class TiagoBaseLaserScanner(LaserScanner):
 class TiagoMobileBase(
     MobileBase[DifferentialDrive],
     HasTorso[TiagoTorso],
-    HasLaserScanner[TiagoBaseLaserScanner],
+    HasLaser[TiagoBaseLaser],
 ):
 
     @classproperty

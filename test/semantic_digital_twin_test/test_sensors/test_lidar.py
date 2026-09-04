@@ -7,16 +7,13 @@ import numpy as np
 import pytest
 from typing_extensions import List, Self
 
-from semantic_digital_twin.adapters.sensors.lidar import (
-    Laser,
-    LaserReading,
-    SimulatedLaser,
-)
+from semantic_digital_twin.adapters.sensors.lidar import SimulatedLaser
 from semantic_digital_twin.datastructures.joint_state import JointState
+from semantic_digital_twin.datastructures.laser_reading import LaserReading
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
-from semantic_digital_twin.exceptions import InvalidBeamCount, InvalidScanPattern
-from semantic_digital_twin.robots.robot_parts import LaserScanner
+from semantic_digital_twin.exceptions import InvalidScanPattern
+from semantic_digital_twin.robots.robot_parts import Laser, Sensor
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
 )
@@ -71,9 +68,9 @@ def forward_beam_pattern(
 
 
 @dataclass(eq=False)
-class BodyMountedLaserScanner(LaserScanner):
+class BodyMountedLaser(SimulatedLaser):
     """
-    A laser scanner mounted on a body that is already present in the world.
+    A simulated laser mounted on a body that is already present in the world.
     """
 
     def setup_hardware_interfaces(self):
@@ -86,13 +83,13 @@ class BodyMountedLaserScanner(LaserScanner):
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
-        return cls(root=robot_root, laser_source=SimulatedLaser(forward_beam_pattern()))
+        return cls(root=robot_root, scan_pattern=forward_beam_pattern())
 
 
-@dataclass
+@dataclass(eq=False)
 class ConstantLaser(Laser):
     """
-    A laser source that answers every request with the same prepared reading.
+    A laser that answers every request with the same prepared reading.
     """
 
     reading: LaserReading = field(default_factory=LaserReading, kw_only=True)
@@ -100,11 +97,19 @@ class ConstantLaser(Laser):
     The reading handed back on every call.
     """
 
-    @property
-    def scan_pattern(self) -> ScanPattern:
-        return forward_beam_pattern()
+    def setup_hardware_interfaces(self):
+        pass
 
-    def get_laser_reading(self, root: KinematicStructureEntity) -> LaserReading:
+    def setup_joint_states(self) -> List[JointState]:
+        return []
+
+    @classmethod
+    def setup_default_configuration_in_world_below_robot_root(
+        cls, robot_root: KinematicStructureEntity
+    ) -> Self:
+        return cls(root=robot_root, scan_pattern=forward_beam_pattern())
+
+    def get_laser_reading(self) -> LaserReading:
         return self.reading
 
 
@@ -186,14 +191,15 @@ def test_scan_pattern_rejects_a_maximum_range_below_its_minimum_range():
             maximum_range=1.0,
         )
 
+
 # %% simulated laser
 
 
 def test_simulated_laser_reports_the_distance_to_the_wall_surface():
     _, mount = world_with_walls(FAR_WALL_DISTANCE)
-    laser = SimulatedLaser(forward_beam_pattern())
+    laser = BodyMountedLaser(root=mount, scan_pattern=forward_beam_pattern())
 
-    reading = laser.get_laser_reading(mount)
+    reading = laser.get_laser_reading()
 
     [distance] = reading.distance
     assert distance == pytest.approx(wall_surface_distance(FAR_WALL_DISTANCE))
@@ -208,9 +214,9 @@ def test_simulated_laser_reports_infinity_for_a_beam_that_hits_nothing():
         minimum_range=0.0,
         maximum_range=10.0,
     )
-    laser = SimulatedLaser(backward_beam)
+    laser = BodyMountedLaser(root=mount, scan_pattern=backward_beam)
 
-    reading = laser.get_laser_reading(mount)
+    reading = laser.get_laser_reading()
 
     assert reading.distance == [math.inf]
 
@@ -218,9 +224,11 @@ def test_simulated_laser_reports_infinity_for_a_beam_that_hits_nothing():
 def test_simulated_laser_reports_the_surface_behind_a_wall_closer_than_its_minimum_range():
     _, mount = world_with_walls(NEAR_WALL_DISTANCE, FAR_WALL_DISTANCE)
     minimum_range = wall_surface_distance(NEAR_WALL_DISTANCE) + WALL_THICKNESS + 0.1
-    laser = SimulatedLaser(forward_beam_pattern(minimum_range=minimum_range))
+    laser = BodyMountedLaser(
+        root=mount, scan_pattern=forward_beam_pattern(minimum_range=minimum_range)
+    )
 
-    reading = laser.get_laser_reading(mount)
+    reading = laser.get_laser_reading()
 
     [distance] = reading.distance
     assert distance == pytest.approx(wall_surface_distance(FAR_WALL_DISTANCE))
@@ -228,11 +236,14 @@ def test_simulated_laser_reports_the_surface_behind_a_wall_closer_than_its_minim
 
 def test_simulated_laser_reports_infinity_beyond_its_maximum_range():
     _, mount = world_with_walls(FAR_WALL_DISTANCE)
-    laser = SimulatedLaser(
-        forward_beam_pattern(maximum_range=wall_surface_distance(FAR_WALL_DISTANCE) / 2)
+    laser = BodyMountedLaser(
+        root=mount,
+        scan_pattern=forward_beam_pattern(
+            maximum_range=wall_surface_distance(FAR_WALL_DISTANCE) / 2
+        ),
     )
 
-    reading = laser.get_laser_reading(mount)
+    reading = laser.get_laser_reading()
 
     assert reading.distance == [math.inf]
 
@@ -246,32 +257,47 @@ def test_simulated_laser_returns_one_direction_and_one_distance_per_beam():
         minimum_range=0.0,
         maximum_range=10.0,
     )
-    laser = SimulatedLaser(pattern)
+    laser = BodyMountedLaser(root=mount, scan_pattern=pattern)
 
-    reading = laser.get_laser_reading(mount)
+    reading = laser.get_laser_reading()
 
     assert len(reading.direction) == len(reading.distance) == pattern.beam_count
 
 
-# %% laser scanner robot part
+def test_simulated_laser_expresses_its_beams_in_its_own_root():
+    _, mount = world_with_walls(FAR_WALL_DISTANCE)
+    laser = BodyMountedLaser(root=mount, scan_pattern=forward_beam_pattern())
+
+    reading = laser.get_laser_reading()
+
+    assert {direction.reference_frame for direction in reading.direction} == {mount}
 
 
-def test_laser_scanner_hands_back_the_reading_of_its_source():
+# %% laser robot part
+
+
+def test_a_laser_is_a_sensor():
+    _, mount = world_with_walls()
+
+    laser = ConstantLaser(root=mount, scan_pattern=forward_beam_pattern())
+
+    assert isinstance(laser, Sensor)
+
+
+def test_a_laser_hands_back_the_reading_it_takes():
     _, mount = world_with_walls()
     reading = LaserReading()
-    scanner = BodyMountedLaserScanner(
-        root=mount, laser_source=ConstantLaser(reading=reading)
+    laser = ConstantLaser(
+        root=mount, scan_pattern=forward_beam_pattern(), reading=reading
     )
 
-    assert scanner.get_laser_reading() is reading
+    assert laser.get_laser_reading() is reading
 
 
-def test_laser_scanner_reads_its_source_from_its_own_root():
-    _, mount = world_with_walls(FAR_WALL_DISTANCE)
-    scanner = BodyMountedLaserScanner(
-        root=mount, laser_source=SimulatedLaser(forward_beam_pattern())
-    )
+def test_a_laser_keeps_the_scan_pattern_it_was_built_with():
+    _, mount = world_with_walls()
+    pattern = forward_beam_pattern()
 
-    [distance] = scanner.get_laser_reading().distance
+    laser = ConstantLaser(root=mount, scan_pattern=pattern)
 
-    assert distance == pytest.approx(wall_surface_distance(FAR_WALL_DISTANCE))
+    assert laser.scan_pattern is pattern

@@ -14,7 +14,7 @@ from semantic_digital_twin.reasoning.predicates import LeftOf
 from semantic_digital_twin.robots.hsrb import HSRB
 from semantic_digital_twin.robots.pr2 import (
     PR2,
-    PR2BaseLaserScanner,
+    PR2BaseLaser,
     PR2Joint,
     PR2MobileBase,
     PR2Torso,
@@ -443,7 +443,7 @@ def test_pr2_semantic_annotation(pr2_world_state_reset):
     assert pr2.left_arm and pr2.right_arm
     assert pr2.left_arm != pr2.right_arm
     assert pr2.get_default_camera() in pr2.get_sensors()
-    assert pr2.mobile_base.laser_scanner in pr2.get_sensors()
+    assert pr2.mobile_base.laser in pr2.get_sensors()
 
 
 def test_has_left_right_arm_mixin(pr2_world_state_reset):
@@ -706,8 +706,8 @@ def test_pr2_automatic_setup_correctly(pr2_world_state_reset):
     torso = verify_part(mobile_base.torso, PR2Torso, robot)
     assert robot.torso == torso, "PR2.torso property shortcut mismatch"
 
-    # 3. MobileBase -> LaserScanner (via HasLaserScanner mixin)
-    verify_part(mobile_base.laser_scanner, PR2BaseLaserScanner, robot)
+    # 3. MobileBase -> Laser (via HasLaser mixin)
+    verify_part(mobile_base.laser, PR2BaseLaser, robot)
 
     # 4. Torso -> Neck (via HasNeck mixin)
     neck = verify_part(torso.neck, PR2Neck, robot)

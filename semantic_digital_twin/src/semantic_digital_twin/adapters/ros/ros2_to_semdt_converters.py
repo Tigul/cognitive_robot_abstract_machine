@@ -14,7 +14,7 @@ from semantic_digital_twin.adapters.ros.msg_converter import (
     InputType,
     OutputType,
 )
-from semantic_digital_twin.adapters.sensors.lidar import LaserReading
+from semantic_digital_twin.datastructures.laser_reading import LaserReading
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,

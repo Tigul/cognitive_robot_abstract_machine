@@ -28,7 +28,7 @@ from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasNeck,
-    HasLaserScanner,
+    HasLaser,
     HasOneArm,
     HasTorso,
     HasMobileBase,
@@ -39,7 +39,6 @@ from semantic_digital_twin.robots.robot_parts import (
     Arm,
     Camera,
     Finger,
-    LaserScanner,
     Neck,
     Torso,
     MobileBase,
@@ -374,7 +373,7 @@ The angle between two beams of the Stretch's base scanner, in radians.
 
 
 @dataclass(eq=False)
-class StretchBaseLaserScanner(LaserScanner):
+class StretchBaseLaser(SimulatedLaser):
     """
     The RPLIDAR scanner sweeping the whole floor around the Stretch's base.
 
@@ -382,26 +381,18 @@ class StretchBaseLaserScanner(LaserScanner):
         of its first rather than repeating it.
     """
 
-    def setup_hardware_interfaces(self):
-        pass
-
-    def setup_joint_states(self) -> List[JointState]:
-        return []
-
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
         return cls(
             root=robot_root._world.get_body_in_branch_by_name(robot_root, "laser"),
-            laser_source=SimulatedLaser(
-                ScanPattern(
-                    minimum_angle=-np.pi,
-                    maximum_angle=np.pi,
-                    angle_increment=0.005823156330734491,
-                    minimum_range=0.05,
-                    maximum_range=12.0,
-                )
+            scan_pattern=ScanPattern(
+                minimum_angle=-np.pi,
+                maximum_angle=np.pi,
+                angle_increment=0.005823156330734491,
+                minimum_range=0.05,
+                maximum_range=12.0,
             ),
         )
 
@@ -410,7 +401,7 @@ class StretchBaseLaserScanner(LaserScanner):
 class StretchMobileBase(
     MobileBase[DifferentialDrive],
     HasTorso[StretchTorso],
-    HasLaserScanner[StretchBaseLaserScanner],
+    HasLaser[StretchBaseLaser],
 ):
 
     full_body_controlled: bool = field(default=True, kw_only=True)

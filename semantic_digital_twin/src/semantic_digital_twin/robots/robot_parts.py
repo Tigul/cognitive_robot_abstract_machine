@@ -30,10 +30,11 @@ from krrood.class_diagrams.attribute_introspector import (
 from krrood.entity_query_language.factories import variable, contains, a, entity
 from krrood.ormatic.utils import classproperty
 from krrood.utils import get_generic_type_parameters
-from semantic_digital_twin.adapters.sensors.lidar import Laser, LaserReading
 from semantic_digital_twin.datastructures.definitions import JointStateType
 from semantic_digital_twin.datastructures.field_of_view import FieldOfView
 from semantic_digital_twin.datastructures.joint_state import JointState
+from semantic_digital_twin.datastructures.laser_reading import LaserReading
+from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.exceptions import (
     NoJointStateWithType,
     UselessConceptError,
@@ -511,22 +512,29 @@ class Camera(Sensor, ABC):
 
 
 @dataclass(eq=False)
-class LaserScanner(Sensor, ABC):
+class Laser(Sensor, ABC):
     """
-    A laser scanner is a sensor that measures the distance to the surfaces around it
-    along a fan of beams.
-    """
-
-    laser_source: Laser = field(kw_only=True)
-    """
-    Where the readings of this scanner come from, either a real scanner or the world.
+    A laser is a sensor that measures the distance to the surfaces around it along a fan
+    of beams.
     """
 
+    scan_pattern: ScanPattern = field(kw_only=True)
+    """
+    The directions this laser sweeps and the distances it can measure.
+    """
+
+    @property
+    def beam_directions(self) -> List[Vector3]:
+        """
+        :return: A unit vector along every beam, expressed in this laser's own frame.
+        """
+        return self.scan_pattern.beam_directions_in_frame(self.root)
+
+    @abstractmethod
     def get_laser_reading(self) -> LaserReading:
         """
-        :return: The most recent sweep of this scanner, taken from its own root.
+        :return: The most recent sweep of this laser.
         """
-        return self.laser_source.get_laser_reading(self.root)
 
 
 @dataclass(eq=False)
