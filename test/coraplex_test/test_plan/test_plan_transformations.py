@@ -112,14 +112,14 @@ class ParkArmsBeforeTorsoMotion(InsertionRewrite, ActionMatch[MoveTorsoAction]):
 
 
 @dataclass
-class MoveGripperBelowTheReachBody(InsertionRewrite, ActionMatch[ReachAction]):
+class MoveGripperLastInTheReachBody(InsertionRewrite, ActionMatch[ReachAction]):
     """
-    Puts a gripper motion below the sequence a reach expands into.
+    Puts a gripper motion at the end of the sequence a reach expands into.
     """
 
     @property
     def position(self) -> InsertionPosition:
-        return InsertionPosition.BELOW
+        return InsertionPosition.LAST_CHILD
 
     def anchor(self, plan_node: ActionNode) -> PlanNode:
         [body] = [
@@ -320,13 +320,16 @@ def test_a_transformation_inserts_its_nodes_after_the_anchor(immutable_model_wor
     ]
 
 
-def test_a_transformation_inserts_its_nodes_below_the_anchor(immutable_model_world):
+def test_a_transformation_inserts_its_nodes_as_the_last_child_of_the_anchor(
+    immutable_model_world,
+):
     """
-    Inserting below the anchor makes the node its last child instead of its sibling.
+    Inserting as the last child makes the node a child of the anchor instead of its
+    sibling.
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    context.plan_transformations.append(MoveGripperBelowTheReachBody())
+    context.plan_transformations.append(MoveGripperLastInTheReachBody())
 
     plan = execute_single(reach_action(milk, view), context=context)
     plan.notify()

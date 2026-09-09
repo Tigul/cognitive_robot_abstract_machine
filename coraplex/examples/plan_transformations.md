@@ -286,8 +286,9 @@ print(navigate.status)
 ## Where the Nodes Land
 
 Every insertion says where its nodes go: `BEFORE` or `AFTER` the anchor makes them its siblings,
-`BELOW` makes them its last children. The position is part of what the rewrite is rather than
-something its caller passes, so parking once the robot has arrived is a rewrite of its own:
+`LAST_CHILD` appends them to what the anchor expanded into. The position is part of what the rewrite
+is rather than something its caller passes, so parking once the robot has arrived is a rewrite of
+its own:
 
 ```python
 @dataclass

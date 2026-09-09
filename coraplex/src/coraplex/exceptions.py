@@ -63,7 +63,7 @@ class CannotInsertBesideRoot(DataclassException):
         )
 
     def suggest_correction(self) -> str:
-        return "insert the node below the root instead"
+        return "insert the node as the last child of the root instead"
 
 
 @dataclass

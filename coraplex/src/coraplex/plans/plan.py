@@ -244,7 +244,7 @@ class Plan:
         for node in nodes_for_adding:
             self.add_node(node)
 
-    def insert_below(self, reference_node: PlanNode, node: PlanNode):
+    def insert_as_last_child(self, reference_node: PlanNode, node: PlanNode):
         """
         Inserts a node as the last child of a node of this plan.
 

@@ -299,7 +299,7 @@ class InsertionPosition(Enum):
     As the right neighbour of the anchor node.
     """
 
-    BELOW = auto()
+    LAST_CHILD = auto()
     """
     As the last child of the anchor node.
     """
@@ -317,8 +317,8 @@ class InsertionPosition(Enum):
                 plan.insert_before(reference_node, node)
             case InsertionPosition.AFTER:
                 plan.insert_after(reference_node, node)
-            case InsertionPosition.BELOW:
-                plan.insert_below(reference_node, node)
+            case InsertionPosition.LAST_CHILD:
+                plan.insert_as_last_child(reference_node, node)
 
 
 class CuttingTechnique(Enum):
