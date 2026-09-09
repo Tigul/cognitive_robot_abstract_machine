@@ -12,15 +12,21 @@ import os
 import subprocess
 import sys
 from dataclasses import dataclass, field
+from enum import StrEnum
 from pathlib import Path
 
 from tqdm import tqdm
-from typing_extensions import List, Optional, Sequence, Tuple
+from typing_extensions import Dict, List, Optional, Sequence, Tuple
 
-from cognitive_robot_abstract_machine import orm_generation
+from cognitive_robot_abstract_machine import orm_generation, orm_import
 from cognitive_robot_abstract_machine.exceptions import (
     OrmGenerationFailedError,
     MissingORMGeneratorError,
+    OrmImportFailedError,
+)
+from cognitive_robot_abstract_machine.orm_import import (
+    InterfaceImportResult,
+    StaleInterface,
 )
 from krrood.class_diagrams.progress_report import (
     ClassDiagramProgress,
@@ -32,24 +38,19 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 Root of the checkout this package is installed from.
 """
 
-INTERFACE_FILE_NAME = "ormatic_interface.py"
+INTERFACE_MODULE_NAME = "ormatic_interface"
 """
-Name every package's generator writes its interface to.
-"""
-
-SOURCE_FILE_PATTERN = "*.py"
-"""
-What a module of a package is named like.
+Name every package's generator writes its interface to, as it is imported.
 """
 
-MAPPING_ENGINE_SOURCE_FOLDERS: Tuple[Path, ...] = (
-    Path("krrood") / "src" / "krrood",
-    Path("cognitive_robot_abstract_machine"),
-)
+INTERFACE_FILE_NAME = f"{INTERFACE_MODULE_NAME}.py"
 """
-Folders of a checkout that every generator reads whichever package it is building for,
-relative to the root: the library that maps the classes, and the module that runs the
-generators.
+Name of the file holding it.
+"""
+
+INTERFACE_FOLDER_NAME = "orm"
+"""
+Folder of a package's sources that holds its interface.
 """
 
 PROGRESS_DESCRIPTION = "Building ORM interfaces"
@@ -61,6 +62,19 @@ PROGRESS_REQUESTED = "1"
 """
 What a generator is told to report the classes it finishes.
 """
+
+
+class ImportEnvironmentVariable(StrEnum):
+    """
+    Environment variables an import of the interfaces is run with.
+    """
+
+    MODULE_SEARCH_PATH = "PYTHONPATH"
+    """
+    Where the interpreter looks for the packages of the checkout, ahead of what is
+    installed.
+    """
+
 
 # %% what a build shows while it runs
 
@@ -186,14 +200,14 @@ class OrmInterface:
         """
         The generated interface file.
         """
-        return (
-            self.repository_root
-            / self.package_name
-            / "src"
-            / self.package_name
-            / "orm"
-            / INTERFACE_FILE_NAME
-        )
+        return self.sources / INTERFACE_FOLDER_NAME / INTERFACE_FILE_NAME
+
+    @property
+    def module_name(self) -> str:
+        """
+        The generated interface, as it is imported.
+        """
+        return f"{self.package_name}.{INTERFACE_FOLDER_NAME}.{INTERFACE_MODULE_NAME}"
 
     @property
     def sources(self) -> Path:
@@ -201,47 +215,6 @@ class OrmInterface:
         The source folder holding the modules this interface maps.
         """
         return self.repository_root / self.package_name / "src" / self.package_name
-
-    @property
-    def mapping_engine_sources(self) -> List[Path]:
-        """
-        The folders of the library that maps this package's classes and of the module
-        that runs its generator.
-        """
-        return [
-            self.repository_root / folder for folder in MAPPING_ENGINE_SOURCE_FOLDERS
-        ]
-
-    @property
-    def inputs(self) -> List[Path]:
-        """
-        The files this package contributes to a build: its generator, the modules of its
-        source folder, and those of the mapping engine.
-
-        The interface itself is written by a build rather than read by one, so it is not
-        among them.
-        """
-        modules = [
-            module
-            for source_folder in (self.sources, *self.mapping_engine_sources)
-            for module in source_folder.rglob(SOURCE_FILE_PATTERN)
-            if module != self.path
-        ]
-        return [self.generator, *modules]
-
-    @property
-    def is_outdated(self) -> bool:
-        """
-        Whether this interface is missing, or older than a file this package contributes
-        to a build.
-
-        ..note:: A checkout that cannot build the interface counts as outdated, so the
-            build runs and reports what it is missing rather than being skipped.
-        """
-        if not self.path.exists() or not self.generator.exists():
-            return True
-        generated_at = self.path.stat().st_mtime
-        return any(source.stat().st_mtime > generated_at for source in self.inputs)
 
     def remove(self) -> None:
         """
@@ -334,18 +307,6 @@ class WorkspaceOrmInterfaces:
     The interfaces in the order they are built, which follows their dependencies.
     """
 
-    @property
-    def is_outdated(self) -> bool:
-        """
-        Whether any interface is missing, or older than a file of the checkout a build
-        reads.
-
-        ..note:: A build covers every interface at once, so a package whose ORM model
-            another builds on outdates the whole workspace through its own interface,
-            and no interface has to look past its own package.
-        """
-        return any(interface.is_outdated for interface in self.interfaces)
-
     def regenerate(self, show_generator_output: bool = False) -> None:
         """
         Build every interface anew, from an empty state and in dependency order.
@@ -425,6 +386,60 @@ class WorkspaceOrmInterfaces:
                 self.unbuilt_package_name, "".join(output.written)
             )
         output.finish()
+
+    @property
+    def import_command(self) -> List[str]:
+        """
+        The command that imports every interface in one interpreter, in dependency
+        order.
+        """
+        return [
+            sys.executable,
+            "-P",
+            "-m",
+            orm_import.__name__,
+            *(interface.module_name for interface in self.interfaces),
+        ]
+
+    @property
+    def import_environment(self) -> Dict[str, str]:
+        """
+        The environment that import runs in, with the source folders of this checkout
+        ahead of the packages that are installed.
+        """
+        search_path = [str(interface.sources.parent) for interface in self.interfaces]
+        installed = os.environ.get(ImportEnvironmentVariable.MODULE_SEARCH_PATH)
+        if installed:
+            search_path.append(installed)
+        return {
+            **os.environ,
+            ImportEnvironmentVariable.MODULE_SEARCH_PATH: os.pathsep.join(search_path),
+        }
+
+    def stale_interface(self) -> Optional[StaleInterface]:
+        """
+        Import every interface of this checkout in an interpreter of its own, and say
+        which one no longer matches the classes it maps.
+
+        :return: The first interface that no longer matches, or nothing when every one
+            of them imported.
+        :raises OrmImportFailedError: If the import failed for a reason other than an
+            interface no longer matching the classes it maps.
+        """
+        attempt = subprocess.run(
+            self.import_command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            env=self.import_environment,
+        )
+        if attempt.returncode == InterfaceImportResult.IMPORTED:
+            return None
+        stale = StaleInterface.from_output(attempt.stdout)
+        if attempt.returncode != InterfaceImportResult.STALE or stale is None:
+            raise OrmImportFailedError(attempt.stdout)
+        print(stale.report())
+        return stale
 
     @property
     def unbuilt_package_name(self) -> str:
