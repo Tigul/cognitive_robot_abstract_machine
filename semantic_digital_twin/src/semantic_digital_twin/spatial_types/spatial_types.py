@@ -187,7 +187,8 @@ class SpatialType:
         """
         if id(self) in memo:
             return memo[id(self)]
-        result = self._copy_with_data(deepcopy(self.casadi_sx))
+        with sm.CasadiLock():
+            result = self._copy_with_data(deepcopy(self.casadi_sx))
         memo[id(self)] = result
         return result
 
@@ -534,7 +535,7 @@ class HomogeneousTransformationMatrix(
         return self.to_rotation_matrix().to_quaternion()
 
     def to_pose(self) -> Pose:
-        result = Pose.from_casadi_sx(casadi_sx=self.casadi_sx)
+        result = Pose.from_casadi_sx(casadi_sx=copy(self.casadi_sx))
         result.reference_frame = self.reference_frame
         return result
 
@@ -800,7 +801,7 @@ class RotationMatrix(sm.SymbolicMathType, SpatialType, SubclassJSONSerializer):
             return angle
 
     def to_generic_matrix(self) -> sm.Matrix:
-        return sm.Matrix.from_casadi_sx(self.casadi_sx)
+        return sm.Matrix.from_casadi_sx(copy(self.casadi_sx))
 
     @classmethod
     def from_vectors(
@@ -1069,7 +1070,7 @@ class Point3(Point):
         if isinstance(data, SpatialType) and reference_frame is None:
             reference_frame = data.reference_frame
         result = cls(reference_frame=reference_frame)
-        result.casadi_sx = sm.to_sx(data)
+        result.casadi_sx = copy(sm.to_sx(data))
         return result
 
     @classmethod
@@ -1228,7 +1229,7 @@ class Point3(Point):
         return result
 
     def to_generic_vector(self) -> sm.Vector:
-        return sm.Vector.from_casadi_sx(self.casadi_sx[:3])
+        return sm.Vector.from_casadi_sx(copy(self.casadi_sx[:3]))
 
     def euclidean_distance(self, other: Self) -> sm.Scalar:
         return self.to_generic_vector().euclidean_distance(other.to_generic_vector())
@@ -1452,7 +1453,7 @@ class Vector3(sm.SymbolicMathType, SpatialType, SubclassJSONSerializer):
         result = cls(
             reference_frame=reference_frame, visualisation_frame=visualisation_frame
         )
-        result.casadi_sx = sm.to_sx(data)
+        result.casadi_sx = copy(sm.to_sx(data))
         return result
 
     @classmethod
@@ -1713,7 +1714,7 @@ class Vector3(sm.SymbolicMathType, SpatialType, SubclassJSONSerializer):
         )
 
     def to_point3(self) -> Point3:
-        result = Point3.from_casadi_sx(self.casadi_sx)
+        result = Point3.from_casadi_sx(copy(self.casadi_sx))
         result.reference_frame = self.reference_frame
         return result
 
@@ -2010,7 +2011,7 @@ class Quaternion(sm.SymbolicMathType, SpatialType, SubclassJSONSerializer):
         )
 
     def to_generic_vector(self) -> sm.Vector:
-        return sm.Vector.from_casadi_sx(self.casadi_sx)
+        return sm.Vector.from_casadi_sx(copy(self.casadi_sx))
 
     def to_rotation_matrix(self) -> RotationMatrix:
         return RotationMatrix.from_quaternion(self)
