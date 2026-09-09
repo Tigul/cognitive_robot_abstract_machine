@@ -4,18 +4,20 @@ from dataclasses import dataclass
 
 from typing_extensions import List, cast
 
-from coraplex.datastructures.enums import DetectionTechnique
+from coraplex.datastructures.enums import Arms, DetectionTechnique
 from coraplex.exceptions import PerceptionTargetMissing
 from coraplex.locations.factories import reachability_location
 from coraplex.plans.plan_node import ActionLike, ActionNode, MotionNode, PlanNode
 from coraplex.plans.plan_transformation import (
     ActionMatch,
     InsertionRewrite,
+    PlanMatch,
 )
 from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.navigation import LookAtAction, NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction, ReachAction
+from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from krrood.entity_query_language.factories import a, variable
 from semantic_digital_twin.reasoning.predicates import InsideOf
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Drawer
@@ -87,13 +89,13 @@ class OpenDrawerBeforePickUp(InsertionRewrite, ActionMatch[PickUpAction]):
             > self.minimum_containment_ratio
         ]
 
-    def is_applicable(self, plan_node: ActionNode) -> bool:
+    def is_applicable(self, plan_node: PlanNode) -> bool:
         return bool(self.containing_drawers(cast(PickUpAction, plan_node.action)))
 
-    def anchor(self, plan_node: ActionNode) -> PlanNode:
+    def anchor(self, plan_node: PlanNode) -> PlanNode:
         return plan_node
 
-    def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
+    def nodes_to_insert(self, plan_node: PlanNode) -> List[ActionLike]:
         pick_up = cast(PickUpAction, plan_node.action)
         nodes = []
         for drawer in self.containing_drawers(pick_up):
@@ -113,3 +115,34 @@ class OpenDrawerBeforePickUp(InsertionRewrite, ActionMatch[PickUpAction]):
                 ]
             )
         return nodes
+
+
+# %% parking before anything else
+
+
+@dataclass
+class ParkArmsBeforeFirstAction(InsertionRewrite, PlanMatch[ActionNode]):
+    """
+    Parks the arms in front of the first action of a plan.
+
+    An action that is grounded against the world, such as a drive to a pose the object
+    can be reached from, judges the robot in the configuration it is in. Arms left
+    wherever an earlier plan dropped them stand in collision at every candidate pose,
+    which rules out the whole location before it is ever checked for reachability.
+    """
+
+    arm: Arms = Arms.BOTH
+    """
+    The arms that are parked.
+    """
+
+    def is_applicable(self, plan_node: PlanNode) -> bool:
+        return plan_node.plan.actions[0] is plan_node and not isinstance(
+            plan_node.action, ParkArmsAction
+        )
+
+    def anchor(self, plan_node: PlanNode) -> PlanNode:
+        return plan_node
+
+    def nodes_to_insert(self, plan_node: PlanNode) -> List[ActionLike]:
+        return [ParkArmsAction(self.arm)]

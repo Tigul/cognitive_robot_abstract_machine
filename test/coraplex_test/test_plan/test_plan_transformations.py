@@ -35,6 +35,7 @@ from coraplex.robot_plans.motions.robot_body import MoveJointsMotion
 from coraplex.robot_plans.plan_transformations import (
     DetectBeforeGrasp,
     OpenDrawerBeforePickUp,
+    ParkArmsBeforeFirstAction,
 )
 from krrood.entity_query_language.factories import a
 from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
@@ -566,6 +567,7 @@ def test_the_opening_joins_the_sequence_an_underspecified_pick_up_runs(
     world, view, context = immutable_model_world
     spoon = world.get_semantic_annotations_by_type(Spoon)[0]
     drawer = drawer_holding(spoon, world)
+    context.plan_transformations.append(ParkArmsBeforeFirstAction())
     context.plan_transformations.append(OpenDrawerBeforePickUp())
 
     described = pick_up_action(spoon, view)
@@ -585,8 +587,9 @@ def test_the_opening_joins_the_sequence_an_underspecified_pick_up_runs(
     assert isinstance(underspecified, UnderspecifiedNode)
     assert underspecified.advance()
 
-    [navigation, opening, candidate] = underspecified.current_attempt.children
+    [parking, navigation, opening, candidate] = underspecified.current_attempt.children
     assert candidate is underspecified.current_candidate
+    assert isinstance(parking.designator, ParkArmsAction)
     assert navigation.designator_type is NavigateAction
     assert isinstance(opening.designator, OpenAction)
     assert opening.designator.object_designator is drawer.handle.root
