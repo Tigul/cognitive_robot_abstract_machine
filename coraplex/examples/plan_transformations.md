@@ -220,7 +220,9 @@ which says how their plan changes. A class that brings the two together is a tra
 part on its own is not.
 
 The matching part comes from a `PlanMatch` and the type it is bound to. `ActionMatch[NavigateAction]`
-matches the node of every navigation; `PlanMatch[SomeNode]` matches every node of that type.
+matches the node of every navigation; `PlanMatch[SomeNode]` matches every node of that type. It
+answers two questions: `applies_to_node` says which nodes the transformation rewrites, and
+`is_applicable` says whether the case a matched node describes needs it at all.
 
 The rewriting part comes from a `PlanRewrite`. `InsertionRewrite` inserts nodes and asks for the
 `anchor` they are placed next to and the `nodes_to_insert`, which are built anew on every
@@ -297,9 +299,9 @@ navigate.notify()
 show(navigate)
 ```
 
-A transformation that has to look at more than the node type can override `applies_to`, which
-decides whether the transformation rewrites a given node. Here the arms are only parked before
-drives that are free to move them:
+A transformation that is not needed in every case overrides `is_applicable`, which is asked about
+the nodes the matching part selected. Here the arms are only parked before drives that are free to
+move them:
 
 ```python
 @dataclass
@@ -308,11 +310,8 @@ class ParkArmsBeforeFreeDrives(ParkArmsBeforeNavigating):
     Parks the arms only before drives that do not have to hold the joints where they are.
     """
 
-    def applies_to(self, plan_node: PlanNode) -> bool:
-        return (
-            super().applies_to(plan_node)
-            and not plan_node.designator.keep_joint_states
-        )
+    def is_applicable(self, plan_node: PlanNode) -> bool:
+        return not plan_node.designator.keep_joint_states
 ```
 
 ```python

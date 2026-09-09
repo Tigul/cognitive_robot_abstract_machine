@@ -148,6 +148,54 @@ def test_a_transformation_is_a_match_and_a_rewrite():
     assert not issubclass(InsertionRewrite, PlanTransformation)
 
 
+@dataclass
+class MoveGripperBesideHighTorso(InsertionRewrite, ActionMatch[MoveTorsoAction]):
+    """
+    Puts a gripper motion next to a torso move, but only when the torso goes up.
+    """
+
+    def is_applicable(self, plan_node: ActionNode) -> bool:
+        return plan_node.action.torso_state is TorsoState.HIGH
+
+    def anchor(self, plan_node: ActionNode) -> PlanNode:
+        return motion_of(plan_node)
+
+    def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
+        return [MoveGripperMotion(GripperState.OPEN, Arms.LEFT)]
+
+
+def test_a_transformation_the_case_needs_is_applied(immutable_model_world):
+    """
+    A node the transformation matches and whose case needs it is rewritten.
+    """
+    world, view, context = immutable_model_world
+    context.plan_transformations.append(MoveGripperBesideHighTorso())
+
+    plan = execute_single(MoveTorsoAction(TorsoState.HIGH), context=context)
+    plan.notify()
+
+    assert [type(motion.designator) for motion in motions_of(plan)] == [
+        MoveGripperMotion,
+        MoveJointsMotion,
+    ]
+
+
+def test_a_transformation_the_case_does_not_need_is_skipped(immutable_model_world):
+    """
+    Matching the node type is not enough: a case that does not need the transformation
+    keeps the plan the action describes itself.
+    """
+    world, view, context = immutable_model_world
+    context.plan_transformations.append(MoveGripperBesideHighTorso())
+
+    plan = execute_single(MoveTorsoAction(TorsoState.LOW), context=context)
+    plan.notify()
+
+    assert [type(motion.designator) for motion in motions_of(plan)] == [
+        MoveJointsMotion
+    ]
+
+
 def test_a_match_on_the_node_type_selects_every_action(immutable_model_world):
     """
     Matching on the node type selects the nodes of actions of every type, which a match
@@ -400,6 +448,25 @@ def pick_up_action(annotation, view, arm: Arms = Arms.RIGHT) -> PickUpAction:
             view.right_arm.end_effector,
         ),
     )
+
+
+def test_the_drawer_is_only_opened_for_an_object_that_lies_in_one(
+    immutable_model_world,
+):
+    """
+    Opening a drawer is worth doing only for an object lying in one, so the pick-up of
+    the spoon needs the transformation and the pick-up of the milk does not.
+    """
+    world, view, context = immutable_model_world
+    spoon = world.get_semantic_annotations_by_type(Spoon)[0]
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    transformation = OpenDrawerBeforePickUp()
+
+    [in_a_drawer] = sequential([pick_up_action(spoon, view)], context).children
+    [in_the_open] = sequential([pick_up_action(milk, view)], context).children
+
+    assert transformation.is_applicable(in_a_drawer)
+    assert not transformation.is_applicable(in_the_open)
 
 
 def test_the_drawer_the_object_lies_in_is_opened_before_the_pick_up(

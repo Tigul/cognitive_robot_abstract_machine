@@ -304,8 +304,11 @@ class Plan:
         :param node: The node that was just expanded
         """
         for transformation in self.plan_transformations:
-            if transformation.applies_to(node):
-                transformation.apply(node)
+            if not transformation.applies_to_node(node):
+                continue
+            if not transformation.is_applicable(node):
+                continue
+            transformation.apply(node)
 
     def perform(self) -> Any:
         """

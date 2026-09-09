@@ -87,6 +87,9 @@ class OpenDrawerBeforePickUp(InsertionRewrite, ActionMatch[PickUpAction]):
             > self.minimum_containment_ratio
         ]
 
+    def is_applicable(self, plan_node: ActionNode) -> bool:
+        return bool(self.containing_drawers(cast(PickUpAction, plan_node.action)))
+
     def anchor(self, plan_node: ActionNode) -> PlanNode:
         return plan_node
 

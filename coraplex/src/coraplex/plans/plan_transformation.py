@@ -41,10 +41,16 @@ class PlanTransformation(Protocol):
     are expanded in turn.
     """
 
-    def applies_to(self, plan_node: PlanNode) -> bool:
+    def applies_to_node(self, plan_node: PlanNode) -> bool:
         """
         :param plan_node: The node that was just expanded
-        :return: Whether this transformation rewrites the given node.
+        :return: Whether the given node is one this transformation rewrites.
+        """
+
+    def is_applicable(self, plan_node: PlanNode) -> bool:
+        """
+        :param plan_node: A node this transformation applies to
+        :return: Whether the case the node describes needs this transformation.
         """
 
     def apply(self, plan_node: PlanNode) -> None:
@@ -73,12 +79,25 @@ class PlanMatch(Generic[NodeType], SubClassSafeGeneric, ABC):
             type(self), PlanMatch, include_root_generic_base=False
         )[0]
 
-    def applies_to(self, plan_node: PlanNode) -> bool:
+    def applies_to_node(self, plan_node: PlanNode) -> bool:
         """
         :param plan_node: The node that was just expanded
         :return: Whether this selects the given node.
         """
         return isinstance(plan_node, self.node_type)
+
+    def is_applicable(self, plan_node: PlanNode) -> bool:
+        """
+        Reports whether the case the node describes needs the transformation, which
+        every case does unless a transformation says otherwise.
+
+        It is asked only about nodes :meth:`applies_to_node` selected, so the node can
+        be read as the type this is bound to.
+
+        :param plan_node: A node this selects
+        :return: Whether the transformation is needed here.
+        """
+        return True
 
 
 @dataclass
@@ -106,8 +125,8 @@ class ActionMatch(PlanMatch[ActionNode], Generic[ActionType], SubClassSafeGeneri
             type(self), ActionMatch, include_root_generic_base=False
         )[0]
 
-    def applies_to(self, plan_node: PlanNode) -> bool:
-        return super().applies_to(plan_node) and isinstance(
+    def applies_to_node(self, plan_node: PlanNode) -> bool:
+        return super().applies_to_node(plan_node) and isinstance(
             plan_node.designator, self.action_type
         )
 
