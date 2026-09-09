@@ -12,6 +12,7 @@ from krrood.rustworkx_utils.graph_visualizer_base import (
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
     ApproachDirection,
+    InsertionPosition,
     VerticalAlignment,
     Arms,
 )
@@ -427,6 +428,20 @@ def test_insert_after_last_child_appends():
     plan.validate()
 
 
+@pytest.mark.parametrize("position", list(InsertionPosition))
+def test_every_position_inserts_the_node(position):
+    """
+    Every position knows how to place a node, so none of them leaves the plan without
+    the node it was asked to insert.
+    """
+    plan, root, (first, second, third) = sequential_children_plan()
+    inserted = PlanNode()
+
+    position.insert(plan, second, inserted)
+
+    assert inserted in plan.nodes
+
+
 def test_insert_beside_root_raises():
     """
     The root has no parent that could hold a sibling.
@@ -503,8 +518,8 @@ def _torso_position(world):
 
 def test_sequence_runs_all_motions(immutable_model_world):
     """
-    Every motion of a sequence is executed, so the torso ends at the target of the *last*
-    motion.
+    Every motion of a sequence is executed, so the torso ends at the target of the
+    *last* motion.
 
     The robot starts in the LOW configuration, so a final HIGH motion proves the second
     motion actually ran.

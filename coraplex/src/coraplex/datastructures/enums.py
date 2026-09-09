@@ -6,6 +6,12 @@ from __future__ import annotations
 
 from enum import Enum, auto, IntEnum
 
+from typing_extensions import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from coraplex.plans.plan import Plan
+    from coraplex.plans.plan_node import PlanNode
+
 
 class VisualizationLayout(Enum):
     BFS = "bfs"
@@ -278,10 +284,9 @@ class FilterConfig(Enum):
     butterworth = 1
 
 
-
 class InsertionPosition(Enum):
     """
-    Where an insertion rule places its nodes relative to the anchor node.
+    Where an insertion rewrite places its nodes relative to the anchor node.
     """
 
     BEFORE = auto()
@@ -298,6 +303,22 @@ class InsertionPosition(Enum):
     """
     As the last child of the anchor node.
     """
+
+    def insert(self, plan: Plan, reference_node: PlanNode, node: PlanNode) -> None:
+        """
+        Inserts a node at this position relative to a node of a plan.
+
+        :param plan: The plan both nodes belong to
+        :param reference_node: The node the given node is placed relative to
+        :param node: The node to insert
+        """
+        match self:
+            case InsertionPosition.BEFORE:
+                plan.insert_before(reference_node, node)
+            case InsertionPosition.AFTER:
+                plan.insert_after(reference_node, node)
+            case InsertionPosition.BELOW:
+                plan.insert_below(reference_node, node)
 
 
 class CuttingTechnique(Enum):

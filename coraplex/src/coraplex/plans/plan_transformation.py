@@ -4,9 +4,6 @@ from abc import abstractmethod, ABC
 from dataclasses import dataclass
 
 from typing_extensions import (
-    Callable,
-    ClassVar,
-    Dict,
     Generic,
     List,
     Protocol,
@@ -17,7 +14,6 @@ from typing_extensions import (
 
 from coraplex.datastructures.enums import InsertionPosition
 from coraplex.plans.factories import make_node
-from coraplex.plans.plan import Plan
 from coraplex.plans.plan_node import ActionLike, ActionNode, PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
 from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
@@ -158,15 +154,6 @@ class InsertionRewrite(PlanRewrite):
     it was inserted into.
     """
 
-    _insertion_methods: ClassVar[Dict[InsertionPosition, Callable[..., None]]] = {
-        InsertionPosition.BEFORE: Plan.insert_before,
-        InsertionPosition.AFTER: Plan.insert_after,
-        InsertionPosition.BELOW: Plan.insert_below,
-    }
-    """
-    The way each position inserts a node into the plan.
-    """
-
     @property
     @abstractmethod
     def position(self) -> InsertionPosition:
@@ -190,10 +177,9 @@ class InsertionRewrite(PlanRewrite):
 
     def apply(self, plan_node: PlanNode) -> None:
         anchor = self.anchor(plan_node)
-        insert = self._insertion_methods[self.position]
         for action_like in self.nodes_to_insert(plan_node):
             node = make_node(action_like)
-            insert(plan_node.plan, anchor, node)
+            self.position.insert(plan_node.plan, anchor, node)
             if self.position is InsertionPosition.AFTER:
                 # each further node goes behind the one before it, keeping their order
                 anchor = node
