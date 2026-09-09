@@ -398,16 +398,26 @@ class Plan:
         :param layout: The algorithm used to place the nodes.
         :return: The running visualizer.
         """
-        visualizer = self._visualizer_classes[backend](
+        visualizer = self._create_visualizer(backend=backend, layout=layout)
+        visualizer.run()
+        return visualizer
+
+    def _create_visualizer(
+        self, backend: GraphVisualizerBackend, layout: GraphLayout
+    ) -> GraphVisualizerBase:
+        """
+        :param backend: The rendering technology to use.
+        :param layout: The algorithm used to place the nodes.
+        :return: A visualizer of this plan, before it is started.
+        """
+        return self._visualizer_classes[backend](
             graph=self.plan_graph,
             label_getter=lambda node: node.__node_label__(),
             information_getter=lambda node: node.__node_info__(),
-            color_getter=lambda node: node.status.color.replace("-", ""),
+            color_getter=lambda node: node.status.color.to_hex(),
             layout=layout,
             title=repr(self),
         )
-        visualizer.run()
-        return visualizer
 
     def _node_details(self, node: PlanNode) -> List[str]:
         """
