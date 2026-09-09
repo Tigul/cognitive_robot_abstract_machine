@@ -13,7 +13,6 @@ from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.attachment_nodes import ReAttachNode
 from coraplex.perception import PerceptionQuery
-from coraplex.plans.attachment_nodes import ModelChangeNode
 from coraplex.plans.executables import (
     Executable,
     GiskardExecutable,

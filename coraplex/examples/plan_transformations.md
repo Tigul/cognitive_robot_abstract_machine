@@ -215,14 +215,16 @@ the drive rather than before the pick-up.
 
 ## Writing a Transformation
 
-A transformation answers two questions: which nodes it applies to, and how it rewrites their plan.
+A transformation is one matching part, which says which nodes it applies to, and one rewriting part,
+which says how their plan changes. A class that brings the two together is a transformation; either
+part on its own is not.
 
-The nodes come from the type it is bound to. `ActionTransformation[NavigateAction]` applies to the
-node of every navigation; `PlanTransformation[SomeNode]` applies to every node of that type.
+The matching part comes from a `PlanMatch` and the type it is bound to. `ActionMatch[NavigateAction]`
+matches the node of every navigation; `PlanMatch[SomeNode]` matches every node of that type.
 
-The rewrite comes from the base class it is built on. `InsertionTransformation` inserts nodes and
-asks for the `anchor` they are placed next to and the `nodes_to_insert`, which are built anew on
-every application, since a node belongs to the one plan it was inserted into.
+The rewriting part comes from a `PlanRewrite`. `InsertionRewrite` inserts nodes and asks for the
+`anchor` they are placed next to and the `nodes_to_insert`, which are built anew on every
+application, since a node belongs to the one plan it was inserted into.
 
 ```python
 from dataclasses import dataclass
@@ -230,13 +232,13 @@ from dataclasses import dataclass
 from typing_extensions import List
 
 from coraplex.plans.plan_node import ActionLike, ActionNode, MotionNode, PlanNode
-from coraplex.plans.plan_transformation import ActionTransformation, InsertionTransformation
+from coraplex.plans.plan_transformation import ActionMatch, InsertionRewrite
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 
 
 @dataclass
-class ParkArmsBeforeNavigating(InsertionTransformation, ActionTransformation[NavigateAction]):
+class ParkArmsBeforeNavigating(InsertionRewrite, ActionMatch[NavigateAction]):
     """
     Parks the arms before the robot drives off, so it does not carry them into the
     furniture it passes.
@@ -275,7 +277,7 @@ print(navigate.status)
 
 ## Where the Nodes Land
 
-`InsertionTransformation` takes the position the nodes are inserted at: `BEFORE` or `AFTER` the
+`InsertionRewrite` takes the position the nodes are inserted at: `BEFORE` or `AFTER` the
 anchor make them its siblings, `BELOW` makes them its last children. The same transformation with
 another position parks the arms once the robot has arrived instead:
 

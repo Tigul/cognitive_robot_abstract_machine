@@ -14,17 +14,14 @@ from coraplex.exceptions import PerceptionTargetMissing
 from coraplex.orm.ormatic_interface import *  # type: ignore
 from coraplex.language import SequentialNode
 from coraplex.plans.factories import execute_single, sequential
-from coraplex.plans.plan_node import (
-    ActionLike,
-    ActionNode,
-    MotionNode,
-    PlanNode,
-    UnderspecifiedNode,
-)
+from coraplex.plans.plan_node import ActionLike, ActionNode, MotionNode, PlanNode
 from coraplex.plans.plan_transformation import (
-    ActionTransformation,
-    InsertionTransformation,
+    ActionMatch,
+    InsertionRewrite,
+    PlanMatch,
+    PlanTransformation,
 )
+from coraplex.plans.underspecified import UnderspecifiedNode
 from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.navigation import LookAtAction, NavigateAction
@@ -64,9 +61,7 @@ def motion_of(plan_node: ActionNode) -> MotionNode:
 
 
 @dataclass
-class MoveGrippersBesideTorsoMotion(
-    InsertionTransformation, ActionTransformation[MoveTorsoAction]
-):
+class MoveGrippersBesideTorsoMotion(InsertionRewrite, ActionMatch[MoveTorsoAction]):
     """
     Puts two distinguishable gripper motions next to the motion a torso move expands
     into.
@@ -83,9 +78,7 @@ class MoveGrippersBesideTorsoMotion(
 
 
 @dataclass
-class ParkArmsBesideTorsoMotion(
-    InsertionTransformation, ActionTransformation[MoveTorsoAction]
-):
+class ParkArmsBesideTorsoMotion(InsertionRewrite, ActionMatch[MoveTorsoAction]):
     """
     Puts an action, which has a plan of its own, next to the motion a torso move expands
     into.
@@ -99,9 +92,7 @@ class ParkArmsBesideTorsoMotion(
 
 
 @dataclass
-class MoveGripperBelowTheReachBody(
-    InsertionTransformation, ActionTransformation[ReachAction]
-):
+class MoveGripperBelowTheReachBody(InsertionRewrite, ActionMatch[ReachAction]):
     """
     Puts a gripper motion below the sequence a reach expands into.
     """
@@ -122,6 +113,60 @@ def motions_of(plan_node: PlanNode) -> List[MotionNode]:
     :return: The motions directly below the given node, in their plan order.
     """
     return [node for node in plan_node.children if isinstance(node, MotionNode)]
+
+
+# %% what makes a transformation
+
+
+@dataclass
+class MatchWithoutRewrite(ActionMatch[MoveTorsoAction]):
+    """
+    Selects nodes without saying how to rewrite the plan around them.
+    """
+
+
+@dataclass
+class MoveGripperBesideEveryAction(InsertionRewrite, PlanMatch[ActionNode]):
+    """
+    Puts a gripper motion next to every action node, whatever action it holds.
+    """
+
+    def anchor(self, plan_node: ActionNode) -> PlanNode:
+        return plan_node
+
+    def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
+        return [MoveGripperMotion(GripperState.CLOSE, Arms.RIGHT)]
+
+
+def test_a_transformation_is_a_match_and_a_rewrite():
+    """
+    A transformation is whatever brings a matching and a rewriting part together, so
+    either part on its own is not one.
+    """
+    assert issubclass(DetectBeforeGrasp, PlanTransformation)
+    assert not issubclass(MatchWithoutRewrite, PlanTransformation)
+    assert not issubclass(InsertionRewrite, PlanTransformation)
+
+
+def test_a_match_on_the_node_type_selects_every_action(immutable_model_world):
+    """
+    Matching on the node type selects the nodes of actions of every type, which a match
+    bound to one action type cannot express.
+    """
+    world, view, context = immutable_model_world
+    context.plan_transformations.append(MoveGripperBesideEveryAction())
+
+    plan = sequential(
+        [MoveTorsoAction(TorsoState.HIGH), ParkArmsAction(Arms.BOTH)], context
+    )
+    plan.notify()
+
+    assert [type(node.designator) for node in plan.children] == [
+        MoveGripperMotion,
+        MoveTorsoAction,
+        MoveGripperMotion,
+        ParkArmsAction,
+    ]
 
 
 # %% inserting

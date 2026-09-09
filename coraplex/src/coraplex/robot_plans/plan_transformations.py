@@ -9,8 +9,8 @@ from coraplex.exceptions import PerceptionTargetMissing
 from coraplex.locations.factories import reachability_location
 from coraplex.plans.plan_node import ActionLike, ActionNode, MotionNode, PlanNode
 from coraplex.plans.plan_transformation import (
-    ActionTransformation,
-    InsertionTransformation,
+    ActionMatch,
+    InsertionRewrite,
 )
 from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.robot_plans.actions.core.misc import DetectAction
@@ -25,7 +25,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 
 @dataclass
-class DetectBeforeGrasp(InsertionTransformation, ActionTransformation[ReachAction]):
+class DetectBeforeGrasp(InsertionRewrite, ActionMatch[ReachAction]):
     """
     Looks at the object and detects it before a reach makes its final approach, so that
     the approach acts on a freshly perceived pose instead of the one the world holds.
@@ -63,9 +63,7 @@ class DetectBeforeGrasp(InsertionTransformation, ActionTransformation[ReachActio
 
 
 @dataclass
-class OpenDrawerBeforePickUp(
-    InsertionTransformation, ActionTransformation[PickUpAction]
-):
+class OpenDrawerBeforePickUp(InsertionRewrite, ActionMatch[PickUpAction]):
     """
     Opens the drawers an object lies in before the robot picks it up, so that it reaches
     into an open drawer instead of a closed one.
