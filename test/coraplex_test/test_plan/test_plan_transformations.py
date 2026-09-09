@@ -62,11 +62,15 @@ def motion_of(plan_node: ActionNode) -> MotionNode:
 
 
 @dataclass
-class MoveGrippersBesideTorsoMotion(InsertionRewrite, ActionMatch[MoveTorsoAction]):
+class MoveGrippersBeforeTorsoMotion(InsertionRewrite, ActionMatch[MoveTorsoAction]):
     """
-    Puts two distinguishable gripper motions next to the motion a torso move expands
+    Puts two distinguishable gripper motions in front of the motion a torso move expands
     into.
     """
+
+    @property
+    def position(self) -> InsertionPosition:
+        return InsertionPosition.BEFORE
 
     def anchor(self, plan_node: ActionNode) -> PlanNode:
         return motion_of(plan_node)
@@ -79,11 +83,26 @@ class MoveGrippersBesideTorsoMotion(InsertionRewrite, ActionMatch[MoveTorsoActio
 
 
 @dataclass
-class ParkArmsBesideTorsoMotion(InsertionRewrite, ActionMatch[MoveTorsoAction]):
+class MoveGrippersAfterTorsoMotion(MoveGrippersBeforeTorsoMotion):
     """
-    Puts an action, which has a plan of its own, next to the motion a torso move expands
-    into.
+    Puts the same gripper motions behind that motion instead.
     """
+
+    @property
+    def position(self) -> InsertionPosition:
+        return InsertionPosition.AFTER
+
+
+@dataclass
+class ParkArmsBeforeTorsoMotion(InsertionRewrite, ActionMatch[MoveTorsoAction]):
+    """
+    Puts an action, which has a plan of its own, in front of the motion a torso move
+    expands into.
+    """
+
+    @property
+    def position(self) -> InsertionPosition:
+        return InsertionPosition.BEFORE
 
     def anchor(self, plan_node: ActionNode) -> PlanNode:
         return motion_of(plan_node)
@@ -97,6 +116,10 @@ class MoveGripperBelowTheReachBody(InsertionRewrite, ActionMatch[ReachAction]):
     """
     Puts a gripper motion below the sequence a reach expands into.
     """
+
+    @property
+    def position(self) -> InsertionPosition:
+        return InsertionPosition.BELOW
 
     def anchor(self, plan_node: ActionNode) -> PlanNode:
         [body] = [
@@ -127,16 +150,42 @@ class MatchWithoutRewrite(ActionMatch[MoveTorsoAction]):
 
 
 @dataclass
-class MoveGripperBesideEveryAction(InsertionRewrite, PlanMatch[ActionNode]):
+class MoveGripperBeforeEveryAction(InsertionRewrite, PlanMatch[ActionNode]):
     """
-    Puts a gripper motion next to every action node, whatever action it holds.
+    Puts a gripper motion in front of every action node, whatever action it holds.
     """
+
+    @property
+    def position(self) -> InsertionPosition:
+        return InsertionPosition.BEFORE
 
     def anchor(self, plan_node: ActionNode) -> PlanNode:
         return plan_node
 
     def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
         return [MoveGripperMotion(GripperState.CLOSE, Arms.RIGHT)]
+
+
+@dataclass
+class RewriteWithoutPosition(InsertionRewrite, ActionMatch[MoveTorsoAction]):
+    """
+    Inserts nodes without saying where they go.
+    """
+
+    def anchor(self, plan_node: ActionNode) -> PlanNode:
+        return plan_node
+
+    def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
+        return [MoveGripperMotion(GripperState.OPEN, Arms.LEFT)]
+
+
+def test_a_rewrite_that_says_no_position_cannot_be_built():
+    """
+    Where an insertion goes is part of what the rewrite is, so one that leaves it unsaid
+    is incomplete rather than placed somewhere by default.
+    """
+    with pytest.raises(TypeError):
+        RewriteWithoutPosition()
 
 
 def test_a_transformation_is_a_match_and_a_rewrite():
@@ -150,10 +199,14 @@ def test_a_transformation_is_a_match_and_a_rewrite():
 
 
 @dataclass
-class MoveGripperBesideHighTorso(InsertionRewrite, ActionMatch[MoveTorsoAction]):
+class MoveGripperBeforeHighTorso(InsertionRewrite, ActionMatch[MoveTorsoAction]):
     """
-    Puts a gripper motion next to a torso move, but only when the torso goes up.
+    Puts a gripper motion in front of a torso move, but only when the torso goes up.
     """
+
+    @property
+    def position(self) -> InsertionPosition:
+        return InsertionPosition.BEFORE
 
     def is_applicable(self, plan_node: ActionNode) -> bool:
         return plan_node.action.torso_state is TorsoState.HIGH
@@ -170,7 +223,7 @@ def test_a_transformation_the_case_needs_is_applied(immutable_model_world):
     A node the transformation matches and whose case needs it is rewritten.
     """
     world, view, context = immutable_model_world
-    context.plan_transformations.append(MoveGripperBesideHighTorso())
+    context.plan_transformations.append(MoveGripperBeforeHighTorso())
 
     plan = execute_single(MoveTorsoAction(TorsoState.HIGH), context=context)
     plan.notify()
@@ -187,7 +240,7 @@ def test_a_transformation_the_case_does_not_need_is_skipped(immutable_model_worl
     keeps the plan the action describes itself.
     """
     world, view, context = immutable_model_world
-    context.plan_transformations.append(MoveGripperBesideHighTorso())
+    context.plan_transformations.append(MoveGripperBeforeHighTorso())
 
     plan = execute_single(MoveTorsoAction(TorsoState.LOW), context=context)
     plan.notify()
@@ -203,7 +256,7 @@ def test_a_match_on_the_node_type_selects_every_action(immutable_model_world):
     bound to one action type cannot express.
     """
     world, view, context = immutable_model_world
-    context.plan_transformations.append(MoveGripperBesideEveryAction())
+    context.plan_transformations.append(MoveGripperBeforeEveryAction())
 
     plan = sequential(
         [MoveTorsoAction(TorsoState.HIGH), ParkArmsAction(Arms.BOTH)], context
@@ -227,7 +280,7 @@ def test_a_transformation_inserts_its_nodes_before_the_anchor(immutable_model_wo
     gives them.
     """
     world, view, context = immutable_model_world
-    context.plan_transformations.append(MoveGrippersBesideTorsoMotion())
+    context.plan_transformations.append(MoveGrippersBeforeTorsoMotion())
 
     plan = execute_single(MoveTorsoAction(TorsoState.HIGH), context=context)
     plan.notify()
@@ -250,9 +303,7 @@ def test_a_transformation_inserts_its_nodes_after_the_anchor(immutable_model_wor
     pushing every node into the same place behind the anchor.
     """
     world, view, context = immutable_model_world
-    context.plan_transformations.append(
-        MoveGrippersBesideTorsoMotion(position=InsertionPosition.AFTER)
-    )
+    context.plan_transformations.append(MoveGrippersAfterTorsoMotion())
 
     plan = execute_single(MoveTorsoAction(TorsoState.HIGH), context=context)
     plan.notify()
@@ -275,9 +326,7 @@ def test_a_transformation_inserts_its_nodes_below_the_anchor(immutable_model_wor
     """
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    context.plan_transformations.append(
-        MoveGripperBelowTheReachBody(position=InsertionPosition.BELOW)
-    )
+    context.plan_transformations.append(MoveGripperBelowTheReachBody())
 
     plan = execute_single(reach_action(milk, view), context=context)
     plan.notify()
@@ -295,7 +344,7 @@ def test_a_transformation_leaves_actions_of_another_type_alone(immutable_model_w
     A transformation bound to one action type must not rewrite the plan of another one.
     """
     world, view, context = immutable_model_world
-    context.plan_transformations.append(MoveGrippersBesideTorsoMotion())
+    context.plan_transformations.append(MoveGrippersBeforeTorsoMotion())
 
     plan = execute_single(ParkArmsAction(Arms.BOTH), context=context)
     plan.notify()
@@ -314,7 +363,7 @@ def test_an_inserted_action_is_expanded(immutable_model_world):
     plan of its own instead of staying an unexpanded leaf.
     """
     world, view, context = immutable_model_world
-    context.plan_transformations.append(ParkArmsBesideTorsoMotion())
+    context.plan_transformations.append(ParkArmsBeforeTorsoMotion())
 
     plan = execute_single(MoveTorsoAction(TorsoState.HIGH), context=context)
     plan.notify()

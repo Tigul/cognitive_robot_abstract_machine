@@ -158,11 +158,6 @@ class InsertionRewrite(PlanRewrite):
     it was inserted into.
     """
 
-    position: InsertionPosition = InsertionPosition.BEFORE
-    """
-    Where the inserted nodes are placed relative to the anchor node.
-    """
-
     _insertion_methods: ClassVar[Dict[InsertionPosition, Callable[..., None]]] = {
         InsertionPosition.BEFORE: Plan.insert_before,
         InsertionPosition.AFTER: Plan.insert_after,
@@ -171,6 +166,13 @@ class InsertionRewrite(PlanRewrite):
     """
     The way each position inserts a node into the plan.
     """
+
+    @property
+    @abstractmethod
+    def position(self) -> InsertionPosition:
+        """
+        :return: Where the inserted nodes are placed relative to the anchor node.
+        """
 
     @abstractmethod
     def anchor(self, plan_node: PlanNode) -> PlanNode:

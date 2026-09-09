@@ -225,14 +225,16 @@ answers two questions: `applies_to_node` says which nodes the transformation rew
 `is_applicable` says whether the case a matched node describes needs it at all.
 
 The rewriting part comes from a `PlanRewrite`. `InsertionRewrite` inserts nodes and asks for the
-`anchor` they are placed next to and the `nodes_to_insert`, which are built anew on every
-application, since a node belongs to the one plan it was inserted into.
+`position` they are placed at, the `anchor` they are placed next to, and the `nodes_to_insert`,
+which are built anew on every application, since a node belongs to the one plan it was inserted
+into.
 
 ```python
 from dataclasses import dataclass
 
 from typing_extensions import List
 
+from coraplex.datastructures.enums import InsertionPosition
 from coraplex.plans.plan_node import ActionLike, ActionNode, MotionNode, PlanNode
 from coraplex.plans.plan_transformation import ActionMatch, InsertionRewrite
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
@@ -245,6 +247,10 @@ class ParkArmsBeforeNavigating(InsertionRewrite, ActionMatch[NavigateAction]):
     Parks the arms before the robot drives off, so it does not carry them into the
     furniture it passes.
     """
+
+    @property
+    def position(self) -> InsertionPosition:
+        return InsertionPosition.BEFORE
 
     def anchor(self, plan_node: ActionNode) -> PlanNode:
         [drive] = [
@@ -279,16 +285,23 @@ print(navigate.status)
 
 ## Where the Nodes Land
 
-`InsertionRewrite` takes the position the nodes are inserted at: `BEFORE` or `AFTER` the
-anchor make them its siblings, `BELOW` makes them its last children. The same transformation with
-another position parks the arms once the robot has arrived instead:
+Every insertion says where its nodes go: `BEFORE` or `AFTER` the anchor makes them its siblings,
+`BELOW` makes them its last children. The position is part of what the rewrite is rather than
+something its caller passes, so parking once the robot has arrived is a rewrite of its own:
 
 ```python
-from coraplex.datastructures.enums import InsertionPosition
+@dataclass
+class ParkArmsAfterNavigating(ParkArmsBeforeNavigating):
+    """
+    Parks the arms once the robot has arrived instead of before it drives off.
+    """
 
-context.plan_transformations = [
-    ParkArmsBeforeNavigating(position=InsertionPosition.AFTER)
-]
+    @property
+    def position(self) -> InsertionPosition:
+        return InsertionPosition.AFTER
+
+
+context.plan_transformations = [ParkArmsAfterNavigating()]
 
 navigate = execute_single(
     NavigateAction(Pose.from_xyz_rpy(1.5, 2.4, 0.0, reference_frame=world.root)),

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from typing_extensions import List, cast
 
-from coraplex.datastructures.enums import Arms, DetectionTechnique
+from coraplex.datastructures.enums import Arms, DetectionTechnique, InsertionPosition
 from coraplex.exceptions import PerceptionTargetMissing
 from coraplex.locations.factories import reachability_location
 from coraplex.plans.plan_node import ActionLike, ActionNode, MotionNode, PlanNode
@@ -32,6 +32,10 @@ class DetectBeforeGrasp(InsertionRewrite, ActionMatch[ReachAction]):
     Looks at the object and detects it before a reach makes its final approach, so that
     the approach acts on a freshly perceived pose instead of the one the world holds.
     """
+
+    @property
+    def position(self) -> InsertionPosition:
+        return InsertionPosition.BEFORE
 
     def final_approach(self, plan_node: ActionNode) -> MotionNode:
         """
@@ -75,6 +79,10 @@ class OpenDrawerBeforePickUp(InsertionRewrite, ActionMatch[PickUpAction]):
     """
     How much of the object has to lie within a drawer for it to count as being in it.
     """
+
+    @property
+    def position(self) -> InsertionPosition:
+        return InsertionPosition.BEFORE
 
     def containing_drawers(self, pick_up: PickUpAction) -> List[Drawer]:
         """
@@ -135,6 +143,10 @@ class ParkArmsBeforeFirstAction(InsertionRewrite, PlanMatch[ActionNode]):
     """
     The arms that are parked.
     """
+
+    @property
+    def position(self) -> InsertionPosition:
+        return InsertionPosition.BEFORE
 
     def is_applicable(self, plan_node: PlanNode) -> bool:
         return plan_node.plan.actions[0] is plan_node and not isinstance(
