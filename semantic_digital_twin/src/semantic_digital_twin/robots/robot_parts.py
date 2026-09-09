@@ -646,6 +646,7 @@ class MobileBase(AbstractRobotPart, Generic[TGenericDrive], ABC):
         """
         return (self.bounding_box.depth / 2 + self.bounding_box.width / 2) / 2
 
+
 @dataclass(eq=False)
 class AbstractRobot(Agent, HasRobotParts, ABC):
     """

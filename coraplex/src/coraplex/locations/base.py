@@ -45,6 +45,7 @@ from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Floor
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.world_entity import Body
 
 logger = logging.getLogger("coraplex")
 
@@ -96,14 +97,30 @@ class Location(Iterable[Pose]):
         """
         return next(iter(self))
 
-    def _standing_clearance(self, robot: AbstractRobot) -> List[CollisionRule]:
+    def _floor_contact(
+        self, robot: AbstractRobot, floors: List[Body]
+    ) -> AllowCollisionBetweenGroups:
         """
         :param robot: The robot standing at a candidate pose.
+        :param floors: The bodies of the floors of the robot's world.
+        :return: The rule under which the robot resting on a floor is not a collision.
+        """
+        return AllowCollisionBetweenGroups(
+            body_group_a=robot.bodies_with_collision,
+            body_group_b=floors,
+        )
+
+    def _standing_clearance(
+        self, robot: AbstractRobot, floors: List[Body]
+    ) -> List[CollisionRule]:
+        """
+        :param robot: The robot standing at a candidate pose.
+        :param floors: The bodies of the floors of the robot's world.
         :return: The rules a candidate is judged in collision under.
 
         A standing pose only has to be clear of the surroundings; the arms are wherever
         the previous motion left them, so the robot touching itself says nothing about
-        the pose.
+        the pose, and neither does it resting on the floor it drives on.
         """
         return [
             AvoidExternalCollisions(
@@ -111,6 +128,7 @@ class Location(Iterable[Pose]):
                 violated_distance=self.standing_violated_distance,
             ),
             AllowSelfCollisions(robot=robot),
+            self._floor_contact(robot, floors),
         ]
 
     def __iter__(self) -> Iterator[Pose]:
@@ -128,13 +146,16 @@ class Location(Iterable[Pose]):
             )
 
         if self.context.debug:
-            VizMarkerPublisher(_world=test_world, node=self.context.ros_node).with_collision_visualization()
+            VizMarkerPublisher(
+                _world=test_world, node=self.context.ros_node
+            ).with_collision_visualization()
 
-        # A robot rests on the floor wherever it stands, so contact with it says nothing
-        # about whether the place is free.
         floor_bodies = [
             floor.root for floor in test_world.get_semantic_annotations_by_type(Floor)
         ]
+
+        # Save to current rules to restore them later
+        rules_of_the_run = list(test_world.collision_manager.temporary_rules)
 
         for pose_candidate in self.generator:
 
@@ -148,14 +169,10 @@ class Location(Iterable[Pose]):
                 else pose_candidate
             )
 
-            # Asked under rules of its own, which are taken back down again: the
-            # reachability simulation that follows has to see the rules the plan is
-            # executed with, and temporary rules outrank the robot's own.
             collision_manager = test_world.collision_manager
-            rules_of_the_run = list(collision_manager.temporary_rules)
             collision_manager.clear_temporary_rules()
             collision_manager.extend_temporary_rule(
-                self._standing_clearance(test_robot)
+                self._standing_clearance(test_robot, floor_bodies)
             )
             collision_manager.update_collision_matrix()
 
@@ -163,10 +180,9 @@ class Location(Iterable[Pose]):
 
             collision_manager.clear_temporary_rules()
             collision_manager.extend_temporary_rule(rules_of_the_run)
-            collision_manager.extend_temporary_rule([AllowCollisionBetweenGroups(
-                body_group_a=test_robot.bodies_with_collision,
-                body_group_b=floor_bodies,
-            )])
+            collision_manager.extend_temporary_rule(
+                [self._floor_contact(test_robot, floor_bodies)]
+            )
             collision_manager.update_collision_matrix()
 
             if stands_in_collision:
@@ -174,8 +190,8 @@ class Location(Iterable[Pose]):
                 continue
 
             if all(
-                    validator(pose_candidate=pose_candidate)
-                    for validator in self.validators
+                validator(pose_candidate=pose_candidate)
+                for validator in self.validators
             ):
                 yield pose_candidate
 

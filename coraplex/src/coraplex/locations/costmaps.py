@@ -48,7 +48,7 @@ class OrientationGenerator:
 
     @staticmethod
     def generate_origin_orientation(
-            position: Point3, origin: Pose, rotate_by_angle: float = 0
+        position: Point3, origin: Pose, rotate_by_angle: float = 0
     ) -> Quaternion:
         """
         Generates an orientation such that the robot faces the origin of the locations.
@@ -60,11 +60,11 @@ class OrientationGenerator:
         """
         rotation_R_new_rotation = RotationMatrix.from_rpy(0, 0, rotate_by_angle)
         angle = (
-                np.arctan2(
-                    position.y - origin.y,
-                    position.x - origin.x,
-                )
-                + np.pi
+            np.arctan2(
+                position.y - origin.y,
+                position.x - origin.x,
+            )
+            + np.pi
         )[0]
         world_R_rotation = RotationMatrix.from_rpy(0, 0, angle)
         world_R_new_rotation = world_R_rotation @ rotation_R_new_rotation
@@ -72,7 +72,7 @@ class OrientationGenerator:
 
     @staticmethod
     def orientation_generator_for_axis(
-            axis: Vector3,
+        axis: Vector3,
     ) -> Callable[[Point3, Pose], Quaternion]:
         """
         Creates an orientation generator where the given axis is facing the target.
@@ -87,7 +87,7 @@ class OrientationGenerator:
 
     @staticmethod
     def generate_random_orientation(
-            *_, rng: random.Random = random.Random(42)
+        *_, rng: random.Random = random.Random(42)
     ) -> Quaternion:
         """
         Generates a random orientation rotated around the z-axis (yaw).
@@ -205,7 +205,7 @@ class Costmap(PoseGeneratorBackend):
         :return: A list of size n from lst
         """
         for i in range(0, len(lst), n):
-            yield lst[i: i + n]
+            yield lst[i : i + n]
 
     def close_visualization(self) -> None:
         """
@@ -234,7 +234,7 @@ class Costmap(PoseGeneratorBackend):
         return length
 
     def _find_max_box_height(
-            self, start: Tuple[int, int], length: int, map: np.ndarray
+        self, start: Tuple[int, int], length: int, map: np.ndarray
     ) -> int:
         """
         Finds the maximal height for a rectangle with a given width in a locations.
@@ -274,11 +274,11 @@ class Costmap(PoseGeneratorBackend):
         if self.width != other_cm.width or self.height != other_cm.height:
             raise ValueError("You can only merge locations of the same size.")
         elif (
-                not np.allclose(self.origin.x, other_cm.origin.x)
-                or not np.allclose(self.origin.y, other_cm.origin.y)
-                or not np.allclose(
-            self.origin.to_rotation_matrix(), other_cm.origin.to_rotation_matrix()
-        )
+            not np.allclose(self.origin.x, other_cm.origin.x)
+            or not np.allclose(self.origin.y, other_cm.origin.y)
+            or not np.allclose(
+                self.origin.to_rotation_matrix(), other_cm.origin.to_rotation_matrix()
+            )
         ):
             raise ValueError(
                 "To merge locations, the x and y coordinate as well as the orientation must be equal."
@@ -354,7 +354,7 @@ class Costmap(PoseGeneratorBackend):
                     y_upper = curr_pose[1] + curr_width
 
                     # mark the found rectangle as occupied
-                    ocm_map[i: i + curr_height, j: j + curr_width] = 0
+                    ocm_map[i : i + curr_height, j : j + curr_width] = 0
 
                     # transform rectangle to map space
                     rectangle = Rectangle(x_lower, x_upper, y_lower, y_upper)
@@ -374,14 +374,14 @@ class Costmap(PoseGeneratorBackend):
         """
 
         ori_gen = (
-                self.orientation_generator
-                or OrientationGenerator.generate_origin_orientation
+            self.orientation_generator
+            or OrientationGenerator.generate_origin_orientation
         )
 
         # Determines how many positions should be sampled from the locations
         if (
-                self.number_of_samples == -1
-                or self.number_of_samples > self.map.flatten().shape[0]
+            self.number_of_samples == -1
+            or self.number_of_samples > self.map.flatten().shape[0]
         ):
             self.number_of_samples = self.map.flatten().shape[0]
 
@@ -488,8 +488,8 @@ class OccupancyCostmap(Costmap):
         indices = np.concatenate(
             np.dstack(
                 np.mgrid[
-                    int(-self.width / 2): int(self.width / 2),
-                    int(-self.width / 2): int(self.width / 2),
+                    int(-self.width / 2) : int(self.width / 2),
+                    int(-self.width / 2) : int(self.width / 2),
                 ]
             ),
             axis=0,
@@ -599,8 +599,6 @@ class OccupancyCostmap(Costmap):
         ground_pose = deepcopy(target)
         ground_pose.z = 0
 
-        base_bb = context.robot.mobile_base.bounding_box
-
         return OccupancyCostmap(
             resolution=0.02,
             width=200,
@@ -675,17 +673,17 @@ class VisibilityCostmap(Costmap):
         # the middle of the array. Additionally, the interval is shifted such that
         # it is between 0 and 2pi
         tan = (
-                np.arctan2(
-                    np.mgrid[
-                        -int(self.width / 2): int(self.width / 2),
-                        -int(self.width / 2): int(self.width / 2),
-                    ][0],
-                    np.mgrid[
-                        -int(self.width / 2): int(self.width / 2),
-                        -int(self.width / 2): int(self.width / 2),
-                    ][1],
-                )
-                + np.pi
+            np.arctan2(
+                np.mgrid[
+                    -int(self.width / 2) : int(self.width / 2),
+                    -int(self.width / 2) : int(self.width / 2),
+                ][0],
+                np.mgrid[
+                    -int(self.width / 2) : int(self.width / 2),
+                    -int(self.width / 2) : int(self.width / 2),
+                ][1],
+            )
+            + np.pi
         )
         res = np.zeros(tan.shape)
 
@@ -699,7 +697,7 @@ class VisibilityCostmap(Costmap):
         res[np.logical_and(tan >= np.pi * 0.75, tan < np.pi * 1.25)] = 2
         res[np.logical_and(tan >= np.pi * 0.25, tan < np.pi * 0.75)] = 1
 
-        indices = np.dstack(np.mgrid[0: self.width, 0: self.width])
+        indices = np.dstack(np.mgrid[0 : self.width, 0 : self.width])
         depth_indices = np.zeros(indices.shape)
         # x-value of index: res == n, :1
         # y-value of index: res == n, 1:2
@@ -735,8 +733,8 @@ class VisibilityCostmap(Costmap):
         columns = (
             np.around(
                 (
-                        (depth_indices[:, :, :1] / depth_indices[:, :, 1:2])
-                        * (self.width / 2)
+                    (depth_indices[:, :, :1] / depth_indices[:, :, 1:2])
+                    * (self.width / 2)
                 )
                 + self.width / 2
             )
@@ -750,8 +748,8 @@ class VisibilityCostmap(Costmap):
             np.linalg.norm(
                 np.dstack(
                     np.mgrid[
-                        -int(self.width / 2): int(self.width / 2),
-                        -int(self.width / 2): int(self.width / 2),
+                        -int(self.width / 2) : int(self.width / 2),
+                        -int(self.width / 2) : int(self.width / 2),
                     ]
                 ),
                 axis=2,
@@ -766,16 +764,16 @@ class VisibilityCostmap(Costmap):
         # of the range for every coordinate and r_max contains the end for each
         # coordinate
         r_min = (
-                        np.arctan((self.min_height - self.origin.z) / distances) * self.width
-                ) + self.width / 2
+            np.arctan((self.min_height - self.origin.z) / distances) * self.width
+        ) + self.width / 2
         r_max = (
-                        np.arctan((self.max_height - self.origin.z) / distances) * self.width
-                ) + self.width / 2
+            np.arctan((self.max_height - self.origin.z) / distances) * self.width
+        ) + self.width / 2
 
         r_min = np.minimum(np.around(r_min), self.width - 1).astype("int16")
         r_max = np.minimum(np.around(r_max), self.width - 1).astype("int16")
 
-        rs = np.dstack((r_min, r_max + 1)).reshape((self.width ** 2, 2))
+        rs = np.dstack((r_min, r_max + 1)).reshape((self.width**2, 2))
         r = np.arange(self.width)
         # Calculates a mask from the r_min and r_max values. This mask is for every
         # coordinate respectively and determines which values from the computed column
@@ -799,9 +797,9 @@ class VisibilityCostmap(Costmap):
             # and checks if the values in them are greater than the distance to the
             # respective coordinates. This does not take the row ranges into account.
             values = (
-                    depth_imgs[i][:, columns[res == i].flatten()]
-                    < np.tile(distances[res == i][:, None], (1, self.width)).T
-                    * self.resolution
+                depth_imgs[i][:, columns[res == i].flatten()]
+                < np.tile(distances[res == i][:, None], (1, self.width)).T
+                * self.resolution
             )
             # This applies the created mask of the row ranges to the values of
             # the columns which are compared in the previous statement
@@ -853,7 +851,7 @@ class GaussianCostmap(Costmap):
         # Cuts out the middle 5% of the gaussian to avoid the robot being too close to the target since this is usually
         # bad for reaching the target with a end_effector. 15% is a magic number that might need some tuning in the future
         self.map[
-            center - cut_dist: center + cut_dist, center - cut_dist: center + cut_dist
+            center - cut_dist : center + cut_dist, center - cut_dist : center + cut_dist
         ] = 0
         self.size: float = self.mean
         self.width = int(self.size)
@@ -867,7 +865,7 @@ class GaussianCostmap(Costmap):
         """
         n = np.arange(0, mean) - (mean - 1.0) / 2.0
         sig2 = 2 * std * std
-        w = np.exp(-(n ** 2) / sig2)
+        w = np.exp(-(n**2) / sig2)
         return w
 
 
@@ -901,7 +899,7 @@ class RingCostmap(Costmap):
         distance_from_center = np.sqrt((x - center_x) ** 2 + (y - center_y) ** 2)
 
         ring_costmap = np.exp(
-            -((distance_from_center - radius_in_pixels) ** 2) / (2 * self.std ** 2)
+            -((distance_from_center - radius_in_pixels) ** 2) / (2 * self.std**2)
         )
         return ring_costmap
 
