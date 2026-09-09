@@ -24,6 +24,7 @@ from coraplex.datastructures.enums import (
 )
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.datastructures.trajectory import PoseTrajectory
+from coraplex.exceptions import NoFloorBelowRobot
 from coraplex.execution_environment import simulated_robot
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
 from coraplex.plans.factories import sequential, execute_single
@@ -73,6 +74,7 @@ from semantic_digital_twin.robots.tiago import Tiago
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Elevator,
     FirstFloor,
+    Floor,
     Level,
 )
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
@@ -103,7 +105,7 @@ ALTERNATIVE_MOTION_MAPPINGS = [
 
 
 def heading_towards(
-        world_P_stand: Iterable[float], world_P_target: Iterable[float], world: World
+    world_P_stand: Iterable[float], world_P_target: Iterable[float], world: World
 ) -> Pose:
     """
     A pose at ``world_P_stand`` whose x-axis points at ``world_P_target``.
@@ -124,10 +126,10 @@ def heading_towards(
 
 
 def stand_facing(
-        robot: AbstractRobot,
-        world_P_stand: Iterable[float],
-        world_P_target: Iterable[float],
-        world: World,
+    robot: AbstractRobot,
+    world_P_stand: Iterable[float],
+    world_P_target: Iterable[float],
+    world: World,
 ) -> HomogeneousTransformationMatrix:
     """
     The base pose from which ``robot`` works on ``world_P_target``, standing at
@@ -160,13 +162,13 @@ def stand_facing(
     ],
 )
 def setup_multi_robot_apartment(
-        request,
-        _hsr_world_setup,
-        _stretch_world_setup,
-        _tiago_world_setup,
-        _pr2_world_setup,
-        _apartment_world_setup,
-        multi_story_building,
+    request,
+    _hsr_world_setup,
+    _stretch_world_setup,
+    _tiago_world_setup,
+    _pr2_world_setup,
+    _apartment_world_setup,
+    multi_story_building,
 ):
     apartment_copy = deepcopy(_apartment_world_setup)
     apartment_copy.merge_world_at_pose(
@@ -248,7 +250,7 @@ def setup_multi_robot_apartment(
 
 @pytest.fixture
 def immutable_multiple_robot_apartment(
-        setup_multi_robot_apartment,
+    setup_multi_robot_apartment,
 ) -> Generator[Tuple[World, AbstractRobot, Context]]:
     world, view = setup_multi_robot_apartment
     state = deepcopy(world.state._data)
@@ -547,11 +549,11 @@ def test_pick_up_multi(mutable_multiple_robot_apartment, rclpy_node):
         root.perform()
 
     assert (
-            world.get_connection(
-                left_arm.end_effector.tool_frame,
-                world.get_body_by_name("milk.stl"),
-            )
-            is not None
+        world.get_connection(
+            left_arm.end_effector.tool_frame,
+            world.get_body_by_name("milk.stl"),
+        )
+        is not None
     )
 
     assert np.allclose(
@@ -855,7 +857,7 @@ class BasePoseRecorder(PoseValidator):
 
 
 def test_a_location_validates_a_candidate_where_navigating_to_it_would_stand(
-        mutable_multiple_robot_apartment,
+    mutable_multiple_robot_apartment,
 ):
     """
     A candidate is a heading, the same form
@@ -878,6 +880,22 @@ def test_a_location_validates_a_candidate_where_navigating_to_it_would_stand(
         robot.mobile_base.pose_facing(heading).to_homogeneous_matrix().to_np(),
         atol=1e-9,
     )
+
+
+def test_a_location_accepts_a_candidate_standing_on_the_floor(
+    mutable_multiple_robot_apartment,
+):
+    """
+    The floor is what the robot drives on, so resting on it is not the collision that
+    disqualifies a place to stand.
+    """
+    world, robot, context = mutable_multiple_robot_apartment
+    # An open stretch of the apartment, so the floor is the only thing any of these
+    # robots touches while standing there.
+    heading = Pose.from_xyz_rpy(11, 2.5, 0, yaw=0.7, reference_frame=world.root)
+    location = Location(context, heading, SinglePoseGenerator(heading), [])
+
+    assert list(location) == [heading]
 
 
 def test_multi_robot_gcs_navigation(immutable_multiple_robot_apartment, rclpy_node):
@@ -904,7 +922,7 @@ def test_multi_robot_gcs_navigation(immutable_multiple_robot_apartment, rclpy_no
 
 
 def test_gcs_navigation_arrives_at_each_waypoint_facing_the_next_one(
-        immutable_multiple_robot_apartment,
+    immutable_multiple_robot_apartment,
 ):
     """
     Lining a waypoint's orientation up with the leg leaving it saves the next leg the
@@ -931,6 +949,76 @@ def test_gcs_navigation_arrives_at_each_waypoint_facing_the_next_one(
         assert world_V_facing == pytest.approx(
             world_V_travel / np.linalg.norm(world_V_travel), abs=0.01
         )
+
+
+def test_gcs_navigation_plans_on_the_floor_the_robot_stands_on(
+    immutable_multiple_robot_apartment,
+):
+    """
+    The free space the robot drives through is the one above the floor it stands on, so
+    the multi-storey building standing next to the apartment contributes obstacles but
+    not the surface the path is laid out on.
+    """
+    world, robot, context = immutable_multiple_robot_apartment
+
+    action = GCSNavigateAction(Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root))
+    execute_single(action, context=context)
+
+    floor = action._floor
+    assert floor in world.get_semantic_annotations_by_type(Floor)
+
+    base_pose = robot.root.global_pose
+    floor_box = floor.as_bounding_box_collection_at_origin(
+        HomogeneousTransformationMatrix(reference_frame=world.root)
+    ).bounding_box()
+    assert floor_box.min_x <= float(base_pose.x) <= floor_box.max_x
+    assert floor_box.min_y <= float(base_pose.y) <= floor_box.max_y
+    assert floor_box.max_z == pytest.approx(float(base_pose.z))
+
+    waypoints = action._waypoints()
+    assert [waypoint.reference_frame for waypoint in waypoints] == [floor.root] * len(
+        waypoints
+    )
+
+
+def test_gcs_navigation_takes_a_waypoints_height_from_that_waypoints_frame(
+    immutable_multiple_robot_apartment,
+):
+    """
+    A waypoint is expressed in the floor's frame, so the height the robot keeps while
+    driving to it has to be read in that same frame rather than in the world's.
+    """
+    world, robot, context = immutable_multiple_robot_apartment
+
+    action = GCSNavigateAction(Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root))
+    execute_single(action, context=context)
+
+    # The last pose is the requested target, which carries the caller's own height.
+    for pose in action._path()[:-1]:
+        base_in_pose_frame = world.transform(
+            robot.root.global_transform, pose.reference_frame
+        )
+        assert float(pose.z) == pytest.approx(float(base_in_pose_frame.z))
+
+
+def test_gcs_navigation_needs_a_floor_below_the_robot(
+    mutable_multiple_robot_apartment,
+):
+    """
+    Without a floor there is no surface to lay a path out on, which is a broken world
+    rather than an unreachable target.
+    """
+    world, robot, context = mutable_multiple_robot_apartment
+    robot.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
+        -50, -50, 0
+    )
+    world.notify_state_change()
+
+    action = GCSNavigateAction(Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root))
+    execute_single(action, context=context)
+
+    with pytest.raises(NoFloorBelowRobot):
+        action._waypoints()
 
 
 # %% riding an elevator
@@ -1007,12 +1095,14 @@ def test_elevator_navigation(mutable_multiple_robot_apartment, rclpy_node):
     # The robot ends up in front of the elevator's opening, a floor higher.
     distance_from_cabin_center = float(elevator.scale.x) / 2 + action.exit_clearance
     expected_position = (
-            cabin_position[:3]
-            + elevator.hole_direction.to_np().flatten()[:3] * -1 * distance_from_cabin_center
+        cabin_position[:3]
+        + elevator.hole_direction.to_np().flatten()[:3]
+        * -1
+        * distance_from_cabin_center
     )
     expected_position[2] = starting_height + elevator_travel
 
     assert operator.robot_boarded
     assert robot.root.global_transform.to_position().to_np().flatten()[
-               :3
-           ] == pytest.approx(expected_position, abs=0.01)
+        :3
+    ] == pytest.approx(expected_position, abs=0.01)

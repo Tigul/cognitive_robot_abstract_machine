@@ -6,7 +6,7 @@ from typing_extensions import Optional, Any, Dict
 
 from coraplex.config.action_conf import ActionConfig
 from coraplex.datastructures.dataclasses import Context
-from coraplex.exceptions import NotOnASingleLevelException
+from coraplex.exceptions import NoFloorBelowRobot, NotOnASingleLevelException
 from coraplex.plans.attachment_nodes import ReAttachNode
 from coraplex.plans.factories import execute_single, pause_until, sequential
 from coraplex.plans.plan_node import PlanNode
@@ -25,9 +25,7 @@ from semantic_digital_twin.robots.robot_parts import Camera
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Level,
     Elevator,
-)
-from semantic_digital_twin.semantic_annotations.semantic_annotations import (
-    SemanticEnvironmentAnnotation,
+    Floor,
 )
 from semantic_digital_twin.spatial_types.spatial_types import (
     Pose,
@@ -38,12 +36,6 @@ from semantic_digital_twin.spatial_types.spatial_types import (
     Vector3,
 )
 from semantic_digital_twin.world_description.geometry import VolumetricBoundingBox
-from semantic_digital_twin.world_description.graph_of_convex_sets.boxes import (
-    PlanarGraphOfBoundingBoxes,
-)
-from semantic_digital_twin.world_description.shape_collection import (
-    BoundingBoxCollection,
-)
 
 
 @dataclass
@@ -74,7 +66,7 @@ class NavigateAction(ActionDescription):
 
     @staticmethod
     def pre_condition(
-            variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
         The robot needs to have a drive and the target location needs to be free from
@@ -88,7 +80,7 @@ class NavigateAction(ActionDescription):
 
     @staticmethod
     def post_condition(
-            variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
         The robot needs to be within 3 cm of where the heading puts its base.
@@ -140,36 +132,47 @@ class GCSNavigateAction(ActionDescription):
     def _action_plan(self) -> PlanNode:
         return sequential([MoveMotion(waypoint) for waypoint in self._path()])
 
-    def _navigation_map(self, floor_level: float) -> PlanarGraphOfBoundingBoxes:
+    @property
+    def _floor(self) -> Floor:
         """
-        The floor plan of everything the robot can drive on.
+        The floor the robot stands on, whose free space the path is laid out in.
 
-        :param floor_level: The height the robot's base stands at.
-        :return: The navigation map covering the whole environment.
+        A world with several storeys puts more than one floor below the robot; the one
+        it stands on is the topmost of those it stands within the footprint of.
+
+        :raises NoFloorBelowRobot: If the robot stands over no annotated floor.
+        :return: The floor the robot drives on.
         """
-        origin = HomogeneousTransformationMatrix(reference_frame=self.world.root)
-        environment = SemanticEnvironmentAnnotation(
-            root=self.world.root, _world=self.world
-        )
-        extent = environment.as_bounding_box_collection_at_origin(origin).bounding_box()
-        search_space = BoundingBoxCollection(
-            [
-                VolumetricBoundingBox(
-                    min_x=extent.min_x,
-                    min_y=extent.min_y,
-                    min_z=floor_level,
-                    max_x=extent.max_x,
-                    max_y=extent.max_y,
-                    max_z=floor_level + self.robot.as_bounding_box_collection_in_frame(self.robot.root).bounding_box().scale.z,
-                    origin=origin,
-                )
-            ],
-            self.world.root,
-        )
-        return PlanarGraphOfBoundingBoxes.navigation_map_from_world(
-            self.world,
-            search_space=search_space,
-            bloat_obstacles=self.robot.mobile_base.base_radius,
+        floors_below = [
+            floor
+            for floor in self.world.get_semantic_annotations_by_type(Floor)
+            if self._stands_on(floor)
+        ]
+        if not floors_below:
+            raise NoFloorBelowRobot(self.robot.name.name)
+        return max(floors_below, key=lambda floor: self._extent_of(floor).max_z)
+
+    def _extent_of(self, floor: Floor) -> VolumetricBoundingBox:
+        """
+        :param floor: The floor to measure.
+        :return: The floor's bounding box in the world's root frame.
+        """
+        return floor.as_bounding_box_collection_at_origin(
+            HomogeneousTransformationMatrix(reference_frame=self.world.root)
+        ).bounding_box()
+
+    def _stands_on(self, floor: Floor) -> bool:
+        """
+        :param floor: The floor to test.
+        :return: Whether the robot's base rests within this floor's footprint and no
+            lower than its top.
+        """
+        extent = self._extent_of(floor)
+        base_pose = self.robot.root.global_pose
+        return (
+            extent.min_x <= float(base_pose.x) <= extent.max_x
+            and extent.min_y <= float(base_pose.y) <= extent.max_y
+            and extent.max_z <= float(base_pose.z)
         )
 
     def _path(self) -> list[Pose]:
@@ -190,9 +193,12 @@ class GCSNavigateAction(ActionDescription):
         :return: The poses to drive to, in order.
         """
         waypoints = self._waypoints()
+        base_height = self.world.transform(
+            self.robot.root.global_transform, waypoints[0].reference_frame
+        ).z
         poses = [
             HomogeneousTransformationMatrix.from_point_rotation_matrix(
-                Point3(waypoint.x, waypoint.y, self.robot.root.global_pose.z, waypoint.reference_frame),
+                Point3(waypoint.x, waypoint.y, base_height, waypoint.reference_frame),
                 RotationMatrix.from_vectors(
                     x=Vector3(
                         next_waypoint.x - waypoint.x,
@@ -217,7 +223,13 @@ class GCSNavigateAction(ActionDescription):
             target's.
         """
         base_pose = self.robot.root.global_pose
-        return self._navigation_map(float(base_pose.z)).path_from_to(
+        free_space = self._floor.planar_free_space(
+            max_height=self.robot.as_bounding_box_collection_in_frame(self.robot.root)
+            .bounding_box()
+            .scale.z,
+            bloat_obstacles=self.robot.mobile_base.base_radius,
+        )
+        return free_space.path_from_to(
             Point2.from_pose(base_pose), Point2.from_pose(self.target)
         )
 
@@ -280,6 +292,7 @@ class ElevatorNavigation(ActionDescription):
     def _current_floor(self) -> Level:
         """
         Finds the floor the robot is currently on, based on its position in the world.
+
         Raises :class:`WrongLevelException` if the robot is not on any floor or on
         multiple floors at once.
         :return: The semantic annotation for the floor
@@ -299,7 +312,7 @@ class ElevatorNavigation(ActionDescription):
     def _pose_infront_of_elevator(self):
         return Pose.from_xyz_rpy(
             x=self.elevator.hole_direction[0]
-              * (self.elevator.scale.x / 2 + self.exit_clearance),
+            * (self.elevator.scale.x / 2 + self.exit_clearance),
             z=self._height_in_cabin,
             reference_frame=self.elevator.root,
         )
@@ -313,8 +326,7 @@ class ElevatorNavigation(ActionDescription):
         ride and the robot's drive cannot change it anyway.
         """
         return float(
-            self.world.transform(self.robot.root.global_transform, self.elevator.root)
-            .z
+            self.world.transform(self.robot.root.global_transform, self.elevator.root).z
         )
 
     def _elevator_open_at_floor(self, target_floor: Level) -> Parallel:

@@ -39,10 +39,12 @@ except ImportError:
     VizMarkerPublisher = None
 from semantic_digital_twin.collision_checking.collision_rules import (
     AvoidExternalCollisions,
+    AllowCollisionBetweenGroups,
     AllowSelfCollisions,
 )
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Floor
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 
@@ -103,9 +105,13 @@ class Location(Iterable[Pose]):
             )
 
         if self.context.debug:
-            VizMarkerPublisher(
-                _world=test_world, node=self.context.ros_node
-            )
+            VizMarkerPublisher(_world=test_world, node=self.context.ros_node)
+
+        # A robot rests on the floor wherever it stands, so contact with it says nothing
+        # about whether the place is free.
+        floor_bodies = [
+            floor.root for floor in test_world.get_semantic_annotations_by_type(Floor)
+        ]
 
         for pose_candidate in self.generator:
 
@@ -125,6 +131,12 @@ class Location(Iterable[Pose]):
             )
             test_world.collision_manager.add_temporary_rule(
                 AllowSelfCollisions(robot=test_robot)
+            )
+            test_world.collision_manager.add_temporary_rule(
+                AllowCollisionBetweenGroups(
+                    body_group_a=test_robot.bodies_with_collision,
+                    body_group_b=floor_bodies,
+                )
             )
             test_world.collision_manager.update_collision_matrix()
             collisions = test_world.collision_manager.compute_collisions()

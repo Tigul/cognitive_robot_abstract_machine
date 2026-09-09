@@ -1684,3 +1684,28 @@ class ExerciseVerificationFailed(UsageError):
 
     def suggest_correction(self) -> str:
         return "revisit the task description of this exercise and adjust your solution."
+
+
+@dataclass
+class NoSupportingSurfaceError(UsageError):
+    """
+    Raised when an annotation's geometry offers no surface anything could be supported
+    on.
+    """
+
+    annotation_name: PrefixedName
+    """
+    The name of the annotation that was asked for its supporting surface.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"'{self.annotation_name}' has no supporting surface and none could be "
+            f"derived from its geometry."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "attach a supporting surface region to the annotation, or give its root "
+            "body geometry with an upward facing face."
+        )

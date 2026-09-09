@@ -317,6 +317,28 @@ class PerceptionSourceUnavailable(PerceptionException):
     def suggest_correction(self) -> str:
         return "start the perception pipeline before running the plan."
 
+
+@dataclass
+class NoFloorBelowRobot(DataclassException):
+    """
+    Raised when a robot that has to plan its way over a floor stands over none.
+    """
+
+    robot_name: str
+    """
+    The name of the robot that stands over no floor.
+    """
+
+    def error_message(self) -> str:
+        return f"'{self.robot_name}' does not stand over any annotated floor."
+
+    def suggest_correction(self) -> str:
+        return (
+            "annotate the surface the robot drives on as a Floor, or move the robot "
+            "onto one that is already annotated."
+        )
+
+
 @dataclass
 class NotOnASingleLevelException(DataclassException):
     """

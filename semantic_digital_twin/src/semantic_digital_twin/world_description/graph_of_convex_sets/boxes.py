@@ -204,7 +204,9 @@ class GraphOfBoundingBoxes(
                 box = type(node_list[i]).from_array_bounds(
                     lower,
                     upper,
-                    HomogeneousTransformationMatrix(reference_frame=self.world.root),
+                    HomogeneousTransformationMatrix(
+                        reference_frame=self.search_space.reference_frame
+                    ),
                 )
                 distance = float(np.linalg.norm(centers[i] - centers[j]))
 

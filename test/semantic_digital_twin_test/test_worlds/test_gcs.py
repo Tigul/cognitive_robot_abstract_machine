@@ -14,7 +14,10 @@ from random_events.product_algebra import SimpleEvent
 from semantic_digital_twin.adapters.mjcf import MJCFParser
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.variables import SpatialVariables
-from semantic_digital_twin.exceptions import PointOccupiedError
+from semantic_digital_twin.exceptions import (
+    NoSupportingSurfaceError,
+    PointOccupiedError,
+)
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Floor
 from semantic_digital_twin.spatial_types import Point2, Point3, Pose
 from semantic_digital_twin.spatial_types.spatial_types import (
@@ -551,26 +554,23 @@ def test_path_from_to_scales_to_a_real_apartment_scene():
     assert len(path) > 1
 
 
-def test_planar_free_space_uses_the_supporting_surface_as_search_space():
+# %% the free space above a supporting surface
+
+
+def _floor_with_an_obstacle_standing_on_it() -> Floor:
     """
-    HasSupportingSurface.planar_free_space must derive its search space from the
-    supporting surface's own area, rather than requiring the caller to build one.
+    A four by four metre floor with a single box standing in the middle of it.
+
+    The floor is left without a supporting surface, so a test can decide whether to
+    attach one itself.
+
+    :return: The floor annotation.
     """
     world = World.create_with_root_body("root")
     with world.modify_world():
         floor = Floor.create_with_new_body_in_world(
             name="floor", world=world, scale=Scale(4, 4, 0.01)
         )
-        surface = Region.from_shape_collection(
-            PrefixedName("floor_surface"),
-            ShapeCollection(
-                [Box(scale=Scale(4, 4, 0.001))], reference_frame=floor.root
-            ),
-        )
-        world.add_region(surface)
-        world.add_connection(FixedConnection(parent=floor.root, child=surface))
-        floor.supporting_surface = surface
-
         obstacle = Body(name=PrefixedName("obstacle"))
         world.add_connection(
             FixedConnection.create_with_dofs(
@@ -583,6 +583,26 @@ def test_planar_free_space_uses_the_supporting_surface_as_search_space():
             )
         )
         obstacle.collision.append(Box(scale=Scale(0.4, 0.4, 1.0)))
+    return floor
+
+
+def test_planar_free_space_uses_the_supporting_surface_as_search_space():
+    """
+    HasSupportingSurface.planar_free_space must derive its search space from the
+    supporting surface's own area, rather than requiring the caller to build one.
+    """
+    floor = _floor_with_an_obstacle_standing_on_it()
+    world = floor._world
+    with world.modify_world():
+        surface = Region.from_shape_collection(
+            PrefixedName("floor_surface"),
+            ShapeCollection(
+                [Box(scale=Scale(4, 4, 0.001))], reference_frame=floor.root
+            ),
+        )
+        world.add_region(surface)
+        world.add_connection(FixedConnection(parent=floor.root, child=surface))
+        floor.supporting_surface = surface
 
     graph = floor.planar_free_space(max_height=2.0)
 
@@ -595,7 +615,91 @@ def test_planar_free_space_uses_the_supporting_surface_as_search_space():
     assert len(graph.graph.nodes()) > 0
 
 
+def test_planar_free_space_computes_a_missing_supporting_surface():
+    """
+    An annotation that never had a supporting surface attached still gets a free space
+    built over the surface its own geometry offers.
+    """
+    floor = _floor_with_an_obstacle_standing_on_it()
+    assert floor.supporting_surface is None
+
+    graph = floor.planar_free_space(max_height=2.0)
+
+    surface_box = floor.supporting_surface.area.as_bounding_box_collection_at_origin(
+        HomogeneousTransformationMatrix(reference_frame=floor.root)
+    ).bounding_box()
+    search_box = graph.search_space.bounding_box()
+    assert search_box.min_x == pytest.approx(surface_box.min_x)
+    assert search_box.max_x == pytest.approx(surface_box.max_x)
+    assert search_box.min_y == pytest.approx(surface_box.min_y)
+    assert search_box.max_y == pytest.approx(surface_box.max_y)
+    assert len(graph.graph.nodes()) > 0
+
+
+def test_planar_free_space_rejects_an_annotation_without_any_surface():
+    """
+    An annotation whose geometry offers nothing to stand on cannot have a free space
+    built over it.
+    """
+    world = World.create_with_root_body("root")
+    with world.modify_world():
+        body = Body(name=PrefixedName("floor"))
+        world.add_connection(FixedConnection(parent=world.root, child=body))
+        floor = Floor(root=body)
+        world.add_semantic_annotation(floor)
+
+    with pytest.raises(NoSupportingSurfaceError):
+        floor.planar_free_space()
+
+
 # %% what path_from_to rejects, and which frame it answers in
+
+
+def test_path_from_to_answers_every_waypoint_in_the_search_spaces_frame():
+    """
+    A graph decomposed in a frame of its own has to answer in that frame throughout: a
+    waypoint carrying the search space's numbers under the world root's name puts the
+    path somewhere else entirely.
+    """
+    world = World.create_with_root_body("root")
+    with world.modify_world():
+        floor = Floor.create_with_new_body_in_world(
+            name="floor",
+            world=world,
+            scale=Scale(6, 6, 0.01),
+            world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(
+                10.0, 0.0, 0.0, reference_frame=world.root
+            ),
+        )
+        wall = Body(name=PrefixedName("wall"))
+        world.add_connection(
+            FixedConnection.create_with_dofs(
+                world,
+                world.root,
+                wall,
+                parent_T_connection_expression=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    10.0, 0.0, 0.5, reference_frame=world.root
+                ),
+            )
+        )
+        wall.collision.append(Box(scale=Scale(0.4, 4.0, 1.0)))
+
+    graph = floor.planar_free_space(max_height=1.0)
+
+    world_P_start = Point2(8.0, 0.0, reference_frame=world.root)
+    path = graph.path_from_to(
+        world_P_start, Point2(12.0, 0.0, reference_frame=world.root)
+    )
+
+    # The wall forces a detour, so the path carries waypoints beyond its two endpoints.
+    assert len(path) > 2
+    assert all(
+        waypoint.reference_frame == graph.search_space.reference_frame
+        for waypoint in path
+    )
+    world_P_first = world.transform(path[0], world.root)
+    assert float(world_P_first.x) == pytest.approx(float(world_P_start.x))
+    assert float(world_P_first.y) == pytest.approx(float(world_P_start.y))
 
 
 def _navigation_map_around_the_table(
