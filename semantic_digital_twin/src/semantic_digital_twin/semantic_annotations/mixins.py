@@ -1229,7 +1229,7 @@ class HasSupportingSurface(IsStorageSpace):
         if self.supporting_surface is None:
             with world.modify_world():
                 if self.calculate_supporting_surface() is None:
-                    raise NoSupportingSurfaceError(self.root.name)
+                    raise NoSupportingSurfaceError(self)
 
         origin = HomogeneousTransformationMatrix(reference_frame=self.root)
         surface_box = self.supporting_surface.area.as_bounding_box_collection_at_origin(

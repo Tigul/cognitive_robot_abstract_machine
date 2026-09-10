@@ -23,7 +23,10 @@ from semantic_digital_twin.datastructures.definitions import JointStateType
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 
 if TYPE_CHECKING:
-    from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
+    from semantic_digital_twin.semantic_annotations.mixins import (
+        HasRootBody,
+        HasSupportingSurface,
+    )
     from semantic_digital_twin.robots.robot_parts import (
         AbstractRobot,
         AbstractRobotPart,
@@ -39,7 +42,7 @@ if TYPE_CHECKING:
     from semantic_digital_twin.spatial_types.spatial_types import (
         SpatialType,
     )
-    from semantic_digital_twin.spatial_types import Vector3, Point3
+    from semantic_digital_twin.spatial_types import Vector3, Point
     from semantic_digital_twin.world_description.degree_of_freedom import (
         DegreeOfFreedomLimits,
         DegreeOfFreedom,
@@ -1523,7 +1526,7 @@ class PointOccupiedError(DataclassException):
     Connectivity Graphs.
     """
 
-    point: Point3
+    point: Point
     """
     The point that is occupied.
     """
@@ -1763,15 +1766,15 @@ class NoSupportingSurfaceError(UsageError):
     on.
     """
 
-    annotation_name: PrefixedName
+    annotation: HasSupportingSurface
     """
-    The name of the annotation that was asked for its supporting surface.
+    The annotation that was asked for its supporting surface.
     """
 
     def error_message(self) -> str:
         return (
-            f"'{self.annotation_name}' has no supporting surface and none could be "
-            f"derived from its geometry."
+            f"'{self.annotation.root.name}' has no supporting surface and none could "
+            f"be derived from its geometry."
         )
 
     def suggest_correction(self) -> str:

@@ -1017,8 +1017,10 @@ def test_gcs_navigation_needs_a_floor_below_the_robot(
     action = GCSNavigateAction(Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root))
     execute_single(action, context=context)
 
-    with pytest.raises(NoFloorBelowRobot):
+    with pytest.raises(NoFloorBelowRobot) as raised:
         action._waypoints()
+
+    assert raised.value.robot is robot
 
 
 # %% riding an elevator

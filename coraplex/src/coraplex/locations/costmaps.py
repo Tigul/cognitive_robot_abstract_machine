@@ -475,8 +475,9 @@ class OccupancyCostmap(Costmap):
 
     def create_ray_mask_around_origin(self):
         """
-        Determines the occupied space around the origin position using ray testing. A ray is cast from the ground
-        straight up 10m and if it hits something the position is considered occupied.
+        Determines the occupied space around the origin position using ray testing. A
+        ray is cast from the robot's base height straight down to the ground and if it
+        hits something the position is considered occupied.
 
         Neither the robot itself, nor whatever it carries, nor the floor it drives on
         makes a position occupied.
@@ -497,19 +498,19 @@ class OccupancyCostmap(Costmap):
 
         # base height of the robot plus a safty offset
         base_height = self.robot_view.mobile_base.bounding_box.height + 0.1
-        # Add the z-coordinate to the grid, which is either 0 or 10
-        indices_0 = np.pad(
+        # Every ray runs straight down from the robot's base height to the ground
+        ray_origins = np.pad(
             indices, (0, 1), mode="constant", constant_values=base_height
         )[:-1]
-        indices_10 = np.pad(indices, (0, 1), mode="constant", constant_values=0)[:-1]
+        ray_targets = np.pad(indices, (0, 1), mode="constant", constant_values=0)[:-1]
         # Zips both arrays such that there are tuples for every coordinate that
         # only differ in the z-coordinate
-        rays = np.dstack(np.dstack((indices_0, indices_10))).T
+        rays = np.dstack(np.dstack((ray_origins, ray_targets))).T
 
-        res = np.ones(len(rays))
+        free_space_mask = np.ones(len(rays))
 
         ray_tracer = RayTracer(self.world)
-        r_t = ray_tracer.ray_test(rays[:, 0], rays[:, 1])
+        _, hit_ray_indices, hit_bodies = ray_tracer.ray_test(rays[:, 0], rays[:, 1])
 
         unoccupied_entities = self._floor_bodies
         if self.robot_view:
@@ -518,12 +519,11 @@ class OccupancyCostmap(Costmap):
                     self.robot_view.root
                 )
             )
-        res[r_t[1]] = [
-            1 if hit_entity in unoccupied_entities else 0 for hit_entity in r_t[2]
+        free_space_mask[hit_ray_indices] = [
+            1 if body in unoccupied_entities else 0 for body in hit_bodies
         ]
 
-        res = np.flip(np.reshape(np.array(res), (self.width, self.width)))
-        return res
+        return np.flip(np.reshape(free_space_mask, (self.width, self.width)))
 
     @property
     def _floor_bodies(self) -> Set[Body]:

@@ -57,7 +57,7 @@ class Sage10kOpenDoor(ActionDescription):
 
         # Find a node in free space that is near the pre-grasp pose. gcs is planar, so
         # the query point is its floor-plane projection, not the full 3D position.
-        target_node = gcs.free_node_of_point(Point2.from_pose(pre_grasp_pose))
+        target_node = gcs.node_of_point(Point2.from_pose(pre_grasp_pose))
 
         gcs = gcs.create_subgraph(
             list(

@@ -149,7 +149,7 @@ class GCSNavigateAction(ActionDescription):
             if self._stands_on(floor)
         ]
         if not floors_below:
-            raise NoFloorBelowRobot(self.robot.name.name)
+            raise NoFloorBelowRobot(self.robot)
         return max(floors_below, key=lambda floor: self._extent_of(floor).max_z)
 
     def _extent_of(self, floor: Floor) -> VolumetricBoundingBox:

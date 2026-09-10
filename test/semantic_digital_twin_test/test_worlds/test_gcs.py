@@ -648,8 +648,10 @@ def test_planar_free_space_rejects_an_annotation_without_any_surface():
         floor = Floor(root=body)
         world.add_semantic_annotation(floor)
 
-    with pytest.raises(NoSupportingSurfaceError):
+    with pytest.raises(NoSupportingSurfaceError) as raised:
         floor.planar_free_space()
+
+    assert raised.value.annotation is floor
 
 
 # %% what path_from_to rejects, and which frame it answers in
@@ -742,8 +744,11 @@ def test_path_from_to_rejects_a_point_outside_the_search_space(table_world: Worl
     free = Point2(-4.5, -0.5, reference_frame=table_world.root)
     unsearched = Point2(10, 10, reference_frame=table_world.root)
 
-    with pytest.raises(PointOutsideSearchSpaceError):
+    with pytest.raises(PointOutsideSearchSpaceError) as raised:
         navigation_map.path_from_to(free, unsearched)
+
+    assert raised.value.point is unsearched
+    assert raised.value.search_space == navigation_map.search_space.bounding_box()
 
 
 def test_path_from_to_rejects_a_point_inside_an_obstacle(table_world: World):
@@ -785,3 +790,59 @@ def test_path_from_to_accepts_points_in_another_reference_frame(table_world: Wor
     np.testing.assert_allclose(
         path[-1].to_np().flatten(), world_P_goal.to_np().flatten(), atol=1e-9
     )
+
+
+# %% locating the node a point falls into
+
+
+def test_node_of_point_answers_with_the_free_box_a_point_falls_into(
+    table_world: World,
+):
+    """
+    Asking where a point sits is answered with the free-space box around it.
+    """
+    navigation_map = _navigation_map_around_the_table(table_world)
+
+    free = Point2(-4.5, -0.5, reference_frame=table_world.root)
+
+    assert navigation_map.node_of_point(free).contains(free)
+
+
+def test_node_of_point_rejects_a_point_no_free_box_covers(table_world: World):
+    """
+    A point the decomposition covered but left out of its free space has no node, which
+    is a rejected query rather than an empty answer.
+    """
+    navigation_map = _navigation_map_around_the_table(table_world)
+
+    under_the_table = Point2(-3.5, 0.5, reference_frame=table_world.root)
+
+    with pytest.raises(PointOccupiedError):
+        navigation_map.node_of_point(under_the_table)
+
+
+def test_node_of_point_rejects_a_point_outside_the_search_space(table_world: World):
+    """
+    A point the decomposition never covered is reported as outside the search space, so
+    it is not confused with one that was checked and found occupied.
+    """
+    navigation_map = _navigation_map_around_the_table(table_world)
+
+    unsearched = Point2(10, 10, reference_frame=table_world.root)
+
+    with pytest.raises(PointOutsideSearchSpaceError):
+        navigation_map.node_of_point(unsearched)
+
+
+def test_the_unchecked_lookup_answers_with_nothing_for_an_occupied_point(
+    table_world: World,
+):
+    """
+    The protected lookup the checked one builds on reports a missing node rather than
+    raising, which is what lets the checked one tell the two rejections apart.
+    """
+    navigation_map = _navigation_map_around_the_table(table_world)
+
+    under_the_table = Point2(-3.5, 0.5, reference_frame=table_world.root)
+
+    assert navigation_map._node_of_point(under_the_table) is None

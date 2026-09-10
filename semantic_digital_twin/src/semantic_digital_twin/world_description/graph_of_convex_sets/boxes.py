@@ -252,9 +252,9 @@ class GraphOfBoundingBoxes(
 
         go.Figure(self.plot_occupied_space()).show()
 
-    def node_of_point(self, point: PointT) -> Optional[BoxT]:
+    def _node_of_point(self, point: PointT) -> Optional[BoxT]:
         """
-        Find the node that contains a point.
+        Find the node that contains a point, without checking the search space.
 
         :return: The node that contains the point or None if no node contains the point.
         """
@@ -263,7 +263,7 @@ class GraphOfBoundingBoxes(
                 return node
         return None
 
-    def free_node_of_point(self, point: PointT) -> BoxT:
+    def node_of_point(self, point: PointT) -> BoxT:
         """
         Find the free-space node that contains a point.
 
@@ -276,7 +276,7 @@ class GraphOfBoundingBoxes(
         """
         if not self.search_space.contains(point):
             raise PointOutsideSearchSpaceError(point, self.search_space.bounding_box())
-        node = self.node_of_point(point)
+        node = self._node_of_point(point)
         if node is None:
             raise PointOccupiedError(point)
         return node
@@ -311,8 +311,8 @@ class GraphOfBoundingBoxes(
         start = self.world.transform(start, reference_frame)
         goal = self.world.transform(goal, reference_frame)
 
-        start_node = self.free_node_of_point(start)
-        goal_node = self.free_node_of_point(goal)
+        start_node = self.node_of_point(start)
+        goal_node = self.node_of_point(goal)
 
         if start_node == goal_node:
             return [start, goal]

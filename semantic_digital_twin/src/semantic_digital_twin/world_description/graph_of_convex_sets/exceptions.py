@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from krrood.entity_query_language.core.mapped_variable import CanBehaveLikeAVariable
 from semantic_digital_twin.exceptions import UsageError
-from semantic_digital_twin.spatial_types import Point2, Point3, Point
+from semantic_digital_twin.spatial_types import Point
 from semantic_digital_twin.world_description.geometry import AxisAlignedBox
 
 
@@ -137,7 +137,7 @@ class PointOutsideSearchSpaceError(UsageError):
     over, so nothing is known about whether it is free.
     """
 
-    point: Point3 | Point2
+    point: Point
     """
     The point that lies outside the search space.
     """
