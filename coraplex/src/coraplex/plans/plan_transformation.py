@@ -66,7 +66,7 @@ class PlanMatch(Generic[NodeType], SubClassSafeGeneric, ABC):
     """
 
     @property
-    def node_type(self) -> Type[PlanNode]:
+    def node_type(self) -> Type[NodeType]:
         """
         :return: The type of node this selects.
         """
@@ -100,7 +100,7 @@ class ActionMatch(PlanMatch[ActionNode], Generic[ActionType], SubClassSafeGeneri
     """
 
     @property
-    def action_type(self) -> Type[ActionDescription]:
+    def action_type(self) -> Type[ActionType]:
         """
         :return: The type of action this selects the nodes of.
         """
