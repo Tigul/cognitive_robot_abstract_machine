@@ -8,6 +8,7 @@ be persisted or turned into a data access object until they have been generated 
 
 from __future__ import annotations
 
+import logging
 import os
 import subprocess
 import sys
@@ -33,35 +34,49 @@ from krrood.class_diagrams.progress_report import (
     ProgressEnvironmentVariable,
 )
 
+logger = logging.getLogger(__name__)
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 """
 Root of the checkout this package is installed from.
 """
 
-INTERFACE_MODULE_NAME = "ormatic_interface"
-"""
-Name every package's generator writes its interface to, as it is imported.
-"""
 
-INTERFACE_FILE_NAME = f"{INTERFACE_MODULE_NAME}.py"
-"""
-Name of the file holding it.
-"""
+class InterfaceLocation(StrEnum):
+    """
+    Where a package's generator writes its ORM interface, and how it is imported.
+    """
 
-INTERFACE_FOLDER_NAME = "orm"
-"""
-Folder of a package's sources that holds its interface.
-"""
+    MODULE_NAME = "ormatic_interface"
+    """
+    Name every package's generator writes its interface to, as it is imported.
+    """
 
-PROGRESS_DESCRIPTION = "Building ORM interfaces"
-"""
-What the progress bar of a build calls itself.
-"""
+    FILE_NAME = f"{MODULE_NAME}.py"
+    """
+    Name of the file holding it.
+    """
 
-PROGRESS_REQUESTED = "1"
-"""
-What a generator is told to report the classes it finishes.
-"""
+    FOLDER_NAME = "orm"
+    """
+    Folder of a package's sources that holds it.
+    """
+
+
+class GeneratorProgress(StrEnum):
+    """
+    What a build asks its generators for, and what it calls the reports they send back.
+    """
+
+    REQUESTED = "1"
+    """
+    What a generator is told to report the classes it finishes.
+    """
+
+    BAR_DESCRIPTION = "Building ORM interfaces"
+    """
+    What the bar counting those reports calls itself.
+    """
 
 
 class ImportEnvironmentVariable(StrEnum):
@@ -126,7 +141,8 @@ class BuildProgress:
         Put how far along the interfaces are beside the bar.
         """
         self.bar.set_description_str(
-            f"{PROGRESS_DESCRIPTION} {self.completed_interfaces}/{self.total_interfaces}"
+            f"{GeneratorProgress.BAR_DESCRIPTION} "
+            f"{self.completed_interfaces}/{self.total_interfaces}"
         )
 
     def start(self, package_name: str) -> None:
@@ -200,14 +216,22 @@ class OrmInterface:
         """
         The generated interface file.
         """
-        return self.sources / INTERFACE_FOLDER_NAME / INTERFACE_FILE_NAME
+        return (
+            self.sources / InterfaceLocation.FOLDER_NAME / InterfaceLocation.FILE_NAME
+        )
 
     @property
     def module_name(self) -> str:
         """
         The generated interface, as it is imported.
         """
-        return f"{self.package_name}.{INTERFACE_FOLDER_NAME}.{INTERFACE_MODULE_NAME}"
+        return ".".join(
+            (
+                self.package_name,
+                InterfaceLocation.FOLDER_NAME,
+                InterfaceLocation.MODULE_NAME,
+            )
+        )
 
     @property
     def sources(self) -> Path:
@@ -373,10 +397,7 @@ class WorkspaceOrmInterfaces:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             text=True,
-            env={
-                **os.environ,
-                ProgressEnvironmentVariable.REPORT_PROGRESS: PROGRESS_REQUESTED,
-            },
+            env=self.generation_environment,
         )
         output = GenerationOutput(progress)
         for line in generation.stdout:
@@ -386,6 +407,17 @@ class WorkspaceOrmInterfaces:
                 self.unbuilt_package_name, "".join(output.written)
             )
         output.finish()
+
+    @property
+    def generation_environment(self) -> Dict[str, str]:
+        """
+        The environment the generators run in, asking them to report the classes they
+        finish so the build can count them.
+        """
+        return {
+            **os.environ,
+            ProgressEnvironmentVariable.REPORT_PROGRESS: GeneratorProgress.REQUESTED,
+        }
 
     @property
     def import_command(self) -> List[str]:
@@ -438,7 +470,7 @@ class WorkspaceOrmInterfaces:
         stale = StaleInterface.from_output(attempt.stdout)
         if attempt.returncode != InterfaceImportResult.STALE or stale is None:
             raise OrmImportFailedError(attempt.stdout)
-        print(stale.report())
+        logger.warning(stale.report())
         return stale
 
     @property

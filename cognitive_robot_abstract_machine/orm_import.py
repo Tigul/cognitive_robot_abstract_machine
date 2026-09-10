@@ -9,37 +9,77 @@ follow a failed import without leaving a stale interface behind in it.
 
 Started as ``python -P -m cognitive_robot_abstract_machine.orm_import <module>...`` by
 :mod:`cognitive_robot_abstract_machine.orm_interfaces`, which reads the report below back
-from this run's output.
+from this run's output. The report is part of that output rather than of this run's
+logging, which an interface can reconfigure while it is imported.
 """
 
 from __future__ import annotations
 
 import argparse
 import importlib
+import json
 import sys
 from dataclasses import dataclass
-from enum import IntEnum
+from enum import Enum, IntEnum, StrEnum
 
 from typing_extensions import Optional, Sequence, Tuple, Type
 
-LINE_PREFIX = "cram-orm-interface-stale "
-"""
-What marks a line of output as this run's report rather than as something an interface
-wrote while it was imported.
-"""
 
-FIELD_SEPARATOR = " | "
-"""
-What separates the parts of the report on one line.
-"""
+class ReportMarker(StrEnum):
+    """
+    What marks a line of output as this run's report rather than as something an
+    interface wrote while it was imported.
+    """
 
-STALENESS_ERRORS: Tuple[Type[Exception], ...] = (ImportError, AttributeError)
-"""
-What an interface raises once it no longer matches the classes it maps: a module that has
-been renamed or removed raises :class:`ImportError`, and a class raises
-:class:`AttributeError`, because generated code reaches every class it maps as an
-attribute of the module holding it.
-"""
+    STALE_INTERFACE = "cram-orm-interface-stale "
+    """
+    Begins the line naming the interface that no longer matches the classes it maps.
+    """
+
+
+class StaleInterfaceField(StrEnum):
+    """
+    Names a report carries its parts under.
+    """
+
+    MODULE_NAME = "module_name"
+    """
+    The interface the report is about.
+    """
+
+    ERROR_TYPE = "error_type"
+    """
+    What importing it raised.
+    """
+
+    ERROR_DESCRIPTION = "error_description"
+    """
+    What that said.
+    """
+
+
+class StalenessError(Enum):
+    """
+    What an interface raises once it no longer matches the classes it maps.
+    """
+
+    RENAMED_OR_REMOVED_MODULE = ImportError
+    """
+    Raised by an interface reaching a module of its package that no longer exists.
+    """
+
+    REMOVED_CLASS = AttributeError
+    """
+    Raised by one reaching a class that no longer exists, because generated code reaches
+    every class it maps as an attribute of the module holding it.
+    """
+
+    @classmethod
+    def types(cls) -> Tuple[Type[Exception], ...]:
+        """
+        The exceptions these stand for, as an ``except`` clause takes them.
+        """
+        return tuple(member.value for member in cls)
 
 
 class InterfaceImportResult(IntEnum):
@@ -80,7 +120,7 @@ class StaleInterface:
 
     error_description: str
     """
-    What it said, on one line.
+    What it said.
     """
 
     @classmethod
@@ -91,7 +131,7 @@ class StaleInterface:
         :param module_name: The interface that was being imported.
         :param error: What it raised.
         """
-        return cls(module_name, type(error).__name__, " ".join(str(error).split()))
+        return cls(module_name, type(error).__name__, str(error))
 
     @classmethod
     def from_line(cls, line: str) -> Optional[StaleInterface]:
@@ -101,12 +141,14 @@ class StaleInterface:
         :param line: One line of output, of any kind.
         :return: The report the line carries, or nothing when it carries none.
         """
-        if not line.startswith(LINE_PREFIX):
+        if not line.startswith(ReportMarker.STALE_INTERFACE):
             return None
-        module_name, error_type, error_description = line[len(LINE_PREFIX) :].split(
-            FIELD_SEPARATOR, maxsplit=2
+        payload = json.loads(line[len(ReportMarker.STALE_INTERFACE) :])
+        return cls(
+            payload[StaleInterfaceField.MODULE_NAME],
+            payload[StaleInterfaceField.ERROR_TYPE],
+            payload[StaleInterfaceField.ERROR_DESCRIPTION],
         )
-        return cls(module_name, error_type, error_description.strip())
 
     @classmethod
     def from_output(cls, output: str) -> Optional[StaleInterface]:
@@ -128,9 +170,12 @@ class StaleInterface:
 
         :return: The line, without its terminating line break.
         """
-        return LINE_PREFIX + FIELD_SEPARATOR.join(
-            (self.module_name, self.error_type, self.error_description)
-        )
+        payload = {
+            StaleInterfaceField.MODULE_NAME.value: self.module_name,
+            StaleInterfaceField.ERROR_TYPE.value: self.error_type,
+            StaleInterfaceField.ERROR_DESCRIPTION.value: self.error_description,
+        }
+        return ReportMarker.STALE_INTERFACE + json.dumps(payload)
 
     def report(self) -> str:
         """
@@ -157,7 +202,7 @@ def import_interfaces(module_names: Sequence[str]) -> Optional[StaleInterface]:
     for module_name in module_names:
         try:
             importlib.import_module(module_name)
-        except STALENESS_ERRORS as error:
+        except StalenessError.types() as error:
             return StaleInterface.from_error(module_name, error)
     return None
 

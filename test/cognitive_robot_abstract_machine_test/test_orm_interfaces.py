@@ -4,6 +4,7 @@ Tests for building the ORM interfaces a checkout needs before it can persist obj
 
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import subprocess
@@ -21,7 +22,7 @@ from cognitive_robot_abstract_machine.exceptions import (
     OrmImportFailedError,
 )
 from cognitive_robot_abstract_machine.orm_interfaces import (
-    INTERFACE_FILE_NAME,
+    InterfaceLocation,
     OrmInterface,
     REPOSITORY_ROOT,
     WORKSPACE_ORM_INTERFACES,
@@ -92,7 +93,7 @@ def tracked_interfaces(repository_root: Path) -> Set[str]:
     :return: The repository-relative paths of the tracked interfaces.
     """
     listing = subprocess.run(
-        ["git", "ls-files", "--", f"*/{INTERFACE_FILE_NAME}"],
+        ["git", "ls-files", "--", f"*/{InterfaceLocation.FILE_NAME}"],
         cwd=repository_root,
         check=True,
         capture_output=True,
@@ -234,7 +235,11 @@ def test_this_repository_ignores_every_generated_interface():
 
 def test_this_repository_ignores_a_generated_interface_outside_a_workspace_package():
     krrood_test_dataset_interface = (
-        REPOSITORY_ROOT / "test" / "krrood_test" / "dataset" / INTERFACE_FILE_NAME
+        REPOSITORY_ROOT
+        / "test"
+        / "krrood_test"
+        / "dataset"
+        / InterfaceLocation.FILE_NAME
     )
 
     assert git_ignores(REPOSITORY_ROOT, krrood_test_dataset_interface)
@@ -456,3 +461,46 @@ def test_the_import_attempt_stays_out_of_the_calling_interpreter(
         for interface in workspace.interfaces
         if interface.module_name in sys.modules
     ] == []
+
+
+@pytest.fixture
+def reported_staleness(caplog) -> logging.Handler:
+    """
+    What a build writes about the interfaces it found stale.
+
+    ..note:: The ROS overlay installs a logger class whose loggers do not propagate, so
+        the capturing handler has to be attached to the one under test rather than to
+        the root logger.
+
+    :return: The handler holding the records, empty until a build writes one.
+    """
+    orm_interfaces.logger.addHandler(caplog.handler)
+    yield caplog.handler
+    orm_interfaces.logger.removeHandler(caplog.handler)
+
+
+def test_the_stale_interface_is_reported_through_logging(
+    workspace: WorkspaceOrmInterfaces, reported_staleness: logging.Handler
+):
+    """
+    The report explains a build the run did not ask for, so it goes to logging rather
+    than to whatever the caller has its output pointed at.
+    """
+    workspace.regenerate()
+    leave_behind(REMOVED_CLASS_INTERFACE, workspace.interfaces[0])
+
+    stale = workspace.stale_interface()
+
+    assert [record.getMessage() for record in reported_staleness.records] == [
+        stale.report()
+    ]
+
+
+def test_a_checkout_that_imports_is_reported_on_at_all(
+    workspace: WorkspaceOrmInterfaces, reported_staleness: logging.Handler
+):
+    workspace.regenerate()
+
+    workspace.stale_interface()
+
+    assert reported_staleness.records == []
