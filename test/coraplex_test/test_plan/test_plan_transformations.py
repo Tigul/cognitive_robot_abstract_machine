@@ -274,6 +274,24 @@ def test_a_match_on_the_node_type_selects_every_action(immutable_model_world):
     ]
 
 
+def test_a_match_bound_to_an_action_type_selects_the_nodes_of_actions():
+    """
+    A match bound to an action type keeps selecting action nodes: the action type it
+    binds says which action, not which kind of node.
+    """
+    match = MoveGrippersBeforeTorsoMotion()
+
+    assert match.node_type is ActionNode
+    assert match.action_type is MoveTorsoAction
+
+
+def test_a_match_bound_to_a_node_type_selects_the_nodes_of_that_type():
+    """
+    A match that binds the node type itself selects the nodes of that type.
+    """
+    assert MoveGripperBeforeEveryAction().node_type is ActionNode
+
+
 # %% inserting
 
 

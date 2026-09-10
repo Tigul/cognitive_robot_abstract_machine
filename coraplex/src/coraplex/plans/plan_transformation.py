@@ -17,7 +17,6 @@ from coraplex.plans.factories import make_node
 from coraplex.plans.plan_node import ActionLike, ActionNode, PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
 from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
-from krrood.utils import get_generic_type_parameters
 
 NodeType = TypeVar("NodeType", bound=PlanNode)
 ActionType = TypeVar("ActionType", bound=ActionDescription)
@@ -71,9 +70,7 @@ class PlanMatch(Generic[NodeType], SubClassSafeGeneric, ABC):
         """
         :return: The type of node this selects.
         """
-        return get_generic_type_parameters(
-            type(self), PlanMatch, include_root_generic_base=False
-        )[0]
+        return type(self).get_type_of_generic_parameter(NodeType)
 
     def applies_to_node(self, plan_node: PlanNode) -> bool:
         """
@@ -103,23 +100,11 @@ class ActionMatch(PlanMatch[ActionNode], Generic[ActionType], SubClassSafeGeneri
     """
 
     @property
-    def node_type(self) -> Type[PlanNode]:
-        # Concrete matches of this family bind the action type, so the node type is read
-        # from what the family itself binds.
-        return get_generic_type_parameters(
-            ActionMatch,
-            PlanMatch,
-            include_root_generic_base=False,
-        )[0]
-
-    @property
     def action_type(self) -> Type[ActionDescription]:
         """
         :return: The type of action this selects the nodes of.
         """
-        return get_generic_type_parameters(
-            type(self), ActionMatch, include_root_generic_base=False
-        )[0]
+        return type(self).get_type_of_generic_parameter(ActionType)
 
     def applies_to_node(self, plan_node: PlanNode) -> bool:
         return super().applies_to_node(plan_node) and isinstance(
