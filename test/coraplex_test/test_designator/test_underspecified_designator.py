@@ -298,7 +298,7 @@ def test_isolation_rejected_candidate_never_touches_real_world(
 
     assert plan.root.status == LifeCycleValues.SUCCEEDED
     assert len(plan.root.children) == 1
-    assert plan.root.children[0].designator.fail_on_attempt_number is None
+    assert plan.root.children[0].children[0].designator.fail_on_attempt_number is None
 
     probe = _registered_probes[probe_key]
     assert len(probe.calls) == 3
@@ -373,7 +373,7 @@ def test_real_failure_keeps_state_and_next_trial_reflects_it(
     # Both the failed and the accepted candidate are attached to the tree - a real
     # failure is not undone, only worked around by trying the next candidate.
     assert [
-        child.designator.fail_on_attempt_number for child in plan.root.children
+        child.children[0].designator.fail_on_attempt_number for child in plan.root.children
     ] == [
         2,
         None,

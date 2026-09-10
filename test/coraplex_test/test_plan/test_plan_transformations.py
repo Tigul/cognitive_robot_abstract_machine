@@ -32,9 +32,11 @@ from coraplex.robot_plans.motions.gripper import (
     MoveToolCenterPointMotion,
 )
 from coraplex.robot_plans.motions.robot_body import MoveJointsMotion
+from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.plan_transformations import (
     DetectBeforeGrasp,
     OpenDrawerBeforePickUp,
+    OpenDrawerBeforeTransport,
     ParkArmsBeforeFirstAction,
 )
 from krrood.entity_query_language.factories import a
@@ -45,6 +47,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Milk,
     Spoon,
 )
+from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 
 from .test_graph_parsing import detect_actions_of, reach_action
@@ -522,6 +525,53 @@ def test_the_drawer_is_only_opened_for_an_object_that_lies_in_one(
     assert not transformation.is_applicable(in_the_open)
 
 
+def test_a_drawer_that_already_stands_open_needs_no_opening(immutable_model_world):
+    """
+    The opening is worth doing only while the drawer is shut, so a drawer that already
+    stands open leaves the pick-up as it is.
+    """
+    world, view, context = immutable_model_world
+    spoon = world.get_semantic_annotations_by_type(Spoon)[0]
+    drawer = drawer_holding(spoon, world)
+    transformation = OpenDrawerBeforePickUp()
+
+    [pick_up] = sequential([pick_up_action(spoon, view)], context).children
+    assert transformation.is_applicable(pick_up)
+
+    drawer.root.parent_connection.position = 0.4
+    world.notify_state_change()
+
+    assert not transformation.is_applicable(pick_up)
+
+
+def test_the_drawer_is_opened_before_a_transport_rather_than_inside_it(
+    immutable_model_world,
+):
+    """
+    A transport drives to the object before picking it up, and that drive is grounded
+    against the world it finds, so the opening precedes the whole transport.
+    """
+    world, view, context = immutable_model_world
+    spoon = world.get_semantic_annotations_by_type(Spoon)[0]
+    drawer = drawer_holding(spoon, world)
+    context.plan_transformations.append(OpenDrawerBeforeTransport())
+
+    transport = TransportAction(
+        spoon,
+        Pose.from_xyz_rpy(5.1, 3.3, 0.75, reference_frame=world.root),
+        Arms.RIGHT,
+        pick_up_action(spoon, view).grasp_description,
+    )
+    plan = sequential([transport], context)
+    plan.notify()
+
+    [drive_to_the_handle, opening, transported] = plan.children
+    assert drive_to_the_handle.designator_type is NavigateAction
+    assert isinstance(opening.designator, OpenAction)
+    assert opening.designator.object_designator is drawer.handle.root
+    assert transported.designator is transport
+
+
 def test_the_drawer_the_object_lies_in_is_opened_before_the_pick_up(
     immutable_model_world,
 ):
@@ -537,11 +587,13 @@ def test_the_drawer_the_object_lies_in_is_opened_before_the_pick_up(
     plan = sequential([pick_up_action(spoon, view)], context)
     plan.notify()
 
-    [navigation, opening, pick_up] = plan.children
-    assert navigation.designator_type is NavigateAction
-    assert isinstance(pick_up.designator, PickUpAction)
+    [drive_to_the_handle, opening, parking, drive_to_the_spoon, pick_up] = plan.children
+    assert drive_to_the_handle.designator_type is NavigateAction
     assert isinstance(opening.designator, OpenAction)
     assert opening.designator.object_designator is drawer.handle.root
+    assert isinstance(parking.designator, ParkArmsAction)
+    assert drive_to_the_spoon.designator_type is NavigateAction
+    assert isinstance(pick_up.designator, PickUpAction)
 
 
 def test_the_opening_beside_the_pick_up_is_expanded(immutable_model_world):
@@ -559,7 +611,7 @@ def test_the_opening_beside_the_pick_up_is_expanded(immutable_model_world):
     plan = sequential([pick_up_action(spoon, view)], context)
     plan.notify()
 
-    [_, opening, _] = plan.children
+    [_, opening, _, _, _] = plan.children
     on_its_own = execute_single(
         OpenAction(opening.designator.object_designator, opening.designator.arm),
         context=context,
@@ -639,9 +691,18 @@ def test_the_opening_joins_the_sequence_an_underspecified_pick_up_runs(
     assert isinstance(underspecified, UnderspecifiedNode)
     assert underspecified.advance()
 
-    [parking, navigation, opening, candidate] = underspecified.current_attempt.children
+    [
+        parking,
+        drive_to_the_handle,
+        opening,
+        parking_again,
+        drive_to_the_spoon,
+        candidate,
+    ] = underspecified.current_attempt.children
     assert candidate is underspecified.current_candidate
     assert isinstance(parking.designator, ParkArmsAction)
-    assert navigation.designator_type is NavigateAction
+    assert drive_to_the_handle.designator_type is NavigateAction
     assert isinstance(opening.designator, OpenAction)
     assert opening.designator.object_designator is drawer.handle.root
+    assert isinstance(parking_again.designator, ParkArmsAction)
+    assert drive_to_the_spoon.designator_type is NavigateAction
