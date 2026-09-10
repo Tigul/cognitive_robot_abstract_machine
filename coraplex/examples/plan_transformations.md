@@ -45,7 +45,7 @@ print an expanded plan:
 
 ```python
 def show(node, depth=0):
-    print("   " * depth + node.__node_label__())
+    print("   " * depth + node.node_label)
     for child in node.children:
         show(child, depth + 1)
 ```

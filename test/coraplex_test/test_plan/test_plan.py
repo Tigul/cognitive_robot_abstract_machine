@@ -13,6 +13,7 @@ from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
     ApproachDirection,
     InsertionPosition,
+    NodeDetail,
     VerticalAlignment,
     Arms,
 )
@@ -23,7 +24,7 @@ from coraplex.plans.condition_nodes import ConditionNode
 from coraplex.plans.executables import GiskardExecutable
 from coraplex.plans.factories import code, sequential, parallel, execute_single
 from coraplex.exceptions import CannotInsertBesideRoot
-from coraplex.plans.failures import EmptyUnderspecified
+from coraplex.plans.failures import EmptyUnderspecified, PlanFailure
 from coraplex.plans.plan import Plan
 from coraplex.plans.plan_node import PlanNode, ActionNode
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
@@ -858,3 +859,65 @@ def test_a_plan_node_is_drawn_in_the_color_of_its_state():
     )
 
     assert visualizer.node_color(node.index) == LifeCycleValues.FAILED.color.to_hex()
+
+
+def test_the_execution_details_of_a_node_are_named():
+    """
+    Every detail of a node is reported under the name it is shown by, instead of as a
+    pre-formatted line.
+    """
+    node = PlanNode()
+    node.status = LifeCycleValues.FAILED
+    node.result = object()
+    node.reason = PlanFailure()
+
+    execution = node.node_info.to_dict()[NodeDetail.EXECUTION]
+
+    assert execution == {
+        NodeDetail.STATUS: LifeCycleValues.FAILED.name,
+        NodeDetail.START_TIME: node.start_time,
+        NodeDetail.END_TIME: node.end_time,
+        NodeDetail.RESULT: node.result,
+        NodeDetail.REASON: node.reason,
+    }
+
+
+def test_a_designator_node_reports_the_parameters_of_its_designator():
+    """
+    A designator node adds the parameters its designator was built with as a section of
+    its own.
+    """
+    action = ParkArmsAction(Arms.LEFT)
+    node = ActionNode(designator=action)
+
+    designator_section = node.node_info.sections[-1]
+
+    assert designator_section.heading == NodeDetail.DESIGNATOR_PARAMETER
+    assert designator_section.entries == {
+        NodeDetail.DESIGNATOR_TYPE: ParkArmsAction.__name__,
+        **action.designator_parameter,
+    }
+
+
+def test_a_node_is_labelled_by_the_designator_it_manages():
+    """
+    A designator node is drawn as its designator, not as the node class managing it.
+    """
+    node = ActionNode(designator=ParkArmsAction(Arms.LEFT))
+
+    assert node.node_label == ParkArmsAction.__name__
+
+
+def test_the_details_of_a_node_are_drawn_as_lines():
+    """
+    The visualization takes the detail lines of a node from its node info.
+    """
+    node = PlanNode()
+    plan = Plan()
+    plan.add_node(node)
+
+    visualizer = plan._create_visualizer(
+        backend=GraphVisualizerBackend.CYTOSCAPE, layout=GraphLayout.LAYERED
+    )
+
+    assert visualizer.node_details(node.index) == node.node_info.to_lines()

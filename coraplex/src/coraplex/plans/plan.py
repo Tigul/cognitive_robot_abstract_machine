@@ -415,25 +415,12 @@ class Plan:
         """
         return self._visualizer_classes[backend](
             graph=self.plan_graph,
-            label_getter=lambda node: node.__node_label__(),
-            information_getter=lambda node: node.__node_info__(),
+            label_getter=lambda node: node.node_label,
+            information_getter=lambda node: node.node_info.to_lines(),
             color_getter=lambda node: node.status.color.to_hex(),
             layout=layout,
             title=repr(self),
         )
-
-    def _node_details(self, node: PlanNode) -> List[str]:
-        """
-        :param node: The node to describe.
-        :return: The status, timing and outcome of the node as detail lines.
-        """
-        return [
-            f"status: {node.status.name}",
-            f"start: {node.start_time}",
-            f"end: {node.end_time}",
-            f"result: {node.result}",
-            f"reason: {node.reason}",
-        ]
 
     def __repr__(self):
         return f"Plan with {len(self.all_nodes)} nodes"

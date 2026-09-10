@@ -4,7 +4,7 @@ Module holding all enums of CoraPlex.
 
 from __future__ import annotations
 
-from enum import Enum, auto, IntEnum
+from enum import Enum, auto, IntEnum, StrEnum
 
 from typing_extensions import TYPE_CHECKING
 
@@ -430,4 +430,50 @@ class MixingPattern(Enum):
     STIR = auto()
     """
     Mix along circular stirring laps.
+    """
+
+
+class NodeDetail(StrEnum):
+    """
+    The names a plan node is described by in the plan visualization.
+    """
+
+    EXECUTION = "Execution"
+    """
+    The section holding how far a node got and what came out of it.
+    """
+
+    STATUS = "status"
+    """
+    Where the node is in its execution.
+    """
+
+    START_TIME = "start"
+    """
+    When the node started.
+    """
+
+    END_TIME = "end"
+    """
+    When the node finished.
+    """
+
+    RESULT = "result"
+    """
+    What the node returned.
+    """
+
+    REASON = "reason"
+    """
+    The failure that ended the node.
+    """
+
+    DESIGNATOR_PARAMETER = "Designator Parameter"
+    """
+    The section holding the designator a node manages.
+    """
+
+    DESIGNATOR_TYPE = "Designator Type"
+    """
+    The class of that designator.
     """
