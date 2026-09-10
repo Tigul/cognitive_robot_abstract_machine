@@ -538,7 +538,8 @@ def test_a_drawer_that_already_stands_open_needs_no_opening(immutable_model_worl
     [pick_up] = sequential([pick_up_action(spoon, view)], context).children
     assert transformation.is_applicable(pick_up)
 
-    drawer.root.parent_connection.position = 0.4
+    connection = drawer.root.parent_connection
+    connection.position = connection.dof.limits.upper.position
     world.notify_state_change()
 
     assert not transformation.is_applicable(pick_up)
