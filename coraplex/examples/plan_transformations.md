@@ -208,11 +208,6 @@ milk_pick_up.notify()
 show(milk_pick_up)
 ```
 
-`TransportAction` opens drawers itself rather than relying on this transformation. It drives to the
-object before it picks it up, and that drive is grounded against the world it finds — with the drawer
-still shut there is no pose from which the object can be reached, so the opening has to happen before
-the drive rather than before the pick-up.
-
 ## Writing a Transformation
 
 A transformation is one matching part, which says which nodes it applies to, and one rewriting part,
