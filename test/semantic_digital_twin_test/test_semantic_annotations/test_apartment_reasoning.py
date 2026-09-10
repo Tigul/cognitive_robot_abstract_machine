@@ -382,27 +382,6 @@ def test_a_drawer_is_wired_to_the_handle_mounted_on_it(
     assert drawers_by_body[ApartmentDrawer.COFFEE_TABLE_DRAWER].handle is None
 
 
-def test_a_drawer_reports_how_far_it_stands_open(reasoned_apartment):
-    """
-    How far a drawer stands open is read from its own travel, so it stands none of the
-    way open at the lower limit of its joint and all of the way at the upper one.
-    """
-    [drawer] = [
-        candidate
-        for candidate in reasoned_apartment.get_semantic_annotations_by_type(Drawer)
-        if candidate.root.name.name == ApartmentDrawer.CABINET5_DRAWER_TOP
-    ]
-    connection = drawer.root.parent_connection
-
-    connection.position = connection.dof.limits.lower.position
-    reasoned_apartment.notify_state_change()
-    assert drawer.opening_ratio == 0
-
-    connection.position = connection.dof.limits.upper.position
-    reasoned_apartment.notify_state_change()
-    assert drawer.opening_ratio == 1
-
-
 def test_a_door_is_wired_to_the_handle_mounted_on_it(
     reasoned_apartment: World,
 ):

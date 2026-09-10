@@ -525,6 +525,25 @@ def test_the_drawer_is_only_opened_for_an_object_that_lies_in_one(
     assert not transformation.is_applicable(in_the_open)
 
 
+def test_a_drawer_reports_how_far_it_stands_open(immutable_model_world):
+    """
+    How far a drawer stands open is read from its own travel, so it stands none of the
+    way open at the lower limit of its joint and all of the way at the upper one.
+    """
+    world, view, context = immutable_model_world
+    spoon = world.get_semantic_annotations_by_type(Spoon)[0]
+    drawer = drawer_holding(spoon, world)
+    connection = drawer.root.parent_connection
+
+    connection.position = connection.dof.limits.lower.position
+    world.notify_state_change()
+    assert drawer.opening_ratio == 0
+
+    connection.position = connection.dof.limits.upper.position
+    world.notify_state_change()
+    assert drawer.opening_ratio == 1
+
+
 def test_a_drawer_that_already_stands_open_needs_no_opening(immutable_model_world):
     """
     The opening is worth doing only while the drawer is shut, so a drawer that already
