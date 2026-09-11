@@ -2,15 +2,19 @@
 Tests for the observation expressions built by the monitored subtree templates (see
 ``giskardpy/motion_statechart/monitors/templates.py``).
 
-``build_artifacts`` reads nothing but the monitor's observation and what the monitored
-node has reached, both of which exist as variables from construction, so each expression
-is evaluated by substituting values into it rather than by ticking an executor.
+``build_artifacts`` reads nothing but the observations of the monitor and the monitored
+node and the life cycle of the monitored node, all of which exist as variables from
+construction, so each expression is evaluated by substituting values into it rather than
+by ticking an executor.
 """
 
 import pytest
 
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import ObservationStateValues
+from giskardpy.motion_statechart.data_types import (
+    LifeCycleValues,
+    ObservationStateValues,
+)
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.monitors.templates import (
     MonitoredCompositeStatechartNode,
@@ -47,16 +51,19 @@ def observation_for(
     goal: MonitoredCompositeStatechartNode,
     monitored_observation: ObservationStateValues,
     monitor_observation: ObservationStateValues,
+    monitored_life_cycle: LifeCycleValues = LifeCycleValues.RUNNING,
 ) -> ObservationStateValues:
     """
     Evaluate the observation a goal builds for one pair of input observations.
 
-    Either node may be read through what it has reached, which is what it observes while
-    it runs, so the same value stands for both of a node's variables.
+    An observation expression reads the observation a node took on the previous control
+    cycle, which is also its last observation, so the same value stands for both of a
+    node's observation variables.
 
     :param goal: The goal whose observation expression is evaluated.
-    :param monitored_observation: What the monitored node observes.
-    :param monitor_observation: What the monitor observes.
+    :param monitored_observation: What the monitored node observed.
+    :param monitor_observation: What the monitor observed.
+    :param monitored_life_cycle: The life cycle state the monitored node is in.
     :return: What the goal observes.
     """
     artifacts = goal.build_artifacts(MotionStatechartContext(world=World()))
@@ -65,13 +72,15 @@ def observation_for(
     substituted = Scalar(artifacts.observation).substitute(
         [
             goal.monitored_node.observation_variable,
-            goal.monitored_node.goal_reached,
+            goal.monitored_node.last_observation,
+            goal.monitored_node.life_cycle_variable,
             goal.monitor.observation_variable,
-            goal.monitor.goal_reached,
+            goal.monitor.last_observation,
         ],
         [
             monitored_observation,
             monitored_observation,
+            monitored_life_cycle,
             monitor_observation,
             monitor_observation,
         ],
@@ -133,6 +142,45 @@ def test_stopped_when_true_fails_when_it_stopped_an_unfinished_node(
 
     assert (
         observation_for(goal, monitored_observation, ObservationStateValues.TRUE)
+        is ObservationStateValues.FALSE
+    )
+
+
+@pytest.mark.parametrize("monitor_observation", list(ObservationStateValues))
+def test_stopped_when_true_keeps_succeeding_once_the_monitored_node_succeeded(
+    monitor_observation: ObservationStateValues,
+) -> None:
+    """
+    A monitored node that ended at its goal observes nothing any more, so its verdict is
+    what makes the template succeed.
+    """
+    goal = create_goal(StoppedWhenTrue)
+
+    assert (
+        observation_for(
+            goal,
+            ObservationStateValues.UNKNOWN,
+            monitor_observation,
+            monitored_life_cycle=LifeCycleValues.SUCCEEDED,
+        )
+        is ObservationStateValues.TRUE
+    )
+
+
+def test_stopped_when_true_fails_when_it_stopped_a_node_at_its_goal() -> None:
+    """
+    The observation read on the cycle after the monitor stopped the monitored node is
+    still the one it took while at its goal, which must not count as reaching it.
+    """
+    goal = create_goal(StoppedWhenTrue)
+
+    assert (
+        observation_for(
+            goal,
+            ObservationStateValues.TRUE,
+            ObservationStateValues.TRUE,
+            monitored_life_cycle=LifeCycleValues.INTERRUPTED,
+        )
         is ObservationStateValues.FALSE
     )
 

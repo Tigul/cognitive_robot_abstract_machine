@@ -38,7 +38,6 @@ from giskardpy.motion_statechart.graph_node import (
     ObservationVariable,
     LifeCycleVariable,
     LifeCyclePredicateVariable,
-    GoalReachedVariable,
     LastObservationVariable,
     NodeStateVariable,
     DebugExpression,
@@ -324,7 +323,7 @@ class ObservationState(State):
                 b_result_cases=[
                     (
                         int(LifeCycleValues.RUNNING),
-                        GoalReachedVariable.replace_in(node._observation_expression),
+                        node._observation_expression,
                     ),
                     (
                         int(LifeCycleValues.PAUSED),
@@ -473,12 +472,10 @@ class NextLifeCycle:
                 cycle=self._nodes_being_built[cycle_start:] + [node]
             )
         self._nodes_being_built.append(node)
-        transitions = GoalReachedVariable.replace_in(
-            sm.if_eq_cases(
-                a=node.life_cycle_variable,
-                b_result_cases=node.create_lifecycle_transitions().as_cases(),
-                else_result=node.life_cycle_variable,
-            )
+        transitions = sm.if_eq_cases(
+            a=node.life_cycle_variable,
+            b_result_cases=node.create_lifecycle_transitions().as_cases(),
+            else_result=node.life_cycle_variable,
         )
         expression = self._resolve_predicates_in(transitions)
         self._nodes_being_built.pop()
@@ -652,10 +649,9 @@ class MotionStatechart(SubclassJSONSerializer):
     `node.is_failed`. The observation behind the observation variable is gone once that
     node ends, so a condition that outlives the node it reads has to read something that
     outlasts it: `node.last_observation` keeps the observation the node took most
-    recently, whatever its verdict, and `node.goal_reached` holds what a node observes
-    while it runs and the verdict it earned once it has ended. A predicate reads the life
-    cycle state its node reaches at the end of the current tick, so a node waiting on
-    another node's verdict starts on the tick that verdict is reached.
+    recently, whatever its verdict, and a predicate keeps the verdict. A predicate reads
+    the life cycle state its node reaches at the end of the current tick, so a node
+    waiting on another node's verdict starts on the tick that verdict is reached.
     Nodes are connected with edges, or transitions.
     There are 6 types of transitions:
         - start condition: If True, the node transitions from NOT_STARTED to RUNNING.
@@ -873,14 +869,13 @@ class MotionStatechart(SubclassJSONSerializer):
         resolved back into an expression. Reading a node's predicates here also creates
         them, which is what makes a deserialized condition able to refer to one.
 
-        :return: The observation variable, the goal reached variable, the last
-            observation variable and every life cycle predicate of every node.
+        :return: The observation variable, the last observation variable and every life
+            cycle predicate of every node.
         """
         variables: List[NodeStateVariable] = list(
             self.observation_state.observation_symbols()
         )
         for node in self.nodes:
-            variables.append(node.goal_reached)
             variables.append(node.last_observation)
             variables.extend(
                 node._life_cycle_predicate(predicate)
@@ -1058,7 +1053,7 @@ class MotionStatechart(SubclassJSONSerializer):
         """
         for node in self.get_nodes_by_type(SelfDecidingNode):
             node.success_condition = sm.trinary_logic_or(
-                node.success_condition, node.goal_reached
+                node.success_condition, node.observation_variable
             )
 
     def _expand_goals(self, context: MotionStatechartContext):

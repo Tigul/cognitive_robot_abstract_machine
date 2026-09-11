@@ -127,13 +127,13 @@ class Attempt(SelfDecidingNode, CompositeStatechartNode):
 
         Reaching the goal outranks a monitor firing on the same control cycle: a task
         that arrived did what it was asked, whatever else was true at that moment. The
-        task is read through :attr:`goal_reached`, which is what it observes for as long
-        as this goal holds it open.
+        task is read through its last observation, which is what it observes for as long
+        as this goal holds it open, and what it arrived at if it ended itself.
         """
         return NodeArtifacts(
             observation=if_cases(
                 cases=[
-                    (self.task.goal_reached.is_true(), Scalar.const_true()),
+                    (self.task.last_observation.is_true(), Scalar.const_true()),
                     (self.any_failure_monitor_fired, Scalar.const_false()),
                 ],
                 else_result=Scalar.const_trinary_unknown(),
@@ -346,13 +346,14 @@ class Parallel(MaintenanceNode, NodeListCompositeStatechartNode):
 
         This goal ends none of its nodes, so a node that keeps running is counted by
         what it observes now and stops counting once it drifts away from its goal again.
-        A node something *else* ended keeps counting, because its verdict outlasts it.
+        A node something *else* ended is counted by the last observation it took, which
+        outlasts it.
 
         Observing False means the constraints are not satisfied, not that anything went
         wrong: whether that is worth giving up on is decided outside, by the attempt this
         goal is wrapped in.
         """
-        nodes_at_their_goal = [node.goal_reached.is_true() for node in self.nodes]
+        nodes_at_their_goal = [node.last_observation.is_true() for node in self.nodes]
         return NodeArtifacts(
             observation=self.required_successes <= sum(*nodes_at_their_goal)
         )

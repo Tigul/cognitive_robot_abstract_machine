@@ -158,7 +158,7 @@ flowchart TD
 ## Reading other nodes in conditions
 
 Conditions are symbolic expressions over the state of other nodes, combined with trinary
-logic (`trinary_logic_and`, `trinary_logic_or`, `trinary_logic_not`). A node offers four
+logic (`trinary_logic_and`, `trinary_logic_or`, `trinary_logic_not`). A node offers three
 kinds of variables for this:
 
 - `node.observation_variable`: what the node observes right now. It turns Unknown as soon as
@@ -174,17 +174,7 @@ kinds of variables for this:
 
   Read it to ask what a node saw, for example whether a monitor that ended itself had fired.
   It says nothing about how the node ended: a node interrupted while observing True still
-  reads True, so ask `goal_reached` or a predicate when the verdict matters.
-- `node.goal_reached`: whether the node reached its goal. It is the observation while the node
-  has not ended, and follows from its outcome once it has:
-
-  | Life cycle state                | `goal_reached`  |
-  |---------------------------------|-----------------|
-  | NOT_STARTED, RUNNING, PAUSED    | the observation |
-  | SUCCEEDED                       | True            |
-  | FAILED                          | False           |
-  | INTERRUPTED                     | Unknown         |
-
+  reads True, so ask a predicate when the verdict matters.
 - **Life cycle predicates** such as `node.is_succeeded`, which answer questions about the life
   cycle state. Predicates about *where* a node is are always True or False. Predicates about
   *how* a node ended stay Unknown until it has ended in a way that answers them:
@@ -202,17 +192,16 @@ kinds of variables for this:
 
 An observation may change in both directions, while an outcome stays fixed until a reset. A
 condition that has to keep its answer after the node it reads has ended must therefore read
-`last_observation`, or the outcome through `goal_reached` or a predicate, rather than the
-observation:
+`last_observation`, or the outcome through a predicate, rather than the observation:
 
 ```{mermaid}
 flowchart LR
-    c1["RUNNING<br/>observes False<br/><b>goal_reached: False</b>"]
-    c2["RUNNING<br/>observes True<br/><b>goal_reached: True</b>"]
-    c3["RUNNING<br/>observes False<br/><b>goal_reached: False</b>"]
-    c4["RUNNING<br/>observes True<br/><b>goal_reached: True</b>"]
-    c5["SUCCEEDED<br/>observes Unknown<br/><b>goal_reached: True</b>"]
-    c6["SUCCEEDED<br/>observes Unknown<br/><b>goal_reached: True</b>"]
+    c1["RUNNING<br/>observes False<br/><b>last_observation: False</b>"]
+    c2["RUNNING<br/>observes True<br/><b>last_observation: True</b>"]
+    c3["RUNNING<br/>observes False<br/><b>last_observation: False</b>"]
+    c4["RUNNING<br/>observes True<br/><b>last_observation: True</b>"]
+    c5["SUCCEEDED<br/>observes Unknown<br/><b>last_observation: True</b>"]
+    c6["SUCCEEDED<br/>observes Unknown<br/><b>last_observation: True</b>"]
     c1 --> c2 --> c3 --> c4 -- "success condition is True" --> c5 --> c6
 
     classDef running fill:#3B82F6,stroke:#1D4ED8,color:#FFFFFF
@@ -231,8 +220,10 @@ Conditions are checked when they are set and when the statechart is compiled:
   of them.
 - Only node variables may appear in a condition.
 
-A node's observation expression may read `goal_reached` and `observation_variable` of other
-nodes, but not a life cycle predicate.
+A node's observation expression may read `observation_variable` and `last_observation` of
+other nodes, but not a life cycle predicate. It reads the observations the previous control
+cycle left behind, so a node that ended on that cycle still shows the observation it ended
+on; read the life cycle to tell the two apart.
 
 ### One control cycle
 
@@ -257,8 +248,9 @@ Within the life cycle update, a life cycle predicate reads the state its node re
 outcome is reached. A predicate a node reads about itself is the exception: it reads the state
 the node started the control cycle with. Two nodes that read each other's predicates are
 rejected with a `CyclicPredicateDependencyError`, since neither could be updated first.
-`observation_variable` and `goal_reached` always read the state from the beginning of the
-control cycle.
+`observation_variable` and `last_observation` read the observations updated earlier in the
+same control cycle, which were computed from the life cycle states the control cycle started
+with.
 
 ## Who ends a node
 
@@ -277,7 +269,7 @@ This splits nodes into two kinds:
   threshold (`PoseReached`, `JointPositionReached`, …), counters (`CountSeconds`,
   `CountControlCycles`), `Parallel` and the monitored composite statechart nodes.
 - **`SelfDecidingNode`**: a node that can be ended without undoing what it did, and therefore
-  ends itself. When the statechart is compiled, every such node gets `goal_reached` added to
+  ends itself. When the statechart is compiled, every such node gets its observation added to
   its success condition, so it succeeds once it observes True. Examples are `Attempt`, the
   ordering templates and nodes like `SetOdometry`.
 
@@ -325,8 +317,8 @@ labelled `transition: expression` means that B's condition for that transition r
 Runs a `task` together with a list of `failure_monitors`, and ends as soon as either the task
 reaches its goal or a monitor gives up on it.
 
-- It observes **True** once the task's `goal_reached` is True, and then succeeds.
-- It observes **False** once any failure monitor's `goal_reached` is True, and then fails.
+- It observes **True** once the task's `last_observation` is True, and then succeeds.
+- It observes **False** once any failure monitor's `last_observation` is True, and then fails.
   Reaching the goal wins if both happen on the same control cycle.
 - Otherwise it observes Unknown and keeps going.
 
@@ -344,9 +336,9 @@ flowchart LR
         m2(["failure monitor 2"])
     end
     obs{"Attempt observes"}
-    task -- "goal_reached is True" --> obs
-    m1 -- "goal_reached is True" --> obs
-    m2 -- "goal_reached is True" --> obs
+    task -- "last_observation is True" --> obs
+    m1 -- "last_observation is True" --> obs
+    m2 -- "last_observation is True" --> obs
     obs -- "True: success" --> S([SUCCEEDED])
     obs -- "False: fail" --> F([FAILED])
 
@@ -384,7 +376,7 @@ flowchart LR
 ### Parallel
 
 Runs all of its `nodes` at the same time and observes **True** while at least
-`minimum_success` of them (all of them by default) have `goal_reached` True on the same
+`minimum_success` of them (all of them by default) have `last_observation` True on the same
 control cycle.
 
 `Parallel` never ends any of its nodes: ending a task that reached its goal would let a node
@@ -401,7 +393,7 @@ flowchart LR
         n2(["node 2"])
         n3(["node 3"])
     end
-    count{"number of nodes with<br/>goal_reached True ≥<br/>minimum_success?"}
+    count{"number of nodes with<br/>last_observation True ≥<br/>minimum_success?"}
     n1 --> count
     n2 --> count
     n3 --> count
@@ -452,13 +444,13 @@ Runs all of its `nodes` at the same time and takes the first one that works.
 
 - The task is wrapped in an attempt if it needs one. Its failure monitors decide what counts
   as a failed try.
-- A failed try is reset on the next control cycle, as long as the stop monitor has not reached
-  its goal. Resetting a goal resets everything below it, so a composite task starts over as a
+- A failed try is reset on the next control cycle, as long as the stop monitor has not
+  observed True. Resetting a goal resets everything below it, so a composite task starts over as a
   whole.
-- Once the stop monitor's `goal_reached` is True, the attempt is interrupted and not started
-  again.
+- Once the stop monitor's `last_observation` is True, the attempt is interrupted and not
+  started again.
 - It observes **True** once the attempt succeeded, and **False** once the stop monitor
-  reached its goal.
+  observed True.
 - If an `exception` is given, a `CancelMotion` raises it as soon as the stop monitor observes
   True.
 
@@ -473,8 +465,8 @@ flowchart LR
         attempt(["attempt"])
         cancel(["CancelMotion<br/>(only with an exception)"])
     end
-    stop -- "start: not goal_reached<br/>interrupt: goal_reached" --> attempt
-    attempt -- "reset: is_failed and<br/>stop monitor not at its goal" --> attempt
+    stop -- "start: not last_observation<br/>interrupt: last_observation" --> attempt
+    attempt -- "reset: is_failed and<br/>not last_observation of the stop monitor" --> attempt
     stop -- "start: observation" --> cancel
 ```
 
@@ -482,20 +474,20 @@ flowchart LR
 
 These run a `monitored_node` next to a `monitor`, and let the monitor control the
 monitored node's life cycle. They are maintenance nodes: their observation is the monitored
-node's `goal_reached`.
+node's `last_observation`.
 
 | Template            | Effect on the monitored node                                            |
 |---------------------|-------------------------------------------------------------------------|
 | `PausedWhileTrue`   | paused while the monitor observes True                                  |
 | `PausedUntilTrue`   | paused while the monitor observes False, so it waits for True           |
-| `StoppedWhenTrue`   | interrupted once the monitor's `goal_reached` is True                   |
+| `StoppedWhenTrue`   | interrupted once the monitor's `last_observation` is True               |
 | `CancelledWhenTrue` | like `StoppedWhenTrue`, and a `CancelMotion` ends the whole motion      |
 
 ```{mermaid}
 flowchart LR
     monitor(["monitor"])
     node(["monitored node"])
-    monitor -- "PausedWhileTrue → pause: observation<br/>PausedUntilTrue → pause: not observation<br/>StoppedWhenTrue → interrupt: goal_reached" --> node
+    monitor -- "PausedWhileTrue → pause: observation<br/>PausedUntilTrue → pause: not observation<br/>StoppedWhenTrue → interrupt: last_observation" --> node
 ```
 
 `StoppedWhenTrue` observes True while the monitored node is at its goal or once it succeeded,
@@ -511,10 +503,10 @@ Both are usually created with factory methods that set their start condition:
 
 | Factory                       | Starts once                                                              |
 |-------------------------------|--------------------------------------------------------------------------|
-| `when_true(node)`             | `node.goal_reached` is True, which remains True after `node` succeeded   |
+| `when_true(node)`             | `node` observes True, or `node.is_succeeded` is True                     |
 | `when_failed(node)`           | `node.is_failed` is True                                                 |
-| `when_all_true(nodes)`        | every node's `goal_reached` is True                                      |
-| `when_any_true(nodes)`        | any node's `goal_reached` is True                                        |
+| `when_all_true(nodes)`        | every node observes True or has succeeded                                |
+| `when_any_true(nodes)`        | any node observes True or has succeeded                                  |
 | `EndMotion.when_false(node)`  | `node` currently observes False; this does not look at its outcome       |
 
 ## Example

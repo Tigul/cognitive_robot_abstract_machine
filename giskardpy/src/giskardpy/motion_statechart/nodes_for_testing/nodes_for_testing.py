@@ -140,10 +140,10 @@ class TestRunAfterStop(SelfDecidingNode, CompositeStatechartNode):
                 self.cancel,
             ]
         )
-        self.cancel.start_condition = self.ticking1.goal_reached
+        self.cancel.start_condition = self.ticking1.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(observation=sm.Scalar(self.ticking2.goal_reached))
+        return NodeArtifacts(observation=sm.Scalar(self.ticking2.observation_variable))
 
 
 @dataclass(repr=False, eq=False)
@@ -170,7 +170,7 @@ class TestEndBeforeStart(CompositeStatechartNode):
             nodes=[self.node1, self.node2, self.node3]
         )
 
-        self.node3.start_condition = self.node1.goal_reached
+        self.node3.start_condition = self.node1.observation_variable
         self.node3.success_condition = self.node2.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
@@ -209,12 +209,12 @@ class TestRunAfterStopFromPause(SelfDecidingNode, CompositeStatechartNode):
         self._add_children_to_motion_statechart(
             nodes=[self.ticking1, self.ticking2, self.ticking3, self.cancel, self.pulse]
         )
-        self.pulse.start_condition = self.ticking3.goal_reached
+        self.pulse.start_condition = self.ticking3.observation_variable
         self.ticking2.pause_condition = self.pulse.observation_variable
-        self.cancel.start_condition = self.ticking2.goal_reached
+        self.cancel.start_condition = self.ticking2.observation_variable
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(observation=sm.Scalar(self.ticking1.goal_reached))
+        return NodeArtifacts(observation=sm.Scalar(self.ticking1.observation_variable))
 
 
 @dataclass(repr=False, eq=False)
@@ -248,10 +248,12 @@ class TestUnpauseUnknownFromParentPause(SelfDecidingNode, CompositeStatechartNod
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         """
-        :attr:`count_ticks1` is read through :attr:`goal_reached`, which is what it has
+        :attr:`count_ticks1` is read through its observation, which is what it has
         counted while it runs.
         """
-        return NodeArtifacts(observation=sm.Scalar(self.count_ticks1.goal_reached))
+        return NodeArtifacts(
+            observation=sm.Scalar(self.count_ticks1.observation_variable)
+        )
 
 
 # %% nodes that differ in what they can be judged by
@@ -282,21 +284,6 @@ class NodeObservingAPredicate(MotionStatechartNode):
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar(self.watched_node.is_succeeded))
-
-
-@dataclass(eq=False, repr=False)
-class NodeObservingGoalReached(MotionStatechartNode):
-    """
-    A node whose observation reads whether another node reached its goal.
-    """
-
-    watched_node: MotionStatechartNode = field(default=None, kw_only=True)
-    """
-    The node whose goal this node observes.
-    """
-
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        return NodeArtifacts(observation=sm.Scalar(self.watched_node.goal_reached))
 
 
 @dataclass(eq=False, repr=False)

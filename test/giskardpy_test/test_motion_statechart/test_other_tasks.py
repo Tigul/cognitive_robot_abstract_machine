@@ -746,9 +746,8 @@ class TestOpenClose:
         self, prismatic_bot2: World
     ):
         """
-        Neither part is ended by the goal that runs them, so a part something else ends
-        keeps counting through the verdict it earned rather than through the observation
-        behind it, which is gone by then.
+        Both parts are created by the goal and end only when it ends, so it reads what
+        they observe now.
         """
         motion_statechart = MotionStatechart()
         motion_statechart.add_node(
@@ -762,7 +761,7 @@ class TestOpenClose:
         )
 
         assert set(open_goal._observation_expression.free_variables()) == {
-            part.goal_reached for part in open_goal.nodes
+            part.observation_variable for part in open_goal.nodes
         }
 
     def test_open(self, pr2_world_copy, tmp_path):

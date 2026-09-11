@@ -141,7 +141,7 @@ def test_try_all_succeeds_if_any_child_succeeds():
     goal = TryAll(nodes=[stuck, arriving])
     _compile_and_tick(goal)
 
-    assert goal.goal_reached_state == ObservationStateValues.TRUE
+    assert goal.last_observation_state == ObservationStateValues.TRUE
     assert arriving.life_cycle_state == LifeCycleValues.SUCCEEDED
     # Alternatives run side by side, so the other one is not cut short by the success.
     assert stuck.life_cycle_state != LifeCycleValues.NOT_STARTED
@@ -156,14 +156,14 @@ def test_try_all_fails_only_if_all_children_fail():
     )
     _compile_and_tick(goal, alternatives_to_abandon=1)
 
-    assert goal.goal_reached_state == ObservationStateValues.FALSE
+    assert goal.last_observation_state == ObservationStateValues.FALSE
 
 
 def test_try_all_single_child():
     goal = TryAll(nodes=[_alternative(ConstTrueNode(name="only"))])
     _compile_and_tick(goal)
 
-    assert goal.goal_reached_state == ObservationStateValues.TRUE
+    assert goal.last_observation_state == ObservationStateValues.TRUE
 
 
 # %% TryInOrder, sequential and short-circuiting on the first success
@@ -175,7 +175,7 @@ def test_try_in_order_short_circuits_on_first_success():
     goal = TryInOrder(nodes=[first, second])
     _compile_and_tick(goal)
 
-    assert goal.goal_reached_state == ObservationStateValues.TRUE
+    assert goal.last_observation_state == ObservationStateValues.TRUE
     # First child succeeded and finished...
     assert first.life_cycle_state == LifeCycleValues.SUCCEEDED
     # ...so the second child is never started (short-circuit).
@@ -188,7 +188,7 @@ def test_try_in_order_advances_after_failure():
     goal = TryInOrder(nodes=[first, second])
     _compile_and_tick(goal, alternatives_to_abandon=1)
 
-    assert goal.goal_reached_state == ObservationStateValues.TRUE
+    assert goal.last_observation_state == ObservationStateValues.TRUE
     # Both children ran: the first failed, the second was started and succeeded.
     assert first.life_cycle_state == LifeCycleValues.FAILED
     assert second.life_cycle_state == LifeCycleValues.SUCCEEDED
@@ -200,7 +200,7 @@ def test_try_in_order_fails_only_if_all_children_fail():
     goal = TryInOrder(nodes=[first, second])
     _compile_and_tick(goal, alternatives_to_abandon=2)
 
-    assert goal.goal_reached_state == ObservationStateValues.FALSE
+    assert goal.last_observation_state == ObservationStateValues.FALSE
     assert first.life_cycle_state == LifeCycleValues.FAILED
     assert second.life_cycle_state == LifeCycleValues.FAILED
 
@@ -209,7 +209,7 @@ def test_try_in_order_single_child():
     goal = TryInOrder(nodes=[_alternative(ConstTrueNode(name="only"))])
     _compile_and_tick(goal)
 
-    assert goal.goal_reached_state == ObservationStateValues.TRUE
+    assert goal.last_observation_state == ObservationStateValues.TRUE
 
 
 # %% progress monitors
@@ -300,7 +300,7 @@ def test_an_alternative_abandoned_undecided_hands_over_to_the_next_one():
 
     assert first.life_cycle_state == LifeCycleValues.FAILED
     assert second.life_cycle_state == LifeCycleValues.SUCCEEDED
-    assert goal.goal_reached_state == ObservationStateValues.TRUE
+    assert goal.last_observation_state == ObservationStateValues.TRUE
 
 
 def test_a_composite_alternative_that_never_arrives_hands_over_to_the_next_one():
@@ -323,7 +323,7 @@ def test_a_composite_alternative_that_never_arrives_hands_over_to_the_next_one()
 
     assert first.life_cycle_state == LifeCycleValues.FAILED
     assert fallback.life_cycle_state == LifeCycleValues.SUCCEEDED
-    assert goal.goal_reached_state == ObservationStateValues.TRUE
+    assert goal.last_observation_state == ObservationStateValues.TRUE
 
 
 def test_the_goal_fails_once_every_alternative_was_abandoned():
@@ -339,7 +339,7 @@ def test_the_goal_fails_once_every_alternative_was_abandoned():
     )
     _compile_and_tick(goal, alternatives_to_abandon=2)
 
-    assert goal.goal_reached_state == ObservationStateValues.FALSE
+    assert goal.last_observation_state == ObservationStateValues.FALSE
 
 
 # %% goals built without children
@@ -448,7 +448,7 @@ def test_stopped_when_true_ends_the_monitored_node():
     )
     _compile_and_tick(goal)
 
-    assert goal.monitor.goal_reached_state == ObservationStateValues.TRUE
+    assert goal.monitor.observation_state == ObservationStateValues.TRUE
     # Stopping a node decides when it ends, not that it failed.
     assert goal.monitored_node.life_cycle_state == LifeCycleValues.INTERRUPTED
 

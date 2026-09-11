@@ -101,7 +101,7 @@ def test_repeat_until_retries_until_the_monitor_gives_up():
         executor.tick()
 
     assert loop.stop_retry_monitor.resets == 3
-    assert loop.goal_reached_state == ObservationStateValues.FALSE
+    assert loop.last_observation_state == ObservationStateValues.FALSE
 
 
 def test_repeat_until_succeeds_without_retrying():
@@ -115,7 +115,7 @@ def test_repeat_until_succeeds_without_retrying():
     executor.tick_until_end(SETTLE_CYCLES)
 
     assert loop.stop_retry_monitor.resets == 0
-    assert loop.goal_reached_state == ObservationStateValues.TRUE
+    assert loop.last_observation_state == ObservationStateValues.TRUE
     assert motion_statechart.is_end_motion()
 
 
@@ -156,14 +156,14 @@ def test_repeat_until_does_not_retry_after_giving_up():
     for _ in range(SETTLE_CYCLES):
         executor.tick()
     resets_when_given_up = loop.stop_retry_monitor.resets
-    assert loop.goal_reached_state == ObservationStateValues.FALSE
+    assert loop.last_observation_state == ObservationStateValues.FALSE
 
     for _ in range(SETTLE_CYCLES):
         executor.tick()
 
     assert loop.stop_retry_monitor.resets == resets_when_given_up
     assert loop.task.life_cycle_state == LifeCycleValues.NOT_STARTED
-    assert loop.goal_reached_state == ObservationStateValues.FALSE
+    assert loop.last_observation_state == ObservationStateValues.FALSE
 
 
 def test_repeat_until_attempts_a_task_that_never_ends_on_its_own():
@@ -186,7 +186,7 @@ def test_repeat_until_attempts_a_task_that_never_ends_on_its_own():
     executor.tick_until_end(SETTLE_CYCLES)
 
     assert type(task.parent_node) is Attempt
-    assert loop.goal_reached_state == ObservationStateValues.TRUE
+    assert loop.last_observation_state == ObservationStateValues.TRUE
     assert motion_statechart.is_end_motion()
 
 
@@ -208,7 +208,7 @@ def test_repeat_on_stall_retries_when_a_failure_monitor_of_its_attempt_fires():
         executor.tick()
 
     assert loop.stop_retry_monitor.resets == 3
-    assert loop.goal_reached_state == ObservationStateValues.FALSE
+    assert loop.last_observation_state == ObservationStateValues.FALSE
 
 
 def test_repeat_until_ends_the_motion_with_its_exception_once_retrying_stops():
@@ -313,11 +313,11 @@ def test_repeat_on_stall_retries_a_motion_that_stops_converging(
     executor.compile(motion_statechart=motion_statechart)
     for _ in range(2000):
         executor.tick()
-        if loop.goal_reached_state == ObservationStateValues.FALSE:
+        if loop.last_observation_state == ObservationStateValues.FALSE:
             break
 
     assert loop.stop_retry_monitor.resets == 2
-    assert loop.goal_reached_state == ObservationStateValues.FALSE
+    assert loop.last_observation_state == ObservationStateValues.FALSE
 
 
 def test_repeat_on_stall_leaves_a_reachable_motion_alone(cylinder_bot_world: World):
@@ -345,4 +345,4 @@ def test_repeat_on_stall_leaves_a_reachable_motion_alone(cylinder_bot_world: Wor
     executor.tick_until_end(2000)
 
     assert loop.stop_retry_monitor.resets == 0
-    assert loop.goal_reached_state == ObservationStateValues.TRUE
+    assert loop.last_observation_state == ObservationStateValues.TRUE

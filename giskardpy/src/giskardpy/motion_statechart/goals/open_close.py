@@ -108,12 +108,14 @@ class Open(MaintenanceNode, CompositeStatechartNode):
         Build an observation that is True once both the degree of freedom and the grip
         on the grasped part reached their goals.
 
-        This goal ends neither of them, so a part that keeps running is judged by what
-        it observes now and stops counting once it drifts away from its goal again. A
-        part something *else* ended keeps counting, because its verdict outlasts it.
+        Both parts are created here and end only when this goal ends, so each is judged
+        by what it observes now and stops counting once it drifts away from its goal
+        again.
         """
         return NodeArtifacts(
-            observation=trinary_logic_and(*[node.goal_reached for node in self.nodes])
+            observation=trinary_logic_and(
+                *[node.observation_variable for node in self.nodes]
+            )
         )
 
 

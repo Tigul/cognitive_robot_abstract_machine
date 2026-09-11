@@ -154,14 +154,11 @@ class GiskardExecutable(Executable):
         execution type is only known once an
         :py:class:`~coraplex.execution_environment.ExecutionEnvironment` is entered.
         """
-        end_trigger = self.root_node.goal_reached
         if GiskardExecutable.collision_avoidance:
             self.motion_state_chart.add_node(ExternalCollisionAvoidance())
             self.motion_state_chart.add_node(SelfCollisionAvoidance())
 
-        end_motion = EndMotion()
-        end_motion.start_condition = end_trigger
-        self.motion_state_chart.add_node(end_motion)
+        self.motion_state_chart.add_node(EndMotion.when_true(self.root_node))
 
     def _add_condition_monitors(self, end_trigger: Scalar) -> Scalar:
         """

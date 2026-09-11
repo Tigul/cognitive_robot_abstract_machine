@@ -226,9 +226,9 @@ def test_cancel_monitor_ends_the_children_goal(immutable_model_world, rclpy_node
     assert type(monitored_goal) is CancelledWhenTrue
     assert monitored_goal.nodes[:2] == [monitor, monitored_goal.monitored_node]
     # The children's goal already ends itself once it succeeds, so the monitor firing is
-    # a reason to interrupt it on top of that. It is read through its verdict, which
-    # outlasts a monitor that ends itself on firing.
-    assert monitor.goal_reached in (
+    # a reason to interrupt it on top of that. It is read through its last observation,
+    # which outlasts a monitor that ends itself on firing.
+    assert monitor.last_observation in (
         monitored_goal.monitored_node.interrupt_condition.free_variables()
     )
 

@@ -415,34 +415,6 @@ class NodeStateVariable(FloatVariable):
         """
         return self.motion_statechart_node.unique_name
 
-    def as_expression(self) -> Scalar:
-        """
-        A variable the compiled updaters read directly stands for itself; one that is
-        only a name for something else overrides this.
-
-        :return: What this variable stands for.
-        """
-        return self
-
-    @classmethod
-    def replace_in(cls, expression: Scalar) -> Scalar:
-        """
-        Replaces every variable of this type in `expression` by what it stands for, see
-        :meth:`as_expression`.
-
-        :param expression: The expression to replace them in.
-        :return: `expression` with every variable of this type replaced.
-        """
-        variables = [
-            variable
-            for variable in expression.free_variables()
-            if isinstance(variable, cls)
-        ]
-        return expression.substitute(
-            variables,
-            [variable.as_expression() for variable in variables],
-        )
-
 
 @dataclass(repr=False, eq=False, init=False)
 class ConditionVariable(NodeStateVariable):
@@ -488,7 +460,7 @@ class LifeCyclePredicateVariable(ConditionVariable):
     """
     A symbol representing a trinary test on the life cycle state of a node.
 
-    Unlike the other node state variables this one cannot be expanded on its own, because
+    Unlike the other node state variables this one is not read off a state array, because
     it is read in the state its node reaches this control cycle rather than the one it
     entered with. See
     :meth:`~giskardpy.motion_statechart.motion_statechart.NextLifeCycle.of`.
@@ -516,34 +488,6 @@ class LifeCyclePredicateVariable(ConditionVariable):
 
     def resolve(self) -> ObservationStateValues:
         return self.predicate.truth_value(self.motion_statechart_node.life_cycle_state)
-
-
-@dataclass(repr=False, eq=False, init=False)
-class GoalReachedVariable(ConditionVariable):
-    """
-    A symbol representing whether a node reached its goal, whether it is still running
-    or has already ended.
-    """
-
-    attribute_name: ClassVar[str] = "goal_reached"
-    """
-    The name this variable is reached under on a node, also used to render it inside a
-    condition.
-    """
-
-    @property
-    def display_name(self) -> str:
-        return f"{self.motion_statechart_node.unique_name}.{self.attribute_name}"
-
-    def resolve(self) -> ObservationStateValues:
-        return self.motion_statechart_node.goal_reached_state
-
-    def as_expression(self) -> Scalar:
-        """
-        :return: The same value as :meth:`resolve`, read off the life cycle and
-            observation variables of the node rather than off their current states.
-        """
-        return self.motion_statechart_node._create_goal_reached()
 
 
 @dataclass(repr=False, eq=False, init=False)
@@ -726,10 +670,6 @@ class MotionStatechartNode(SubclassJSONSerializer):
     """
     A variable referring to the observation state of this node.
     """
-    _goal_reached_variable: GoalReachedVariable = field(init=False, default=None)
-    """
-    A variable referring to whether this node reached its goal.
-    """
     _last_observation_variable: LastObservationVariable = field(
         init=False, default=None
     )
@@ -810,9 +750,9 @@ class MotionStatechartNode(SubclassJSONSerializer):
 
     def _create_state_variables(self):
         """
-        Creates the observation, life cycle, goal reached and last observation variables
-        for this node, named from :attr:`_node_id` so they are available before the node
-        is added to a motion statechart.
+        Creates the observation, life cycle and last observation variables for this node,
+        named from :attr:`_node_id` so they are available before the node is added to a
+        motion statechart.
         """
         name = f"{self.name}#{self._node_id}"
         self._observation_variable = ObservationVariable(
@@ -821,10 +761,6 @@ class MotionStatechartNode(SubclassJSONSerializer):
         )
         self._life_cycle_variable = LifeCycleVariable(
             name=str(PrefixedName("life_cycle", name)),
-            motion_statechart_node=self,
-        )
-        self._goal_reached_variable = GoalReachedVariable(
-            name=str(PrefixedName(GoalReachedVariable.attribute_name, name)),
             motion_statechart_node=self,
         )
         self._last_observation_variable = LastObservationVariable(
@@ -1375,44 +1311,6 @@ class MotionStatechartNode(SubclassJSONSerializer):
         self._interrupt_condition.update_expression(expression, self)
 
     @property
-    def goal_reached(self) -> GoalReachedVariable:
-        """
-        :return: A variable holding whether this node reached its goal.
-        """
-        return self._goal_reached_variable
-
-    @property
-    def goal_reached_state(self) -> ObservationStateValues:
-        """
-        :return: Whether this node has reached its goal: what it observes while it runs,
-            and the verdict it earned once it has ended.
-        """
-        if self.life_cycle_state.is_terminal:
-            return LifeCyclePredicate.IS_SUCCEEDED.truth_value(self.life_cycle_state)
-        return ObservationStateValues(self.observation_state)
-
-    def _create_goal_reached(self) -> sm.Scalar:
-        """
-        The same value as :attr:`goal_reached_state`, but read off the life cycle and
-        observation variables rather than off the states they stand for.
-
-        :return: The trinary value :attr:`goal_reached` stands for.
-        """
-        return sm.if_eq_cases(
-            a=self.life_cycle_variable,
-            b_result_cases=[
-                (
-                    int(state),
-                    sm.Scalar(
-                        float(LifeCyclePredicate.IS_SUCCEEDED.truth_value(state))
-                    ),
-                )
-                for state in sorted(LifeCycleValues.terminal_states())
-            ],
-            else_result=sm.Scalar(self.observation_variable),
-        )
-
-    @property
     def reset_condition(self) -> Scalar:
         """
         :return: The expression deciding when this node transitions to NOT_STARTED.
@@ -1584,7 +1482,9 @@ class MotionStatechartNode(SubclassJSONSerializer):
         """
         return sm.trinary_logic_and(
             LifeCyclePredicate.IS_TERMINATED.expression(self.life_cycle_variable),
-            self.goal_reached.is_not_true(),
+            LifeCyclePredicate.IS_SUCCEEDED.expression(
+                self.life_cycle_variable
+            ).is_not_true(),
         )
 
     @property
@@ -1610,10 +1510,9 @@ class MotionStatechartNode(SubclassJSONSerializer):
 
         :return: True once this node ended at its goal, false before that.
         """
-        return sm.trinary_logic_and(
-            LifeCyclePredicate.IS_TERMINATED.expression(self.life_cycle_variable),
-            self.goal_reached.is_true(),
-        )
+        return LifeCyclePredicate.IS_SUCCEEDED.expression(
+            self.life_cycle_variable
+        ).is_true()
 
     def formatted_name(self, quoted: bool = False) -> str:
         """
@@ -2044,6 +1943,15 @@ class TerminalNode(ABC, MotionStatechartNode):
     No transition can happen afterwards, so conditions may not reference such a node.
     """
 
+    @staticmethod
+    def _observing_true_or_succeeded(node: MotionStatechartNode) -> Scalar:
+        """
+        :param node: The node to read.
+        :return: A condition that is True while `node` observes True and once it
+            succeeded, and never True for a node that failed or was interrupted.
+        """
+        return sm.trinary_logic_or(node.observation_variable, node.is_succeeded)
+
 
 @dataclass(eq=False, repr=False)
 class EndMotion(TerminalNode):
@@ -2090,13 +1998,13 @@ class EndMotion(TerminalNode):
     def when_true(cls, node: MotionStatechartNode) -> Self:
         """
         Factory method for creating an EndMotion node that activates once the given node
-        reached its goal.
+        observes True or succeeded.
 
         :param node: The node whose goal ends the motion.
         :return: The new EndMotion node.
         """
         end = cls()
-        end.start_condition = node.goal_reached
+        end.start_condition = cls._observing_true_or_succeeded(node)
         return end
 
     @classmethod
@@ -2118,7 +2026,7 @@ class EndMotion(TerminalNode):
         Factory method for creating an EndMotion node that activates while the given node
         has a false observation state.
 
-        Unlike its counterparts this asks only what the node observes now, so it stops
+        Unlike :meth:`when_true` this asks only what the node observes now, so it stops
         mattering once that node ends rather than latching onto the verdict it earned.
 
         .. note:: Use :meth:`when_failed` to wait for a node to end short of its goal.
@@ -2134,14 +2042,14 @@ class EndMotion(TerminalNode):
     def when_all_true(cls, nodes: List[MotionStatechartNode]) -> Self:
         """
         Factory method for creating an EndMotion node that activates once *all* of the
-        given nodes reached their goals.
+        given nodes observe True or succeeded.
 
         :param nodes: The nodes whose goals end the motion.
         :return: The new EndMotion node.
         """
         end = cls()
         end.start_condition = sm.trinary_logic_and(
-            *[node.goal_reached for node in nodes]
+            *[cls._observing_true_or_succeeded(node) for node in nodes]
         )
         return end
 
@@ -2149,14 +2057,14 @@ class EndMotion(TerminalNode):
     def when_any_true(cls, nodes: List[MotionStatechartNode]) -> Self:
         """
         Factory method for creating an EndMotion node that activates once *any* of the
-        given nodes reached its goal.
+        given nodes observes True or succeeded.
 
         :param nodes: The nodes whose goals end the motion.
         :return: The new EndMotion node.
         """
         end = cls()
         end.start_condition = sm.trinary_logic_or(
-            *[node.goal_reached for node in nodes]
+            *[cls._observing_true_or_succeeded(node) for node in nodes]
         )
         return end
 
@@ -2192,7 +2100,7 @@ class CancelMotion(TerminalNode):
     ) -> Self:
         """
         Factory method for creating a CancelMotion node that activates once the given
-        node reached its goal.
+        node observes True or succeeded.
 
         :param node: The node whose goal activates the created node.
         :param exception: The exception raised on activation, defaults to one naming the given node.
@@ -2202,7 +2110,7 @@ class CancelMotion(TerminalNode):
             f"Cancelled because {node.unique_name} reached its goal"
         )
         end = cls(exception=exception)
-        end.start_condition = node.goal_reached
+        end.start_condition = cls._observing_true_or_succeeded(node)
         return end
 
     @classmethod
@@ -2230,7 +2138,7 @@ class CancelMotion(TerminalNode):
     ) -> Self:
         """
         Factory method for creating a CancelMotion node that activates once *all* of the
-        given nodes reached their goals.
+        given nodes observe True or succeeded.
 
         :param nodes: The nodes whose goals activate the created node.
         :param exception: The exception raised on activation.
@@ -2238,7 +2146,7 @@ class CancelMotion(TerminalNode):
         """
         end = cls(exception=exception)
         end.start_condition = sm.trinary_logic_and(
-            *[node.goal_reached for node in nodes]
+            *[cls._observing_true_or_succeeded(node) for node in nodes]
         )
         return end
 
@@ -2248,7 +2156,7 @@ class CancelMotion(TerminalNode):
     ) -> Self:
         """
         Factory method for creating a CancelMotion node that activates once *any* of the
-        given nodes reached its goal.
+        given nodes observes True or succeeded.
 
         :param nodes: The nodes whose goals activate the created node.
         :param exception: The exception raised on activation.
@@ -2256,6 +2164,6 @@ class CancelMotion(TerminalNode):
         """
         end = cls(exception=exception)
         end.start_condition = sm.trinary_logic_or(
-            *[node.goal_reached for node in nodes]
+            *[cls._observing_true_or_succeeded(node) for node in nodes]
         )
         return end
