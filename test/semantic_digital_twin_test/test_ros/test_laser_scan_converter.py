@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 import numpy as np
 import pytest
 from sensor_msgs.msg import LaserScan
+from typing_extensions import Self
 
-from semantic_digital_twin.adapters.ros.lidar import SubscribedLidar
+from semantic_digital_twin.adapters.ros.lidar import SubscribedLidarSource
 from semantic_digital_twin.adapters.ros.msg_converter import (
     LaserScanBeamCountMismatch,
     Ros2ToSemDTConverter,
@@ -12,9 +15,13 @@ from semantic_digital_twin.adapters.ros.msg_converter import (
 from semantic_digital_twin.adapters.ros.ros2_to_semdt_converters import (
     LaserScanToSemDTConverter,
 )
+from semantic_digital_twin.adapters.sensors.lidar import Lidar, LidarSource
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
-from semantic_digital_twin.exceptions import NoLaserScanReceived, UselessConceptError
+from semantic_digital_twin.exceptions import NoLaserScanReceived
 from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.world_entity import (
+    KinematicStructureEntity,
+)
 
 # %% scan messages under test
 
@@ -115,28 +122,54 @@ def test_converter_is_found_by_the_registry(world_with_laser_body):
     assert Ros2ToSemDTConverter.get_to_converter(scan) is LaserScanToSemDTConverter
 
 
-# %% subscribed lidar
+# %% the lidar a subscribed source feeds
+
+TOPIC_NAME = "/scan"
+"""
+The topic the subscribed sources below listen on.
+"""
 
 
-def subscribed_lidar(node, world: World) -> SubscribedLidar:
+@dataclass(eq=False)
+class RootMountedLidar(Lidar):
     """
-    :return: A lidar on the world's root body, listening on ``/scan`` and sweeping
-        :data:`DECLARED_PATTERN` until a scan arrives.
+    A lidar mounted on the world's root body, sweeping :data:`DECLARED_PATTERN` until a
+    real scan says otherwise.
     """
-    return SubscribedLidar(
-        root=world.root,
-        scan_pattern=DECLARED_PATTERN,
-        node=node,
-        topic_name="/scan",
+
+    @classmethod
+    def with_source(
+        cls, robot_root: KinematicStructureEntity, source: LidarSource
+    ) -> Self:
+        return cls(root=robot_root, scan_pattern=DECLARED_PATTERN, source=source)
+
+
+def subscribed_lidar(node, world: World) -> RootMountedLidar:
+    """
+    :return: A lidar on the world's root body, reading what arrives on
+        :data:`TOPIC_NAME`.
+    """
+    return RootMountedLidar.with_source(
+        world.root, SubscribedLidarSource(node=node, topic_name=TOPIC_NAME)
     )
 
 
-def test_subscribed_lidar_reports_the_reading_of_its_latest_scan(
+def test_a_lidar_given_a_subscribed_source_listens_on_the_given_topic(
+    rclpy_node, world_with_laser_body
+):
+    lidar = subscribed_lidar(rclpy_node, world_with_laser_body)
+
+    assert isinstance(lidar.source, SubscribedLidarSource)
+    assert lidar.source.topic_name == TOPIC_NAME
+    assert lidar.source.node is rclpy_node
+
+
+def test_subscribed_source_reports_the_reading_of_its_latest_scan(
     rclpy_node, world_with_laser_body
 ):
     scan = laser_scan()
     lidar = subscribed_lidar(rclpy_node, world_with_laser_body)
-    lidar.store_scan(scan)
+    lidar.source.store_scan(scan)
 
     expected = LaserScanToSemDTConverter.convert(scan, world_with_laser_body)
     reading = lidar.get_lidar_reading()
@@ -147,13 +180,14 @@ def test_subscribed_lidar_reports_the_reading_of_its_latest_scan(
     ]
 
 
-def test_subscribed_lidar_takes_its_scan_pattern_from_its_latest_scan(
+def test_reading_a_subscribed_source_adopts_the_pattern_of_its_latest_scan(
     rclpy_node, world_with_laser_body
 ):
     scan = laser_scan()
     lidar = subscribed_lidar(rclpy_node, world_with_laser_body)
+    lidar.source.store_scan(scan)
 
-    lidar.store_scan(scan)
+    lidar.get_lidar_reading()
 
     assert lidar.scan_pattern == ScanPattern(
         minimum_angle=scan.angle_min,
@@ -164,7 +198,7 @@ def test_subscribed_lidar_takes_its_scan_pattern_from_its_latest_scan(
     )
 
 
-def test_subscribed_lidar_sweeps_its_declared_pattern_until_a_scan_arrives(
+def test_a_lidar_sweeps_its_declared_pattern_until_a_scan_arrives(
     rclpy_node, world_with_laser_body
 ):
     lidar = subscribed_lidar(rclpy_node, world_with_laser_body)
@@ -172,19 +206,10 @@ def test_subscribed_lidar_sweeps_its_declared_pattern_until_a_scan_arrives(
     assert lidar.scan_pattern == DECLARED_PATTERN
 
 
-def test_subscribed_lidar_without_a_scan_cannot_be_read(
+def test_a_subscribed_source_without_a_scan_cannot_be_read(
     rclpy_node, world_with_laser_body
 ):
     lidar = subscribed_lidar(rclpy_node, world_with_laser_body)
 
     with pytest.raises(NoLaserScanReceived):
         lidar.get_lidar_reading()
-
-
-def test_a_subscribed_lidar_cannot_be_set_up_from_a_robot_description(
-    world_with_laser_body,
-):
-    with pytest.raises(UselessConceptError):
-        SubscribedLidar.setup_default_configuration_in_world_below_robot_root(
-            world_with_laser_body.root
-        )

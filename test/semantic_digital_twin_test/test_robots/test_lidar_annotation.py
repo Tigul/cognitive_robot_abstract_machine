@@ -6,10 +6,11 @@ from dataclasses import dataclass
 import pytest
 from typing_extensions import Type
 
+from semantic_digital_twin.adapters.sensors.lidar import Lidar, SimulatedLidarSource
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.robots.hsrb import HSRB, HSRBBaseLidar
 from semantic_digital_twin.robots.pr2 import PR2, PR2BaseLidar
-from semantic_digital_twin.robots.robot_parts import AbstractRobot, Lidar
+from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.robots.stretch import Stretch, StretchBaseLidar
 from semantic_digital_twin.robots.tiago import Tiago, TiagoBaseLidar
 
@@ -89,11 +90,15 @@ def test_the_lidar_is_one_of_the_robots_sensors(lidar_case):
 
 def test_the_lidar_sweeps_the_pattern_its_description_declares(lidar_case):
     case, robot = lidar_case
-    declared = case.lidar.setup_default_configuration_in_world_below_robot_root(
-        robot.root
-    ).scan_pattern
+    declared = case.lidar.with_simulated_source(robot.root).scan_pattern
 
     assert robot.mobile_base.lidar.scan_pattern == declared
+
+
+def test_an_annotated_lidar_measures_the_world_it_stands_in(lidar_case):
+    _, robot = lidar_case
+
+    assert isinstance(robot.mobile_base.lidar.source, SimulatedLidarSource)
 
 
 # %% the readings the mobile base hands back

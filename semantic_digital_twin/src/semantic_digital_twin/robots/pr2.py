@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Self, List
 
 from krrood.ormatic.utils import classproperty
-from semantic_digital_twin.adapters.sensors.lidar import SimulatedLidar
+from semantic_digital_twin.adapters.sensors.lidar import Lidar, LidarSource
 from semantic_digital_twin.collision_checking.collision_matrix import (
     MaxAvoidedCollisionsOverride,
 )
@@ -115,14 +115,14 @@ class PR2KinectV1(Camera):
 
 
 @dataclass(eq=False)
-class PR2BaseLidar(SimulatedLidar):
+class PR2BaseLidar(Lidar):
     """
     The Hokuyo scanner sweeping the floor in front of the PR2's base.
     """
 
     @classmethod
-    def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
+    def with_source(
+        cls, robot_root: KinematicStructureEntity, source: LidarSource
     ) -> Self:
         return cls(
             root=robot_root._world.get_body_in_branch_by_name(
@@ -135,6 +135,7 @@ class PR2BaseLidar(SimulatedLidar):
                 minimum_range=0.023,
                 maximum_range=60.0,
             ),
+            source=source,
         )
 
 

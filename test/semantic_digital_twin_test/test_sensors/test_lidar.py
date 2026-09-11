@@ -5,15 +5,18 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pytest
-from typing_extensions import List, Self
+from typing_extensions import Self
 
-from semantic_digital_twin.adapters.sensors.lidar import SimulatedLidar
-from semantic_digital_twin.datastructures.joint_state import JointState
+from semantic_digital_twin.adapters.sensors.lidar import (
+    Lidar,
+    LidarSource,
+    SimulatedLidarSource,
+)
 from semantic_digital_twin.datastructures.lidar_reading import LidarReading
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.exceptions import InvalidScanPattern
-from semantic_digital_twin.robots.robot_parts import Lidar, Sensor
+from semantic_digital_twin.robots.robot_parts import Sensor
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
 )
@@ -68,49 +71,40 @@ def forward_beam_pattern(
 
 
 @dataclass(eq=False)
-class BodyMountedLidar(SimulatedLidar):
+class BodyMountedLidar(Lidar):
     """
-    A simulated lidar mounted on a body that is already present in the world.
+    A lidar mounted on a body that is already present in the world.
     """
-
-    def setup_hardware_interfaces(self):
-        pass
-
-    def setup_joint_states(self) -> List[JointState]:
-        return []
 
     @classmethod
-    def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
+    def with_source(
+        cls, robot_root: KinematicStructureEntity, source: LidarSource
     ) -> Self:
-        return cls(root=robot_root, scan_pattern=forward_beam_pattern())
+        return cls(root=robot_root, scan_pattern=forward_beam_pattern(), source=source)
 
 
-@dataclass(eq=False)
-class ConstantLidar(Lidar):
+@dataclass
+class ConstantLidarSource(LidarSource):
     """
-    A lidar that answers every request with the same prepared reading.
+    A source that answers every request with the same prepared reading.
     """
 
-    reading: LidarReading = field(default_factory=LidarReading, kw_only=True)
+    reading: LidarReading = field(default_factory=LidarReading)
     """
     The reading handed back on every call.
     """
 
-    def setup_hardware_interfaces(self):
-        pass
-
-    def setup_joint_states(self) -> List[JointState]:
-        return []
-
-    @classmethod
-    def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
-    ) -> Self:
-        return cls(root=robot_root, scan_pattern=forward_beam_pattern())
-
-    def get_lidar_reading(self) -> LidarReading:
+    def get_lidar_reading(self, lidar: Lidar) -> LidarReading:
         return self.reading
+
+
+def simulated_lidar(mount: Body, scan_pattern: ScanPattern) -> BodyMountedLidar:
+    """
+    :return: A lidar on the given body that measures the world it stands in.
+    """
+    return BodyMountedLidar(
+        root=mount, scan_pattern=scan_pattern, source=SimulatedLidarSource()
+    )
 
 
 def world_with_walls(*wall_center_distances: float) -> tuple[World, Body]:
@@ -192,12 +186,12 @@ def test_scan_pattern_rejects_a_maximum_range_below_its_minimum_range():
         )
 
 
-# %% simulated lidar
+# %% simulated source
 
 
-def test_simulated_lidar_reports_the_distance_to_the_wall_surface():
+def test_simulated_source_reports_the_distance_to_the_wall_surface():
     _, mount = world_with_walls(FAR_WALL_DISTANCE)
-    lidar = BodyMountedLidar(root=mount, scan_pattern=forward_beam_pattern())
+    lidar = simulated_lidar(mount, forward_beam_pattern())
 
     reading = lidar.get_lidar_reading()
 
@@ -205,7 +199,7 @@ def test_simulated_lidar_reports_the_distance_to_the_wall_surface():
     assert distance == pytest.approx(wall_surface_distance(FAR_WALL_DISTANCE))
 
 
-def test_simulated_lidar_reports_infinity_for_a_beam_that_hits_nothing():
+def test_simulated_source_reports_infinity_for_a_beam_that_hits_nothing():
     _, mount = world_with_walls(FAR_WALL_DISTANCE)
     backward_beam = ScanPattern(
         minimum_angle=np.pi,
@@ -214,19 +208,17 @@ def test_simulated_lidar_reports_infinity_for_a_beam_that_hits_nothing():
         minimum_range=0.0,
         maximum_range=10.0,
     )
-    lidar = BodyMountedLidar(root=mount, scan_pattern=backward_beam)
+    lidar = simulated_lidar(mount, backward_beam)
 
     reading = lidar.get_lidar_reading()
 
     assert reading.distance == [math.inf]
 
 
-def test_simulated_lidar_reports_the_surface_behind_a_wall_closer_than_its_minimum_range():
+def test_simulated_source_reports_the_surface_behind_a_wall_closer_than_its_minimum_range():
     _, mount = world_with_walls(NEAR_WALL_DISTANCE, FAR_WALL_DISTANCE)
     minimum_range = wall_surface_distance(NEAR_WALL_DISTANCE) + WALL_THICKNESS + 0.1
-    lidar = BodyMountedLidar(
-        root=mount, scan_pattern=forward_beam_pattern(minimum_range=minimum_range)
-    )
+    lidar = simulated_lidar(mount, forward_beam_pattern(minimum_range=minimum_range))
 
     reading = lidar.get_lidar_reading()
 
@@ -234,11 +226,11 @@ def test_simulated_lidar_reports_the_surface_behind_a_wall_closer_than_its_minim
     assert distance == pytest.approx(wall_surface_distance(FAR_WALL_DISTANCE))
 
 
-def test_simulated_lidar_reports_infinity_beyond_its_maximum_range():
+def test_simulated_source_reports_infinity_beyond_its_maximum_range():
     _, mount = world_with_walls(FAR_WALL_DISTANCE)
-    lidar = BodyMountedLidar(
-        root=mount,
-        scan_pattern=forward_beam_pattern(
+    lidar = simulated_lidar(
+        mount,
+        forward_beam_pattern(
             maximum_range=wall_surface_distance(FAR_WALL_DISTANCE) / 2
         ),
     )
@@ -248,7 +240,7 @@ def test_simulated_lidar_reports_infinity_beyond_its_maximum_range():
     assert reading.distance == [math.inf]
 
 
-def test_simulated_lidar_returns_one_direction_and_one_distance_per_beam():
+def test_simulated_source_returns_one_direction_and_one_distance_per_beam():
     _, mount = world_with_walls(FAR_WALL_DISTANCE)
     pattern = ScanPattern(
         minimum_angle=-np.pi / 2,
@@ -257,16 +249,16 @@ def test_simulated_lidar_returns_one_direction_and_one_distance_per_beam():
         minimum_range=0.0,
         maximum_range=10.0,
     )
-    lidar = BodyMountedLidar(root=mount, scan_pattern=pattern)
+    lidar = simulated_lidar(mount, pattern)
 
     reading = lidar.get_lidar_reading()
 
     assert len(reading.direction) == len(reading.distance) == pattern.beam_count
 
 
-def test_simulated_lidar_expresses_its_beams_in_its_own_root():
+def test_simulated_source_expresses_its_beams_in_the_lidars_own_root():
     _, mount = world_with_walls(FAR_WALL_DISTANCE)
-    lidar = BodyMountedLidar(root=mount, scan_pattern=forward_beam_pattern())
+    lidar = simulated_lidar(mount, forward_beam_pattern())
 
     reading = lidar.get_lidar_reading()
 
@@ -279,16 +271,20 @@ def test_simulated_lidar_expresses_its_beams_in_its_own_root():
 def test_a_lidar_is_a_sensor():
     _, mount = world_with_walls()
 
-    lidar = ConstantLidar(root=mount, scan_pattern=forward_beam_pattern())
+    lidar = BodyMountedLidar(
+        root=mount, scan_pattern=forward_beam_pattern(), source=ConstantLidarSource()
+    )
 
     assert isinstance(lidar, Sensor)
 
 
-def test_a_lidar_hands_back_the_reading_it_takes():
+def test_a_lidar_hands_back_the_reading_its_source_takes():
     _, mount = world_with_walls()
     reading = LidarReading()
-    lidar = ConstantLidar(
-        root=mount, scan_pattern=forward_beam_pattern(), reading=reading
+    lidar = BodyMountedLidar(
+        root=mount,
+        scan_pattern=forward_beam_pattern(),
+        source=ConstantLidarSource(reading=reading),
     )
 
     assert lidar.get_lidar_reading() is reading
@@ -298,6 +294,38 @@ def test_a_lidar_keeps_the_scan_pattern_it_was_built_with():
     _, mount = world_with_walls()
     pattern = forward_beam_pattern()
 
-    lidar = ConstantLidar(root=mount, scan_pattern=pattern)
+    lidar = BodyMountedLidar(
+        root=mount, scan_pattern=pattern, source=ConstantLidarSource()
+    )
 
     assert lidar.scan_pattern is pattern
+
+
+# %% choosing where the readings come from
+
+
+def test_a_lidar_is_built_where_its_own_class_mounts_it():
+    _, mount = world_with_walls()
+
+    lidar = BodyMountedLidar.with_simulated_source(mount)
+
+    assert lidar.root is mount
+    assert lidar.scan_pattern == forward_beam_pattern()
+
+
+def test_a_lidar_built_with_a_simulated_source_measures_the_world():
+    _, mount = world_with_walls()
+
+    lidar = BodyMountedLidar.with_simulated_source(mount)
+
+    assert isinstance(lidar.source, SimulatedLidarSource)
+
+
+def test_a_lidar_annotated_from_a_robot_description_measures_the_world():
+    _, mount = world_with_walls()
+
+    lidar = BodyMountedLidar.setup_default_configuration_in_world_below_robot_root(
+        mount
+    )
+
+    assert isinstance(lidar.source, SimulatedLidarSource)

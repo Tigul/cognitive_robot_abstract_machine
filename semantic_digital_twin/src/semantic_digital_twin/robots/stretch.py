@@ -11,7 +11,7 @@ import numpy as np
 from typing_extensions import Self, List
 
 from krrood.ormatic.utils import classproperty
-from semantic_digital_twin.adapters.sensors.lidar import SimulatedLidar
+from semantic_digital_twin.adapters.sensors.lidar import Lidar, LidarSource
 from semantic_digital_twin.collision_checking.collision_rules import (
     AvoidExternalCollisions,
     SelfCollisionMatrixRule,
@@ -361,7 +361,7 @@ class StretchTorso(Torso, HasNeck[StretchNeck], HasOneArm[StretchArm]):
 
 
 @dataclass(eq=False)
-class StretchBaseLidar(SimulatedLidar):
+class StretchBaseLidar(Lidar):
     """
     The RPLIDAR scanner sweeping the whole floor around the Stretch's base.
 
@@ -370,8 +370,8 @@ class StretchBaseLidar(SimulatedLidar):
     """
 
     @classmethod
-    def setup_default_configuration_in_world_below_robot_root(
-        cls, robot_root: KinematicStructureEntity
+    def with_source(
+        cls, robot_root: KinematicStructureEntity, source: LidarSource
     ) -> Self:
         return cls(
             root=robot_root._world.get_body_in_branch_by_name(robot_root, "laser"),
@@ -382,6 +382,7 @@ class StretchBaseLidar(SimulatedLidar):
                 minimum_range=0.05,
                 maximum_range=12.0,
             ),
+            source=source,
         )
 
 
