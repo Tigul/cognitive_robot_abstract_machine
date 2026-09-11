@@ -158,11 +158,23 @@ flowchart TD
 ## Reading other nodes in conditions
 
 Conditions are symbolic expressions over the state of other nodes, combined with trinary
-logic (`trinary_logic_and`, `trinary_logic_or`, `trinary_logic_not`). A node offers three
+logic (`trinary_logic_and`, `trinary_logic_or`, `trinary_logic_not`). A node offers four
 kinds of variables for this:
 
 - `node.observation_variable`: what the node observes right now. It turns Unknown as soon as
   the node ends.
+- `node.last_observation`: the observation the node took most recently. It keeps the reading
+  the transition that ended the node saw, however the node ended, until a reset clears it:
+
+  | Life cycle state                   | `last_observation`                 |
+  |------------------------------------|------------------------------------|
+  | NOT_STARTED                        | Unknown                            |
+  | RUNNING, PAUSED                    | the observation                    |
+  | SUCCEEDED, FAILED, INTERRUPTED     | the observation it last took       |
+
+  Read it to ask what a node saw, for example whether a monitor that ended itself had fired.
+  It says nothing about how the node ended: a node interrupted while observing True still
+  reads True, so ask `goal_reached` or a predicate when the verdict matters.
 - `node.goal_reached`: whether the node reached its goal. It is the observation while the node
   has not ended, and follows from its outcome once it has:
 
@@ -190,7 +202,8 @@ kinds of variables for this:
 
 An observation may change in both directions, while an outcome stays fixed until a reset. A
 condition that has to keep its answer after the node it reads has ended must therefore read
-the outcome, through `goal_reached` or a predicate, rather than the observation:
+`last_observation`, or the outcome through `goal_reached` or a predicate, rather than the
+observation:
 
 ```{mermaid}
 flowchart LR

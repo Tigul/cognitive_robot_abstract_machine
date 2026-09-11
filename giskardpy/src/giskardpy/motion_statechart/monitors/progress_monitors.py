@@ -309,15 +309,15 @@ class StillProgressing(CompositeStatechartNode):
         """
         The timer only reaches what it counts once progress has stalled for
         :attr:`timeout`, so every other reading of it means this node has not given up
-        yet. It is read through :attr:`goal_reached`, which outlasts the timer ending
-        itself on reaching its target.
+        yet. Nothing but this node ending ends the timer, so its live observation is
+        there for as long as this node observes anything.
 
         The timer says nothing until it starts, which a plain negation would carry
         through to a node that is in fact progressing, so it is compared against being
         true rather than negated.
         """
         return NodeArtifacts(
-            observation=trinary_logic_not(self._timer.goal_reached.is_true())
+            observation=trinary_logic_not(self._timer.observation_variable.is_true())
         )
 
     def _find_converging_tasks(
@@ -356,7 +356,7 @@ class Stalled(StillProgressing):
         The timer reaches what it counts once progress has stalled for :attr:`timeout`,
         which is exactly when this node has something to report.
         """
-        return NodeArtifacts(observation=self._timer.goal_reached.is_true())
+        return NodeArtifacts(observation=self._timer.observation_variable.is_true())
 
 
 @dataclass(eq=False, repr=False)

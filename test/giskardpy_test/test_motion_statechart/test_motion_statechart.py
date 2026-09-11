@@ -74,6 +74,7 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     CompositeStatechartNodeWithChildSucceedingOnItsOwn,
     NodeObservingAPredicate,
     NodeObservingGoalReached,
+    NodeObservingLastObservation,
     NodeObservingNothingYet,
     ConstTrueNode,
     TestCompositeStatechartNode,
@@ -3563,6 +3564,211 @@ class TestGoalReached:
 
         assert watched.goal_reached_state == ObservationStateValues.TRUE
         assert waiting.life_cycle_state == LifeCycleValues.RUNNING
+
+
+# %% last observation
+
+
+class TestLastObservation:
+    """
+    Tests the observation a node took most recently, which outlasts the node ending and
+    says nothing about how it ended.
+    """
+
+    def test_a_node_that_has_not_started_reads_unknown(self):
+        msc = MotionStatechart()
+        msc.add_nodes([blocker := ConstFalseNode(), node := ConstTrueNode()])
+        node.start_condition = blocker.observation_variable
+
+        executor = _compile_msc(msc)
+        executor.tick()
+
+        assert node.life_cycle_state == LifeCycleValues.NOT_STARTED
+        assert node.last_observation_state == ObservationStateValues.UNKNOWN
+
+    @pytest.mark.parametrize(
+        "node_type, expected",
+        [
+            (ConstTrueNode, ObservationStateValues.TRUE),
+            (ConstFalseNode, ObservationStateValues.FALSE),
+        ],
+    )
+    def test_a_running_node_reads_what_it_observes(self, node_type, expected):
+        msc = MotionStatechart()
+        msc.add_node(node := node_type())
+
+        executor = _compile_msc(msc)
+        executor.tick()
+
+        assert node.life_cycle_state == LifeCycleValues.RUNNING
+        assert node.last_observation_state == expected
+
+    def test_every_ended_node_reads_what_it_observed_whatever_its_verdict(self):
+        """
+        One node per life cycle state and observation, so a node reading another node's
+        row, or its verdict instead of its observation, would show up here.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [
+                trigger := ConstTrueNode(),
+                blocker := ConstFalseNode(),
+                not_started := ConstTrueNode(),
+                running := ConstTrueNode(),
+                succeeded := ConstTrueNode(),
+                failed_short_of_its_goal := ConstFalseNode(),
+                failed_at_its_goal := ConstTrueNode(),
+                interrupted_at_its_goal := ConstTrueNode(),
+                interrupted_undecided := NodeObservingNothingYet(),
+            ]
+        )
+        not_started.start_condition = blocker.observation_variable
+        succeeded.success_condition = trigger.observation_variable
+        failed_short_of_its_goal.fail_condition = trigger.observation_variable
+        failed_at_its_goal.fail_condition = trigger.observation_variable
+        interrupted_at_its_goal.interrupt_condition = trigger.observation_variable
+        interrupted_undecided.interrupt_condition = trigger.observation_variable
+        nodes = (
+            not_started,
+            running,
+            succeeded,
+            failed_short_of_its_goal,
+            failed_at_its_goal,
+            interrupted_at_its_goal,
+            interrupted_undecided,
+        )
+
+        executor = _compile_msc(msc)
+        for _ in range(3):
+            executor.tick()
+
+        assert {node: node.life_cycle_state for node in nodes} == {
+            not_started: LifeCycleValues.NOT_STARTED,
+            running: LifeCycleValues.RUNNING,
+            succeeded: LifeCycleValues.SUCCEEDED,
+            failed_short_of_its_goal: LifeCycleValues.FAILED,
+            failed_at_its_goal: LifeCycleValues.FAILED,
+            interrupted_at_its_goal: LifeCycleValues.INTERRUPTED,
+            interrupted_undecided: LifeCycleValues.INTERRUPTED,
+        }
+        assert {node: node.last_observation_state for node in nodes} == {
+            not_started: ObservationStateValues.UNKNOWN,
+            running: ObservationStateValues.TRUE,
+            succeeded: ObservationStateValues.TRUE,
+            failed_short_of_its_goal: ObservationStateValues.FALSE,
+            failed_at_its_goal: ObservationStateValues.TRUE,
+            interrupted_at_its_goal: ObservationStateValues.TRUE,
+            interrupted_undecided: ObservationStateValues.UNKNOWN,
+        }
+
+    def test_an_ended_node_keeps_the_observation_its_ending_transition_read(self):
+        """
+        The pulse observed True before it observed the False that ended it, so only the
+        most recent reading tells the two apart.
+        """
+        msc = MotionStatechart()
+        msc.add_node(pulse := Pulse(length=1))
+        pulse.interrupt_condition = trinary_logic_not(pulse.observation_variable)
+
+        executor = _compile_msc(msc)
+        for _ in range(4):
+            executor.tick()
+
+        assert (
+            ObservationStateValues.TRUE
+            in msc.history.get_observation_history_of_node(pulse)
+        )
+        assert pulse.life_cycle_state == LifeCycleValues.INTERRUPTED
+        assert pulse.observation_state == ObservationStateValues.UNKNOWN
+        assert pulse.last_observation_state == ObservationStateValues.FALSE
+
+    def test_a_reset_forgets_the_previous_run(self):
+        msc = MotionStatechart()
+        msc.add_nodes([starter := Pulse(length=1), node := ConstTrueNode()])
+        node.start_condition = starter.observation_variable
+        node.success_condition = node.observation_variable
+        node.reset_condition = node.is_succeeded
+
+        executor = _compile_msc(msc)
+        for _ in range(2):
+            executor.tick()
+        assert node.life_cycle_state == LifeCycleValues.SUCCEEDED
+        assert node.last_observation_state == ObservationStateValues.TRUE
+
+        for _ in range(2):
+            executor.tick()
+
+        assert node.life_cycle_state == LifeCycleValues.NOT_STARTED
+        assert node.last_observation_state == ObservationStateValues.UNKNOWN
+
+    def test_a_condition_reads_it_after_the_node_ended(self):
+        """
+        The watched node was cut off at its goal, so neither its live observation nor
+        its verdict could start the watcher once the delay is over.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [
+                trigger := ConstTrueNode(),
+                delay := CountControlCycles(control_cycles=3),
+                ended := ConstTrueNode(),
+                watcher := ConstFalseNode(),
+            ]
+        )
+        ended.interrupt_condition = trigger.observation_variable
+        watcher.start_condition = trinary_logic_and(
+            delay.observation_variable, ended.last_observation
+        )
+
+        executor = _compile_msc(msc)
+        for _ in range(3):
+            executor.tick()
+
+        assert ended.life_cycle_state == LifeCycleValues.INTERRUPTED
+        assert watcher.life_cycle_state == LifeCycleValues.RUNNING
+
+    def test_an_observation_reads_it_after_the_node_ended(self):
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [
+                trigger := ConstTrueNode(),
+                ended := ConstTrueNode(),
+                observer := NodeObservingLastObservation(watched_node=ended),
+            ]
+        )
+        ended.interrupt_condition = trigger.observation_variable
+
+        executor = _compile_msc(msc)
+        for _ in range(3):
+            executor.tick()
+
+        assert ended.life_cycle_state == LifeCycleValues.INTERRUPTED
+        assert observer.observation_state == ObservationStateValues.TRUE
+
+    def test_it_renders_as_one_variable(self):
+        msc = MotionStatechart()
+        msc.add_nodes([finished := ConstTrueNode(), later := ConstTrueNode()])
+        later.start_condition = finished.last_observation
+
+        assert (
+            str(later._start_condition) == f'"{finished.last_observation.display_name}"'
+        )
+
+    def test_it_survives_a_json_round_trip(self):
+        msc = MotionStatechart()
+        msc.add_nodes([finished := ConstTrueNode(), later := ConstTrueNode()])
+        later.start_condition = finished.last_observation
+
+        msc_copy = MotionStatechart.from_json(
+            json.loads(json.dumps(msc.create_structure_copy().to_json()))
+        )
+        msc_copy._add_transitions()
+
+        later_copy = msc_copy.get_node_by_index(later.index)
+        finished_copy = msc_copy.get_node_by_index(finished.index)
+        assert later_copy._start_condition.expression.free_variables() == [
+            finished_copy.last_observation
+        ]
 
 
 # %% life cycle predicates

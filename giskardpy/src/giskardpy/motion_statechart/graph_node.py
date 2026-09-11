@@ -546,6 +546,27 @@ class GoalReachedVariable(ConditionVariable):
         return self.motion_statechart_node._create_goal_reached()
 
 
+@dataclass(repr=False, eq=False, init=False)
+class LastObservationVariable(ConditionVariable):
+    """
+    A symbol representing the observation a node took most recently, which it keeps once
+    it has ended, whatever its verdict.
+    """
+
+    attribute_name: ClassVar[str] = "last_observation"
+    """
+    The name this variable is reached under on a node, also used to render it inside a
+    condition.
+    """
+
+    @property
+    def display_name(self) -> str:
+        return f"{self.motion_statechart_node.unique_name}.{self.attribute_name}"
+
+    def resolve(self) -> ObservationStateValues:
+        return self.motion_statechart_node.last_observation_state
+
+
 @dataclass
 class DebugExpression:
     """
@@ -709,6 +730,12 @@ class MotionStatechartNode(SubclassJSONSerializer):
     """
     A variable referring to whether this node reached its goal.
     """
+    _last_observation_variable: LastObservationVariable = field(
+        init=False, default=None
+    )
+    """
+    A variable referring to the observation this node took most recently.
+    """
 
     _constraint_collection: ConstraintCollection = field(init=False, repr=False)
     """The parameter is set after build() using its NodeArtifacts."""
@@ -783,9 +810,9 @@ class MotionStatechartNode(SubclassJSONSerializer):
 
     def _create_state_variables(self):
         """
-        Creates the observation, life cycle and goal reached variables for this node,
-        named from :attr:`_node_id` so they are available before the node is added to a
-        motion statechart.
+        Creates the observation, life cycle, goal reached and last observation variables
+        for this node, named from :attr:`_node_id` so they are available before the node
+        is added to a motion statechart.
         """
         name = f"{self.name}#{self._node_id}"
         self._observation_variable = ObservationVariable(
@@ -798,6 +825,10 @@ class MotionStatechartNode(SubclassJSONSerializer):
         )
         self._goal_reached_variable = GoalReachedVariable(
             name=str(PrefixedName(GoalReachedVariable.attribute_name, name)),
+            motion_statechart_node=self,
+        )
+        self._last_observation_variable = LastObservationVariable(
+            name=str(PrefixedName(LastObservationVariable.attribute_name, name)),
             motion_statechart_node=self,
         )
 
@@ -1261,6 +1292,23 @@ class MotionStatechartNode(SubclassJSONSerializer):
         :return: The current observation state of this node.
         """
         return self.motion_statechart.observation_state[self]
+
+    @property
+    def last_observation(self) -> LastObservationVariable:
+        """
+        Unlike :attr:`observation_variable`, which turns unknown once this node ends, this
+        keeps the reading the transition that ended it saw, until a reset clears it.
+
+        :return: A variable holding the observation this node took most recently.
+        """
+        return self._last_observation_variable
+
+    @property
+    def last_observation_state(self) -> ObservationStateValues:
+        """
+        :return: The observation this node took most recently.
+        """
+        return self.motion_statechart.last_observation_state[self]
 
     @property
     def start_condition(self) -> Scalar:

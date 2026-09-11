@@ -299,6 +299,21 @@ class NodeObservingGoalReached(MotionStatechartNode):
         return NodeArtifacts(observation=sm.Scalar(self.watched_node.goal_reached))
 
 
+@dataclass(eq=False, repr=False)
+class NodeObservingLastObservation(MotionStatechartNode):
+    """
+    A node whose observation reads the observation another node took most recently.
+    """
+
+    watched_node: MotionStatechartNode = field(default=None, kw_only=True)
+    """
+    The node whose most recent observation this node observes.
+    """
+
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        return NodeArtifacts(observation=sm.Scalar(self.watched_node.last_observation))
+
+
 # %% goals that end their child
 
 

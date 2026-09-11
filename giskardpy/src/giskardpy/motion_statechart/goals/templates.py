@@ -76,7 +76,7 @@ class Attempt(SelfDecidingNode, CompositeStatechartNode):
         if not self.failure_monitors:
             return Scalar.const_false()
         return trinary_logic_or(
-            *[monitor.goal_reached.is_true() for monitor in self.failure_monitors]
+            *[monitor.last_observation.is_true() for monitor in self.failure_monitors]
         )
 
     @property
@@ -84,8 +84,8 @@ class Attempt(SelfDecidingNode, CompositeStatechartNode):
         """
         Which monitors gave up on the task, which is what turns a failure into a reason.
 
-        They are read through their verdicts, because ending this goal ends them too and
-        a node that ended observes nothing any more.
+        They are read through their last observation, because ending this goal ends them
+        too and a node that ended observes nothing any more.
 
         :return: The failure monitors that fired, in the order they were given, and
             nothing at all unless this goal declared itself failed.
@@ -95,7 +95,7 @@ class Attempt(SelfDecidingNode, CompositeStatechartNode):
         return [
             monitor
             for monitor in self.failure_monitors
-            if monitor.goal_reached_state == ObservationStateValues.TRUE
+            if monitor.last_observation_state == ObservationStateValues.TRUE
         ]
 
     def expand(self, context: MotionStatechartContext) -> None:
@@ -106,10 +106,10 @@ class Attempt(SelfDecidingNode, CompositeStatechartNode):
         A condition may only read its own node or a sibling, so this goal reaches its
         monitors through its own observation rather than through its children.
 
-        A monitor succeeds on the control cycle it fires, which keeps having fired as
-        its verdict. A goal reads its children a cycle late, so a monitor that fires
-        only briefly would otherwise be indistinguishable afterwards from one that never
-        fired at all.
+        A monitor succeeds on the control cycle it fires, which keeps the observation it
+        fired on as its last observation. A goal reads its children a cycle late, so a
+        monitor that fires only briefly would otherwise be indistinguishable afterwards
+        from one that never fired at all.
         """
         self._add_child_to_motion_statechart(self.task)
         self._add_children_to_motion_statechart(self.failure_monitors)
@@ -409,13 +409,13 @@ class RepeatUntil(CompositeStatechartNodeOverSelfDecidingNodes):
         try: a node reading its own life cycle reads the state it entered the control
         cycle with, so the reset lands the cycle after the failure rather than on it.
 
-        The stop monitor is read through its verdict, which outlasts a monitor that ends
-        itself on reaching what it counts.
+        The stop monitor is read through its last observation, which outlasts a monitor
+        that ends itself on reaching what it counts.
         """
         self._attempt = self._add_self_deciding(self.task)
         self._add_child_to_motion_statechart(self.stop_retry_monitor)
 
-        retrying_stopped = Scalar(self.stop_retry_monitor.goal_reached)
+        retrying_stopped = Scalar(self.stop_retry_monitor.last_observation)
         still_trying = trinary_logic_not(retrying_stopped)
         # Starting is gated as well as ending, because a reset task is not started and
         # ending is not considered while it is not.
@@ -443,15 +443,16 @@ class RepeatUntil(CompositeStatechartNodeOverSelfDecidingNodes):
         """
         Report success, giving up, or neither.
 
-        Both children are read through their verdicts, which outlast them; the attempt's
-        is cleared again by the reset that starts the next try.
+        Both children are read through something that outlasts them: the attempt through
+        its verdict, which the reset that starts the next try clears again, and the stop
+        monitor through its last observation.
         """
         return NodeArtifacts(
             observation=if_cases(
                 cases=[
                     (self._attempt.ended_at_its_goal, Scalar.const_true()),
                     (
-                        self.stop_retry_monitor.goal_reached.is_true(),
+                        self.stop_retry_monitor.last_observation.is_true(),
                         Scalar.const_false(),
                     ),
                 ],
