@@ -1029,7 +1029,7 @@ class MotionStatechart(SubclassJSONSerializer):
         """
         self.sanity_check()
         self._expand_goals(context=context)
-        self._succeed_self_deciding_nodes_at_their_goal()
+        self._succeed_self_deciding_nodes_observing_true()
         self._build_nodes(context=context)
         self._add_transitions()
         self.observation_state.compile(context=context)
@@ -1042,7 +1042,7 @@ class MotionStatechart(SubclassJSONSerializer):
             )
         )
 
-    def _succeed_self_deciding_nodes_at_their_goal(self):
+    def _succeed_self_deciding_nodes_observing_true(self):
         """
         Gives every :class:`SelfDecidingNode` the success its contract promises, on top
         of whatever else already ends it.

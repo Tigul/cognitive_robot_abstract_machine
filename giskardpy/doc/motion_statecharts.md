@@ -490,7 +490,7 @@ flowchart LR
     monitor -- "PausedWhileTrue → pause: observation<br/>PausedUntilTrue → pause: not observation<br/>StoppedWhenTrue → interrupt: last_observation" --> node
 ```
 
-`StoppedWhenTrue` observes True while the monitored node is at its goal or once it succeeded,
+`StoppedWhenTrue` observes True while the monitored node observes True or once it succeeded,
 False once the monitor stopped it, and Unknown otherwise.
 
 ## Ending the motion

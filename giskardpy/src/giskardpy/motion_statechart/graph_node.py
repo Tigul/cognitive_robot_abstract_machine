@@ -1436,7 +1436,7 @@ class MotionStatechartNode(SubclassJSONSerializer):
     @property
     def is_failed_or_interrupted(self) -> sm.Scalar:
         """
-        Whether this node ended anywhere but at its goal, which covers being cut off
+        Whether this node ended any way but by succeeding, which covers being cut off
         undecided as much as being judged to have failed. A node that ended without a
         verdict is of no more use than one that failed outright.
 
@@ -1449,14 +1449,14 @@ class MotionStatechartNode(SubclassJSONSerializer):
         interrupted       true
         ================  =======
 
-        :return: True once this node ended short of its goal, unknown until it ends.
+        :return: True once this node ended without succeeding, unknown until it ends.
         """
         return sm.trinary_logic_or(self.is_failed, self.is_interrupted)
 
     @property
-    def ended_without_reaching_its_goal(self) -> sm.Scalar:
+    def has_ended_without_succeeding(self) -> sm.Scalar:
         """
-        Whether this node has ended anywhere but at its goal, which covers being cut off
+        Whether this node has ended any way but by succeeding, which covers being cut off
         undecided as much as being judged to have failed.
 
         The same question as :attr:`is_failed_or_interrupted`, answered binary. It is
@@ -1478,7 +1478,7 @@ class MotionStatechartNode(SubclassJSONSerializer):
             afford to: an unknown leaves a transition unfired, whereas an unknown case
             guard selects its case.
 
-        :return: True once this node ended short of its goal, false before that.
+        :return: True once this node ended without succeeding, false before that.
         """
         return sm.trinary_logic_and(
             LifeCyclePredicate.IS_TERMINATED.expression(self.life_cycle_variable),
@@ -1488,12 +1488,12 @@ class MotionStatechartNode(SubclassJSONSerializer):
         )
 
     @property
-    def ended_at_its_goal(self) -> sm.Scalar:
+    def has_succeeded(self) -> sm.Scalar:
         """
         Whether this node has ended by succeeding, which only a success condition
         decides.
 
-        The complement of :attr:`ended_without_reaching_its_goal` over ended nodes, and
+        The complement of :attr:`has_ended_without_succeeding` over ended nodes, and
         false for one that has not ended yet:
 
         ================  =====
@@ -1508,7 +1508,7 @@ class MotionStatechartNode(SubclassJSONSerializer):
         .. note:: Read off the life cycle variable rather than through
             :attr:`is_succeeded`, because an observation may not read a predicate.
 
-        :return: True once this node ended at its goal, false before that.
+        :return: True once this node succeeded, false before that.
         """
         return LifeCyclePredicate.IS_SUCCEEDED.expression(
             self.life_cycle_variable

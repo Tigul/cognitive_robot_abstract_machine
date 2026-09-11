@@ -151,8 +151,8 @@ def test_stopped_when_true_keeps_succeeding_once_the_monitored_node_succeeded(
     monitor_observation: ObservationStateValues,
 ) -> None:
     """
-    A monitored node that ended at its goal observes nothing any more, so its verdict is
-    what makes the template succeed.
+    A monitored node that succeeded observes nothing any more, so its verdict is what
+    makes the template succeed.
     """
     goal = create_goal(StoppedWhenTrue)
 
@@ -167,10 +167,10 @@ def test_stopped_when_true_keeps_succeeding_once_the_monitored_node_succeeded(
     )
 
 
-def test_stopped_when_true_fails_when_it_stopped_a_node_at_its_goal() -> None:
+def test_stopped_when_true_fails_when_it_stopped_a_node_observing_true() -> None:
     """
     The observation read on the cycle after the monitor stopped the monitored node is
-    still the one it took while at its goal, which must not count as reaching it.
+    still the True it took while running, which must not count as a success.
     """
     goal = create_goal(StoppedWhenTrue)
 

@@ -3438,25 +3438,25 @@ class TestLastObservation:
                 not_started := ConstTrueNode(),
                 running := ConstTrueNode(),
                 succeeded := ConstTrueNode(),
-                failed_short_of_its_goal := ConstFalseNode(),
-                failed_at_its_goal := ConstTrueNode(),
-                interrupted_at_its_goal := ConstTrueNode(),
+                failed_observing_false := ConstFalseNode(),
+                failed_observing_true := ConstTrueNode(),
+                interrupted_observing_true := ConstTrueNode(),
                 interrupted_undecided := NodeObservingNothingYet(),
             ]
         )
         not_started.start_condition = blocker.observation_variable
         succeeded.success_condition = trigger.observation_variable
-        failed_short_of_its_goal.fail_condition = trigger.observation_variable
-        failed_at_its_goal.fail_condition = trigger.observation_variable
-        interrupted_at_its_goal.interrupt_condition = trigger.observation_variable
+        failed_observing_false.fail_condition = trigger.observation_variable
+        failed_observing_true.fail_condition = trigger.observation_variable
+        interrupted_observing_true.interrupt_condition = trigger.observation_variable
         interrupted_undecided.interrupt_condition = trigger.observation_variable
         nodes = (
             not_started,
             running,
             succeeded,
-            failed_short_of_its_goal,
-            failed_at_its_goal,
-            interrupted_at_its_goal,
+            failed_observing_false,
+            failed_observing_true,
+            interrupted_observing_true,
             interrupted_undecided,
         )
 
@@ -3468,18 +3468,18 @@ class TestLastObservation:
             not_started: LifeCycleValues.NOT_STARTED,
             running: LifeCycleValues.RUNNING,
             succeeded: LifeCycleValues.SUCCEEDED,
-            failed_short_of_its_goal: LifeCycleValues.FAILED,
-            failed_at_its_goal: LifeCycleValues.FAILED,
-            interrupted_at_its_goal: LifeCycleValues.INTERRUPTED,
+            failed_observing_false: LifeCycleValues.FAILED,
+            failed_observing_true: LifeCycleValues.FAILED,
+            interrupted_observing_true: LifeCycleValues.INTERRUPTED,
             interrupted_undecided: LifeCycleValues.INTERRUPTED,
         }
         assert {node: node.last_observation_state for node in nodes} == {
             not_started: ObservationStateValues.UNKNOWN,
             running: ObservationStateValues.TRUE,
             succeeded: ObservationStateValues.TRUE,
-            failed_short_of_its_goal: ObservationStateValues.FALSE,
-            failed_at_its_goal: ObservationStateValues.TRUE,
-            interrupted_at_its_goal: ObservationStateValues.TRUE,
+            failed_observing_false: ObservationStateValues.FALSE,
+            failed_observing_true: ObservationStateValues.TRUE,
+            interrupted_observing_true: ObservationStateValues.TRUE,
             interrupted_undecided: ObservationStateValues.UNKNOWN,
         }
 
@@ -3983,9 +3983,9 @@ class TestIsFailedOrInterrupted:
         assert self._answer(life_cycle_state) == ObservationStateValues.UNKNOWN
 
 
-class TestEndedWithoutReachingItsGoal:
+class TestHasEndedWithoutSucceeding:
     """
-    Tests the expression that answers whether a node ended anywhere but at its goal,
+    Tests the expression that answers whether a node ended any way but by succeeding,
     which an observation may read where the verdict predicates are out of bounds.
     """
 
@@ -3996,7 +3996,7 @@ class TestEndedWithoutReachingItsGoal:
         :return: What the expression answers.
         """
         node = ConstTrueNode()
-        substituted = sm.Scalar(node.ended_without_reaching_its_goal).substitute(
+        substituted = sm.Scalar(node.has_ended_without_succeeding).substitute(
             [node.life_cycle_variable], [float(life_cycle_state)]
         )
         return ObservationStateValues(float(substituted))
@@ -4011,7 +4011,7 @@ class TestEndedWithoutReachingItsGoal:
     )
     def test_every_way_of_ending_is_answered(self, life_cycle_state, expected):
         """
-        Being cut off undecided is as much a way of ending short of the goal as being
+        Being cut off undecided is as much a way of ending without succeeding as being
         judged to have failed, even though no verdict was reached.
         """
         assert self._answer(life_cycle_state) == expected
@@ -4022,12 +4022,12 @@ class TestEndedWithoutReachingItsGoal:
     )
     def test_a_node_that_has_not_ended_answers_false(self, life_cycle_state):
         """
-        A node that is still on its way has not ended short of anything.
+        A node that is still on its way has not ended at all.
         """
         assert self._answer(life_cycle_state) == ObservationStateValues.FALSE
 
 
-class TestEndedAtItsGoal:
+class TestHasSucceeded:
     """
     Tests the expression that answers whether a node ended by succeeding, which an
     observation may read where the verdict predicates are out of bounds.
@@ -4040,7 +4040,7 @@ class TestEndedAtItsGoal:
         :return: What the expression answers.
         """
         node = ConstTrueNode()
-        substituted = sm.Scalar(node.ended_at_its_goal).substitute(
+        substituted = sm.Scalar(node.has_succeeded).substitute(
             [node.life_cycle_variable], [float(life_cycle_state)]
         )
         return ObservationStateValues(float(substituted))

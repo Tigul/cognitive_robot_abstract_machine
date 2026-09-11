@@ -246,9 +246,9 @@ class Sequence(
     """
     Runs a list of nodes one after another.
 
-    Its observation turns True once the last step reached its goal, and False as soon as
-    a step ended short of its own, so a step that was given up on fails the sequence
-    rather than leaving it waiting forever.
+    Its observation turns True once the last step succeeded, and False as soon as a step
+    ended without succeeding, so a step that was given up on fails the sequence rather
+    than leaving it waiting forever.
 
     .. note:: corresponds to the RPL's SEQ. (McDermott, Drew. A reactive plan language, 1991)
     """
@@ -282,22 +282,19 @@ class Sequence(
         """
         Report success, a failed step, or neither, all read off the steps' verdicts.
 
-        A step short of its goal has not failed, it has not arrived yet, so only a step
-        that ended without reaching its goal decides anything.
+        A step that is still running has not failed, it has not arrived yet, so only a
+        step that ended decides anything.
         """
         return NodeArtifacts(
             observation=if_cases(
                 cases=[
                     (
                         trinary_logic_or(
-                            *[
-                                step.ended_without_reaching_its_goal
-                                for step in self._steps
-                            ]
+                            *[step.has_ended_without_succeeding for step in self._steps]
                         ),
                         Scalar.const_false(),
                     ),
-                    (self._steps[-1].ended_at_its_goal, Scalar.const_true()),
+                    (self._steps[-1].has_succeeded, Scalar.const_true()),
                 ],
                 else_result=Scalar.const_trinary_unknown(),
             )
@@ -342,10 +339,11 @@ class Parallel(MaintenanceNode, NodeListCompositeStatechartNode):
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         """
-        Count the nodes that reached their goals against :attr:`required_successes`.
+        Count the nodes whose last observation is True against
+        :attr:`required_successes`.
 
         This goal ends none of its nodes, so a node that keeps running is counted by
-        what it observes now and stops counting once it drifts away from its goal again.
+        what it observes now and stops counting once it observes False again.
         A node something *else* ended is counted by the last observation it took, which
         outlasts it.
 
@@ -353,9 +351,11 @@ class Parallel(MaintenanceNode, NodeListCompositeStatechartNode):
         wrong: whether that is worth giving up on is decided outside, by the attempt this
         goal is wrapped in.
         """
-        nodes_at_their_goal = [node.last_observation.is_true() for node in self.nodes]
+        nodes_that_observed_true = [
+            node.last_observation.is_true() for node in self.nodes
+        ]
         return NodeArtifacts(
-            observation=self.required_successes <= sum(*nodes_at_their_goal)
+            observation=self.required_successes <= sum(*nodes_that_observed_true)
         )
 
 
@@ -451,7 +451,7 @@ class RepeatUntil(CompositeStatechartNodeOverSelfDecidingNodes):
         return NodeArtifacts(
             observation=if_cases(
                 cases=[
-                    (self._attempt.ended_at_its_goal, Scalar.const_true()),
+                    (self._attempt.has_succeeded, Scalar.const_true()),
                     (
                         self.stop_retry_monitor.last_observation.is_true(),
                         Scalar.const_false(),
@@ -526,8 +526,8 @@ class TryAll(
     """
     Runs a list of alternatives at once and takes the first one that works.
 
-    Its observation turns True as soon as an alternative reached its goal, and False
-    only once every one of them ended without doing so.
+    Its observation turns True as soon as an alternative succeeded, and False only once
+    every one of them ended without doing so.
     """
 
     _alternatives: List[MotionStatechartNode] = field(default_factory=list, init=False)
@@ -555,7 +555,7 @@ class TryAll(
                     (
                         trinary_logic_or(
                             *[
-                                alternative.ended_at_its_goal
+                                alternative.has_succeeded
                                 for alternative in self._alternatives
                             ]
                         ),
@@ -564,7 +564,7 @@ class TryAll(
                     (
                         trinary_logic_and(
                             *[
-                                alternative.ended_without_reaching_its_goal
+                                alternative.has_ended_without_succeeding
                                 for alternative in self._alternatives
                             ]
                         ),
@@ -584,8 +584,8 @@ class TryInOrder(
     Tries a list of alternatives one after another, short-circuiting on the first
     success.
 
-    The next alternative only starts once the previous one has ended without reaching
-    its goal. Its observation turns True as soon as an alternative succeeds and False
+    The next alternative only starts once the previous one has ended without
+    succeeding. Its observation turns True as soon as an alternative succeeds and False
     only once every one of them is over, so it stays unknown while any is still running.
 
     Each alternative decides for itself when to give up, which is why this goal reduces
@@ -602,7 +602,7 @@ class TryInOrder(
 
     def expand_children(self, context: MotionStatechartContext) -> None:
         """
-        Wire each alternative to start once the previous one ended short of its goal,
+        Wire each alternative to start once the previous one ended without succeeding,
         which short-circuits on the first success.
         """
         self._check_has_children()
@@ -626,7 +626,7 @@ class TryInOrder(
                     (
                         trinary_logic_or(
                             *[
-                                alternative.ended_at_its_goal
+                                alternative.has_succeeded
                                 for alternative in self._alternatives
                             ]
                         ),
@@ -635,7 +635,7 @@ class TryInOrder(
                     (
                         trinary_logic_and(
                             *[
-                                alternative.ended_without_reaching_its_goal
+                                alternative.has_ended_without_succeeding
                                 for alternative in self._alternatives
                             ]
                         ),

@@ -96,9 +96,8 @@ class StoppedWhenTrue(MonitoredCompositeStatechartNode):
     """
     Interrupts the monitored node as soon as the monitor observes True.
 
-    It observes True while the monitored node is at its goal or once it succeeded, False
-    once the monitor stopped it, however close to its goal it was, and Unknown
-    otherwise.
+    It observes True while the monitored node observes True or once it succeeded, False
+    once the monitor stopped it, whatever it observed, and Unknown otherwise.
 
     The monitor is read through its last observation, which outlasts a monitor that ends
     itself on firing, unlike the pausing goals, which need the reading it takes right
@@ -112,17 +111,20 @@ class StoppedWhenTrue(MonitoredCompositeStatechartNode):
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         """
-        The monitored node counts as at its goal only while it has not ended, or once it
-        succeeded.
+        The monitored node's observation counts only while it has not ended; after that,
+        only its success does.
 
         An observation expression reads the observation a node took on the previous
-        control cycle, so a node the monitor stopped is told apart from one at its goal
-        by its life cycle rather than by that observation.
+        control cycle, so a node the monitor stopped is told apart from one that
+        succeeded by its life cycle rather than by that observation.
         """
         return NodeArtifacts(
             observation=if_cases(
                 [
-                    (self._monitored_node_at_its_goal, Scalar.const_true()),
+                    (
+                        self._monitored_node_observing_true_or_succeeded,
+                        Scalar.const_true(),
+                    ),
                     (self.monitor.last_observation.is_true(), Scalar.const_false()),
                 ],
                 Scalar.const_trinary_unknown(),
@@ -130,7 +132,7 @@ class StoppedWhenTrue(MonitoredCompositeStatechartNode):
         )
 
     @property
-    def _monitored_node_at_its_goal(self) -> Scalar:
+    def _monitored_node_observing_true_or_succeeded(self) -> Scalar:
         """
         :return: True while the monitored node has not ended and observes True, and once
             it succeeded; false otherwise.
@@ -143,5 +145,5 @@ class StoppedWhenTrue(MonitoredCompositeStatechartNode):
             self.monitored_node.observation_variable.is_true(),
         )
         return trinary_logic_or(
-            observing_true_while_running, self.monitored_node.ended_at_its_goal
+            observing_true_while_running, self.monitored_node.has_succeeded
         )
