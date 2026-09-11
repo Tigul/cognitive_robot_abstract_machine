@@ -16,7 +16,7 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
 from giskardpy.motion_statechart.graph_node import (
     CancelMotion,
     EndMotion,
-    Goal,
+    CompositeStatechartNode,
     GoalReachedVariable,
     MotionStatechartNode,
     Task,
@@ -24,8 +24,8 @@ from giskardpy.motion_statechart.graph_node import (
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     ConstTrueNode,
-    TestGoal,
-    TestNestedGoal,
+    TestCompositeStatechartNode,
+    TestNestedCompositeStatechartNode,
 )
 from giskardpy.motion_statechart.plotters.graphviz import MotionStatechartGraphviz
 from giskardpy.motion_statechart.plotters.styles import (
@@ -50,7 +50,7 @@ def expand(motion_statechart: MotionStatechart) -> MotionStatechart:
     return motion_statechart
 
 
-def build_motion_statechart(goal: Goal) -> MotionStatechart:
+def build_motion_statechart(goal: CompositeStatechartNode) -> MotionStatechart:
     """
     Creates a motion statechart holding `goal` and an end motion, expanded far enough to
     be drawn.
@@ -179,7 +179,7 @@ def build_dependency_statechart(
 
 
 def test_expanded_goal_draws_children_in_its_cluster():
-    goal = TestGoal(name="goal")
+    goal = TestCompositeStatechartNode(name="goal")
     motion_statechart = build_motion_statechart(goal)
 
     cluster = find_cluster_of(draw(motion_statechart), goal)
@@ -192,7 +192,7 @@ def test_expanded_goal_draws_children_in_its_cluster():
 
 
 def test_expanded_goal_node_is_declared_only_in_its_cluster():
-    goal = TestGoal(name="goal")
+    goal = TestCompositeStatechartNode(name="goal")
     motion_statechart = build_motion_statechart(goal)
 
     graph = draw(motion_statechart)
@@ -204,7 +204,7 @@ def test_expanded_goal_node_is_declared_only_in_its_cluster():
 
 
 def test_collapsed_goal_hides_children_and_their_edges():
-    goal = TestGoal(name="goal")
+    goal = TestCompositeStatechartNode(name="goal")
     goal.plot_specifications.collapse_children = True
     motion_statechart = build_motion_statechart(goal)
 
@@ -218,7 +218,7 @@ def test_collapsed_goal_hides_children_and_their_edges():
 
 
 def test_collapsed_goal_reports_hidden_node_count():
-    goal = TestGoal(name="goal")
+    goal = TestCompositeStatechartNode(name="goal")
     goal.plot_specifications.collapse_children = True
     motion_statechart = build_motion_statechart(goal)
 
@@ -228,7 +228,7 @@ def test_collapsed_goal_reports_hidden_node_count():
 
 
 def test_collapsed_goal_counts_hidden_nodes_of_nested_goals():
-    goal = TestNestedGoal(name="goal")
+    goal = TestNestedCompositeStatechartNode(name="goal")
     goal.plot_specifications.collapse_children = True
     motion_statechart = build_motion_statechart(goal)
 
@@ -239,7 +239,7 @@ def test_collapsed_goal_counts_hidden_nodes_of_nested_goals():
 
 
 def test_expanded_goal_reports_no_hidden_node_count():
-    goal = TestGoal(name="goal")
+    goal = TestCompositeStatechartNode(name="goal")
     motion_statechart = build_motion_statechart(goal)
 
     cluster = find_cluster_of(draw(motion_statechart), goal)
@@ -259,7 +259,7 @@ def test_collision_avoidance_goals_collapse_their_children():
 
 
 def test_structure_copy_keeps_plot_specs():
-    goal = TestGoal(name="goal")
+    goal = TestCompositeStatechartNode(name="goal")
     goal.plot_specifications.collapse_children = True
     motion_statechart = build_motion_statechart(goal)
 

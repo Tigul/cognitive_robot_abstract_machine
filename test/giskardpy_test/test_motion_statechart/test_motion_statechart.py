@@ -24,8 +24,8 @@ from giskardpy.motion_statechart.exceptions import (
     ChildTransitionAlreadyWiredError,
     NodeCannotDecideItselfError,
     NotInMotionStatechartError,
-    EndMotionInGoalError,
-    GoalWithoutChildrenError,
+    EndMotionInCompositeStatechartNodeError,
+    CompositeStatechartNodeWithoutChildrenError,
     InputNotExpressionError,
     SelfInStartConditionError,
     UnsupportedConditionVariableError,
@@ -42,7 +42,7 @@ from giskardpy.motion_statechart.graph_node import (
     ConvergingTask,
     EndMotion,
     CancelMotion,
-    Goal,
+    CompositeStatechartNode,
     MotionStatechartNode,
     NodeArtifacts,
     TerminalNode,
@@ -64,20 +64,20 @@ from giskardpy.motion_statechart.motion_statechart import (
 )
 from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     ChangeStateOnEvents,
-    GoalCuttingOffItsChild,
-    GoalCuttingOffItsChildAtItsGoal,
-    GoalCuttingOffItsGrandchild,
-    GoalCuttingOffItsUndecidedChild,
-    GoalWithChildInterruptedBySibling,
-    GoalWithChildFailingOnItsOwn,
-    GoalWithChildStartingLate,
-    GoalWithChildSucceedingOnItsOwn,
+    CompositeStatechartNodeCuttingOffItsChild,
+    CompositeStatechartNodeCuttingOffItsChildAtItsGoal,
+    CompositeStatechartNodeCuttingOffItsGrandchild,
+    CompositeStatechartNodeCuttingOffItsUndecidedChild,
+    CompositeStatechartNodeWithChildInterruptedBySibling,
+    CompositeStatechartNodeWithChildFailingOnItsOwn,
+    CompositeStatechartNodeWithChildStartingLate,
+    CompositeStatechartNodeWithChildSucceedingOnItsOwn,
     NodeObservingAPredicate,
     NodeObservingGoalReached,
     NodeObservingNothingYet,
     ConstTrueNode,
-    TestGoal,
-    TestNestedGoal,
+    TestCompositeStatechartNode,
+    TestNestedCompositeStatechartNode,
     ConstFalseNode,
     TestRunAfterStop,
     TestRunAfterStopFromPause,
@@ -422,9 +422,10 @@ class _BuildCountingNode(MotionStatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class _BuildCountingGoal(Goal):
+class _BuildCountingCompositeStatechartNode(CompositeStatechartNode):
     """
-    Goal that records its own build calls and owns a counting child node.
+    Composite statechart node that records its own build calls and owns a counting child
+    node.
     """
 
     build_count: int = field(default=0, init=False)
@@ -454,7 +455,7 @@ def _compile_msc(msc: MotionStatechart) -> Executor:
 
 def test_each_node_is_built_exactly_once():
     msc = MotionStatechart()
-    goal = _BuildCountingGoal()
+    goal = _BuildCountingCompositeStatechartNode()
     msc.add_node(goal)
     msc.add_node(EndMotion.when_true(goal))
 
@@ -1159,7 +1160,7 @@ class TestMotionStatechartLogic:
         node1 = ConstTrueNode()
         msc.add_node(node1)
 
-        goal = TestGoal()
+        goal = TestCompositeStatechartNode()
         msc.add_node(goal)
 
         goal.start_condition = node1.observation_variable
@@ -1360,7 +1361,7 @@ class TestMotionStatechartLogic:
         node1 = ConstTrueNode(name="w")
         msc.add_node(node1)
 
-        outer = TestNestedGoal()
+        outer = TestNestedCompositeStatechartNode()
         msc.add_node(outer)
         outer.start_condition = node1.observation_variable
 
@@ -1378,7 +1379,7 @@ class TestMotionStatechartLogic:
 
         kin_sim = Executor(MotionStatechartContext(world=World()))
         node1 = msc_copy.get_nodes_by_type(ConstTrueNode)[0]
-        outer = msc_copy.get_nodes_by_type(TestNestedGoal)[0]
+        outer = msc_copy.get_nodes_by_type(TestNestedCompositeStatechartNode)[0]
         end = msc_copy.get_nodes_by_type(EndMotion)[0]
         kin_sim.compile(motion_statechart=msc_copy)
 
@@ -1853,7 +1854,7 @@ class TestEndMotion:
     def test_goals_cannot_have_end_motion(self):
         msc = MotionStatechart()
         msc.add_node(Sequence([ConstTrueNode(), EndMotion()]))
-        with pytest.raises(EndMotionInGoalError):
+        with pytest.raises(EndMotionInCompositeStatechartNodeError):
             kin_sim = Executor(
                 MotionStatechartContext(
                     world=World(),
@@ -2033,7 +2034,7 @@ class TestTemplates:
         msc.add_node(Sequence(nodes=[]))
 
         kin_sim = Executor(MotionStatechartContext(world=World()))
-        with pytest.raises(GoalWithoutChildrenError):
+        with pytest.raises(CompositeStatechartNodeWithoutChildrenError):
             kin_sim.compile(motion_statechart=msc)
 
     def test_a_parallel_without_nodes_is_rejected(self):
@@ -2041,7 +2042,7 @@ class TestTemplates:
         msc.add_node(Parallel(nodes=[]))
 
         kin_sim = Executor(MotionStatechartContext(world=World()))
-        with pytest.raises(GoalWithoutChildrenError):
+        with pytest.raises(CompositeStatechartNodeWithoutChildrenError):
             kin_sim.compile(motion_statechart=msc)
 
     def test_sequence_gives_a_terminal_step_no_ending_condition(self):
@@ -2766,7 +2767,9 @@ class TestLifeCycleTransitions:
         msc.add_nodes(
             [
                 undecided := NodeObservingNothingYet(),
-                goal := GoalWithChildStartingLate(delay_in_control_cycles=2),
+                goal := CompositeStatechartNodeWithChildStartingLate(
+                    delay_in_control_cycles=2
+                ),
             ]
         )
         goal.success_condition = undecided.observation_variable
@@ -2792,7 +2795,9 @@ class TestLifeCycleTransitions:
         msc.add_nodes(
             [
                 trigger := CountControlCycles(control_cycles=2),
-                goal := GoalWithChildStartingLate(delay_in_control_cycles=2),
+                goal := CompositeStatechartNodeWithChildStartingLate(
+                    delay_in_control_cycles=2
+                ),
             ]
         )
         goal.set_condition(transition_kind, trigger.observation_variable)
@@ -2853,7 +2858,9 @@ class TestLifeCycleTransitions:
         msc.add_nodes(
             [
                 reset := CountControlCycles(control_cycles=2),
-                goal := GoalWithChildStartingLate(delay_in_control_cycles=2),
+                goal := CompositeStatechartNodeWithChildStartingLate(
+                    delay_in_control_cycles=2
+                ),
             ]
         )
         goal.reset_condition = reset.observation_variable
@@ -2947,7 +2954,10 @@ class TestLifeCycleVerdicts:
         """
         msc = MotionStatechart()
         msc.add_nodes(
-            [trigger := ConstTrueNode(), goal := GoalWithChildSucceedingOnItsOwn()]
+            [
+                trigger := ConstTrueNode(),
+                goal := CompositeStatechartNodeWithChildSucceedingOnItsOwn(),
+            ]
         )
         goal.interrupt_condition = trigger.observation_variable
 
@@ -2966,7 +2976,10 @@ class TestLifeCycleVerdicts:
         """
         msc = MotionStatechart()
         msc.add_nodes(
-            [trigger := ConstTrueNode(), goal := GoalCuttingOffItsChildAtItsGoal()]
+            [
+                trigger := ConstTrueNode(),
+                goal := CompositeStatechartNodeCuttingOffItsChildAtItsGoal(),
+            ]
         )
         goal.set_condition(transition_kind, trigger.observation_variable)
 
@@ -3027,7 +3040,10 @@ class TestLifeCycleVerdicts:
         """
         msc = MotionStatechart()
         msc.add_nodes(
-            [trigger := ConstTrueNode(), goal := GoalCuttingOffItsChildAtItsGoal()]
+            [
+                trigger := ConstTrueNode(),
+                goal := CompositeStatechartNodeCuttingOffItsChildAtItsGoal(),
+            ]
         )
         goal.success_condition = trigger.observation_variable
 
@@ -3044,7 +3060,10 @@ class TestLifeCycleVerdicts:
         """
         msc = MotionStatechart()
         msc.add_nodes(
-            [trigger := ConstTrueNode(), goal := GoalCuttingOffItsGrandchild()]
+            [
+                trigger := ConstTrueNode(),
+                goal := CompositeStatechartNodeCuttingOffItsGrandchild(),
+            ]
         )
         goal.success_condition = trigger.observation_variable
 
@@ -3061,8 +3080,8 @@ class TestLifeCycleVerdicts:
         msc.add_nodes(
             [
                 trigger := ConstTrueNode(),
-                ended_by_a_sibling := GoalWithChildInterruptedBySibling(),
-                ended_by_its_parent := GoalCuttingOffItsChild(),
+                ended_by_a_sibling := CompositeStatechartNodeWithChildInterruptedBySibling(),
+                ended_by_its_parent := CompositeStatechartNodeCuttingOffItsChild(),
             ]
         )
         ended_by_its_parent.success_condition = trigger.observation_variable
@@ -3087,7 +3106,7 @@ class TestLifeCycleVerdicts:
         msc.add_nodes(
             [
                 trigger := CountControlCycles(control_cycles=2),
-                goal := GoalWithChildFailingOnItsOwn(),
+                goal := CompositeStatechartNodeWithChildFailingOnItsOwn(),
             ]
         )
         goal.success_condition = trigger.observation_variable
@@ -3144,7 +3163,7 @@ class TestLifeCycleVerdicts:
             [
                 trigger := ConstTrueNode(),
                 reset := CountControlCycles(control_cycles=2),
-                goal := GoalCuttingOffItsUndecidedChild(),
+                goal := CompositeStatechartNodeCuttingOffItsUndecidedChild(),
             ]
         )
         goal.success_condition = trigger.observation_variable

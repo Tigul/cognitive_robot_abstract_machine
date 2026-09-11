@@ -22,7 +22,7 @@ from giskardpy.motion_statechart.graph_node import (
     TerminalNode,
 )
 from giskardpy.motion_statechart.graph_node import (
-    Goal,
+    CompositeStatechartNode,
     TrinaryCondition,
 )
 from giskardpy.motion_statechart.plotters.styles import (
@@ -108,8 +108,8 @@ class MotionStatechartGraphviz:
     Draws a motion statechart as a graphviz graph.
 
     Every node becomes a labelled box showing its current observation and life cycle
-    state, every :class:`~giskardpy.motion_statechart.graph_node.Goal` becomes a cluster
-    around its children, and every dependency between two nodes becomes an arrow colored
+    state, every :class:`~giskardpy.motion_statechart.graph_node.CompositeStatechartNode`
+    becomes a cluster around its children, and every dependency between two nodes becomes an arrow colored
     by what the node it leaves observes.
 
     ..note:: The drawing reflects the state the statechart is in when it is drawn.
@@ -227,9 +227,9 @@ class MotionStatechartGraphviz:
     def _count_descendants(self, node: MotionStatechartNode) -> int:
         """
         :param node: The node to count below.
-        :return: The number of nodes below it, nested goals included.
+        :return: The number of nodes below it, nested composite statechart nodes included.
         """
-        if not isinstance(node, Goal):
+        if not isinstance(node, CompositeStatechartNode):
             return 0
         return sum(1 + self._count_descendants(child_node) for child_node in node.nodes)
 
@@ -478,13 +478,13 @@ class MotionStatechartGraphviz:
         :param nodes: The nodes to draw.
         """
         for i, node in enumerate(nodes):
-            # Skip invisible nodes entirely, as well as the children of a Goal that is
-            # invisible or collapses them.
+            # Skip invisible nodes entirely, as well as the children of a
+            # CompositeStatechartNode that is invisible or collapses them.
             if not self._is_drawn(node):
                 continue
 
             if (
-                isinstance(node, Goal)
+                isinstance(node, CompositeStatechartNode)
                 and not node.plot_specifications.collapse_children
             ):
                 goal_cluster = self._add_cluster(node, parent_cluster)
@@ -516,7 +516,7 @@ class MotionStatechartGraphviz:
             graph_name=str(node.unique_name),
             fontname=Font.SANS_SERIF,
             fontsize=DRAWING_METRICS.font_size,
-            style=NodeDrawingStyle.GOAL.style,
+            style=NodeDrawingStyle.COMPOSITE.style,
             color="black",
             fillcolor="white",
             penwidth=DRAWING_METRICS.line_width,

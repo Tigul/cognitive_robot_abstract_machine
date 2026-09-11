@@ -12,7 +12,7 @@ from semantic_digital_twin.world_description.world_entity import (
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.graph_node import (
-    Goal,
+    CompositeStatechartNode,
     MaintenanceNode,
     NodeArtifacts,
 )
@@ -21,7 +21,7 @@ from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, Joi
 
 
 @dataclass(eq=False, repr=False)
-class Open(MaintenanceNode, Goal):
+class Open(MaintenanceNode, CompositeStatechartNode):
     """
     Open a 1-dof mechanism in an environment by driving its degree of freedom towards
     its upper limit while keeping the end effector fixed relative to the grasped part.

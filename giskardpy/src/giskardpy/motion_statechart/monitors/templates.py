@@ -6,7 +6,7 @@ from typing import Optional
 
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import (
-    Goal,
+    CompositeStatechartNode,
     MaintenanceNode,
     MotionStatechartNode,
     NodeArtifacts,
@@ -20,7 +20,7 @@ from krrood.symbolic_math.symbolic_math import (
 
 
 @dataclass(repr=False, eq=False)
-class MonitoredGoal(MaintenanceNode, Goal, ABC):
+class MonitoredCompositeStatechartNode(MaintenanceNode, CompositeStatechartNode, ABC):
     """
     Runs a monitored node next to the monitor observing it.
 
@@ -63,7 +63,7 @@ class MonitoredGoal(MaintenanceNode, Goal, ABC):
 
 
 @dataclass(repr=False, eq=False)
-class PausedWhileTrue(MonitoredGoal):
+class PausedWhileTrue(MonitoredCompositeStatechartNode):
     """
     Holds the monitored node for as long as the monitor observes True, and lets it
     continue once the monitor turns False again.
@@ -76,7 +76,7 @@ class PausedWhileTrue(MonitoredGoal):
 
 
 @dataclass(repr=False, eq=False)
-class PausedUntilTrue(MonitoredGoal):
+class PausedUntilTrue(MonitoredCompositeStatechartNode):
     """
     Holds the monitored node until the monitor observes True, and lets it continue from
     then on.
@@ -90,7 +90,7 @@ class PausedUntilTrue(MonitoredGoal):
 
 
 @dataclass(repr=False, eq=False)
-class StoppedWhenTrue(MonitoredGoal):
+class StoppedWhenTrue(MonitoredCompositeStatechartNode):
     """
     Interrupts the monitored node as soon as the monitor observes True.
 

@@ -17,7 +17,7 @@ from giskardpy.motion_statechart.data_types import LifeCycleValues
 from giskardpy.motion_statechart.goals.templates import (
     Attempt,
     CancelledWhenTrue,
-    NodeListGoal,
+    NodeListCompositeStatechartNode,
     Parallel,
     RepeatOnStall,
     RepeatUntil,
@@ -26,12 +26,12 @@ from giskardpy.motion_statechart.goals.templates import (
     TryInOrder,
 )
 from giskardpy.motion_statechart.graph_node import (
-    Goal,
+    CompositeStatechartNode,
     MotionStatechartNode,
 )
 from giskardpy.motion_statechart.monitors.payload_monitors import CountNodeResets
 from giskardpy.motion_statechart.monitors.templates import (
-    MonitoredGoal,
+    MonitoredCompositeStatechartNode,
     PausedUntilTrue,
     PausedWhileTrue,
 )
@@ -60,7 +60,7 @@ class LanguageNode(PlanNode, BuildsMotionStateChart, ABC):
     of their children in a certain way.
     """
 
-    motion_state_chart_template: Type[NodeListGoal] = field(
+    motion_state_chart_template: Type[NodeListCompositeStatechartNode] = field(
         kw_only=True, default=Sequence
     )
     """
@@ -81,7 +81,7 @@ class LanguageNode(PlanNode, BuildsMotionStateChart, ABC):
     def parse(self) -> Executable:
         return self.parse_children(self.children)
 
-    def create_goal(self) -> NodeListGoal:
+    def create_goal(self) -> NodeListCompositeStatechartNode:
         """
         :return: An empty goal of this node's template, describing how its children are
             executed inside a motion state chart.
@@ -89,8 +89,10 @@ class LanguageNode(PlanNode, BuildsMotionStateChart, ABC):
         return self.motion_state_chart_template(name=type(self).__name__)
 
     def add_to_motion_state_chart(
-        self, parent_goal: NodeListGoal, executable: GiskardExecutable
-    ) -> Goal:
+        self,
+        parent_goal: NodeListCompositeStatechartNode,
+        executable: GiskardExecutable,
+    ) -> CompositeStatechartNode:
         """
         Add this node as its own goal below `parent_goal` and add every child that
         contributes motions into it, one at a time.
@@ -141,7 +143,7 @@ class SequentialNode(ExecutesSequentially):
     Any failure is immediately raised.
     """
 
-    motion_state_chart_template: Type[NodeListGoal] = field(
+    motion_state_chart_template: Type[NodeListCompositeStatechartNode] = field(
         kw_only=True, default=Sequence
     )
 
@@ -155,7 +157,7 @@ class ParallelNode(ExecutesInParallel):
     All exceptions are raised after all children have finished.
     """
 
-    motion_state_chart_template: Type[NodeListGoal] = field(
+    motion_state_chart_template: Type[NodeListCompositeStatechartNode] = field(
         kw_only=True, default=Parallel
     )
 
@@ -208,8 +210,10 @@ class RepeatNode(ExecutesSequentially):
         return self.create_giskard_executable([self])
 
     def add_to_motion_state_chart(
-        self, parent_goal: NodeListGoal, executable: GiskardExecutable
-    ) -> Goal:
+        self,
+        parent_goal: NodeListCompositeStatechartNode,
+        executable: GiskardExecutable,
+    ) -> CompositeStatechartNode:
         """
         Add a goal below `parent_goal` that runs this node's children over and over.
 
@@ -256,7 +260,7 @@ class TryInOrderNode(ExecutesSequentially):
     Tries all children in order sequentially and fails if all children fail.
     """
 
-    motion_state_chart_template: Type[NodeListGoal] = field(
+    motion_state_chart_template: Type[NodeListCompositeStatechartNode] = field(
         kw_only=True, default=TryInOrder
     )
 
@@ -281,7 +285,7 @@ class TryAllNode(ExecutesInParallel):
     Only raise a failure if all children fail.
     """
 
-    motion_state_chart_template: Type[NodeListGoal] = field(
+    motion_state_chart_template: Type[NodeListCompositeStatechartNode] = field(
         kw_only=True, default=TryAll
     )
 
@@ -312,8 +316,10 @@ class MonitorNode(LanguageNode, ABC):
         return self.create_giskard_executable([self])
 
     def add_to_motion_state_chart(
-        self, parent_goal: NodeListGoal, executable: GiskardExecutable
-    ) -> Goal:
+        self,
+        parent_goal: NodeListCompositeStatechartNode,
+        executable: GiskardExecutable,
+    ) -> CompositeStatechartNode:
         """
         Add a goal below `parent_goal` that runs this node's children next to its
         monitor.
@@ -331,7 +337,7 @@ class MonitorNode(LanguageNode, ABC):
         return monitored_goal
 
     @abstractmethod
-    def create_monitored_goal(self) -> MonitoredGoal:
+    def create_monitored_goal(self) -> MonitoredCompositeStatechartNode:
         """
         :return: An empty goal that runs this node's children under its monitor.
         """
@@ -347,7 +353,7 @@ class CancelMonitor(MonitorNode):
     plan assumed no longer holds.
     """
 
-    def create_monitored_goal(self) -> MonitoredGoal:
+    def create_monitored_goal(self) -> MonitoredCompositeStatechartNode:
         return CancelledWhenTrue(
             monitor=self.monitor,
             name=type(self).__name__,
@@ -366,7 +372,7 @@ class PauseMonitor(MonitorNode):
         give up on the plan instead.
     """
 
-    def create_monitored_goal(self) -> MonitoredGoal:
+    def create_monitored_goal(self) -> MonitoredCompositeStatechartNode:
         return PausedWhileTrue(monitor=self.monitor, name=type(self).__name__)
 
 
@@ -381,7 +387,7 @@ class PauseUntilMonitor(MonitorNode):
         give up on the plan instead.
     """
 
-    def create_monitored_goal(self) -> MonitoredGoal:
+    def create_monitored_goal(self) -> MonitoredCompositeStatechartNode:
         return PausedUntilTrue(monitor=self.monitor, name=type(self).__name__)
 
 

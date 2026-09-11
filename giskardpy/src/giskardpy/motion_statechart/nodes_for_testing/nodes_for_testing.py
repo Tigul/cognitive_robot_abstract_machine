@@ -7,7 +7,7 @@ from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.graph_node import (
     MotionStatechartNode,
-    Goal,
+    CompositeStatechartNode,
     MaintenanceNode,
     NodeArtifacts,
     CancelMotion,
@@ -79,7 +79,7 @@ class ChangeStateOnEvents(MotionStatechartNode):
 
 
 @dataclass(repr=False, eq=False)
-class TestGoal(MaintenanceNode, Goal):
+class TestCompositeStatechartNode(MaintenanceNode, CompositeStatechartNode):
     sub_node1: ConstTrueNode = field(init=False)
     sub_node2: ConstTrueNode = field(init=False)
 
@@ -96,13 +96,13 @@ class TestGoal(MaintenanceNode, Goal):
 
 
 @dataclass(repr=False, eq=False)
-class TestNestedGoal(MaintenanceNode, Goal):
-    sub_node1: TestGoal = field(init=False)
-    sub_node2: TestGoal = field(init=False)
-    inner: TestGoal = field(init=False)
+class TestNestedCompositeStatechartNode(MaintenanceNode, CompositeStatechartNode):
+    sub_node1: TestCompositeStatechartNode = field(init=False)
+    sub_node2: TestCompositeStatechartNode = field(init=False)
+    inner: TestCompositeStatechartNode = field(init=False)
 
     def expand(self, context: MotionStatechartContext) -> None:
-        self.inner = TestGoal(name="inner")
+        self.inner = TestCompositeStatechartNode(name="inner")
         self._add_child_to_motion_statechart(self.inner)
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
@@ -110,9 +110,10 @@ class TestNestedGoal(MaintenanceNode, Goal):
 
 
 @dataclass(repr=False, eq=False)
-class TestRunAfterStop(SelfDecidingNode, Goal):
+class TestRunAfterStop(SelfDecidingNode, CompositeStatechartNode):
     """
-    Goal that tests if a child node runs after the parent node has stopped.
+    Composite statechart node that tests if a child node runs after the parent node has
+    stopped.
 
     Uses a CancelMotion node to raise an exception if the child node runs after the
     parent has stopped.
@@ -146,7 +147,7 @@ class TestRunAfterStop(SelfDecidingNode, Goal):
 
 
 @dataclass(repr=False, eq=False)
-class TestEndBeforeStart(Goal):
+class TestEndBeforeStart(CompositeStatechartNode):
     """
     Test if a child node can end before it was started.
 
@@ -177,7 +178,7 @@ class TestEndBeforeStart(Goal):
 
 
 @dataclass(repr=False, eq=False)
-class TestRunAfterStopFromPause(SelfDecidingNode, Goal):
+class TestRunAfterStopFromPause(SelfDecidingNode, CompositeStatechartNode):
     """
     Test if child node can transition to RUNNING from PAUSED after parent node is DONE.
 
@@ -217,7 +218,7 @@ class TestRunAfterStopFromPause(SelfDecidingNode, Goal):
 
 
 @dataclass(repr=False, eq=False)
-class TestUnpauseUnknownFromParentPause(SelfDecidingNode, Goal):
+class TestUnpauseUnknownFromParentPause(SelfDecidingNode, CompositeStatechartNode):
     """
     Tests if a child node can transition from PAUSED back to RUNNING when
     child.pause_condition is UNKNOWN.
@@ -302,10 +303,10 @@ class NodeObservingGoalReached(MotionStatechartNode):
 
 
 @dataclass(repr=False, eq=False)
-class GoalCuttingOffItsChildAtItsGoal(Goal):
+class CompositeStatechartNodeCuttingOffItsChildAtItsGoal(CompositeStatechartNode):
     """
-    Goal whose child has reached its goal but is never ended on its own terms, so the
-    child is only ever taken down by this goal ending.
+    Composite statechart node whose child has reached its goal but is never ended on its
+    own terms, so the child is only ever taken down by this node ending.
     """
 
     child: ConstTrueNode = field(init=False)
@@ -322,10 +323,10 @@ class GoalCuttingOffItsChildAtItsGoal(Goal):
 
 
 @dataclass(repr=False, eq=False)
-class GoalCuttingOffItsChild(Goal):
+class CompositeStatechartNodeCuttingOffItsChild(CompositeStatechartNode):
     """
-    Goal whose child is short of its goal and is never ended on its own terms, so the
-    child is only ever taken down by this goal ending.
+    Composite statechart node whose child is short of its goal and is never ended on its
+    own terms, so the child is only ever taken down by this node ending.
     """
 
     child: ConstFalseNode = field(init=False)
@@ -342,10 +343,11 @@ class GoalCuttingOffItsChild(Goal):
 
 
 @dataclass(repr=False, eq=False)
-class GoalWithChildInterruptedBySibling(Goal):
+class CompositeStatechartNodeWithChildInterruptedBySibling(CompositeStatechartNode):
     """
-    Goal whose child is interrupted by a sibling on the first tick, so that a caller
-    ending this goal on that same tick makes the two ways of being interrupted compete.
+    Composite statechart node whose child is interrupted by a sibling on the first tick,
+    so that a caller ending this node on that same tick makes the two ways of being
+    interrupted compete.
     """
 
     trigger: ConstTrueNode = field(init=False)
@@ -369,11 +371,11 @@ class GoalWithChildInterruptedBySibling(Goal):
 
 
 @dataclass(repr=False, eq=False)
-class GoalWithChildFailingOnItsOwn(Goal):
+class CompositeStatechartNodeWithChildFailingOnItsOwn(CompositeStatechartNode):
     """
-    Goal whose child declares its own failure on the first tick, so that a caller ending
-    this goal on that same tick makes the child's own verdict compete with being cut
-    off.
+    Composite statechart node whose child declares its own failure on the first tick, so
+    that a caller ending this node on that same tick makes the child's own verdict
+    compete with being cut off.
     """
 
     trigger: ConstTrueNode = field(init=False)
@@ -397,11 +399,11 @@ class GoalWithChildFailingOnItsOwn(Goal):
 
 
 @dataclass(repr=False, eq=False)
-class GoalWithChildSucceedingOnItsOwn(Goal):
+class CompositeStatechartNodeWithChildSucceedingOnItsOwn(CompositeStatechartNode):
     """
-    Goal whose child declares its own success on the first tick, so that a caller ending
-    this goal on that same tick makes the child's own verdict compete with being cut
-    off.
+    Composite statechart node whose child declares its own success on the first tick, so
+    that a caller ending this node on that same tick makes the child's own verdict
+    compete with being cut off.
     """
 
     trigger: ConstTrueNode = field(init=False)
@@ -425,10 +427,11 @@ class GoalWithChildSucceedingOnItsOwn(Goal):
 
 
 @dataclass(repr=False, eq=False)
-class GoalWithChildStartingLate(Goal):
+class CompositeStatechartNodeWithChildStartingLate(CompositeStatechartNode):
     """
-    Goal whose child waits for a delay before it starts, so the child's start is decided
-    while this goal is already running and its ending conditions have a settled value.
+    Composite statechart node whose child waits for a delay before it starts, so the
+    child's start is decided while this node is already running and its ending
+    conditions have a settled value.
     """
 
     delay_in_control_cycles: int = field(default=2, kw_only=True)
@@ -452,10 +455,10 @@ class GoalWithChildStartingLate(Goal):
 
 
 @dataclass(repr=False, eq=False)
-class GoalCuttingOffItsUndecidedChild(Goal):
+class CompositeStatechartNodeCuttingOffItsUndecidedChild(CompositeStatechartNode):
     """
-    Goal whose child never decides what it observes, so this goal ending is the only
-    thing that ever ends it.
+    Composite statechart node whose child never decides what it observes, so this node
+    ending is the only thing that ever ends it.
     """
 
     child: NodeObservingNothingYet = field(init=False)
@@ -472,28 +475,28 @@ class GoalCuttingOffItsUndecidedChild(Goal):
 
 
 @dataclass(repr=False, eq=False)
-class GoalCuttingOffItsGrandchild(Goal):
+class CompositeStatechartNodeCuttingOffItsGrandchild(CompositeStatechartNode):
     """
-    Goal holding another goal, so that ending it reaches a node more than one level
-    below it.
+    Composite statechart node holding another composite statechart node, so that ending
+    it reaches a node more than one level below it.
     """
 
-    inner_goal: GoalCuttingOffItsChild = field(init=False)
+    inner_node: CompositeStatechartNodeCuttingOffItsChild = field(init=False)
     """
-    The goal between this one and the grandchild.
+    The node between this one and the grandchild.
     """
 
     def expand(self, context: MotionStatechartContext) -> None:
-        self.inner_goal = GoalCuttingOffItsChild()
-        self._add_child_to_motion_statechart(self.inner_goal)
+        self.inner_node = CompositeStatechartNodeCuttingOffItsChild()
+        self._add_child_to_motion_statechart(self.inner_node)
 
     @property
     def grandchild(self) -> ConstFalseNode:
         """
-        :return: The node two levels below this goal, which is short of its goal until
-            this goal ends.
+        :return: The node two levels below this node, which is short of its goal until
+            this node ends.
         """
-        return self.inner_goal.child
+        return self.inner_node.child
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar.const_true())

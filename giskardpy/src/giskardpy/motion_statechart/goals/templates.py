@@ -15,7 +15,7 @@ from giskardpy.motion_statechart.data_types import (
 from giskardpy.motion_statechart.exceptions import NodeCannotDecideItselfError
 from giskardpy.motion_statechart.graph_node import (
     CancelMotion,
-    Goal,
+    CompositeStatechartNode,
     MaintenanceNode,
     MotionStatechartNode,
     NodeArtifacts,
@@ -38,7 +38,7 @@ from krrood.symbolic_math.symbolic_math import (
 
 
 @dataclass(repr=False, eq=False)
-class Attempt(SelfDecidingNode, Goal):
+class Attempt(SelfDecidingNode, CompositeStatechartNode):
     """
     Runs a motion that would never end on its own and decides it, one way or the other.
 
@@ -145,9 +145,9 @@ class Attempt(SelfDecidingNode, Goal):
 
 
 @dataclass(repr=False, eq=False)
-class NodeListGoal(Goal):
+class NodeListCompositeStatechartNode(CompositeStatechartNode):
     """
-    A goal that runs the list of nodes it is handed.
+    A composite statechart node that runs the list of nodes it is handed.
 
     The nodes join the motion statechart when :meth:`expand` adds them during
     compilation, so a node handed over before that is serialized once, inside this goal.
@@ -174,7 +174,9 @@ class NodeListGoal(Goal):
 
 
 @dataclass(repr=False, eq=False)
-class GoalOverSelfDecidingNodes(SelfDecidingNode, Goal, ABC):
+class CompositeStatechartNodeOverSelfDecidingNodes(
+    SelfDecidingNode, CompositeStatechartNode, ABC
+):
     """
     Base for the goals that order or choose between children, which only works if each
     child reaches a terminal state by itself.
@@ -238,7 +240,9 @@ class GoalOverSelfDecidingNodes(SelfDecidingNode, Goal, ABC):
 
 
 @dataclass(repr=False, eq=False)
-class Sequence(NodeListGoal, GoalOverSelfDecidingNodes):
+class Sequence(
+    NodeListCompositeStatechartNode, CompositeStatechartNodeOverSelfDecidingNodes
+):
     """
     Runs a list of nodes one after another.
 
@@ -301,7 +305,7 @@ class Sequence(NodeListGoal, GoalOverSelfDecidingNodes):
 
 
 @dataclass(repr=False, eq=False)
-class Parallel(MaintenanceNode, NodeListGoal):
+class Parallel(MaintenanceNode, NodeListCompositeStatechartNode):
     """
     Holds a list of nodes at once until enough of them are at their goals together.
 
@@ -358,7 +362,7 @@ class Parallel(MaintenanceNode, NodeListGoal):
 
 
 @dataclass(repr=False, eq=False)
-class RepeatUntil(GoalOverSelfDecidingNodes):
+class RepeatUntil(CompositeStatechartNodeOverSelfDecidingNodes):
     """
     Runs a task again from the start whenever an attempt at it fails.
 
@@ -514,7 +518,9 @@ class RepeatOnStall(RepeatUntil):
 
 
 @dataclass(repr=False, eq=False)
-class TryAll(NodeListGoal, GoalOverSelfDecidingNodes):
+class TryAll(
+    NodeListCompositeStatechartNode, CompositeStatechartNodeOverSelfDecidingNodes
+):
     """
     Runs a list of alternatives at once and takes the first one that works.
 
@@ -569,7 +575,9 @@ class TryAll(NodeListGoal, GoalOverSelfDecidingNodes):
 
 
 @dataclass(repr=False, eq=False)
-class TryInOrder(NodeListGoal, GoalOverSelfDecidingNodes):
+class TryInOrder(
+    NodeListCompositeStatechartNode, CompositeStatechartNodeOverSelfDecidingNodes
+):
     """
     Tries a list of alternatives one after another, short-circuiting on the first
     success.

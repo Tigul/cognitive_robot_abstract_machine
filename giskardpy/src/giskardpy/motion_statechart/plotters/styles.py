@@ -51,7 +51,7 @@ class NodeDrawingStyle(Enum):
 
     MONITOR = "filled, rounded", "rectangle"
     TASK = "filled, diagonals", "rectangle"
-    GOAL = "filled", "none"
+    COMPOSITE = "filled", "none"
 
     def __init__(self, style: str, shape: str) -> None:
         """

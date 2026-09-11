@@ -31,7 +31,7 @@ from giskardpy.motion_statechart.graph_node import (
     DeserializedNodeTracker,
     MotionStatechartNode,
     TrinaryCondition,
-    Goal,
+    CompositeStatechartNode,
     EndMotion,
     CancelMotion,
     GenericMotionStatechartNode,
@@ -700,8 +700,8 @@ class MotionStatechart(SubclassJSONSerializer):
         # copy nodes in order to make sure index is correct
         for node in self.nodes:
             match node:
-                case Goal():
-                    node_copy = Goal(name=node.name)
+                case CompositeStatechartNode():
+                    node_copy = CompositeStatechartNode(name=node.name)
                 case Task():
                     node_copy = Task(name=node.name)
                 case EndMotion():
@@ -712,8 +712,10 @@ class MotionStatechart(SubclassJSONSerializer):
                     node_copy = MotionStatechartNode(name=node.name)
             motion_statechart_copy.add_node(node_copy)
         # link parent/child
-        for node in self.get_nodes_by_type(Goal):
-            goal_copy: Goal = motion_statechart_copy.get_node_by_index(node.index)
+        for node in self.get_nodes_by_type(CompositeStatechartNode):
+            goal_copy: CompositeStatechartNode = (
+                motion_statechart_copy.get_node_by_index(node.index)
+            )
             for child_node in node.nodes:
                 child_node_copy = motion_statechart_copy.get_node_by_index(
                     child_node.index
@@ -752,7 +754,7 @@ class MotionStatechart(SubclassJSONSerializer):
     @property
     def top_level_nodes(self) -> List[MotionStatechartNode]:
         """
-        :return: All nodes that don't belong to a Goal.
+        :return: All nodes that don't belong to a CompositeStatechartNode.
         """
         return [node for node in self.nodes if node.parent_node is None]
 
@@ -902,7 +904,7 @@ class MotionStatechart(SubclassJSONSerializer):
     ):
         """
         Builds `node`, recursively building the nodes it depends on and, if it is a
-        :class:`Goal`, its children first, then stores the resulting
+        :class:`CompositeStatechartNode`, its children first, then stores the resulting
         :class:`~giskardpy.motion_statechart.graph_node.NodeArtifacts` on the node.
 
         Already-built nodes (tracked via `built_node_indices`) are skipped.
@@ -920,7 +922,7 @@ class MotionStatechart(SubclassJSONSerializer):
             self._build_and_apply_artifacts(
                 dependency, context, built_node_indices, chain
             )
-        if isinstance(node, Goal):
+        if isinstance(node, CompositeStatechartNode):
             for child_node in node.nodes:
                 self._build_and_apply_artifacts(
                     child_node, context, built_node_indices, chain
@@ -1001,25 +1003,25 @@ class MotionStatechart(SubclassJSONSerializer):
         :param context: The build context passed to every goal's expansion.
         """
         expanded_goal_indices: set[int] = set()
-        for goal in self.get_nodes_by_type(Goal):
+        for goal in self.get_nodes_by_type(CompositeStatechartNode):
             self._expand_goal(goal, context, expanded_goal_indices, [])
 
     def _expand_goal(
         self,
-        goal: Goal,
+        goal: CompositeStatechartNode,
         context: MotionStatechartContext,
         expanded_goal_indices: set[int],
         dependency_chain: List[MotionStatechartNode],
     ):
         """
         Expands the goals `goal` depends on, then `goal` itself, then recursively every
-        child of `goal` that is itself a :class:`Goal`.
+        child of `goal` that is itself a :class:`CompositeStatechartNode`.
 
         Already-expanded goals (tracked via `expanded_goal_indices`) are skipped, so a
         goal that several others depend on is still only expanded once.
 
         :param goal: The goal to expand.
-        :param context: The build context passed to :meth:`~giskardpy.motion_statechart.graph_node.Goal.expand`.
+        :param context: The build context passed to :meth:`~giskardpy.motion_statechart.graph_node.CompositeStatechartNode.expand`.
         :param expanded_goal_indices: The indices of goals already expanded, updated in place.
         :param dependency_chain: The goals currently being expanded, used to detect cycles.
         """
@@ -1028,12 +1030,12 @@ class MotionStatechart(SubclassJSONSerializer):
         self._check_no_dependency_cycle(goal, dependency_chain)
         chain = dependency_chain + [goal]
         for dependency in goal.prerequisite_nodes:
-            if isinstance(dependency, Goal):
+            if isinstance(dependency, CompositeStatechartNode):
                 self._expand_goal(dependency, context, expanded_goal_indices, chain)
         expanded_goal_indices.add(goal.index)
         goal.expand(context)
         for child_node in goal.nodes:
-            if isinstance(child_node, Goal):
+            if isinstance(child_node, CompositeStatechartNode):
                 self._expand_goal(child_node, context, expanded_goal_indices, chain)
 
     def combine_constraint_collections_of_nodes(self) -> ConstraintCollection:

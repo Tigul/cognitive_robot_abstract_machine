@@ -13,7 +13,7 @@ from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import ObservationStateValues
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.monitors.templates import (
-    MonitoredGoal,
+    MonitoredCompositeStatechartNode,
     PausedUntilTrue,
     PausedWhileTrue,
     StoppedWhenTrue,
@@ -29,7 +29,9 @@ The observations of a monitored node that has not reached its goal.
 # %% evaluating a template's observation
 
 
-def create_goal(goal_type: type[MonitoredGoal]) -> MonitoredGoal:
+def create_goal(
+    goal_type: type[MonitoredCompositeStatechartNode],
+) -> MonitoredCompositeStatechartNode:
     """
     :param goal_type: The template to instantiate.
     :return: A goal whose monitor and monitored node contribute nothing but their
@@ -42,7 +44,7 @@ def create_goal(goal_type: type[MonitoredGoal]) -> MonitoredGoal:
 
 
 def observation_for(
-    goal: MonitoredGoal,
+    goal: MonitoredCompositeStatechartNode,
     monitored_observation: ObservationStateValues,
     monitor_observation: ObservationStateValues,
 ) -> ObservationStateValues:
@@ -84,7 +86,7 @@ def observation_for(
 @pytest.mark.parametrize("monitored_observation", list(ObservationStateValues))
 @pytest.mark.parametrize("monitor_observation", list(ObservationStateValues))
 def test_pausing_templates_observe_the_monitored_node(
-    goal_type: type[MonitoredGoal],
+    goal_type: type[MonitoredCompositeStatechartNode],
     monitored_observation: ObservationStateValues,
     monitor_observation: ObservationStateValues,
 ) -> None:

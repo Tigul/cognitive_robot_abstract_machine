@@ -18,7 +18,9 @@ from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     ObservationStateValues,
 )
-from giskardpy.motion_statechart.exceptions import GoalWithoutChildrenError
+from giskardpy.motion_statechart.exceptions import (
+    CompositeStatechartNodeWithoutChildrenError,
+)
 from giskardpy.motion_statechart.goals.templates import (
     Attempt,
     Sequence,
@@ -348,7 +350,7 @@ def test_a_try_all_without_nodes_is_rejected():
     msc.add_node(TryAll(nodes=[]))
 
     executor = Executor(MotionStatechartContext(world=World()))
-    with pytest.raises(GoalWithoutChildrenError):
+    with pytest.raises(CompositeStatechartNodeWithoutChildrenError):
         executor.compile(motion_statechart=msc)
 
 
@@ -357,7 +359,7 @@ def test_a_try_in_order_without_nodes_is_rejected():
     msc.add_node(TryInOrder(nodes=[]))
 
     executor = Executor(MotionStatechartContext(world=World()))
-    with pytest.raises(GoalWithoutChildrenError):
+    with pytest.raises(CompositeStatechartNodeWithoutChildrenError):
         executor.compile(motion_statechart=msc)
 
 

@@ -137,16 +137,19 @@ class NodeAlreadyBelongsToDifferentNodeError(NodeInitializationError):
 
 
 @dataclass
-class EndMotionInGoalError(NodeInitializationError):
+class EndMotionInCompositeStatechartNodeError(NodeInitializationError):
     """
-    Raised when a node that ends the motion is added as a child of a goal.
+    Raised when a node that ends the motion is added as a child of a composite
+    statechart node.
     """
 
     def error_message(self) -> str:
-        return "Goals are not allowed to have EndMotion as a child."
+        return (
+            "Composite statechart nodes are not allowed to have EndMotion as a child."
+        )
 
     def suggest_correction(self) -> str:
-        return "Use a different node type or move the EndMotion node outside the Goal."
+        return "Use a different node type or move the EndMotion node outside the CompositeStatechartNode."
 
 
 @dataclass
@@ -227,16 +230,17 @@ class TransitionHasNoVerdictError(MotionStatechartError):
 
 
 @dataclass
-class GoalWithoutChildrenError(NodeInitializationError):
+class CompositeStatechartNodeWithoutChildrenError(NodeInitializationError):
     """
-    Raised when a goal that runs a list of child nodes is built without any.
+    Raised when a composite statechart node that runs a list of child nodes is built
+    without any.
     """
 
     def error_message(self) -> str:
-        return f'Goal "{self.node.unique_name}" was given no child nodes.'
+        return f'CompositeStatechartNode "{self.node.unique_name}" was given no child nodes.'
 
     def suggest_correction(self) -> str:
-        return "Pass at least one node to the goal, or leave the goal out entirely."
+        return "Pass at least one node to it, or leave it out entirely."
 
 
 @dataclass

@@ -18,7 +18,7 @@ from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.graph_node import (
     CancelMotion,
     EndMotion,
-    Goal,
+    CompositeStatechartNode,
     MotionStatechartNode,
     Task,
 )
@@ -84,7 +84,7 @@ def test_motion_state_chart_is_created_once(reach_action_executable):
     )
 
 
-def _nodes_below(goal: Goal) -> List[MotionStatechartNode]:
+def _nodes_below(goal: CompositeStatechartNode) -> List[MotionStatechartNode]:
     """
     :return: Every node held by `goal` or by a goal below it.
     """
@@ -93,7 +93,11 @@ def _nodes_below(goal: Goal) -> List[MotionStatechartNode]:
         for child in goal.nodes
         for descendant in [
             child,
-            *(_nodes_below(child) if isinstance(child, Goal) else []),
+            *(
+                _nodes_below(child)
+                if isinstance(child, CompositeStatechartNode)
+                else []
+            ),
         ]
     ]
 
@@ -132,7 +136,7 @@ def test_parsing_mirrors_the_plan_tree_as_nested_goals(reach_action_executable):
         [parent_goal] = [
             goal
             for goal in root_goal.nodes
-            if isinstance(goal, Goal) and task in goal.nodes
+            if isinstance(goal, CompositeStatechartNode) and task in goal.nodes
         ]
 
 

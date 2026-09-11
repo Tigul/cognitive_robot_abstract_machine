@@ -14,7 +14,7 @@ from giskardpy.motion_statechart.exceptions import (
 )
 from giskardpy.motion_statechart.graph_node import (
     MaintenanceNode,
-    Goal,
+    CompositeStatechartNode,
     NodeArtifacts,
     CancelMotion,
     SelfDecidingNode,
@@ -377,7 +377,7 @@ class SetInitialTemporaryCollisionRules(SelfDecidingNode):
 
 
 @dataclass(eq=False, repr=False)
-class ExternalCollisionAvoidance(Goal):
+class ExternalCollisionAvoidance(CompositeStatechartNode):
     """
     A goal combining an ExternalCollisionDistanceMonitor and an
     ExternalCollisionAvoidanceTask. One pair will be added for all collision groups of
@@ -389,7 +389,7 @@ class ExternalCollisionAvoidance(Goal):
     """
 
     plot_specifications: NodePlotSpec = plot_specification_field(
-        NodePlotSpec.create_collapsed_goal_style
+        NodePlotSpec.create_collapsed_composite_statechart_node_style
     )
 
     robot: AbstractRobot = field(kw_only=True, default=None)
@@ -697,7 +697,7 @@ class _CancelBecauseSelfCollisionViolated(_CancelBecauseCollisionViolated):
 
 
 @dataclass(eq=False, repr=False)
-class SelfCollisionAvoidance(Goal):
+class SelfCollisionAvoidance(CompositeStatechartNode):
     """
     A goal combining a SelfCollisionDistanceMonitor and a SelfCollisionAvoidanceTask.
     One pair will be added for all collision groups of the robot. The task will only be
@@ -709,7 +709,7 @@ class SelfCollisionAvoidance(Goal):
     """
 
     plot_specifications: NodePlotSpec = plot_specification_field(
-        NodePlotSpec.create_collapsed_goal_style
+        NodePlotSpec.create_collapsed_composite_statechart_node_style
     )
 
     robot: AbstractRobot = field(kw_only=True, default=None)

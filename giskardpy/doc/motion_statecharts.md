@@ -12,41 +12,540 @@ Traditional robot motion planning often involves a sequence of fixed waypoints o
 
 ## How Motion Statecharts Solve It
 
-Motion Statecharts address these issues by using a state machine-based approach to motion composition. 
+Motion Statecharts address these issues by using a state machine-based approach to motion composition.
+A Motion Statechart is a graph of **nodes**. Every node runs its own small state machine, and
+the edges of the graph are the **conditions** under which one node's state machine reacts to
+the state of other nodes. All nodes are updated together once per control cycle.
 
-### Key Concepts
+### Node types
 
-A Motion Statechart comprises multiple **nodes**, which may be one of the following
-types:
-- **Task**: A specific, single-purpose segment of the overall motion. These nodes add constraints to the motion problem and monitor their progress. For example, a Cartesian position task will monitor if the distance to the target is below a threshold.
-- **Monitor**: Nodes that observe certain conditions or events without controlling motion. For example, monitoring the distance between the robot’s gripper and a goal point without actively controlling the motion.
-- **Termination Node**: Nodes that signal the end of motion execution upon reaching a specific observation state. For example, a node that terminates the motion when a specific condition is met, such as reaching the final destination. There are two termination nodes, **EndMotion** and **CancelMotion**.
-- **Goal**: Nodes that encapsulate reusable, parameterized designs for Motion Statechart patterns. For example, a combination of monitors and motion tasks to open a door can be encapsulated into a template for
-reuse in different contexts.
+- **Task**: A specific, single-purpose segment of the overall motion. Tasks add constraints to the motion problem and observe whether those constraints are currently satisfied. For example, a Cartesian position task observes whether the distance to its target is below a threshold.
+- **Monitor**: A node that observes a condition without controlling the motion. For example, a monitor watching the distance between the gripper and a goal point, or a counter waiting for a number of control cycles.
+- **CompositeStatechartNode**: A node that contains other nodes and wires their conditions. Composite statechart nodes encapsulate reusable, parameterized patterns, such as [the templates](#templates) that run steps in order or retry a failed motion.
+- **Terminal node**: A node that ends the whole motion. **EndMotion** ends it successfully once it runs and observes True, **CancelMotion** ends it by raising its exception as soon as it runs.
 
+Every node carries two pieces of state:
 
-Every node has two inner state machines:
-- An observation FSM is used to represent whether an observed condition is currently True, False, or "?". For tasks, this state represents the constraint satisfaction status. An explicit "?" state is required for situations in which the state is unknown, for example when the node has never been active.
-- A life cycle FSM is used to determine whether the node is active.
-  - Possible states are :
-    - Not Started: The initial state.
-    - Running: The only active state. The Nodes can updates their observation state and Tasks will cause motions.
-    - Paused: Indicates a temporary inactivity
-    - Stopped: Indicates that the node purpose is done
-  - Every node has life cycle transitions that based on observation state of itself or other nodes. Since "?" is a possible observation state, the transitions use three-values logic:
-    - start: When True, Transition from Not Started -> Running
-    - pause: When True, Transition from Running -> Pause, when not True, transition from Pause -> Running
-    - end: When True, transition from Running or Paused -> Stopped
-    - reset: When True, transition from any State to Not Started.
-    - When multiple transitions are possible, the following priority is used: reset > end > pause > start
+- an **observation**, which says whether what the node observes is currently True, False or Unknown, and
+- a **life cycle state**, which says where the node is in its own execution.
 
-### Benefits
+## Observation state
 
+The observation is a trinary value: **True**, **False** or **Unknown**. For a task it states
+whether its constraints are currently satisfied, for a monitor whether its condition holds.
+Unknown is needed because a node often cannot give an answer, for example before it has
+ever run.
+
+Only a running node observes. The observation is recomputed every control cycle and may
+change in both directions:
+
+| Life cycle state                  | Observation                                              |
+|-----------------------------------|----------------------------------------------------------|
+| NOT_STARTED                       | Unknown                                                  |
+| RUNNING                           | recomputed every control cycle                           |
+| PAUSED                            | frozen at its last value, because the node resumes later |
+| SUCCEEDED, FAILED, INTERRUPTED    | Unknown, because the node never observes again           |
+
+## Life cycle
+
+A node's life cycle has six states. Only RUNNING is active: its constraints influence the
+motion, its observation is recomputed and its `on_tick` callback is called. SUCCEEDED,
+FAILED and INTERRUPTED are **final states**, and together they are the node's **outcome**.
+A node only leaves a final state when it is reset.
+
+```{mermaid}
+flowchart LR
+    entry(( )) --> NS([NOT_STARTED])
+    NS -- start --> R
+    subgraph active ["active"]
+        direction TB
+        R([RUNNING]) -- "pause is True" --> P([PAUSED])
+        P -- "pause is not True" --> R
+    end
+    subgraph ended ["final, left only by reset"]
+        direction TB
+        S([SUCCEEDED])
+        F([FAILED])
+        I([INTERRUPTED])
+    end
+    active -- success --> S
+    active -- fail --> F
+    active -- interrupt --> I
+    ended -- reset --> NS
+    active -- reset --> NS
+
+    classDef notStarted fill:#9CA3AF,stroke:#6B7280,color:#111111
+    classDef running fill:#3B82F6,stroke:#1D4ED8,color:#FFFFFF
+    classDef paused fill:#EAB308,stroke:#A16207,color:#111111
+    classDef succeeded fill:#28A745,stroke:#15803D,color:#FFFFFF
+    classDef failed fill:#EF4444,stroke:#B91C1C,color:#FFFFFF
+    classDef interrupted fill:#F97316,stroke:#C2410C,color:#111111
+    class NS notStarted
+    class R running
+    class P paused
+    class S succeeded
+    class F failed
+    class I interrupted
+```
+
+Each transition is driven by one condition of the node:
+
+| Transition | Condition attribute   | Default | From                          | To          |
+|------------|-----------------------|---------|-------------------------------|-------------|
+| start      | `start_condition`     | True    | NOT_STARTED                   | RUNNING     |
+| pause      | `pause_condition`     | False   | RUNNING (True), PAUSED (not True) | PAUSED, RUNNING |
+| success    | `success_condition`   | False   | RUNNING, PAUSED               | SUCCEEDED   |
+| fail       | `fail_condition`      | False   | RUNNING, PAUSED               | FAILED      |
+| interrupt  | `interrupt_condition` | False   | RUNNING, PAUSED               | INTERRUPTED |
+| reset      | `reset_condition`     | False   | any state                     | NOT_STARTED |
+
+With the defaults a node starts right away and runs until the motion ends.
+
+Conditions are trinary expressions too, but a transition only happens when its condition is
+**True**; Unknown never triggers one. The exception is resuming a paused node, which happens
+as soon as the pause condition is no longer True.
+
+**The condition that ends a node decides its outcome.** What the node observes at that moment
+has no say in it:
+
+- **SUCCEEDED**: the node's success condition held.
+- **FAILED**: the node declared through its fail condition that it cannot continue.
+- **INTERRUPTED**: the node's interrupt condition held, or one of its ancestors ended. Neither
+  is a judgement of the node itself.
+
+### When several conditions hold at once
+
+A node takes exactly one transition per control cycle. If several conditions are True at the
+same time, the first matching one in this order wins:
+
+1. reset condition of the node or any ancestor
+2. the node's own success condition
+3. the node's own fail condition
+4. the node's own interrupt condition, or any success, fail or interrupt condition of an ancestor
+5. pause condition of the node or any ancestor
+6. start condition
+
+The ladder a RUNNING node goes through every control cycle:
+
+```{mermaid}
+flowchart TD
+    A{"reset of the node or<br/>an ancestor is True?"}
+    A -- yes --> NS([NOT_STARTED])
+    A -- no --> B{"own success<br/>is True?"}
+    B -- yes --> S([SUCCEEDED])
+    B -- no --> C{"own fail<br/>is True?"}
+    C -- yes --> F([FAILED])
+    C -- no --> D{"own interrupt is True, or an<br/>ancestor's success, fail or<br/>interrupt is True?"}
+    D -- yes --> I([INTERRUPTED])
+    D -- no --> E{"pause of the node or<br/>an ancestor is True?"}
+    E -- yes --> P([PAUSED])
+    E -- no --> R([RUNNING])
+
+    classDef notStarted fill:#9CA3AF,stroke:#6B7280,color:#111111
+    classDef running fill:#3B82F6,stroke:#1D4ED8,color:#FFFFFF
+    classDef paused fill:#EAB308,stroke:#A16207,color:#111111
+    classDef succeeded fill:#28A745,stroke:#15803D,color:#FFFFFF
+    classDef failed fill:#EF4444,stroke:#B91C1C,color:#FFFFFF
+    classDef interrupted fill:#F97316,stroke:#C2410C,color:#111111
+    class NS notStarted
+    class R running
+    class P paused
+    class S succeeded
+    class F failed
+    class I interrupted
+```
+
+## Reading other nodes in conditions
+
+Conditions are symbolic expressions over the state of other nodes, combined with trinary
+logic (`trinary_logic_and`, `trinary_logic_or`, `trinary_logic_not`). A node offers three
+kinds of variables for this:
+
+- `node.observation_variable`: what the node observes right now. It turns Unknown as soon as
+  the node ends.
+- `node.goal_reached`: whether the node reached its goal. It is the observation while the node
+  has not ended, and follows from its outcome once it has:
+
+  | Life cycle state                | `goal_reached`  |
+  |---------------------------------|-----------------|
+  | NOT_STARTED, RUNNING, PAUSED    | the observation |
+  | SUCCEEDED                       | True            |
+  | FAILED                          | False           |
+  | INTERRUPTED                     | Unknown         |
+
+- **Life cycle predicates** such as `node.is_succeeded`, which answer questions about the life
+  cycle state. Predicates about *where* a node is are always True or False. Predicates about
+  *how* a node ended stay Unknown until it has ended in a way that answers them:
+
+  | Predicate            | NOT_STARTED | RUNNING | PAUSED | SUCCEEDED | FAILED | INTERRUPTED |
+  |----------------------|:-----------:|:-------:|:------:|:---------:|:------:|:-----------:|
+  | `is_not_started`     | True        | False   | False  | False     | False  | False       |
+  | `is_running`         | False       | True    | False  | False     | False  | False       |
+  | `is_paused`          | False       | False   | True   | False     | False  | False       |
+  | `is_terminated`      | False       | False   | False  | True      | True   | True        |
+  | `is_succeeded`       | Unknown     | Unknown | Unknown| True      | False  | Unknown     |
+  | `is_failed`          | Unknown     | Unknown | Unknown| False     | True   | Unknown     |
+  | `is_interrupted`     | Unknown     | Unknown | Unknown| False     | False  | True        |
+  | `is_failed_or_interrupted` | Unknown | Unknown | Unknown | False  | True   | True        |
+
+An observation may change in both directions, while an outcome stays fixed until a reset. A
+condition that has to keep its answer after the node it reads has ended must therefore read
+the outcome, through `goal_reached` or a predicate, rather than the observation:
+
+```{mermaid}
+flowchart LR
+    c1["RUNNING<br/>observes False<br/><b>goal_reached: False</b>"]
+    c2["RUNNING<br/>observes True<br/><b>goal_reached: True</b>"]
+    c3["RUNNING<br/>observes False<br/><b>goal_reached: False</b>"]
+    c4["RUNNING<br/>observes True<br/><b>goal_reached: True</b>"]
+    c5["SUCCEEDED<br/>observes Unknown<br/><b>goal_reached: True</b>"]
+    c6["SUCCEEDED<br/>observes Unknown<br/><b>goal_reached: True</b>"]
+    c1 --> c2 --> c3 --> c4 -- "success condition is True" --> c5 --> c6
+
+    classDef running fill:#3B82F6,stroke:#1D4ED8,color:#FFFFFF
+    classDef succeeded fill:#28A745,stroke:#15803D,color:#FFFFFF
+    class c1,c2,c3,c4 running
+    class c5,c6 succeeded
+```
+
+Conditions are checked when they are set and when the statechart is compiled:
+
+- A condition may only read its own node or a sibling, a node with the same parent
+  (`ConditionScopeError`). A composite statechart node that has to react to its children does so
+  through its own observation, which may read them.
+- A start condition may not read its own node.
+- No condition may read an EndMotion or CancelMotion node, because nothing happens after one
+  of them.
+- Only node variables may appear in a condition.
+
+A node's observation expression may read `goal_reached` and `observation_variable` of other
+nodes, but not a life cycle predicate.
+
+### One control cycle
+
+Every control cycle updates all observations first and all life cycle states second:
+
+```{mermaid}
+sequenceDiagram
+    participant C as Control loop
+    participant O as Observations
+    participant L as Life cycle states
+    C->>O: update
+    Note over O: RUNNING nodes recompute their observation,<br/>PAUSED nodes keep it, all others are Unknown.<br/>Life cycle states are still the ones<br/>the control cycle started with.
+    O->>L: update
+    Note over L: every node takes one transition,<br/>using the new observations.<br/>on_start, on_pause, on_unpause, on_end<br/>and on_reset are called for changed nodes.
+    L->>C: done
+    Note over C: an EndMotion observing True ends the motion,<br/>a CancelMotion observing True raises its exception.
+```
+
+Within the life cycle update, a life cycle predicate reads the state its node reaches in the
+**same** control cycle. A node waiting for another node's outcome, for example with
+`start_condition = previous.is_succeeded`, therefore starts on the control cycle in which that
+outcome is reached. A predicate a node reads about itself is the exception: it reads the state
+the node started the control cycle with. Two nodes that read each other's predicates are
+rejected with a `CyclicPredicateDependencyError`, since neither could be updated first.
+`observation_variable` and `goal_reached` always read the state from the beginning of the
+control cycle.
+
+## Who ends a node
+
+> A node decides when it cannot continue. Its owner decides when it is done.
+
+Failing has no physical consequence, so a node may declare it itself through its fail
+condition. Succeeding does have one: a task that is ended stops being enforced, and the robot
+can then be pulled out of the pose that task had just reached, for example by another task that
+is still running. That is why a task never ends itself on reaching its goal; whoever runs it,
+its **owner**, writes its success and interrupt conditions.
+
+This splits nodes into two kinds:
+
+- **`MaintenanceNode`**: a node whose observation says whether it has reached its goal, but
+  which is only ever ended by its owner. Every `Task` is one, as are monitors watching a
+  threshold (`PoseReached`, `JointPositionReached`, …), counters (`CountSeconds`,
+  `CountControlCycles`), `Parallel` and the monitored composite statechart nodes.
+- **`SelfDecidingNode`**: a node that can be ended without undoing what it did, and therefore
+  ends itself. When the statechart is compiled, every such node gets `goal_reached` added to
+  its success condition, so it succeeds once it observes True. Examples are `Attempt`, the
+  ordering templates and nodes like `SetOdometry`.
+
+`Attempt` is the bridge between the two: it runs a maintenance node and turns it into a node
+that ends itself.
+
+```{mermaid}
+flowchart LR
+    subgraph maintenance ["MaintenanceNode: ended by its owner"]
+        direction TB
+        task(["Task"])
+        monitor(["threshold monitors,<br/>counters"])
+        parallel(["Parallel"])
+        monitored(["PausedWhileTrue, PausedUntilTrue,<br/>StoppedWhenTrue, CancelledWhenTrue"])
+    end
+    subgraph self_deciding ["SelfDecidingNode: ends itself"]
+        direction TB
+        attempt(["Attempt"])
+        ordering(["Sequence, TryInOrder,<br/>TryAll, RepeatUntil"])
+        other(["SetOdometry,<br/>SetSeedConfiguration"])
+    end
+    maintenance -- "wrapped in an Attempt" --> attempt
+    self_deciding -- "usable as a step of" --> ordering
+```
+
+The ordering templates (`Sequence`, `TryInOrder`, `TryAll`, `RepeatUntil`) decide when their
+children start and end, so they check every child they are given:
+
+- A `MaintenanceNode` child is wrapped in an `Attempt` without failure monitors automatically.
+- A child that is neither kind is rejected with a `NodeCannotDecideItselfError`, because
+  nothing would ever move the template past it.
+- A child whose start, pause, success, interrupt or reset condition was already set is
+  rejected with a `ChildTransitionAlreadyWiredError`, because those are the template's to
+  decide. The fail condition is exempt, since a node declares its own failure.
+
+## Templates
+
+The templates in `giskardpy.motion_statechart.goals.templates` and
+`giskardpy.motion_statechart.monitors.templates` are composite statechart nodes that wire
+their children for common patterns. In the diagrams below, an arrow from node A to node B
+labelled `transition: expression` means that B's condition for that transition reads A.
+
+### Attempt
+
+Runs a `task` together with a list of `failure_monitors`, and ends as soon as either the task
+reaches its goal or a monitor gives up on it.
+
+- It observes **True** once the task's `goal_reached` is True, and then succeeds.
+- It observes **False** once any failure monitor's `goal_reached` is True, and then fails.
+  Reaching the goal wins if both happen on the same control cycle.
+- Otherwise it observes Unknown and keeps going.
+
+The task is never ended by the attempt directly. It keeps being enforced until the attempt
+itself ends and interrupts it. Each failure monitor succeeds on the control cycle it fires, so
+`attempt.failure_reasons` can list the monitors that caused a failure after the fact. An empty
+`failure_monitors` list states that the attempt cannot fail.
+
+```{mermaid}
+flowchart LR
+    subgraph attempt ["Attempt"]
+        direction TB
+        task(["task"])
+        m1(["failure monitor 1"])
+        m2(["failure monitor 2"])
+    end
+    obs{"Attempt observes"}
+    task -- "goal_reached is True" --> obs
+    m1 -- "goal_reached is True" --> obs
+    m2 -- "goal_reached is True" --> obs
+    obs -- "True: success" --> S([SUCCEEDED])
+    obs -- "False: fail" --> F([FAILED])
+
+    classDef succeeded fill:#28A745,stroke:#15803D,color:#FFFFFF
+    classDef failed fill:#EF4444,stroke:#B91C1C,color:#FFFFFF
+    class S succeeded
+    class F failed
+```
+
+`RepeatOnStall` builds such an attempt for you, with a `Stalled` monitor as its failure monitor.
+
+### Sequence
+
+Runs its `nodes` one after another. Each step starts once the previous one has succeeded.
+
+- It observes **True** once the last step succeeded.
+- It observes **False** as soon as any step ended without succeeding.
+
+```{mermaid}
+flowchart LR
+    subgraph sequence ["Sequence"]
+        direction LR
+        s1(["step 1"]) -- "start: is_succeeded" --> s2(["step 2"])
+        s2 -- "start: is_succeeded" --> s3(["step 3"])
+    end
+    s3 -. "succeeded" .-> S([Sequence SUCCEEDED])
+    sequence -. "any step ended without succeeding" .-> F([Sequence FAILED])
+
+    classDef succeeded fill:#28A745,stroke:#15803D,color:#FFFFFF
+    classDef failed fill:#EF4444,stroke:#B91C1C,color:#FFFFFF
+    class S succeeded
+    class F failed
+```
+
+### Parallel
+
+Runs all of its `nodes` at the same time and observes **True** while at least
+`minimum_success` of them (all of them by default) have `goal_reached` True on the same
+control cycle.
+
+`Parallel` never ends any of its nodes: ending a task that reached its goal would let a node
+that is still running pull the robot out of that goal again. For the same reason it is a
+`MaintenanceNode` itself and never ends on its own. Put it into an `Attempt`, or hand it to an
+ordering template, which does that for you, to get a step that finishes once all nodes are at
+their goals together.
+
+```{mermaid}
+flowchart LR
+    subgraph parallel ["Parallel"]
+        direction TB
+        n1(["node 1"])
+        n2(["node 2"])
+        n3(["node 3"])
+    end
+    count{"number of nodes with<br/>goal_reached True ≥<br/>minimum_success?"}
+    n1 --> count
+    n2 --> count
+    n3 --> count
+    count -- yes --> T["Parallel observes True"]
+    count -- no --> Fa["Parallel observes False"]
+```
+
+### TryInOrder
+
+Tries its `nodes` one after another and stops at the first one that succeeds. Each
+alternative starts once the previous one ended without succeeding.
+
+- It observes **True** as soon as an alternative succeeded.
+- It observes **False** once every alternative ended without succeeding.
+
+Each alternative decides for itself when to give up, typically as an `Attempt` with failure
+monitors. An alternative without any way to fail keeps the later alternatives from ever
+starting.
+
+```{mermaid}
+flowchart LR
+    subgraph try_in_order ["TryInOrder"]
+        direction LR
+        a1(["alternative 1"]) -- "start: is_failed_or_interrupted" --> a2(["alternative 2"])
+        a2 -- "start: is_failed_or_interrupted" --> a3(["alternative 3"])
+    end
+    try_in_order -. "any alternative succeeded" .-> S([TryInOrder SUCCEEDED])
+    try_in_order -. "every alternative ended<br/>without succeeding" .-> F([TryInOrder FAILED])
+
+    classDef succeeded fill:#28A745,stroke:#15803D,color:#FFFFFF
+    classDef failed fill:#EF4444,stroke:#B91C1C,color:#FFFFFF
+    class S succeeded
+    class F failed
+```
+
+### TryAll
+
+Runs all of its `nodes` at the same time and takes the first one that works.
+
+- It observes **True** as soon as any alternative succeeded. `TryAll` then succeeds and
+  interrupts the alternatives that are still running.
+- It observes **False** once every alternative ended without succeeding.
+
+### RepeatUntil and RepeatOnStall
+
+`RepeatUntil` runs a `task` and resets it whenever it fails, until either the task succeeds or
+`stop_retry_monitor` calls the retrying off.
+
+- The task is wrapped in an attempt if it needs one. Its failure monitors decide what counts
+  as a failed try.
+- A failed try is reset on the next control cycle, as long as the stop monitor has not reached
+  its goal. Resetting a goal resets everything below it, so a composite task starts over as a
+  whole.
+- Once the stop monitor's `goal_reached` is True, the attempt is interrupted and not started
+  again.
+- It observes **True** once the attempt succeeded, and **False** once the stop monitor
+  reached its goal.
+- If an `exception` is given, a `CancelMotion` raises it as soon as the stop monitor observes
+  True.
+
+`RepeatOnStall` is a `RepeatUntil` whose attempts fail once the task has not been approaching
+its goal for `timeout`, measured by a `Stalled` monitor.
+
+```{mermaid}
+flowchart LR
+    subgraph repeat ["RepeatUntil"]
+        direction LR
+        stop(["stop_retry_monitor"])
+        attempt(["attempt"])
+        cancel(["CancelMotion<br/>(only with an exception)"])
+    end
+    stop -- "start: not goal_reached<br/>interrupt: goal_reached" --> attempt
+    attempt -- "reset: is_failed and<br/>stop monitor not at its goal" --> attempt
+    stop -- "start: observation" --> cancel
+```
+
+### Monitored composite statechart nodes
+
+These run a `monitored_node` next to a `monitor`, and let the monitor control the
+monitored node's life cycle. They are maintenance nodes: their observation is the monitored
+node's `goal_reached`.
+
+| Template            | Effect on the monitored node                                            |
+|---------------------|-------------------------------------------------------------------------|
+| `PausedWhileTrue`   | paused while the monitor observes True                                  |
+| `PausedUntilTrue`   | paused while the monitor observes False, so it waits for True           |
+| `StoppedWhenTrue`   | interrupted once the monitor's `goal_reached` is True                   |
+| `CancelledWhenTrue` | like `StoppedWhenTrue`, and a `CancelMotion` ends the whole motion      |
+
+```{mermaid}
+flowchart LR
+    monitor(["monitor"])
+    node(["monitored node"])
+    monitor -- "PausedWhileTrue → pause: observation<br/>PausedUntilTrue → pause: not observation<br/>StoppedWhenTrue → interrupt: goal_reached" --> node
+```
+
+`StoppedWhenTrue` observes True while the monitored node is at its goal or once it succeeded,
+False once the monitor stopped it, and Unknown otherwise.
+
+## Ending the motion
+
+The motion ends once an `EndMotion` node is running and observes True. `EndMotion` observes
+True once the robot has come to rest. A `CancelMotion` node ends the motion by raising its
+exception as soon as it runs.
+
+Both are usually created with factory methods that set their start condition:
+
+| Factory                       | Starts once                                                              |
+|-------------------------------|--------------------------------------------------------------------------|
+| `when_true(node)`             | `node.goal_reached` is True, which remains True after `node` succeeded   |
+| `when_failed(node)`           | `node.is_failed` is True                                                 |
+| `when_all_true(nodes)`        | every node's `goal_reached` is True                                      |
+| `when_any_true(nodes)`        | any node's `goal_reached` is True                                        |
+| `EndMotion.when_false(node)`  | `node` currently observes False; this does not look at its outcome       |
+
+## Example
+
+A plan that first tries a slow approach and falls back to a fast one once the slow one takes
+too long. The counters stand in for real tasks, so the example runs without a robot:
+
+```python
+from giskardpy.motion_statechart.goals.templates import Attempt, Sequence, TryInOrder
+from giskardpy.motion_statechart.graph_node import EndMotion
+from giskardpy.motion_statechart.monitors.payload_monitors import CountControlCycles
+from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+
+motion_statechart = MotionStatechart()
+
+slow_approach = Attempt(
+    name="slow approach",
+    task=CountControlCycles(name="slow", control_cycles=100),
+    failure_monitors=[CountControlCycles(name="timeout", control_cycles=10)],
+)
+fast_approach = CountControlCycles(name="fast approach", control_cycles=5)
+
+plan = Sequence(
+    nodes=[
+        TryInOrder(nodes=[slow_approach, fast_approach]),
+        CountControlCycles(name="retreat", control_cycles=5),
+    ]
+)
+motion_statechart.add_node(plan)
+motion_statechart.add_node(EndMotion.when_true(plan))
+```
+
+After running it:
+
+- `slow_approach` is FAILED, and `slow_approach.failure_reasons` names the `timeout` monitor.
+- `fast_approach` and `retreat` were wrapped in attempts, which both SUCCEEDED.
+- `plan` is SUCCEEDED, and the counters themselves are INTERRUPTED, because their attempts
+  ended them.
+
+## Benefits
 
 - **Modularity**: Individual motions and checks are self-contained nodes that can be reused across different tasks.
 - **Clarity**: The statechart structure provides a clear visual and logical representation of the robot's behavior.
-- **Robustness**: Error handling and environment reactivity are built directly into the motion's structure through monitors and transitions.
+- **Robustness**: Error handling and environment reactivity are built directly into the motion's structure through monitors and transitions, and every node that ended carries an outcome saying how.
 - **Constraint-Based**: The constraints of all currently active tasks influence the motion, ensuring the robot satisfies all requirements simultaneously (e.g., "reach for the cup while keeping the arm away from the table").
-
 
 For practical examples of how to use Motion Statecharts, see the [Basic Motion](examples/basic_motion.md) and [Cartesian Goals](examples/cartesian_goals.md) tutorials.

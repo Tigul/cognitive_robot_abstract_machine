@@ -18,7 +18,11 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     SelfCollisionAvoidance,
 )
 from giskardpy.motion_statechart.graph_node import CancelMotion
-from giskardpy.motion_statechart.graph_node import EndMotion, Goal, Task
+from giskardpy.motion_statechart.graph_node import (
+    EndMotion,
+    CompositeStatechartNode,
+    Task,
+)
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from giskardpy.ros_executor import Ros2Executor
@@ -79,7 +83,7 @@ class GiskardExecutable(Executable):
     the motions and the pre- and postconditions.
     """
 
-    root_node: Goal = field(kw_only=True)
+    root_node: CompositeStatechartNode = field(kw_only=True)
     """
     The goal below which every motion of this executable lives.
     """

@@ -36,8 +36,8 @@ from giskardpy.motion_statechart.error_signals import ErrorSignal
 from giskardpy.motion_statechart.exceptions import (
     ChildTransitionAlreadyWiredError,
     NotInMotionStatechartError,
-    EndMotionInGoalError,
-    GoalWithoutChildrenError,
+    EndMotionInCompositeStatechartNodeError,
+    CompositeStatechartNodeWithoutChildrenError,
     InputNotExpressionError,
     SelfInStartConditionError,
     UnsupportedConditionVariableError,
@@ -1805,28 +1805,28 @@ class SelfDecidingNode(MotionStatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class Goal(MotionStatechartNode):
+class CompositeStatechartNode(MotionStatechartNode):
     nodes: List[MotionStatechartNode] = field(default_factory=list, init=False)
     plot_specifications: NodePlotSpec = plot_specification_field(
-        NodePlotSpec.create_goal_style
+        NodePlotSpec.create_composite_statechart_node_style
     )
 
     def expand(self, context: MotionStatechartContext) -> None:
         """
-        Instantiate child nodes, add them to this goal, and wire their life cycle transition conditions.
+        Instantiate child nodes, add them to this node, and wire their life cycle transition conditions.
         ..warning:: Nodes have not been built yet.
-        :param context: The context that contains data that can be used to expand this goal.
+        :param context: The context that contains data that can be used to expand this node.
         """
 
     def _add_child_to_motion_statechart(self, node: MotionStatechartNode) -> None:
         """
-        Adds a node to this goal and to the motion statechart this goal belongs to.
+        Adds a node to this node and to the motion statechart this node belongs to.
 
-        .. note:: Call this from :meth:`expand`: the children of a goal join the motion
-            statechart while it is compiled, so that before that they are serialized
-            only once, inside their goal.
+        .. note:: Call this from :meth:`expand`: the children of a composite statechart
+            node join the motion statechart while it is compiled, so that before that
+            they are serialized only once, inside their parent.
 
-        :param node: The node to add as a child of this goal.
+        :param node: The node to add as a child of this node.
         """
         self._add_node_sanity_check(node)
         if node not in self.nodes:
@@ -1838,7 +1838,7 @@ class Goal(MotionStatechartNode):
 
     def _add_node_sanity_check(self, node: MotionStatechartNode) -> None:
         """
-        Rejects nodes that may not become a child of this goal.
+        Rejects nodes that may not become a child of this node.
 
         :param node: The node to validate.
         """
@@ -1848,7 +1848,7 @@ class Goal(MotionStatechartNode):
     def _check_caller_wired_no_transitions(self, node: MotionStatechartNode) -> None:
         """
         Rejects a child whose life cycle the caller already decided, which is this
-        goal's to decide.
+        node's to decide.
 
         The fail condition is exempt: a node declares its own failure, and no owner
         supplies one for it.
@@ -1873,15 +1873,15 @@ class Goal(MotionStatechartNode):
 
     def _check_has_children(self) -> None:
         """
-        Rejects a goal that was built without the child nodes it exists to run.
+        Rejects a node that was built without the child nodes it exists to run.
 
         Call this at the start of :meth:`expand`, while :attr:`nodes` still holds only
         what the caller passed.
 
-        :raises GoalWithoutChildrenError: If this goal has no child nodes.
+        :raises CompositeStatechartNodeWithoutChildrenError: If this node has no child nodes.
         """
         if not self.nodes:
-            raise GoalWithoutChildrenError(node=self)
+            raise CompositeStatechartNodeWithoutChildrenError(node=self)
 
     def _check_node_has_no_end_motion(self, node: MotionStatechartNode) -> None:
         """
@@ -1890,12 +1890,12 @@ class Goal(MotionStatechartNode):
         :param node: The node to validate.
         """
         if isinstance(node, EndMotion):
-            raise EndMotionInGoalError(node=self)
+            raise EndMotionInCompositeStatechartNodeError(node=self)
 
     def _check_node_doesnt_belong_to_different_parent(self, node: MotionStatechartNode):
         """
         .. note:: A node held by a *different* motion statechart is allowed, because it is
-            moved into this goal's statechart; only two parents within one statechart are
+            moved into this node's statechart; only two parents within one statechart are
             an error.
         """
         if node.belongs_to_motion_statechart() and node.parent_node != self:
@@ -1905,10 +1905,10 @@ class Goal(MotionStatechartNode):
         self, nodes: List[MotionStatechartNode]
     ) -> None:
         """
-        Adds multiple nodes to this goal and to the motion statechart this goal belongs
+        Adds multiple nodes to this node and to the motion statechart this node belongs
         to, see :meth:`_add_child_to_motion_statechart`.
 
-        :param nodes: The nodes to add as children of this goal.
+        :param nodes: The nodes to add as children of this node.
         """
         for node in nodes:
             self._add_child_to_motion_statechart(node)

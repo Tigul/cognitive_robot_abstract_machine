@@ -31,7 +31,7 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     ConstTrueNode,
-    TestNestedGoal,
+    TestNestedCompositeStatechartNode,
 )
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from krrood.adapters.json_serializer import to_json, from_json
@@ -334,7 +334,7 @@ def test_nested_goals(tmp_path):
         sequence := Sequence(
             [
                 ConstTrueNode(),
-                TestNestedGoal(),
+                TestNestedCompositeStatechartNode(),
             ]
         )
     )
@@ -360,7 +360,7 @@ def test_nested_goals(tmp_path):
 
 def test_collapsed_goal_survives_json_round_trip():
     msc = MotionStatechart()
-    msc.add_node(goal := TestNestedGoal())
+    msc.add_node(goal := TestNestedCompositeStatechartNode())
     goal.plot_specifications.collapse_children = True
     msc.add_node(EndMotion.when_true(goal))
 

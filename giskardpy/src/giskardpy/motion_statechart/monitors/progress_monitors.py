@@ -18,7 +18,7 @@ from giskardpy.motion_statechart.graph_node import (
     MaintenanceNode,
     CancelMotion,
     ConvergingTask,
-    Goal,
+    CompositeStatechartNode,
     MotionStatechartNode,
     NodeArtifacts,
 )
@@ -178,7 +178,7 @@ class AnyMonitoredTaskRunning(MaintenanceNode):
 
 
 @dataclass(eq=False, repr=False)
-class StillProgressing(Goal):
+class StillProgressing(CompositeStatechartNode):
     """
     Turns ``False`` once nothing under :attr:`monitored_node` has approached its goal
     for :attr:`timeout`.
@@ -331,7 +331,7 @@ class StillProgressing(Goal):
         """
         if isinstance(node, ConvergingTask):
             return [node]
-        if not isinstance(node, Goal):
+        if not isinstance(node, CompositeStatechartNode):
             return []
         tasks = []
         for child_node in node.nodes:
