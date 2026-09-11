@@ -464,16 +464,18 @@ def test_the_import_attempt_stays_out_of_the_calling_interpreter(
 
 
 @pytest.fixture
-def reported_staleness(caplog) -> logging.Handler:
+def reported_staleness(caplog, monkeypatch) -> logging.Handler:
     """
     What a build writes about the interfaces it found stale.
 
-    ..note:: The ROS overlay installs a logger class whose loggers do not propagate, so
-        the capturing handler has to be attached to the one under test rather than to
-        the root logger.
+    ..note:: Whether the logger under test propagates to the root logger depends on the
+        logger class the ROS overlay installs, and the capturing handler sits on the root
+        logger already. Attaching it to the logger under test and turning propagation off
+        records every report exactly once, with or without the overlay.
 
     :return: The handler holding the records, empty until a build writes one.
     """
+    monkeypatch.setattr(orm_interfaces.logger, "propagate", False)
     orm_interfaces.logger.addHandler(caplog.handler)
     yield caplog.handler
     orm_interfaces.logger.removeHandler(caplog.handler)
