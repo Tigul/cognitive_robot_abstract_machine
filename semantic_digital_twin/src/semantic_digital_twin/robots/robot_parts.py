@@ -33,7 +33,7 @@ from krrood.utils import get_generic_type_parameters
 from semantic_digital_twin.datastructures.definitions import JointStateType
 from semantic_digital_twin.datastructures.field_of_view import FieldOfView
 from semantic_digital_twin.datastructures.joint_state import JointState
-from semantic_digital_twin.datastructures.laser_reading import LaserReading
+from semantic_digital_twin.datastructures.lidar_reading import LidarReading
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.exceptions import (
     NoJointStateWithType,
@@ -512,28 +512,28 @@ class Camera(Sensor, ABC):
 
 
 @dataclass(eq=False)
-class Laser(Sensor, ABC):
+class Lidar(Sensor, ABC):
     """
-    A laser is a sensor that measures the distance to the surfaces around it along a fan
+    A lidar is a sensor that measures the distance to the surfaces around it along a fan
     of beams.
     """
 
     scan_pattern: ScanPattern = field(kw_only=True)
     """
-    The directions this laser sweeps and the distances it can measure.
+    The directions this lidar sweeps and the distances it can measure.
     """
 
     @property
     def beam_directions(self) -> List[Vector3]:
         """
-        :return: A unit vector along every beam, expressed in this laser's own frame.
+        :return: A unit vector along every beam, expressed in this lidar's own frame.
         """
         return self.scan_pattern.beam_directions_in_frame(self.root)
 
     @abstractmethod
-    def get_laser_reading(self) -> LaserReading:
+    def get_lidar_reading(self) -> LidarReading:
         """
-        :return: The most recent sweep of this laser.
+        :return: The most recent sweep of this lidar.
         """
 
 

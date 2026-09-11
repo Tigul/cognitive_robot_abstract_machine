@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 @dataclass
 class ScanPattern:
     """
-    The directions a laser scanner sweeps and the distances it can measure.
+    The directions a lidar sweeps and the distances it can measure.
 
     The beams lie in the xy plane of the scanner's frame, with the first beam at
     :attr:`minimum_angle` measured from the x axis and rotating about the z axis, as
@@ -75,8 +75,8 @@ class ScanPattern:
         :return: How many beams one scan holds.
         """
         return (
-                int(round((self.maximum_angle - self.minimum_angle) / self.angle_increment))
-                + 1
+            int(round((self.maximum_angle - self.minimum_angle) / self.angle_increment))
+            + 1
         )
 
     @property
@@ -96,7 +96,7 @@ class ScanPattern:
         return np.column_stack((np.cos(angles), np.sin(angles), np.zeros_like(angles)))
 
     def beam_directions_in_frame(
-            self, reference_frame: Optional[KinematicStructureEntity]
+        self, reference_frame: Optional[KinematicStructureEntity]
     ) -> List[Vector3]:
         """
         :param reference_frame: The frame the returned vectors are expressed in.

@@ -14,7 +14,7 @@ from semantic_digital_twin.adapters.ros.msg_converter import (
     InputType,
     OutputType,
 )
-from semantic_digital_twin.datastructures.laser_reading import LaserReading
+from semantic_digital_twin.datastructures.lidar_reading import LidarReading
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -260,10 +260,10 @@ class MeshMarkerToSemDTConverter(Ros2ToSemDTConverter[Marker, Mesh]):
 
 
 @dataclass
-class LaserScanToSemDTConverter(Ros2ToSemDTConverter[LaserScan, LaserReading]):
+class LaserScanToSemDTConverter(Ros2ToSemDTConverter[LaserScan, LidarReading]):
 
     @classmethod
-    def convert(cls, data: LaserScan, world: World) -> LaserReading:
+    def convert(cls, data: LaserScan, world: World) -> LidarReading:
         root = world.get_kinematic_structure_entity_by_name(data.header.frame_id)
         scan_pattern = ScanPattern(
             minimum_angle=data.angle_min,
@@ -277,7 +277,7 @@ class LaserScanToSemDTConverter(Ros2ToSemDTConverter[LaserScan, LaserReading]):
                 beam_count=scan_pattern.beam_count,
                 range_count=len(data.ranges),
             )
-        return LaserReading(
+        return LidarReading(
             direction=scan_pattern.beam_directions_in_frame(root),
             distance=[float(measurement) for measurement in data.ranges],
         )

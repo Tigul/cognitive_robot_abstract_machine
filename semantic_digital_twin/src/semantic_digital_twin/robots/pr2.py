@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Self, List
 
 from krrood.ormatic.utils import classproperty
-from semantic_digital_twin.adapters.sensors.lidar import SimulatedLaser
+from semantic_digital_twin.adapters.sensors.lidar import SimulatedLidar
 from semantic_digital_twin.collision_checking.collision_matrix import (
     MaxAvoidedCollisionsOverride,
 )
@@ -27,7 +27,7 @@ from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasNeck,
-    HasLaser,
+    HasLidar,
     HasLeftRightArm,
     HasTorso,
     HasMobileBase,
@@ -115,7 +115,7 @@ class PR2KinectV1(Camera):
 
 
 @dataclass(eq=False)
-class PR2BaseLaser(SimulatedLaser):
+class PR2BaseLidar(SimulatedLidar):
     """
     The Hokuyo scanner sweeping the floor in front of the PR2's base.
     """
@@ -491,7 +491,7 @@ class PR2Torso(Torso, HasLeftRightArm[PR2LeftArm, PR2RightArm], HasNeck[PR2Neck]
 
 
 @dataclass(eq=False)
-class PR2MobileBase(MobileBase[OmniDrive], HasTorso[PR2Torso], HasLaser[PR2BaseLaser]):
+class PR2MobileBase(MobileBase[OmniDrive], HasTorso[PR2Torso], HasLidar[PR2BaseLidar]):
 
     @classproperty
     def forward_axis(cls) -> Vector3:

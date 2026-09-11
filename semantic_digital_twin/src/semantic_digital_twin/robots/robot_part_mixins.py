@@ -18,7 +18,7 @@ from krrood.patterns.subclass_safe_generic import (
     SubClassSafeGeneric,
 )
 from krrood.utils import get_generic_type_parameters
-from semantic_digital_twin.datastructures.laser_reading import LaserReading
+from semantic_digital_twin.datastructures.lidar_reading import LidarReading
 from semantic_digital_twin.reasoning.predicates import LeftOf, RightOf
 
 logger = logging.getLogger("semantic_digital_twin")
@@ -39,7 +39,7 @@ TGenericRightFinger = TypeVar("TGenericRightFinger")
 TGenericFingers = TypeVarTuple("TGenericFingers")
 TGenericArms = TypeVarTuple("TGenericArms")
 TGenericSensors = TypeVarTuple("TGenericSensors")
-TGenericLaser = TypeVar("TGenericLaser")
+TGenericLidar = TypeVar("TGenericLidar")
 
 
 @dataclass(eq=False)
@@ -107,7 +107,7 @@ class HasFingers(
         list.
         """
         assert (
-                len(self.fingers) >= 3
+            len(self.fingers) >= 3
         ), f"Expected at least 3 fingers, got {len(self.fingers)}. If this RobotPart is supposed to only have two use HasTwoFingers instead."
 
     @property
@@ -135,7 +135,7 @@ class HasTwoFingers(
 
     def validate(self):
         assert (
-                len(self.fingers) == 2
+            len(self.fingers) == 2
         ), f"Expected exactly 2 fingers, got {len(self.fingers)}"
 
     @property
@@ -200,7 +200,7 @@ class HasArms(Generic[Unpack[TGenericArms]], SubClassSafeGeneric, RobotPartMixin
 
     def validate(self):
         assert (
-                len(self.arms) > 2
+            len(self.arms) > 2
         ), f"Expected at least three arms, got {len(self.arms)}. If your robot only has one arm, use HasOneArm instead. If it has two arms, consider using HasLeftRightArm instead."
 
 
@@ -247,7 +247,7 @@ class HasLeftRightArm(
         return self._assign_left_right_arms(RightOf)
 
     def _assign_left_right_arms(
-            self, relation: Type[Union[LeftOf, RightOf]]
+        self, relation: Type[Union[LeftOf, RightOf]]
     ) -> Union[TGenericLeftArm, TGenericRightArm]:
         """
         Assigns the left and right arms based on their position relative to the robot's
@@ -258,7 +258,7 @@ class HasLeftRightArm(
         :return: The arm that is on the left or right side of the robot.
         """
         assert (
-                len(self.arms) == 2
+            len(self.arms) == 2
         ), f"Must have exactly two arms to specify left and right arm, but found {len(self.arms)}."
         pov = self.root.global_transform
         [first_arm, second_arm] = self.arms
@@ -325,21 +325,21 @@ class HasNeck(Generic[TGenericNeck], SubClassSafeGeneric, RobotPartMixin, ABC):
 
 
 @dataclass(eq=False)
-class HasLaser(Generic[TGenericLaser], SubClassSafeGeneric, RobotPartMixin, ABC):
+class HasLidar(Generic[TGenericLidar], SubClassSafeGeneric, RobotPartMixin, ABC):
     """
-    Mixin class for robots or robot parts that have a laser as their direct child.
+    Mixin class for robots or robot parts that have a lidar as their direct child.
     """
 
-    laser: TGenericLaser = field(default=None, kw_only=True)
+    lidar: TGenericLidar = field(default=None, kw_only=True)
     """
-    The laser attached to the robot part.
+    The lidar attached to the robot part.
     """
 
     def validate(self):
-        assert self.laser is not None, "Expected laser, got None"
+        assert self.lidar is not None, "Expected lidar, got None"
 
-    def get_laser_reading(self) -> LaserReading:
+    def get_lidar_reading(self) -> LidarReading:
         """
-        :return: The most recent sweep of the attached laser.
+        :return: The most recent sweep of the attached lidar.
         """
-        return self.laser.get_laser_reading()
+        return self.lidar.get_lidar_reading()

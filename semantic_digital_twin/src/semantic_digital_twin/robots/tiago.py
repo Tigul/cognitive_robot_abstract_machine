@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Self, List
 
 from krrood.ormatic.utils import classproperty
-from semantic_digital_twin.adapters.sensors.lidar import SimulatedLaser
+from semantic_digital_twin.adapters.sensors.lidar import SimulatedLidar
 from semantic_digital_twin.collision_checking.collision_rules import (
     AvoidExternalCollisions,
     AvoidSelfCollisions,
@@ -26,7 +26,7 @@ from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.robots.robot_part_mixins import (
-    HasLaser,
+    HasLidar,
     HasLeftRightArm,
     HasMobileBase,
     HasNeck,
@@ -475,7 +475,7 @@ class TiagoTorso(
 
 
 @dataclass(eq=False)
-class TiagoBaseLaser(SimulatedLaser):
+class TiagoBaseLidar(SimulatedLidar):
     """
     The SICK TIM551 scanner sweeping the floor in front of the Tiago's base.
 
@@ -505,7 +505,7 @@ class TiagoBaseLaser(SimulatedLaser):
 class TiagoMobileBase(
     MobileBase[DifferentialDrive],
     HasTorso[TiagoTorso],
-    HasLaser[TiagoBaseLaser],
+    HasLidar[TiagoBaseLidar],
 ):
 
     @classproperty

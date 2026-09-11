@@ -6,7 +6,7 @@ import pytest
 
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasFingers,
-    HasLaser,
+    HasLidar,
     HasTorso,
     HasTwoFingers,
 )
@@ -39,9 +39,7 @@ class OpposingFinger(MountedPart):
 
 
 @dataclass(eq=False)
-class PartCombiningIndependentMixins(
-    HasTorso[MountedPart], HasLaser[MountedPart]
-):
+class PartCombiningIndependentMixins(HasTorso[MountedPart], HasLidar[MountedPart]):
     """
     A part whose two mixins are unrelated, so neither one's assumptions replace the
     other's.
@@ -67,9 +65,7 @@ def test_every_independent_mixin_is_checked():
 
 
 def test_a_part_satisfying_every_independent_mixin_passes():
-    part = PartCombiningIndependentMixins(
-        torso=MountedPart(), laser=MountedPart()
-    )
+    part = PartCombiningIndependentMixins(torso=MountedPart(), lidar=MountedPart())
 
     part.validate_assumptions()
 

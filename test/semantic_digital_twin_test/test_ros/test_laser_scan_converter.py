@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 from sensor_msgs.msg import LaserScan
 
-from semantic_digital_twin.adapters.ros.laser import SubscribedLaser
+from semantic_digital_twin.adapters.ros.lidar import SubscribedLidar
 from semantic_digital_twin.adapters.ros.msg_converter import (
     LaserScanBeamCountMismatch,
     Ros2ToSemDTConverter,
@@ -36,7 +36,7 @@ DECLARED_PATTERN = ScanPattern(
     maximum_range=5.0,
 )
 """
-The pattern a laser is built with, chosen to differ from the one :func:`laser_scan`
+The pattern a lidar is built with, chosen to differ from the one :func:`laser_scan`
 declares.
 """
 
@@ -115,15 +115,15 @@ def test_converter_is_found_by_the_registry(world_with_laser_body):
     assert Ros2ToSemDTConverter.get_to_converter(scan) is LaserScanToSemDTConverter
 
 
-# %% subscribed laser
+# %% subscribed lidar
 
 
-def subscribed_laser(node, world: World) -> SubscribedLaser:
+def subscribed_lidar(node, world: World) -> SubscribedLidar:
     """
-    :return: A laser on the world's root body, listening on ``/scan`` and sweeping
+    :return: A lidar on the world's root body, listening on ``/scan`` and sweeping
         :data:`DECLARED_PATTERN` until a scan arrives.
     """
-    return SubscribedLaser(
+    return SubscribedLidar(
         root=world.root,
         scan_pattern=DECLARED_PATTERN,
         node=node,
@@ -131,15 +131,15 @@ def subscribed_laser(node, world: World) -> SubscribedLaser:
     )
 
 
-def test_subscribed_laser_reports_the_reading_of_its_latest_scan(
+def test_subscribed_lidar_reports_the_reading_of_its_latest_scan(
     rclpy_node, world_with_laser_body
 ):
     scan = laser_scan()
-    laser = subscribed_laser(rclpy_node, world_with_laser_body)
-    laser.store_scan(scan)
+    lidar = subscribed_lidar(rclpy_node, world_with_laser_body)
+    lidar.store_scan(scan)
 
     expected = LaserScanToSemDTConverter.convert(scan, world_with_laser_body)
-    reading = laser.get_laser_reading()
+    reading = lidar.get_lidar_reading()
 
     assert reading.distance == expected.distance
     assert [direction.to_np().tolist() for direction in reading.direction] == [
@@ -147,15 +147,15 @@ def test_subscribed_laser_reports_the_reading_of_its_latest_scan(
     ]
 
 
-def test_subscribed_laser_takes_its_scan_pattern_from_its_latest_scan(
+def test_subscribed_lidar_takes_its_scan_pattern_from_its_latest_scan(
     rclpy_node, world_with_laser_body
 ):
     scan = laser_scan()
-    laser = subscribed_laser(rclpy_node, world_with_laser_body)
+    lidar = subscribed_lidar(rclpy_node, world_with_laser_body)
 
-    laser.store_scan(scan)
+    lidar.store_scan(scan)
 
-    assert laser.scan_pattern == ScanPattern(
+    assert lidar.scan_pattern == ScanPattern(
         minimum_angle=scan.angle_min,
         maximum_angle=scan.angle_max,
         angle_increment=scan.angle_increment,
@@ -164,27 +164,27 @@ def test_subscribed_laser_takes_its_scan_pattern_from_its_latest_scan(
     )
 
 
-def test_subscribed_laser_sweeps_its_declared_pattern_until_a_scan_arrives(
+def test_subscribed_lidar_sweeps_its_declared_pattern_until_a_scan_arrives(
     rclpy_node, world_with_laser_body
 ):
-    laser = subscribed_laser(rclpy_node, world_with_laser_body)
+    lidar = subscribed_lidar(rclpy_node, world_with_laser_body)
 
-    assert laser.scan_pattern == DECLARED_PATTERN
+    assert lidar.scan_pattern == DECLARED_PATTERN
 
 
-def test_subscribed_laser_without_a_scan_cannot_be_read(
+def test_subscribed_lidar_without_a_scan_cannot_be_read(
     rclpy_node, world_with_laser_body
 ):
-    laser = subscribed_laser(rclpy_node, world_with_laser_body)
+    lidar = subscribed_lidar(rclpy_node, world_with_laser_body)
 
     with pytest.raises(NoLaserScanReceived):
-        laser.get_laser_reading()
+        lidar.get_lidar_reading()
 
 
-def test_a_subscribed_laser_cannot_be_set_up_from_a_robot_description(
+def test_a_subscribed_lidar_cannot_be_set_up_from_a_robot_description(
     world_with_laser_body,
 ):
     with pytest.raises(UselessConceptError):
-        SubscribedLaser.setup_default_configuration_in_world_below_robot_root(
+        SubscribedLidar.setup_default_configuration_in_world_below_robot_root(
             world_with_laser_body.root
         )

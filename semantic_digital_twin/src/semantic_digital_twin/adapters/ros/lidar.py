@@ -11,22 +11,22 @@ from semantic_digital_twin.adapters.ros.ros2_to_semdt_converters import (
     LaserScanToSemDTConverter,
 )
 from semantic_digital_twin.datastructures.joint_state import JointState
-from semantic_digital_twin.datastructures.laser_reading import LaserReading
+from semantic_digital_twin.datastructures.lidar_reading import LidarReading
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.exceptions import NoLaserScanReceived, UselessConceptError
-from semantic_digital_twin.robots.robot_parts import Laser
+from semantic_digital_twin.robots.robot_parts import Lidar
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
 
 
 @dataclass(eq=False)
-class SubscribedLaser(Laser):
+class SubscribedLidar(Lidar):
     """
-    A laser that reports what a real scanner publishes on a ROS 2 topic.
+    A lidar that reports what a real scanner publishes on a ROS 2 topic.
 
     The scanner itself decides what it sweeps, so a received scan replaces the pattern
-    this laser was built with.
+    this lidar was built with.
     """
 
     node: Node = field(kw_only=True)
@@ -63,13 +63,13 @@ class SubscribedLaser(Laser):
         cls, robot_root: KinematicStructureEntity
     ) -> Self:
         """
-        A subscribed laser needs the node and topic its scans arrive on, which a robot
+        A subscribed lidar needs the node and topic its scans arrive on, which a robot
         description does not carry.
 
         :raises UselessConceptError: Always.
         """
         raise UselessConceptError(
-            reason="A SubscribedLaser needs the node and topic its scans arrive on, which a robot description does not carry"
+            reason="A SubscribedLidar needs the node and topic its scans arrive on, which a robot description does not carry"
         )
 
     def setup_hardware_interfaces(self):
@@ -80,7 +80,7 @@ class SubscribedLaser(Laser):
 
     def store_scan(self, scan: LaserScan) -> None:
         """
-        Keeps a received scan as the one this laser reports, and adopts the pattern it
+        Keeps a received scan as the one this lidar reports, and adopts the pattern it
         was taken with.
 
         :param scan: The scan that was received.
@@ -104,5 +104,5 @@ class SubscribedLaser(Laser):
             raise NoLaserScanReceived(self.topic_name)
         return self.latest_scan
 
-    def get_laser_reading(self) -> LaserReading:
+    def get_lidar_reading(self) -> LidarReading:
         return LaserScanToSemDTConverter.convert(self.received_scan, self.root._world)

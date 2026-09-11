@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Self, List
 
 from krrood.ormatic.utils import classproperty
-from semantic_digital_twin.adapters.sensors.lidar import SimulatedLaser
+from semantic_digital_twin.adapters.sensors.lidar import SimulatedLidar
 from semantic_digital_twin.collision_checking.collision_matrix import (
     MaxAvoidedCollisionsOverride,
 )
@@ -29,7 +29,7 @@ from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasNeck,
-    HasLaser,
+    HasLidar,
     HasOneArm,
     HasTorso,
     HasMobileBase,
@@ -414,7 +414,7 @@ class HSRBTorso(Torso, HasOneArm[HSRBArm], HasNeck[HSRBNeck]):
 
 
 @dataclass(eq=False)
-class HSRBBaseLaser(SimulatedLaser):
+class HSRBBaseLidar(SimulatedLidar):
     """
     The Hokuyo scanner sweeping the floor around the HSRB's base.
     """
@@ -439,7 +439,7 @@ class HSRBBaseLaser(SimulatedLaser):
 
 @dataclass(eq=False)
 class HSRBMobileBase(
-    MobileBase[OmniDrive], HasTorso[HSRBTorso], HasLaser[HSRBBaseLaser]
+    MobileBase[OmniDrive], HasTorso[HSRBTorso], HasLidar[HSRBBaseLidar]
 ):
 
     @classproperty

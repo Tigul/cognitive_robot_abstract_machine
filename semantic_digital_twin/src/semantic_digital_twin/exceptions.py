@@ -1160,12 +1160,12 @@ class MissingDefaultCameraError(UsageError):
 @dataclass
 class NoLaserScanReceived(UsageError):
     """
-    Raised when reading a laser that has not received a scan yet.
+    Raised when reading a lidar that has not received a scan yet.
     """
 
     topic_name: str
     """
-    The topic the laser is waiting for a scan on.
+    The topic the lidar is waiting for a scan on.
     """
 
     def error_message(self) -> str:
