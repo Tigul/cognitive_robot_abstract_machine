@@ -186,7 +186,7 @@ def test_pause_monitor_pauses_the_children_goal(immutable_model_world, rclpy_nod
     assert type(monitored_goal) is PausedWhileTrue
     assert monitored_goal.nodes == [monitor, monitored_goal.monitored_node]
     assert monitored_goal.monitored_node.pause_condition.free_variables() == [
-        monitor.observation_variable
+        monitor.observes_true
     ]
 
 
@@ -209,7 +209,7 @@ def test_pause_until_monitor_pauses_the_children_goal(
     assert type(monitored_goal) is PausedUntilTrue
     assert monitored_goal.nodes == [monitor, monitored_goal.monitored_node]
     assert monitored_goal.monitored_node.pause_condition.free_variables() == [
-        monitor.observation_variable
+        monitor.observes_true
     ]
 
 
@@ -228,7 +228,7 @@ def test_cancel_monitor_ends_the_children_goal(immutable_model_world, rclpy_node
     # The children's goal already ends itself once it succeeds, so the monitor firing is
     # a reason to interrupt it on top of that. It is read through its last observation,
     # which outlasts a monitor that ends itself on firing.
-    assert monitor.last_observation in (
+    assert monitor.last_observed_true in (
         monitored_goal.monitored_node.interrupt_condition.free_variables()
     )
 
@@ -253,7 +253,7 @@ def test_cancel_monitor_ends_the_motion_when_the_monitor_fires(
         node for node in monitored_goal.nodes if isinstance(node, CancelMotion)
     ]
     assert cancelled.exception == monitored_goal.exception
-    assert cancelled.start_condition.free_variables() == [monitor.last_observation]
+    assert cancelled.start_condition.free_variables() == [monitor.last_observed_true]
 
 
 def test_monitored_subtree_nested_in_a_sequence_compiles(
@@ -306,7 +306,7 @@ def test_repeat_node_wraps_its_children_in_a_repeating_goal(
     assert counter.target == 3
     assert counter is loop.stop_retry_monitor
     [exhausted] = [node for node in loop.nodes if isinstance(node, CancelMotion)]
-    assert exhausted.start_condition.free_variables() == [counter.last_observation]
+    assert exhausted.start_condition.free_variables() == [counter.last_observed_true]
 
 
 def test_repeat_node_with_failure_monitor_gives_the_stall_template_one_attempt(

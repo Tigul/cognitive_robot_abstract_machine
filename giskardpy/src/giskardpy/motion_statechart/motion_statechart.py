@@ -18,6 +18,8 @@ from giskardpy.motion_statechart.data_types import (
     TransitionKind,
     LifeCycleValues,
     LifeCyclePredicate,
+    ObservationPredicate,
+    ObservationReading,
     ObservationStateValues,
     SettledLifeCyclePredicate,
 )
@@ -33,7 +35,7 @@ from giskardpy.motion_statechart.graph_node import (
     ConditionVariable,
     DeserializedNodeTracker,
     MotionStatechartNode,
-    TrinaryCondition,
+    TransitionCondition,
     CompositeStatechartNode,
     EndMotion,
     CancelMotion,
@@ -42,6 +44,8 @@ from giskardpy.motion_statechart.graph_node import (
     LifeCycleVariable,
     LifeCyclePredicateVariable,
     SettledLifeCyclePredicateVariable,
+    DerivedConditionVariable,
+    ObservationPredicateVariable,
     LastObservationVariable,
     NodeStateVariable,
     DebugExpression,
@@ -331,7 +335,7 @@ class ObservationState(State):
                 b_result_cases=[
                     (
                         int(LifeCycleValues.RUNNING),
-                        SettledLifeCyclePredicateVariable.substitute_in(
+                        DerivedConditionVariable.substitute_in(
                             node._observation_expression
                         ),
                     ),
@@ -501,7 +505,7 @@ class NextLifeCycle:
         :param expression: The expression to replace them in.
         :return:`expression` with every life cycle predicate replaced.
         """
-        expression = SettledLifeCyclePredicateVariable.substitute_in(expression)
+        expression = DerivedConditionVariable.substitute_in(expression)
         variables = [
             variable
             for variable in expression.free_variables()
@@ -656,14 +660,15 @@ class MotionStatechart(SubclassJSONSerializer):
     state reports TrinaryUnknown, while a paused node keeps its last observation because
     it resumes and observes again.
     An observation is re-evaluated every tick and may change in both directions, whereas a
-    verdict is latched. A condition may read either: the observation state of a node
-    through its observation variable, or its life cycle state through a predicate such as
-    `node.is_failed`. The observation behind the observation variable is gone once that
-    node ends, so a condition that outlives the node it reads has to read something that
-    outlasts it: `node.last_observation` keeps the observation the node took most
-    recently, whatever its verdict, and a predicate keeps the verdict. A predicate reads
-    the life cycle state its node reaches at the end of the current tick, so a node
-    waiting on another node's verdict starts on the tick that verdict is reached.
+    verdict is latched. A condition is two-valued and may read either through a
+    predicate: the observation state of a node through `node.observes_true` or
+    `node.observes_false`, or its life cycle state through e.g. `node.is_failed`. What a
+    node observes is gone once that node ends, so a condition that outlives the node it
+    reads has to read something that outlasts it: `node.last_observed_true` keeps whether
+    the observation the node took most recently was True, whatever its verdict, and a
+    life cycle predicate keeps the verdict. A life cycle predicate reads the life cycle
+    state its node reaches at the end of the current tick, so a node waiting on another
+    node's verdict starts on the tick that verdict is reached.
     Nodes are connected with edges, or transitions.
     There are 6 types of transitions:
         - start condition: If True, the node transitions from NOT_STARTED to RUNNING.
@@ -831,7 +836,7 @@ class MotionStatechart(SubclassJSONSerializer):
         return [node for node in self.nodes if node.parent_node is None]
 
     @property
-    def edges(self) -> List[TrinaryCondition]:
+    def edges(self) -> List[TransitionCondition]:
         """
         The edges of the underlying graph.
 
@@ -842,7 +847,7 @@ class MotionStatechart(SubclassJSONSerializer):
         return self.rx_graph.edges()
 
     @property
-    def unique_edges(self) -> List[TrinaryCondition]:
+    def unique_edges(self) -> List[TransitionCondition]:
         """
         :return: The edges of the motion statechart, without duplicates.
         """
@@ -881,14 +886,11 @@ class MotionStatechart(SubclassJSONSerializer):
         resolved back into an expression. Reading a node's predicates here also creates
         them, which is what makes a deserialized condition able to refer to one.
 
-        :return: The observation variable, the last observation variable and every life
-            cycle predicate, settled ones included, of every node.
+        :return: Every observation predicate and every life cycle predicate, settled
+            ones included, of every node.
         """
-        variables: List[NodeStateVariable] = list(
-            self.observation_state.observation_symbols()
-        )
+        variables: List[NodeStateVariable] = []
         for node in self.nodes:
-            variables.append(node.last_observation)
             variables.extend(
                 node._life_cycle_predicate(predicate)
                 for predicate in LifeCyclePredicate
@@ -896,6 +898,10 @@ class MotionStatechart(SubclassJSONSerializer):
             variables.extend(
                 node._settled_life_cycle_predicate(predicate)
                 for predicate in SettledLifeCyclePredicate
+            )
+            variables.extend(
+                node._observation_predicate(predicate)
+                for predicate in ObservationPredicate
             )
         return variables
 
@@ -929,7 +935,7 @@ class MotionStatechart(SubclassJSONSerializer):
                 self._validate_condition_scope(node, condition)
 
     def _validate_condition_scope(
-        self, owner: MotionStatechartNode, condition: TrinaryCondition
+        self, owner: MotionStatechartNode, condition: TransitionCondition
     ):
         """
         Checks that `condition` only depends on `owner` itself or siblings of `owner`.
@@ -958,7 +964,7 @@ class MotionStatechart(SubclassJSONSerializer):
 
     @staticmethod
     def _validate_child_is_read_settled(
-        condition: TrinaryCondition, variable: ConditionVariable
+        condition: TransitionCondition, variable: ConditionVariable
     ) -> None:
         """
         Checks that a condition reads a direct child through state that child entered
@@ -974,8 +980,11 @@ class MotionStatechart(SubclassJSONSerializer):
         :raises ConditionScopeError: If `variable` is any other state a child only settles
             during the control cycle.
         """
-        if isinstance(
-            variable, (LastObservationVariable, SettledLifeCyclePredicateVariable)
+        if isinstance(variable, SettledLifeCyclePredicateVariable):
+            return
+        if (
+            isinstance(variable, ObservationPredicateVariable)
+            and variable.predicate.reading is ObservationReading.LAST
         ):
             return
         if isinstance(variable, LifeCyclePredicateVariable):
@@ -991,7 +1000,7 @@ class MotionStatechart(SubclassJSONSerializer):
         )
 
     def _create_edge_for_condition(
-        self, owner: MotionStatechartNode, condition: TrinaryCondition
+        self, owner: MotionStatechartNode, condition: TransitionCondition
     ):
         """
         Adds an edge from `owner` to every node `condition` depends on.
@@ -1109,8 +1118,8 @@ class MotionStatechart(SubclassJSONSerializer):
         were checking them.
         """
         for node in self.get_nodes_by_type(SelfDecidingNode):
-            node.success_condition = sm.trinary_logic_or(
-                node.success_condition, node.observation_variable
+            node.success_condition = sm.logic_or(
+                node.success_condition, node.observes_true
             )
 
     def _fail_self_failing_nodes_observing_false(self):
@@ -1121,9 +1130,7 @@ class MotionStatechart(SubclassJSONSerializer):
         Runs once every goal has expanded, so no template can wire this away.
         """
         for node in self.get_nodes_by_type(SelfFailingNode):
-            node.fail_condition = sm.trinary_logic_or(
-                node.fail_condition, sm.trinary_logic_not(node.observation_variable)
-            )
+            node.fail_condition = sm.logic_or(node.fail_condition, node.observes_false)
 
     def _expand_goals(self, context: MotionStatechartContext):
         """
@@ -1365,7 +1372,7 @@ class MotionStatechart(SubclassJSONSerializer):
             node = from_json(json_data, **kwargs)
             motion_statechart.add_node(node)
         for json_data in data["unique_edges"]:
-            transition = TrinaryCondition.from_json(
+            transition = TransitionCondition.from_json(
                 json_data, motion_statechart=motion_statechart, **kwargs
             )
             transition.owner._set_transition(transition)

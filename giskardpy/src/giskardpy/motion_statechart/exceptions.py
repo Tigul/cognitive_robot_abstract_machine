@@ -14,7 +14,7 @@ if TYPE_CHECKING:
     from giskardpy.motion_statechart.graph_node import (
         LifeCyclePredicateVariable,
         MotionStatechartNode,
-        TrinaryCondition,
+        TransitionCondition,
     )
     from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
     from semantic_digital_twin.world_description.world_entity import (
@@ -513,7 +513,7 @@ class InvalidConditionError(MotionStatechartError):
     Base class for errors raised when a condition is set to an unusable expression.
     """
 
-    condition: TrinaryCondition
+    condition: TransitionCondition
     """
     The condition that was about to be set.
     """
@@ -546,7 +546,7 @@ class InputNotExpressionError(InvalidConditionError):
         return "Input is not an expression."
 
     def suggest_correction(self) -> str:
-        return "did you forget '.observation_variable'?"
+        return "did you forget '.observes_true'?"
 
 
 @dataclass
@@ -562,8 +562,8 @@ class SelfInStartConditionError(InvalidConditionError):
 @dataclass
 class UnsupportedConditionVariableError(InvalidConditionError):
     """
-    Raised when a condition contains a variable that is neither the observation state
-    nor a life cycle predicate of a node.
+    Raised when a condition contains a variable that is not a two-valued predicate of a
+    node, such as a node's observation, which may be unknown.
     """
 
     unsupported_variable: FloatVariable
@@ -578,8 +578,8 @@ class UnsupportedConditionVariableError(InvalidConditionError):
 
     def suggest_correction(self) -> str:
         return (
-            "Use the observation state of a node, e.g. 'node.observation_variable', or one "
-            "of its life cycle predicates, e.g. 'node.is_failed'."
+            "Use a predicate of a node, e.g. 'node.observes_true', "
+            "'node.last_observed_true' or 'node.is_failed'."
         )
 
 
@@ -646,7 +646,7 @@ class ChildPredicateInConditionError(InvalidConditionError):
     def suggest_correction(self) -> str:
         return (
             "Read the state the child entered the control cycle with instead, e.g. "
-            "'child.has_ended_without_succeeding' or 'child.last_observation'."
+            "'child.has_ended_without_succeeding' or 'child.last_observed_true'."
         )
 
 

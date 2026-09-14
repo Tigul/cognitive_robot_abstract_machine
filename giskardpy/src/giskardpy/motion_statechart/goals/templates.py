@@ -34,6 +34,9 @@ from krrood.symbolic_math.symbolic_math import (
     trinary_logic_and,
     trinary_logic_not,
     trinary_logic_or,
+    logic_and,
+    logic_not,
+    logic_or,
 )
 
 # %% giving a motion an outcome
@@ -81,7 +84,7 @@ class Attempt(SelfFailingNode, SelfDecidingNode, CompositeStatechartNode):
         if not self.failure_monitors:
             return Scalar.const_false()
         return trinary_logic_or(
-            *[monitor.last_observation.is_true() for monitor in self.failure_monitors]
+            *[monitor.last_observed_true for monitor in self.failure_monitors]
         )
 
     @property
@@ -116,8 +119,8 @@ class Attempt(SelfFailingNode, SelfDecidingNode, CompositeStatechartNode):
         self._add_child_to_motion_statechart(self.task)
         self._add_children_to_motion_statechart(self.failure_monitors)
         for failure_monitor in self.failure_monitors:
-            failure_monitor.success_condition = trinary_logic_or(
-                failure_monitor.success_condition, failure_monitor.observation_variable
+            failure_monitor.success_condition = logic_or(
+                failure_monitor.success_condition, failure_monitor.observes_true
             )
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
@@ -136,7 +139,7 @@ class Attempt(SelfFailingNode, SelfDecidingNode, CompositeStatechartNode):
         return NodeArtifacts(
             observation=trinary_if_cases(
                 cases=[
-                    (self.task.last_observation.is_true(), Scalar.const_true()),
+                    (self.task.last_observed_true, Scalar.const_true()),
                     (self.any_failure_monitor_fired, Scalar.const_false()),
                     (self.task.has_ended_without_succeeding, Scalar.const_false()),
                 ],
@@ -331,7 +334,7 @@ class Parallel(MaintenanceNode, NodeListCompositeStatechartNode):
         self._check_has_children()
         for node in self.nodes:
             self._add_child_to_motion_statechart(node)
-        self.fail_condition = trinary_logic_or(
+        self.fail_condition = logic_or(
             self.fail_condition, self._cannot_arrive_any_more
         )
 
@@ -342,7 +345,7 @@ class Parallel(MaintenanceNode, NodeListCompositeStatechartNode):
         :attr:`required_successes` is out of reach.
 
         Counting would say this in one line, but a transition condition has to render
-        back into the expression it was written as, which only leaves the trinary
+        back into the expression it was written as, which only leaves the logic
         operators: the question becomes which groups of nodes ending without succeeding
         are enough, one term per group.
 
@@ -355,11 +358,9 @@ class Parallel(MaintenanceNode, NodeListCompositeStatechartNode):
             return Scalar.const_true()
         if nodes_that_must_end_without_succeeding > len(self.nodes):
             return Scalar.const_false()
-        return trinary_logic_or(
+        return logic_or(
             *[
-                trinary_logic_and(
-                    *[node.has_ended_without_succeeding for node in group]
-                )
+                logic_and(*[node.has_ended_without_succeeding for node in group])
                 for group in combinations(
                     self.nodes, nodes_that_must_end_without_succeeding
                 )
@@ -382,7 +383,7 @@ class Parallel(MaintenanceNode, NodeListCompositeStatechartNode):
         """
         nodes_at_their_goals = [
             trinary_logic_and(
-                node.last_observation.is_true(),
+                node.last_observed_true,
                 trinary_logic_not(node.has_ended_without_succeeding),
             )
             for node in self.nodes
@@ -451,13 +452,11 @@ class RepeatUntil(CompositeStatechartNodeOverSelfDecidingNodes):
         self._add_child_to_motion_statechart(self.stop_retry_monitor)
 
         retrying_stopped = self._retrying_stopped
-        still_trying = trinary_logic_not(retrying_stopped)
+        still_trying = logic_not(retrying_stopped)
         # Starting is gated as well as ending, because a reset task is not started and
         # ending is not considered while it is not.
         self._attempt.start_condition = still_trying
-        self._attempt.reset_condition = trinary_logic_and(
-            self._attempt.is_failed, still_trying
-        )
+        self._attempt.reset_condition = logic_and(self._attempt.is_failed, still_trying)
         self._attempt.interrupt_condition = retrying_stopped
         self._end_motion_once_retrying_stops()
 
@@ -467,7 +466,7 @@ class RepeatUntil(CompositeStatechartNodeOverSelfDecidingNodes):
         :return: True once :attr:`stop_retry_monitor` observed True, even if it ended
             since; false while it has not.
         """
-        return self.stop_retry_monitor.last_observation.is_true()
+        return self.stop_retry_monitor.last_observed_true
 
     def _end_motion_once_retrying_stops(self) -> None:
         """
@@ -715,4 +714,4 @@ class CancelledWhenTrue(StoppedWhenTrue):
             name=f"{self.name}/cancelled", exception=self.exception
         )
         self._add_child_to_motion_statechart(cancelled)
-        cancelled.start_condition = self.monitor.last_observation.is_true()
+        cancelled.start_condition = self.monitor.last_observed_true

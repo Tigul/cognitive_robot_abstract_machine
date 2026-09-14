@@ -14,9 +14,11 @@ from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     ObservationStateValues,
-    SettledLifeCyclePredicate,
 )
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode
+from giskardpy.motion_statechart.graph_node import (
+    DerivedConditionVariable,
+    MotionStatechartNode,
+)
 from giskardpy.motion_statechart.monitors.templates import (
     MonitoredCompositeStatechartNode,
     PausedUntilTrue,
@@ -59,7 +61,8 @@ def observation_for(
 
     An observation expression reads the observation a node took on the previous control
     cycle, which is also its last observation, so the same value stands for both of a
-    node's observation variables.
+    node's observation variables. The predicates over those variables and the life cycle
+    state are replaced by what they stand for first, as compiling the observation does.
 
     :param goal: The goal whose observation expression is evaluated.
     :param monitored_observation: What the monitored node observed.
@@ -70,12 +73,13 @@ def observation_for(
     artifacts = goal.build_artifacts(MotionStatechartContext(world=World()))
     # A template may hand back a node's observation variable unwrapped, which cannot be
     # copied and therefore not substituted into.
-    substituted = Scalar(artifacts.observation).substitute(
+    substituted = DerivedConditionVariable.substitute_in(
+        Scalar(artifacts.observation)
+    ).substitute(
         [
             goal.monitored_node.observation_variable,
             goal.monitored_node.last_observation,
             goal.monitored_node.life_cycle_variable,
-            goal.monitored_node.has_succeeded,
             goal.monitor.observation_variable,
             goal.monitor.last_observation,
         ],
@@ -83,7 +87,6 @@ def observation_for(
             monitored_observation,
             monitored_observation,
             monitored_life_cycle,
-            SettledLifeCyclePredicate.HAS_SUCCEEDED.truth_value(monitored_life_cycle),
             monitor_observation,
             monitor_observation,
         ],

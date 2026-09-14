@@ -16,7 +16,7 @@ from giskardpy.motion_statechart.exceptions import (
 )
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.graph_node import (
-    TrinaryCondition,
+    TransitionCondition,
     EndMotion,
     CancelMotion,
 )
@@ -36,9 +36,8 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from krrood.adapters.json_serializer import to_json, from_json
 from krrood.symbolic_math.symbolic_math import (
-    trinary_logic_and,
-    trinary_logic_not,
-    trinary_logic_or,
+    logic_and,
+    logic_or,
 )
 from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
@@ -78,17 +77,15 @@ def test_trinary_transition():
     msc.add_node(node3)
     msc.add_node(node4)
 
-    node1.start_condition = trinary_logic_and(
-        node2.observation_variable,
-        trinary_logic_or(
-            node3.observation_variable, trinary_logic_not(node4.observation_variable)
-        ),
+    node1.start_condition = logic_and(
+        node2.observes_true,
+        logic_or(node3.observes_true, node4.observes_false),
     )
     condition = node1._start_condition
     json_data = condition.to_json()
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
-    condition_copy = TrinaryCondition.from_json(new_json_data, motion_statechart=msc)
+    condition_copy = TransitionCondition.from_json(new_json_data, motion_statechart=msc)
     assert condition_copy == condition
 
 
@@ -102,7 +99,7 @@ def test_ending_condition_round_trip(transition_kind: TransitionKind):
     msc.add_nodes([first := ConstTrueNode(), second := ConstTrueNode()])
     second.set_condition(
         transition_kind,
-        trinary_logic_and(first.is_succeeded, second.observation_variable),
+        logic_and(first.is_succeeded, second.observes_true),
     )
     [condition] = [
         condition
@@ -110,7 +107,7 @@ def test_ending_condition_round_trip(transition_kind: TransitionKind):
         if condition.kind is transition_kind
     ]
 
-    condition_copy = TrinaryCondition.from_json(
+    condition_copy = TransitionCondition.from_json(
         json.loads(json.dumps(condition.to_json())), motion_statechart=msc
     )
 
@@ -145,12 +142,10 @@ def test_start_condition(mini_world):
     end = ConstTrueNode()
     msc.add_node(end)
 
-    node1.success_condition = node1.observation_variable
-    node2.start_condition = node1.observation_variable
-    node2.pause_condition = node3.observation_variable
-    end.start_condition = trinary_logic_and(
-        node2.observation_variable, node3.observation_variable
-    )
+    node1.success_condition = node1.observes_true
+    node2.start_condition = node1.observes_true
+    node2.pause_condition = node3.observes_true
+    end.start_condition = logic_and(node2.observes_true, node3.observes_true)
 
     json_data = msc.to_json()
     json_str = json.dumps(json_data)
@@ -205,10 +200,8 @@ def test_executing_json_parsed_statechart(tmp_path):
     end = EndMotion()
     msc.add_node(end)
 
-    task1.start_condition = always_true.observation_variable
-    end.start_condition = trinary_logic_and(
-        task1.observation_variable, always_true.observation_variable
-    )
+    task1.start_condition = always_true.observes_true
+    end.start_condition = logic_and(task1.observes_true, always_true.observes_true)
 
     json_data = msc.to_json()
     json_str = json.dumps(json_data)
@@ -273,7 +266,7 @@ def test_cart_goal_simple(pr2_world_state_reset: World):
     msc.add_node(cart_goal)
     end = EndMotion()
     msc.add_node(end)
-    end.start_condition = cart_goal.observation_variable
+    end.start_condition = cart_goal.observes_true
 
     json_data = msc.to_json()
     json_str = json.dumps(json_data)
@@ -313,7 +306,7 @@ def test_compressed_copy_can_be_plotted(pr2_world_state_reset: World, tmp_path):
     msc.add_node(cart_goal)
     end = EndMotion()
     msc.add_node(end)
-    end.start_condition = cart_goal.observation_variable
+    end.start_condition = cart_goal.observes_true
     msc.add_node(CancelMotion.when_true(cart_goal))
 
     msc._expand_goals(MotionStatechartContext.empty())
@@ -382,7 +375,7 @@ def test_structure_copy_keeps_every_condition():
     msc = MotionStatechart()
     msc.add_nodes([trigger := ConstTrueNode(), node := ConstTrueNode()])
     for transition_kind in TransitionKind:
-        node.set_condition(transition_kind, trigger.observation_variable)
+        node.set_condition(transition_kind, trigger.observes_true)
 
     node_copy = msc.create_structure_copy().get_node_by_index(node.index)
 
@@ -432,7 +425,7 @@ def test_to_json_does_not_accumulate_edges():
     node2 = ConstTrueNode()
     msc.add_node(node1)
     msc.add_node(node2)
-    node2.start_condition = node1.observation_variable
+    node2.start_condition = node1.observes_true
 
     first = msc.to_json()
     edges_after_first = len(msc.edges)
@@ -494,11 +487,9 @@ def test_duplicate_condition():
             end := EndMotion(),
         ]
     )
-    node2.start_condition = node1.observation_variable
-    node3.start_condition = node1.observation_variable
-    end.start_condition = trinary_logic_and(
-        node2.observation_variable, node3.observation_variable
-    )
+    node2.start_condition = node1.observes_true
+    node3.start_condition = node1.observes_true
+    end.start_condition = logic_and(node2.observes_true, node3.observes_true)
 
     json_data = msc.to_json()
     json_str = json.dumps(json_data)

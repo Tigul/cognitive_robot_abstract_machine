@@ -1,4 +1,5 @@
 import copy
+import itertools
 import operator
 
 import casadi as ca
@@ -94,6 +95,82 @@ def test_to_sx():
     assert ca.is_equal(sx_list[2], 3)
 
 
+class TestBinaryLogic:
+    """
+    The two-valued logic operators and the rendered form of expressions built from them.
+    """
+
+    @pytest.mark.parametrize(
+        "logic_operator, identity",
+        [
+            (sm.logic_and, sm.Scalar.const_true()),
+            (sm.logic_or, sm.Scalar.const_false()),
+        ],
+    )
+    def test_an_operator_combines_any_number_of_arguments(
+        self, logic_operator, identity
+    ):
+        """
+        Chaining several arguments gives the same value as combining them pairwise.
+        """
+        for values in itertools.product([0, 1], repeat=3):
+            arguments = [sm.Scalar(value) for value in values]
+            pairwise = identity
+            for argument in arguments:
+                pairwise = logic_operator(pairwise, argument)
+            assert float(logic_operator(*arguments)) == float(pairwise), f"{values}"
+
+    @pytest.mark.parametrize("logic_operator", [sm.logic_and, sm.logic_or])
+    def test_an_operator_of_one_argument_is_that_argument(self, logic_operator):
+        a = sm.FloatVariable(name="a")
+
+        assert logic_operator(a).free_variables() == [a]
+        assert sm.logic_to_str(logic_operator(a)) == sm.logic_to_str(a)
+
+    @pytest.mark.parametrize("logic_operator", [sm.logic_and, sm.logic_or])
+    def test_an_operator_without_arguments_is_rejected(self, logic_operator):
+        with pytest.raises(NotEnoughArgumentsError) as error:
+            logic_operator()
+        assert error.value.minimum_number_of_arguments == 1
+        assert error.value.actual_number_of_arguments == 0
+
+    def test_logic_to_str_renders_and_or_not_over_variables(self):
+        a = sm.FloatVariable(name="a")
+        b = sm.FloatVariable(name="b")
+        c = sm.FloatVariable(name="c")
+        expression = sm.logic_and(a, sm.logic_or(b, sm.logic_not(c)))
+
+        assert sm.logic_to_str(expression) == '("a" and ("b" or not "c"))'
+
+    @pytest.mark.parametrize(
+        "constant, rendered",
+        [(sm.Scalar.const_true(), "True"), (sm.Scalar.const_false(), "False")],
+    )
+    def test_logic_to_str_renders_constants(self, constant, rendered):
+        assert sm.logic_to_str(constant) == rendered
+
+    @pytest.mark.parametrize(
+        "build_expression",
+        [
+            lambda a, b: sm.trinary_logic_and(a, b),
+            lambda a, b: sm.trinary_logic_or(a, b),
+            lambda a, b: sm.trinary_logic_not(a),
+            lambda a, b: a.is_true(),
+            lambda a, b: sm.logic_and(a, sm.Scalar.const_trinary_unknown()),
+        ],
+        ids=["trinary and", "trinary or", "trinary not", "comparison", "unknown"],
+    )
+    def test_logic_to_str_rejects_anything_but_two_valued_logic(self, build_expression):
+        """
+        Only an expression the two-valued operators built has a rendered form.
+        """
+        a = sm.FloatVariable(name="a")
+        b = sm.FloatVariable(name="b")
+
+        with pytest.raises(CannotConvertToStringError):
+            sm.logic_to_str(build_expression(a, b))
+
+
 class TestLogic3:
     values = [
         TrinaryTrue,
@@ -144,45 +221,6 @@ class TestLogic3:
             expected = logic_not(i)
             actual = sm.trinary_logic_not(sm.Scalar(i))
             assert expected == actual, f"a={i}, expected {expected}, actual {actual}"
-
-    def test_trinary_logic_to_str(self):
-        a = sm.FloatVariable(name="a")
-        b = sm.FloatVariable(name="b")
-        c = sm.FloatVariable(name="c")
-        expression = sm.trinary_logic_and(
-            a, sm.trinary_logic_or(b, sm.trinary_logic_not(c))
-        )
-        expression_str = sm.trinary_logic_to_str(expression)
-        assert expression_str == '("a" and ("b" or not "c"))'
-
-        const_expr = sm.trinary_logic_and(
-            sm.Scalar.const_true(),
-            sm.trinary_logic_or(a, sm.Scalar.const_trinary_unknown()),
-        )
-        const_expr_str = sm.trinary_logic_to_str(const_expr)
-        assert const_expr_str == '("a" or Unknown)'
-
-    def test_trinary_logic_to_str_renders_is_true(self):
-        """
-        Asking whether a value is True renders as a call naming that question, around
-        the rendered value, so a negation of it renders too.
-        """
-        a = sm.FloatVariable(name="a")
-
-        expression_str = sm.trinary_logic_to_str(sm.trinary_logic_not(a.is_true()))
-
-        assert expression_str == (
-            f"not {sm.TrinaryLogicFunction.IS_TRUE}({sm.trinary_logic_to_str(a)})"
-        )
-
-    def test_trinary_logic_to_str_still_rejects_other_comparisons(self):
-        """
-        Only the question whether a value is True has a rendered form.
-        """
-        a = sm.FloatVariable(name="a")
-
-        with pytest.raises(CannotConvertToStringError):
-            sm.trinary_logic_to_str(a.is_false())
 
 
 class TestTrinaryPredicates:

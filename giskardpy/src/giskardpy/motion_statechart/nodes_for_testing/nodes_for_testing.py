@@ -90,8 +90,8 @@ class TestCompositeStatechartNode(MaintenanceNode, CompositeStatechartNode):
         self._add_child_to_motion_statechart(self.sub_node1)
         self.sub_node2 = ConstTrueNode(name="sub muh2")
         self._add_child_to_motion_statechart(self.sub_node2)
-        self.sub_node1.success_condition = self.sub_node1.observation_variable
-        self.sub_node2.start_condition = self.sub_node1.observation_variable
+        self.sub_node1.success_condition = self.sub_node1.observes_true
+        self.sub_node2.start_condition = self.sub_node1.observes_true
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=self.sub_node2.observation_variable)
@@ -142,7 +142,7 @@ class TestRunAfterStop(SelfDecidingNode, CompositeStatechartNode):
                 self.cancel,
             ]
         )
-        self.cancel.start_condition = self.ticking1.observation_variable
+        self.cancel.start_condition = self.ticking1.observes_true
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar(self.ticking2.observation_variable))
@@ -172,8 +172,8 @@ class TestEndBeforeStart(CompositeStatechartNode):
             nodes=[self.node1, self.node2, self.node3]
         )
 
-        self.node3.start_condition = self.node1.observation_variable
-        self.node3.success_condition = self.node2.observation_variable
+        self.node3.start_condition = self.node1.observes_true
+        self.node3.success_condition = self.node2.observes_true
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar(self.node3.observation_variable))
@@ -211,22 +211,19 @@ class TestRunAfterStopFromPause(SelfDecidingNode, CompositeStatechartNode):
         self._add_children_to_motion_statechart(
             nodes=[self.ticking1, self.ticking2, self.ticking3, self.cancel, self.pulse]
         )
-        self.pulse.start_condition = self.ticking3.observation_variable
-        self.ticking2.pause_condition = self.pulse.observation_variable
-        self.cancel.start_condition = self.ticking2.observation_variable
+        self.pulse.start_condition = self.ticking3.observes_true
+        self.ticking2.pause_condition = self.pulse.observes_true
+        self.cancel.start_condition = self.ticking2.observes_true
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar(self.ticking1.observation_variable))
 
 
 @dataclass(repr=False, eq=False)
-class TestUnpauseUnknownFromParentPause(SelfDecidingNode, CompositeStatechartNode):
+class TestUnpauseFromParentPause(SelfDecidingNode, CompositeStatechartNode):
     """
-    Tests if a child node can transition from PAUSED back to RUNNING when
-    child.pause_condition is UNKNOWN.
-
-    Child was paused by parent node being paused and child.pause_condition is UNKNOWN.
-    When parent unpauses, child should transition back to RUNNING.
+    Tests if a child node paused by its parent transitions from PAUSED back to RUNNING
+    once the parent unpauses, while its own pause condition does not hold.
     """
 
     count_ticks1: CountControlCycles = field(init=False)
@@ -245,8 +242,6 @@ class TestUnpauseUnknownFromParentPause(SelfDecidingNode, CompositeStatechartNod
         self._add_child_to_motion_statechart(
             Sequence(nodes=[self.count_ticks2, self.cancel])
         )
-
-        self.count_ticks1.pause_condition = sm.Scalar.const_trinary_unknown()
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         """
@@ -301,6 +296,22 @@ class NodeObservingLastObservation(MotionStatechartNode):
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar(self.watched_node.last_observation))
+
+
+@dataclass(eq=False, repr=False)
+class NodeObservingAnObservationPredicate(MotionStatechartNode):
+    """
+    A node that observes whether another node observed True on the previous control
+    cycle.
+    """
+
+    watched_node: MotionStatechartNode = field(default=None, kw_only=True)
+    """
+    The node whose observation this node asks about.
+    """
+
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        return NodeArtifacts(observation=sm.Scalar(self.watched_node.observes_true))
 
 
 @dataclass(eq=False, repr=False)
@@ -400,7 +411,7 @@ class CompositeStatechartNodeWithChildInterruptedBySibling(CompositeStatechartNo
         self.trigger = ConstTrueNode()
         self.child = ConstFalseNode()
         self._add_children_to_motion_statechart(nodes=[self.trigger, self.child])
-        self.child.interrupt_condition = self.trigger.observation_variable
+        self.child.interrupt_condition = self.trigger.observes_true
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar.const_true())
@@ -428,7 +439,7 @@ class CompositeStatechartNodeWithChildFailingOnItsOwn(CompositeStatechartNode):
         self.trigger = ConstTrueNode()
         self.child = ConstFalseNode()
         self._add_children_to_motion_statechart(nodes=[self.trigger, self.child])
-        self.child.fail_condition = self.trigger.observation_variable
+        self.child.fail_condition = self.trigger.observes_true
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar.const_true())
@@ -456,7 +467,7 @@ class CompositeStatechartNodeWithChildSucceedingOnItsOwn(CompositeStatechartNode
         self.trigger = ConstTrueNode()
         self.child = ConstFalseNode()
         self._add_children_to_motion_statechart(nodes=[self.trigger, self.child])
-        self.child.success_condition = self.trigger.observation_variable
+        self.child.success_condition = self.trigger.observes_true
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar.const_true())
@@ -484,7 +495,7 @@ class CompositeStatechartNodeWithChildStartingLate(CompositeStatechartNode):
         delay = CountControlCycles(control_cycles=self.delay_in_control_cycles)
         self.child = ConstFalseNode()
         self._add_children_to_motion_statechart(nodes=[delay, self.child])
-        self.child.start_condition = delay.observation_variable
+        self.child.start_condition = delay.observes_true
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar.const_false())

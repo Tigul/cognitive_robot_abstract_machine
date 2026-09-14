@@ -19,6 +19,8 @@ from krrood.symbolic_math.symbolic_math import (
     trinary_logic_and,
     trinary_logic_not,
     trinary_logic_or,
+    logic_or,
+    logic_not,
 )
 
 
@@ -73,8 +75,8 @@ class PausedWhileTrue(MonitoredCompositeStatechartNode):
     """
 
     def wire_monitor(self) -> None:
-        self.monitored_node.pause_condition = trinary_logic_or(
-            self.monitor.observation_variable.is_true(),
+        self.monitored_node.pause_condition = logic_or(
+            self.monitor.observes_true,
             self.monitored_node.pause_condition,
         )
 
@@ -90,9 +92,9 @@ class PausedUntilTrue(MonitoredCompositeStatechartNode):
     """
 
     def wire_monitor(self) -> None:
-        self.monitored_node.pause_condition = trinary_logic_or(
+        self.monitored_node.pause_condition = logic_or(
             self.monitored_node.pause_condition,
-            trinary_logic_not(self.monitor.observation_variable.is_true()),
+            logic_not(self.monitor.observes_true),
         )
 
 
@@ -113,9 +115,9 @@ class StoppedWhenTrue(SelfFailingNode, MonitoredCompositeStatechartNode):
     """
 
     def wire_monitor(self) -> None:
-        self.monitored_node.interrupt_condition = trinary_logic_or(
+        self.monitored_node.interrupt_condition = logic_or(
             self.monitored_node.interrupt_condition,
-            self.monitor.last_observation.is_true(),
+            self.monitor.last_observed_true,
         )
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
@@ -134,7 +136,7 @@ class StoppedWhenTrue(SelfFailingNode, MonitoredCompositeStatechartNode):
                         self._monitored_node_observing_true_or_succeeded,
                         Scalar.const_true(),
                     ),
-                    (self.monitor.last_observation.is_true(), Scalar.const_false()),
+                    (self.monitor.last_observed_true, Scalar.const_false()),
                 ],
                 Scalar.const_trinary_unknown(),
             )
@@ -151,7 +153,7 @@ class StoppedWhenTrue(SelfFailingNode, MonitoredCompositeStatechartNode):
         )
         observing_true_while_running = trinary_logic_and(
             trinary_logic_not(has_ended),
-            self.monitored_node.observation_variable.is_true(),
+            self.monitored_node.observes_true,
         )
         return trinary_logic_or(
             observing_true_while_running, self.monitored_node.has_succeeded

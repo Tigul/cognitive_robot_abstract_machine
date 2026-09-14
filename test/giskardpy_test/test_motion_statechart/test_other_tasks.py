@@ -510,7 +510,7 @@ def test_pointing(pr2_world_state_reset: World):
     msc.add_node(pointing)
     end = EndMotion()
     msc.add_node(end)
-    end.start_condition = pointing.observation_variable
+    end.start_condition = pointing.observes_true
 
     kin_sim = Executor(
         MotionStatechartContext(
@@ -542,7 +542,7 @@ def test_pointing_cone(pr2_world_state_reset: World):
     msc.add_node(pointing_cone)
     end = EndMotion()
     msc.add_node(end)
-    end.start_condition = pointing_cone.observation_variable
+    end.start_condition = pointing_cone.observes_true
 
     kin_sim = Executor(
         MotionStatechartContext(
@@ -598,7 +598,7 @@ def test_align_planes(pr2_world_state_reset: World):
 
     end = EndMotion()
     msc.add_node(end)
-    end.start_condition = align_planes.observation_variable
+    end.start_condition = align_planes.observes_true
 
     kin_sim = Executor(
         MotionStatechartContext(
@@ -652,7 +652,7 @@ def test_align_perpendicular(pr2_world_state_reset: World):
 
     end = EndMotion()
     msc.add_node(end)
-    end.start_condition = align_perp.observation_variable
+    end.start_condition = align_perp.observes_true
 
     kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
     kin_sim.compile(motion_statechart=msc)

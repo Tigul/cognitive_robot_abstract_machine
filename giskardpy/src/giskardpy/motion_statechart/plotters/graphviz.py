@@ -23,7 +23,7 @@ from giskardpy.motion_statechart.graph_node import (
 )
 from giskardpy.motion_statechart.graph_node import (
     CompositeStatechartNode,
-    TrinaryCondition,
+    TransitionCondition,
 )
 from giskardpy.motion_statechart.plotters.styles import (
     DISABLED_CONDITION_COLOR,
@@ -57,7 +57,7 @@ class ConditionDependency:
     The node those conditions read.
     """
 
-    conditions: List[TrinaryCondition] = field(default_factory=list)
+    conditions: List[TransitionCondition] = field(default_factory=list)
     """
     The conditions of :attr:`condition_owner` that read :attr:`observed_node`.
     """
@@ -79,7 +79,7 @@ def format_condition_text(text: str, color_constants: bool = False) -> str:
     """
     Rewrites the part of a condition that is not a term for display in an HTML label.
 
-    Logical operators start a new line and trinary constants are spelled out.
+    Logical operators start a new line and constants are spelled out.
 
     :param text: The text to rewrite.
     :param color_constants: Whether boolean constants should be colored with their
@@ -270,7 +270,7 @@ class MotionStatechartGraphviz:
     def _build_condition_row(
         self,
         prefix: str,
-        condition: TrinaryCondition,
+        condition: TransitionCondition,
         is_active: bool,
         line_color: str,
     ) -> str:
@@ -292,7 +292,7 @@ class MotionStatechartGraphviz:
         )
 
     def _render_condition(
-        self, condition: TrinaryCondition, grayed_out: bool = False
+        self, condition: TransitionCondition, grayed_out: bool = False
     ) -> str:
         """
         Writes a condition for display, coloring every term in the value that term
@@ -302,8 +302,8 @@ class MotionStatechartGraphviz:
         disabled color applies uniformly.
 
         The value is the term's own, not the observation of the node it names: an
-        ``is_succeeded`` term has no answer until that node is judged, however decisive
-        that node's observation already is.
+        ``is_succeeded`` term is false until that node succeeded, however decisive that
+        node's observation already is.
 
         The terms are cut out before the rest is reformatted, so that a node whose name
         reads as a logical operator is still recognised as one term.
@@ -542,7 +542,7 @@ class MotionStatechartGraphviz:
         dependencies: Dict[
             Tuple[MotionStatechartNode, MotionStatechartNode], ConditionDependency
         ] = {}
-        condition: TrinaryCondition
+        condition: TransitionCondition
         for (
             owner_index,
             observed_index,

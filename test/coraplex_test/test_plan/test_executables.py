@@ -192,7 +192,7 @@ def test_condition_monitors_bring_their_own_abort_paths(reach_action_executable)
     assert reach_action_executable.post_condition_node
 
     reach_action_executable._add_condition_monitors(
-        reach_action_executable.root_node.observation_variable
+        reach_action_executable.root_node.observes_true
     )
 
     chart = reach_action_executable.motion_state_chart
@@ -208,7 +208,7 @@ def test_pre_condition_monitor_gates_the_root_goal(reach_action_executable):
     than an individual task.
     """
     reach_action_executable._add_condition_monitors(
-        reach_action_executable.root_node.observation_variable
+        reach_action_executable.root_node.observes_true
     )
 
     chart = reach_action_executable.motion_state_chart
@@ -216,9 +216,7 @@ def test_pre_condition_monitor_gates_the_root_goal(reach_action_executable):
     root_goal = reach_action_executable.root_node
 
     assert pre_monitor.name == "pre_condition"
-    assert root_goal.start_condition.free_variables() == [
-        pre_monitor.observation_variable
-    ]
+    assert root_goal.start_condition.free_variables() == [pre_monitor.observes_true]
 
 
 # %% collision avoidance

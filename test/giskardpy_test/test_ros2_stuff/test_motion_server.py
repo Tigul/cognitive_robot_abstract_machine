@@ -341,7 +341,7 @@ def create_error_holding_a_variable() -> SelfInStartConditionError:
     motion_statechart = MotionStatechart()
     motion_statechart.add_node(node := ConstTrueNode(name="waits for itself"))
     with pytest.raises(SelfInStartConditionError) as error:
-        node.start_condition = node.observation_variable
+        node.start_condition = node.observes_true
     return error.value
 
 

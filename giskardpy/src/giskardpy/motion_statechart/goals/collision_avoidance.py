@@ -80,11 +80,7 @@ class _CancelBecauseCollisionViolated(CancelMotion):
         """
         if len(self.tasks) == 0:
             return Scalar.const_false()
-        if len(self.tasks) == 1:
-            return sm.trinary_logic_not(self.tasks[0].observation_variable)
-        return sm.trinary_logic_or(
-            *[sm.trinary_logic_not(node.observation_variable) for node in self.tasks]
-        )
+        return sm.logic_or(*[node.observes_false for node in self.tasks])
 
 
 @dataclass(eq=False, repr=False)
@@ -274,17 +270,9 @@ class _CancelBecauseExternalCollisionViolated(_CancelBecauseCollisionViolated):
     """
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        if len(self.tasks) == 1:
-            self.start_condition = sm.trinary_logic_not(
-                self.tasks[0].observation_variable
-            )
-        else:
-            self.start_condition = sm.trinary_logic_or(
-                *[
-                    sm.trinary_logic_not(node.observation_variable)
-                    for node in self.tasks
-                ]
-            )
+        self.start_condition = sm.logic_or(
+            *[node.observes_false for node in self.tasks]
+        )
         return NodeArtifacts()
 
     def on_tick(self, context: MotionStatechartContext) -> Optional[float]:
@@ -455,7 +443,7 @@ class ExternalCollisionAvoidance(CompositeStatechartNode):
                     external_collision_manager=self.external_collision_manager,
                 )
                 self._add_child_to_motion_statechart(task)
-                task.pause_condition = distance_monitor.observation_variable
+                task.pause_condition = distance_monitor.observes_true
                 tasks.append(task)
 
         if self.cancel_if_collision_violated:
@@ -664,17 +652,9 @@ class _CancelBecauseSelfCollisionViolated(_CancelBecauseCollisionViolated):
     """
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        if len(self.tasks) == 1:
-            self.start_condition = sm.trinary_logic_not(
-                self.tasks[0].observation_variable
-            )
-        else:
-            self.start_condition = sm.trinary_logic_or(
-                *[
-                    sm.trinary_logic_not(node.observation_variable)
-                    for node in self.tasks
-                ]
-            )
+        self.start_condition = sm.logic_or(
+            *[node.observes_false for node in self.tasks]
+        )
         return NodeArtifacts()
 
     def on_tick(self, context: MotionStatechartContext) -> Optional[float]:
@@ -807,7 +787,7 @@ class SelfCollisionAvoidance(CompositeStatechartNode):
                 self_collision_manager=self.self_collision_manager,
             )
             self._add_child_to_motion_statechart(task)
-            task.pause_condition = distance_monitor.observation_variable
+            task.pause_condition = distance_monitor.observes_true
             tasks.append(task)
 
         if self.cancel_if_collision_violated:

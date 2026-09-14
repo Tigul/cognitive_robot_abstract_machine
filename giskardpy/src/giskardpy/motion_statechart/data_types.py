@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from enum import IntEnum, Enum, StrEnum
+from enum import IntEnum, Enum, StrEnum, auto
 from typing import Union, FrozenSet
 
 from giskardpy.motion_statechart.exceptions import TransitionHasNoVerdictError
@@ -104,13 +104,6 @@ class LifeCycleValues(IntEnum):
         """
         return frozenset({cls.SUCCEEDED, cls.FAILED, cls.INTERRUPTED})
 
-    @classmethod
-    def judged_states(cls) -> FrozenSet[LifeCycleValues]:
-        """
-        :return: The states a node reaches by being judged on its own terms, as opposed
-            to :attr:`INTERRUPTED`.
-        """
-        return frozenset({cls.SUCCEEDED, cls.FAILED})
 
     @property
     def is_terminal(self) -> bool:
@@ -170,26 +163,16 @@ class LifeCyclePredicateDefinition:
 
     true_states: FrozenSet[LifeCycleValues]
     """
-    The states in which the predicate is true.
-    """
-
-    unknown_states: FrozenSet[LifeCycleValues] = frozenset()
-    """
-    The states in which the predicate has no answer yet.
-
-    Every state that is neither here nor in :attr:`true_states` makes the predicate
-    false.
+    The states in which the predicate is true; every other state makes it false.
     """
 
     def truth_value(self, life_cycle_value: LifeCycleValues) -> ObservationStateValues:
         """
         :param life_cycle_value: The state to evaluate the predicate in.
-        :return: The trinary value the predicate takes in that state.
+        :return: True if the predicate holds in that state, false otherwise.
         """
         if life_cycle_value in self.true_states:
             return ObservationStateValues.TRUE
-        if life_cycle_value in self.unknown_states:
-            return ObservationStateValues.UNKNOWN
         return ObservationStateValues.FALSE
 
     def expression(self, life_cycle: Scalar) -> Scalar:
@@ -199,7 +182,7 @@ class LifeCyclePredicateDefinition:
         is still being computed.
 
         :param life_cycle: The life cycle state to evaluate the predicate in.
-        :return: The trinary value the predicate takes in that state.
+        :return: True if the predicate holds in that state, false otherwise.
         """
         return if_eq_cases(
             a=life_cycle,
@@ -207,38 +190,26 @@ class LifeCyclePredicateDefinition:
                 (int(state), Scalar(float(self.truth_value(state))))
                 for state in sorted(LifeCycleValues)
             ],
-            else_result=Scalar.const_trinary_unknown(),
+            else_result=Scalar.const_false(),
         )
 
 
 class LifeCyclePredicate(LifeCyclePredicateDefinition, Enum):
     """
-    A test on a node's life cycle state that may be used in transition conditions.
+    A test on the life cycle state a node reaches this control cycle, which may be used
+    in transition conditions.
 
-    Verdict predicates are trinary, because *how* a node ended has no answer before it
-    ends. :attr:`IS_SUCCEEDED` and :attr:`IS_FAILED` stay unknown until the node is
-    judged, which leaves an interrupted node as open as a running one;
-    :attr:`IS_TERMINATED` and :attr:`IS_INTERRUPTED` are answered by every way of
-    ending. Phase predicates are binary, because *where* a node is right now always has
-    an answer.
+    Every member is binary: a node that has not ended, or ended some other way, did not
+    end the way a verdict predicate asks about.
     """
 
     IS_NOT_STARTED = frozenset({LifeCycleValues.NOT_STARTED})
     IS_RUNNING = frozenset({LifeCycleValues.RUNNING})
     IS_PAUSED = frozenset({LifeCycleValues.PAUSED})
     IS_TERMINATED = LifeCycleValues.terminal_states()
-    IS_SUCCEEDED = (
-        frozenset({LifeCycleValues.SUCCEEDED}),
-        frozenset(LifeCycleValues) - LifeCycleValues.judged_states(),
-    )
-    IS_FAILED = (
-        frozenset({LifeCycleValues.FAILED}),
-        frozenset(LifeCycleValues) - LifeCycleValues.judged_states(),
-    )
-    IS_INTERRUPTED = (
-        frozenset({LifeCycleValues.INTERRUPTED}),
-        frozenset(LifeCycleValues) - LifeCycleValues.terminal_states(),
-    )
+    IS_SUCCEEDED = frozenset({LifeCycleValues.SUCCEEDED})
+    IS_FAILED = frozenset({LifeCycleValues.FAILED})
+    IS_INTERRUPTED = frozenset({LifeCycleValues.INTERRUPTED})
 
     @property
     def attribute_name(self) -> str:
@@ -253,17 +224,90 @@ class SettledLifeCyclePredicate(LifeCyclePredicateDefinition, Enum):
     """
     A test on the life cycle state a node entered the control cycle with.
 
-    Every member is binary: the state it reads is the one the node arrived with, so
-    there is nothing left to decide and no state in which the answer is unknown. That is
-    what lets one be read about a direct child, which :class:`LifeCyclePredicate` cannot
-    be, and what lets an observation read one, where an unknown would select the case it
-    guards.
+    That state is settled before the cycle begins, which is what lets one be read about a
+    direct child, which :class:`LifeCyclePredicate` cannot be, and what lets an
+    observation read one.
     """
 
     HAS_SUCCEEDED = frozenset({LifeCycleValues.SUCCEEDED})
     HAS_ENDED_WITHOUT_SUCCEEDING = LifeCycleValues.terminal_states() - frozenset(
         {LifeCycleValues.SUCCEEDED}
     )
+
+    @property
+    def attribute_name(self) -> str:
+        """
+        :return: The name this predicate is reached under on a node, also used to render
+            it inside a condition.
+        """
+        return self.name.lower()
+
+
+# %% observation predicates
+
+
+class ObservationReading(Enum):
+    """
+    Which of a node's observations a test reads.
+    """
+
+    CURRENT = auto()
+    """
+    What the node observes now, which is unknown while it is not running.
+    """
+
+    LAST = auto()
+    """
+    The observation the node took most recently, which it keeps once it has ended.
+    """
+
+
+@dataclass(frozen=True)
+class ObservationPredicateDefinition:
+    """
+    A test whether one of a node's observations is a particular value.
+    """
+
+    reading: ObservationReading
+    """
+    The observation the test reads.
+    """
+
+    observed_value: ObservationStateValues
+    """
+    The value the test is true for; every other value, unknown included, makes it false.
+    """
+
+    def truth_value(
+        self, observation: ObservationStateValues
+    ) -> ObservationStateValues:
+        """
+        :param observation: The observation to evaluate the test on.
+        :return: True if `observation` is :attr:`observed_value`, false otherwise.
+        """
+        if observation == self.observed_value:
+            return ObservationStateValues.TRUE
+        return ObservationStateValues.FALSE
+
+    def expression(self, observation: Scalar) -> Scalar:
+        """
+        The same test as :meth:`truth_value`, read off an expression rather than a value.
+
+        :param observation: The observation to evaluate the test on.
+        :return: True if `observation` is :attr:`observed_value`, false otherwise.
+        """
+        return Scalar(observation) == float(self.observed_value)
+
+
+class ObservationPredicate(ObservationPredicateDefinition, Enum):
+    """
+    A two-valued test on what a node observes, which may be used in transition conditions
+    and observation expressions alike.
+    """
+
+    OBSERVES_TRUE = ObservationReading.CURRENT, ObservationStateValues.TRUE
+    OBSERVES_FALSE = ObservationReading.CURRENT, ObservationStateValues.FALSE
+    LAST_OBSERVED_TRUE = ObservationReading.LAST, ObservationStateValues.TRUE
 
     @property
     def attribute_name(self) -> str:
