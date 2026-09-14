@@ -18,12 +18,14 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
+import logging
 import sys
 from dataclasses import dataclass
 from enum import Enum, IntEnum, StrEnum
 
 from typing_extensions import Optional, Sequence, Tuple, Type
 
+logger = logging.getLogger(__name__)
 
 class ReportMarker(StrEnum):
     """
@@ -221,7 +223,7 @@ def main() -> None:
     stale = import_interfaces(parser.parse_args().interfaces)
     if stale is None:
         return
-    print(stale.to_line(), flush=True)
+    logger.info(stale.to_line(), flush=True)
     sys.exit(InterfaceImportResult.STALE)
 
 
