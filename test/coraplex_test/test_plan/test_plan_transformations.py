@@ -736,7 +736,7 @@ def test_the_opening_joins_the_sequence_an_underspecified_pick_up_runs(
         parking_again,
         drive_to_the_spoon,
         candidate,
-    ] = underspecified.current_attempt.children
+    ] = underspecified.current_candidate_sequence.children
     assert candidate is underspecified.current_candidate
     assert isinstance(parking.designator, ParkArmsAction)
     assert drive_to_the_handle.designator_type is NavigateAction

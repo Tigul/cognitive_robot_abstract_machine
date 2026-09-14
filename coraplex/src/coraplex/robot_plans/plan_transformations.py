@@ -96,7 +96,7 @@ class DrawerOpening(InsertionRewrite):
     def position(self) -> InsertionPosition:
         return InsertionPosition.BEFORE
 
-    def closed_drawers_holding(
+    def _closed_drawers_containing(
         self, annotation: HasRootBody, world: World
     ) -> List[Drawer]:
         """
@@ -149,16 +149,16 @@ class OpenDrawerBeforePickUp(DrawerOpening, ActionMatch[PickUpAction]):
     to a pose the object itself can be reached from.
     """
 
-    def is_applicable(self, plan_node: PlanNode) -> bool:
+    def is_applicable(self, plan_node: ActionNode) -> bool:
         pick_up = cast(PickUpAction, plan_node.action)
         return bool(
-            self.closed_drawers_holding(pick_up.object_designator, pick_up.world)
+            self._closed_drawers_containing(pick_up.object_designator, pick_up.world)
         )
 
-    def nodes_to_insert(self, plan_node: PlanNode) -> List[ActionLike]:
+    def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
         pick_up = cast(PickUpAction, plan_node.action)
         nodes = []
-        for drawer in self.closed_drawers_holding(
+        for drawer in self._closed_drawers_containing(
             pick_up.object_designator, pick_up.world
         ):
             nodes.extend(self.opening_nodes(drawer, pick_up.arm, pick_up.context))
@@ -202,13 +202,13 @@ class OpenDrawerBeforeTransport(DrawerOpening, ActionMatch[TransportAction]):
     def is_applicable(self, plan_node: PlanNode) -> bool:
         transport = cast(TransportAction, plan_node.action)
         return bool(
-            self.closed_drawers_holding(transport.object_designator, transport.world)
+            self._closed_drawers_containing(transport.object_designator, transport.world)
         )
 
     def nodes_to_insert(self, plan_node: PlanNode) -> List[ActionLike]:
         transport = cast(TransportAction, plan_node.action)
         nodes = []
-        for drawer in self.closed_drawers_holding(
+        for drawer in self._closed_drawers_containing(
             transport.object_designator, transport.world
         ):
             nodes.extend(self.opening_nodes(drawer, transport.arm, transport.context))

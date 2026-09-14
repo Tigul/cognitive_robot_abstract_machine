@@ -92,10 +92,10 @@ class ActionTrial:
         context = self._copy()
         world = context.world
         plan = Plan(context=context)
-        attempt = SequentialNode()
+        candidate_sequence = SequentialNode()
         candidate = ActionNode(designator=world.rebind_world_entities(action))
-        plan.add_node(attempt)
-        attempt.add_child(candidate)
+        plan.add_node(candidate_sequence)
+        candidate_sequence.add_child(candidate)
         version = world.get_world_model_manager().version
 
         with world.reset_state_context(), ExecutionEnvironment(
@@ -103,7 +103,7 @@ class ActionTrial:
             collision_avoidance=GiskardExecutable.collision_avoidance,
         ):
             try:
-                attempt.perform()
+                candidate_sequence.perform()
                 return True
             except PlanFailure:
                 return False
@@ -178,7 +178,7 @@ class UnderspecifiedNode(ExecutionBoundaryNode):
     On failure, `advance` replaces it with the next candidate.
     """
 
-    current_attempt: Optional[SequentialNode] = field(
+    current_candidate_sequence: Optional[SequentialNode] = field(
         default=None, init=False, repr=False
     )
     """
@@ -224,11 +224,11 @@ class UnderspecifiedNode(ExecutionBoundaryNode):
         :param action: The grounded action to attach.
         :return: The new candidate node.
         """
-        attempt = SequentialNode()
+        candidate_sequence = SequentialNode()
         candidate = ActionNode(designator=action)
-        self.add_child(attempt)
-        attempt.add_child(candidate)
-        self.current_attempt = attempt
+        self.add_child(candidate_sequence)
+        candidate_sequence.add_child(candidate)
+        self.current_candidate_sequence = candidate_sequence
         self.current_candidate = candidate
         return candidate
 
@@ -283,7 +283,7 @@ class UnderspecifiedNode(ExecutionBoundaryNode):
         while action is not None:
             if self._trial.succeeds(action):
                 self._attach(action)
-                self.current_attempt.notify()
+                self.current_candidate_sequence.notify()
                 return True
             action = self._pull_next_action()
         return False

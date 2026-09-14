@@ -17,7 +17,7 @@ from typing_extensions import (
     Type,
 )
 
-from coraplex.exceptions import CannotInsertBesideRoot
+from coraplex.exceptions import CannotInsertBesideRoot, ContextIsUnavailable
 from coraplex.plans.plan_entity import PlanEntity
 from coraplex.plans.plan_node import (
     PlanNode,
@@ -295,7 +295,9 @@ class Plan:
         :return: The transformations of this plan's context; a plan without a context
             has none.
         """
-        return self.context.plan_transformations if self.context else []
+        if not self.context:
+            raise ContextIsUnavailable
+        return self.context.plan_transformations
 
     def apply_plan_transformations(self, node: PlanNode):
         """

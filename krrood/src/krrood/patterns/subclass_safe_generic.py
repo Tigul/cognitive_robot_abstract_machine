@@ -124,7 +124,7 @@ class SubClassSafeGeneric(ABC):
         return get_generic_type_parameters(cls, SubClassSafeGeneric)
 
     @classmethod
-    def get_type_of_generic_parameter(cls, parameter: TypeVar) -> Type:
+    def get_type_of_generic_parameter(cls, parameter: TypeVar) -> ResolvableType:
         """
         Read back the type this class binds one type parameter to.
 
