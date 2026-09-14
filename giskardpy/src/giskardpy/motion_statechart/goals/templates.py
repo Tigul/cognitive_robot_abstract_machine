@@ -1,6 +1,6 @@
 from __future__ import division
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass, field
 from datetime import timedelta
 from itertools import combinations
@@ -21,6 +21,7 @@ from giskardpy.motion_statechart.graph_node import (
     MotionStatechartNode,
     NodeArtifacts,
     SelfDecidingNode,
+    SelfFailingNode,
     TerminalNode,
 )
 from giskardpy.motion_statechart.monitors.progress_monitors import Stalled
@@ -39,7 +40,7 @@ from krrood.symbolic_math.symbolic_math import (
 
 
 @dataclass(repr=False, eq=False)
-class Attempt(SelfDecidingNode, CompositeStatechartNode):
+class Attempt(SelfFailingNode, SelfDecidingNode, CompositeStatechartNode):
     """
     Runs a motion that would never end on its own and decides it, one way or the other.
 
@@ -105,11 +106,7 @@ class Attempt(SelfDecidingNode, CompositeStatechartNode):
 
     def expand(self, context: MotionStatechartContext) -> None:
         """
-        Add the task and the monitors, and declare this goal failed once it observes
-        being given up on.
-
-        Both ways of failing reach this goal through its own observation, which keeps
-        the verdict and what it reports about itself in step.
+        Add the task and the monitors.
 
         A monitor succeeds on the control cycle it fires, which keeps the observation it
         fired on as its last observation. A goal reads its children a cycle late, so a
@@ -122,9 +119,6 @@ class Attempt(SelfDecidingNode, CompositeStatechartNode):
             failure_monitor.success_condition = trinary_logic_or(
                 failure_monitor.success_condition, failure_monitor.observation_variable
             )
-        self.fail_condition = trinary_logic_or(
-            self.fail_condition, trinary_logic_not(self.observation_variable)
-        )
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         """
@@ -185,7 +179,7 @@ class NodeListCompositeStatechartNode(CompositeStatechartNode):
 
 @dataclass(repr=False, eq=False)
 class CompositeStatechartNodeOverSelfDecidingNodes(
-    SelfDecidingNode, CompositeStatechartNode, ABC
+    SelfFailingNode, SelfDecidingNode, CompositeStatechartNode, ABC
 ):
     """
     Base for the goals that order or choose between children, which only works if each
@@ -195,27 +189,6 @@ class CompositeStatechartNodeOverSelfDecidingNodes(
     their life cycles: what starts and ends a child is this goal's to decide. What comes
     out decides itself in turn, which is what lets one be a step of another.
     """
-
-    def expand(self, context: MotionStatechartContext) -> None:
-        """
-        Wire the children, then declare this goal failed once it observes that it cannot
-        arrive.
-
-        A condition may only read its own node or a sibling, so this goal reaches its
-        children through its own observation rather than through them.
-        """
-        self.expand_children(context)
-        self.fail_condition = trinary_logic_or(
-            self.fail_condition, trinary_logic_not(self.observation_variable)
-        )
-
-    @abstractmethod
-    def expand_children(self, context: MotionStatechartContext) -> None:
-        """
-        Add the children and wire their life cycles.
-
-        :param context: The build context passed to the expansion.
-        """
 
     def _add_self_deciding(self, node: MotionStatechartNode) -> MotionStatechartNode:
         """
@@ -269,7 +242,7 @@ class Sequence(
     wrapped in an attempt.
     """
 
-    def expand_children(self, context: MotionStatechartContext) -> None:
+    def expand(self, context: MotionStatechartContext) -> None:
         """
         Each step is a node that ends on its own, and the next one waits for the verdict
         it earned, because only a verdict outlasts the step that reached it.
@@ -462,7 +435,7 @@ class RepeatUntil(CompositeStatechartNodeOverSelfDecidingNodes):
     The node actually run, which is :attr:`task` wrapped in an attempt if it needed one.
     """
 
-    def expand_children(self, context: MotionStatechartContext) -> None:
+    def expand(self, context: MotionStatechartContext) -> None:
         """
         Wire the retry loop.
 
@@ -596,7 +569,7 @@ class TryAll(
     wrapped in an attempt.
     """
 
-    def expand_children(self, context: MotionStatechartContext) -> None:
+    def expand(self, context: MotionStatechartContext) -> None:
         """
         Add every alternative, so they run side by side.
         """
@@ -660,7 +633,7 @@ class TryInOrder(
     wrapped in an attempt.
     """
 
-    def expand_children(self, context: MotionStatechartContext) -> None:
+    def expand(self, context: MotionStatechartContext) -> None:
         """
         Wire each alternative to start once the previous one ended without succeeding,
         which short-circuits on the first success.

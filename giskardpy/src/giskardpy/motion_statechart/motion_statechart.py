@@ -46,7 +46,11 @@ from giskardpy.motion_statechart.graph_node import (
     NodeStateVariable,
     DebugExpression,
 )
-from giskardpy.motion_statechart.graph_node import SelfDecidingNode, Task
+from giskardpy.motion_statechart.graph_node import (
+    SelfDecidingNode,
+    SelfFailingNode,
+    Task,
+)
 from giskardpy.motion_statechart.plotters.graphviz import MotionStatechartGraphviz
 from giskardpy.qp.constraint_collection import ConstraintCollection
 
@@ -1082,6 +1086,7 @@ class MotionStatechart(SubclassJSONSerializer):
         self.sanity_check()
         self._expand_goals(context=context)
         self._succeed_self_deciding_nodes_observing_true()
+        self._fail_self_failing_nodes_observing_false()
         self._build_nodes(context=context)
         self._add_transitions()
         self.observation_state.compile(context=context)
@@ -1106,6 +1111,18 @@ class MotionStatechart(SubclassJSONSerializer):
         for node in self.get_nodes_by_type(SelfDecidingNode):
             node.success_condition = sm.trinary_logic_or(
                 node.success_condition, node.observation_variable
+            )
+
+    def _fail_self_failing_nodes_observing_false(self):
+        """
+        Gives every :class:`SelfFailingNode` the failure its contract promises, on top
+        of whatever else already fails it.
+
+        Runs once every goal has expanded, so no template can wire this away.
+        """
+        for node in self.get_nodes_by_type(SelfFailingNode):
+            node.fail_condition = sm.trinary_logic_or(
+                node.fail_condition, sm.trinary_logic_not(node.observation_variable)
             )
 
     def _expand_goals(self, context: MotionStatechartContext):

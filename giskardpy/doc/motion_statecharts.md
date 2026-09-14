@@ -287,6 +287,12 @@ This splits nodes into two kinds:
   its success condition, so it succeeds once it observes True. Examples are `Attempt`, the
   ordering templates and nodes like `SetOdometry`.
 
+Independent of how a node ends on success, a node can also be a **`SelfFailingNode`**: observing
+False means it can no longer reach its goal. When the statechart is compiled, every such node gets
+`not observation` added to its fail condition, so it fails once it observes False. `Attempt` and
+the ordering templates are self-deciding and self-failing; `StoppedWhenTrue` and
+`CancelledWhenTrue` are maintenance nodes that are self-failing.
+
 `Attempt` is the bridge between the two: it runs a maintenance node and turns it into a node
 that ends itself.
 
@@ -509,8 +515,8 @@ flowchart LR
 ```
 
 `StoppedWhenTrue` observes True while the monitored node observes True or once it succeeded,
-False once the monitor stopped it, and Unknown otherwise. Observing False is what it declares
-its own failure on: the monitored node is down by then, so nothing is being held any more, and
+False once the monitor stopped it, and Unknown otherwise. It is a `SelfFailingNode`, so observing
+False fails it: the monitored node is down by then, so nothing is being held any more, and
 whoever runs it would otherwise wait for a subtree that can no longer arrive.
 
 ## Ending the motion

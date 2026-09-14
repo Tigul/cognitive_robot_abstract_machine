@@ -11,6 +11,7 @@ from giskardpy.motion_statechart.graph_node import (
     MaintenanceNode,
     MotionStatechartNode,
     NodeArtifacts,
+    SelfFailingNode,
 )
 from krrood.symbolic_math.symbolic_math import (
     Scalar,
@@ -92,7 +93,7 @@ class PausedUntilTrue(MonitoredCompositeStatechartNode):
 
 
 @dataclass(repr=False, eq=False)
-class StoppedWhenTrue(MonitoredCompositeStatechartNode):
+class StoppedWhenTrue(SelfFailingNode, MonitoredCompositeStatechartNode):
     """
     Interrupts the monitored node as soon as the monitor observes True.
 
@@ -106,16 +107,6 @@ class StoppedWhenTrue(MonitoredCompositeStatechartNode):
     itself on firing, unlike the pausing goals, which need the reading it takes right
     now.
     """
-
-    def expand(self, context: MotionStatechartContext) -> None:
-        """
-        Add the monitor and the monitored node, and declare this goal failed once it
-        reports that it stopped one short of its goal.
-        """
-        super().expand(context)
-        self.fail_condition = trinary_logic_or(
-            self.fail_condition, trinary_logic_not(self.observation_variable)
-        )
 
     def wire_monitor(self) -> None:
         self.monitored_node.interrupt_condition = trinary_logic_or(

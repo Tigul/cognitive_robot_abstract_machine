@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.context import MotionStatechartContext
+from giskardpy.motion_statechart.data_types import ObservationStateValues
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.graph_node import (
     MotionStatechartNode,
@@ -12,6 +13,7 @@ from giskardpy.motion_statechart.graph_node import (
     NodeArtifacts,
     CancelMotion,
     SelfDecidingNode,
+    SelfFailingNode,
 )
 from giskardpy.motion_statechart.monitors.payload_monitors import (
     CountControlCycles,
@@ -299,6 +301,21 @@ class NodeObservingLastObservation(MotionStatechartNode):
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar(self.watched_node.last_observation))
+
+
+@dataclass(eq=False, repr=False)
+class SelfFailingMaintenanceNode(SelfFailingNode, MaintenanceNode):
+    """
+    A node that fails itself once it observes False and leaves succeeding to its owner.
+    """
+
+    observation: ObservationStateValues = field(kw_only=True)
+    """
+    What this node observes on every control cycle.
+    """
+
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        return NodeArtifacts(observation=sm.Scalar(float(self.observation)))
 
 
 @dataclass(repr=False, eq=False)

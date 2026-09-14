@@ -1841,7 +1841,21 @@ class SelfDecidingNode(MotionStatechartNode):
 
     The statechart supplies that ending as its success condition, so a subclass declares
     the contract and nothing else. Declaring a failure is separate and optional, through
-    :attr:`~MotionStatechartNode.fail_condition`.
+    :attr:`~MotionStatechartNode.fail_condition` or by also being a
+    :class:`SelfFailingNode`.
+    """
+
+
+@dataclass(eq=False, repr=False)
+class SelfFailingNode(MotionStatechartNode):
+    """
+    A node whose observing False means it can no longer reach its goal, which is what lets
+    it fail itself.
+
+    The statechart supplies that failure as its fail condition, on top of whatever else
+    already fails it. It says nothing about succeeding: a node that also ends itself on
+    reaching its goal is a :class:`SelfDecidingNode` as well, and one its owner ends stays a
+    :class:`MaintenanceNode`.
     """
 
 

@@ -77,6 +77,7 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     NodeObservingAPredicate,
     NodeObservingLastObservation,
     NodeObservingNothingYet,
+    SelfFailingMaintenanceNode,
     ConstTrueNode,
     TestCompositeStatechartNode,
     TestNestedCompositeStatechartNode,
@@ -3035,6 +3036,69 @@ class TestLifeCycleVerdicts:
         self._compile(msc).tick()
 
         assert node.observation_state == ObservationStateValues.TRUE
+        assert node.life_cycle_state == LifeCycleValues.FAILED
+
+    def test_a_self_failing_node_fails_once_it_observes_false(self):
+        """
+        A self failing node observing False can no longer reach its goal, so it fails
+        without any condition declaring it.
+        """
+        msc = MotionStatechart()
+        msc.add_node(
+            node := SelfFailingMaintenanceNode(observation=ObservationStateValues.FALSE)
+        )
+
+        self._compile(msc).tick()
+
+        assert node.life_cycle_state == LifeCycleValues.FAILED
+
+    def test_a_self_failing_node_keeps_running_while_it_observes_unknown(self):
+        """
+        An observation with no answer yet says nothing about whether the goal can still
+        be reached.
+        """
+        msc = MotionStatechart()
+        msc.add_node(
+            node := SelfFailingMaintenanceNode(
+                observation=ObservationStateValues.UNKNOWN
+            )
+        )
+
+        self._compile(msc).tick()
+
+        assert node.life_cycle_state == LifeCycleValues.RUNNING
+
+    def test_a_self_failing_node_is_not_succeeded_by_observing_true(self):
+        """
+        Failing itself says nothing about succeeding, which stays its owner's to decide.
+        """
+        msc = MotionStatechart()
+        msc.add_node(
+            node := SelfFailingMaintenanceNode(observation=ObservationStateValues.TRUE)
+        )
+
+        self._compile(msc).tick()
+
+        assert node.life_cycle_state == LifeCycleValues.RUNNING
+
+    def test_a_self_failing_node_keeps_the_fail_condition_it_was_given(self):
+        """
+        The failure the statechart supplies comes on top of the one declared for the
+        node, rather than replacing it.
+        """
+        msc = MotionStatechart()
+        msc.add_nodes(
+            [
+                trigger := ConstTrueNode(),
+                node := SelfFailingMaintenanceNode(
+                    observation=ObservationStateValues.TRUE
+                ),
+            ]
+        )
+        node.fail_condition = trigger.observation_variable
+
+        self._compile(msc).tick()
+
         assert node.life_cycle_state == LifeCycleValues.FAILED
 
     def test_a_child_an_ancestor_took_down_at_its_goal_has_not_succeeded(self):
