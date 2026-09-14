@@ -299,17 +299,34 @@ class Plan:
             raise ContextIsUnavailable
         return self.context.plan_transformations
 
+    def applicable_transformations(self, node: PlanNode) -> List[PlanTransformation]:
+        """
+        :param node: The node that was just expanded
+        :return: The transformations that rewrite the plan around the given node.
+        """
+        return [
+            transformation
+            for transformation in self.plan_transformations
+            if transformation.applies_to_node(node)
+            and transformation.is_applicable(node)
+        ]
+
     def apply_plan_transformations(self, node: PlanNode):
         """
         Rewrites the plan with every transformation that applies to the given node.
 
+        Each of them rewrites what the ones before it left, so more than one of them on
+        the same node is reported.
+
         :param node: The node that was just expanded
         """
-        for transformation in self.plan_transformations:
-            if not transformation.applies_to_node(node):
-                continue
-            if not transformation.is_applicable(node):
-                continue
+        transformations = self.applicable_transformations(node)
+        if len(transformations) > 1:
+            logger.warning(
+                f"{len(transformations)} plan transformations are applied to {node}: "
+                f"{transformations}"
+            )
+        for transformation in transformations:
             transformation.apply(node)
 
     def perform(self) -> Any:

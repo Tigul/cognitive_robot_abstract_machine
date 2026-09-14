@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 
 import pytest
@@ -14,6 +15,7 @@ from coraplex.exceptions import PerceptionTargetMissing
 from coraplex.orm.ormatic_interface import *  # type: ignore
 from coraplex.language import SequentialNode
 from coraplex.plans.factories import execute_single, sequential
+from coraplex.plans.plan import logger as plan_logger
 from coraplex.plans.plan_node import ActionLike, ActionNode, MotionNode, PlanNode
 from coraplex.plans.plan_transformation import (
     ActionMatch,
@@ -744,3 +746,106 @@ def test_the_opening_joins_the_sequence_an_underspecified_pick_up_runs(
     assert opening.designator.object_designator is drawer.handle.root
     assert isinstance(parking_again.designator, ParkArmsAction)
     assert drive_to_the_spoon.designator_type is NavigateAction
+
+
+# %% transformations that collide on one node
+
+
+@dataclass
+class MoveLeftGripperBeforeTorso(InsertionRewrite, ActionMatch[MoveTorsoAction]):
+    """
+    Puts a left gripper motion in front of a torso move.
+    """
+
+    @property
+    def position(self) -> InsertionPosition:
+        return InsertionPosition.BEFORE
+
+    def anchor(self, plan_node: ActionNode) -> PlanNode:
+        return plan_node
+
+    def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
+        return [MoveGripperMotion(GripperState.OPEN, Arms.LEFT)]
+
+
+@dataclass
+class MoveRightGripperBeforeTorso(MoveLeftGripperBeforeTorso):
+    """
+    Puts a right gripper motion there instead.
+    """
+
+    def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
+        return [MoveGripperMotion(GripperState.CLOSE, Arms.RIGHT)]
+
+
+def warnings_of(caplog) -> List[str]:
+    """
+    :param caplog: The capture of this test's log records.
+    :return: The message of every warning the plan reported.
+    """
+    return [
+        record.getMessage()
+        for record in caplog.records
+        if record.name == plan_logger.name and record.levelno == logging.WARNING
+    ]
+
+
+def test_two_transformations_applied_to_one_node_are_reported(
+    immutable_model_world, caplog
+):
+    """
+    Whichever transformation rewrites a node first decides what the next one finds, so a
+    node more than one of them is applied to is reported.
+    """
+    world, view, context = immutable_model_world
+    context.plan_transformations.extend(
+        [MoveLeftGripperBeforeTorso(), MoveRightGripperBeforeTorso()]
+    )
+
+    plan = sequential([MoveTorsoAction(TorsoState.HIGH)], context)
+    [torso] = [node for node in plan.children if isinstance(node, ActionNode)]
+    with caplog.at_level(logging.WARNING, logger=plan_logger.name):
+        plan.notify()
+
+    [warning] = warnings_of(caplog)
+    assert str(torso) in warning
+
+
+def test_the_transformations_that_collide_are_still_applied(immutable_model_world):
+    """
+    The report is a warning rather than a refusal, so both of them rewrite the plan, in
+    the order the context lists them.
+    """
+    world, view, context = immutable_model_world
+    context.plan_transformations.extend(
+        [MoveLeftGripperBeforeTorso(), MoveRightGripperBeforeTorso()]
+    )
+
+    plan = sequential([MoveTorsoAction(TorsoState.HIGH)], context)
+    plan.notify()
+
+    assert [motion.designator.gripper for motion in motions_of(plan)] == [
+        Arms.LEFT,
+        Arms.RIGHT,
+    ]
+
+
+def test_a_transformation_the_case_does_not_need_is_no_collision(
+    immutable_model_world, caplog
+):
+    """
+    Two transformations matching the same node type collide only where both are needed,
+    so the one whose case does not apply leaves the other one alone.
+    """
+    world, view, context = immutable_model_world
+    context.plan_transformations.extend(
+        [MoveLeftGripperBeforeTorso(), MoveGripperBeforeHighTorso()]
+    )
+
+    plan = sequential([MoveTorsoAction(TorsoState.LOW)], context)
+    [torso] = [node for node in plan.children if isinstance(node, ActionNode)]
+    with caplog.at_level(logging.WARNING, logger=plan_logger.name):
+        plan.notify()
+
+    assert warnings_of(caplog) == []
+    assert plan.plan.applicable_transformations(torso) == [MoveLeftGripperBeforeTorso()]
