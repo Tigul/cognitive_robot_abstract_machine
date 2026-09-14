@@ -97,12 +97,25 @@ class StoppedWhenTrue(MonitoredCompositeStatechartNode):
     Interrupts the monitored node as soon as the monitor observes True.
 
     It observes True while the monitored node observes True or once it succeeded, False
-    once the monitor stopped it, whatever it observed, and Unknown otherwise.
+    once the monitor stopped it, whatever it observed, and Unknown otherwise. Observing
+    False is also what it declares its own failure on: the monitored node is down by
+    then, so nothing is being held any more, and whoever runs this would otherwise wait
+    for a subtree that can no longer arrive.
 
     The monitor is read through its last observation, which outlasts a monitor that ends
     itself on firing, unlike the pausing goals, which need the reading it takes right
     now.
     """
+
+    def expand(self, context: MotionStatechartContext) -> None:
+        """
+        Add the monitor and the monitored node, and declare this goal failed once it
+        reports that it stopped one short of its goal.
+        """
+        super().expand(context)
+        self.fail_condition = trinary_logic_or(
+            self.fail_condition, trinary_logic_not(self.observation_variable)
+        )
 
     def wire_monitor(self) -> None:
         self.monitored_node.interrupt_condition = trinary_logic_or(

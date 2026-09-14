@@ -3,6 +3,7 @@ from __future__ import division
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import timedelta
+from itertools import combinations
 from typing import List
 
 from typing_extensions import Optional
@@ -48,6 +49,9 @@ class Attempt(SelfDecidingNode, CompositeStatechartNode):
     once one of :attr:`failure_monitors` fires, which is what it declares its own
     failure on. That is what lets a maintained motion be one step of a plan.
 
+    It declares that failure as well once the task ended without succeeding, which is the
+    task having concluded on its own and nothing else here would notice.
+
     .. note:: The task is never ended from here. It keeps exerting itself after first
         reaching its goal and comes down only with this goal, so a constraint that was
         pushed off its goal again is still being held.
@@ -88,7 +92,8 @@ class Attempt(SelfDecidingNode, CompositeStatechartNode):
         too and a node that ended observes nothing any more.
 
         :return: The failure monitors that fired, in the order they were given, and
-            nothing at all unless this goal declared itself failed.
+            nothing at all unless this goal declared itself failed. Empty as well for a
+            failure the task reached on its own, which no monitor is the reason for.
         """
         if self.life_cycle_state != LifeCycleValues.FAILED:
             return []
@@ -103,8 +108,8 @@ class Attempt(SelfDecidingNode, CompositeStatechartNode):
         Add the task and the monitors, and declare this goal failed once it observes
         being given up on.
 
-        A condition may only read its own node or a sibling, so this goal reaches its
-        monitors through its own observation rather than through its children.
+        Both ways of failing reach this goal through its own observation, which keeps
+        the verdict and what it reports about itself in step.
 
         A monitor succeeds on the control cycle it fires, which keeps the observation it
         fired on as its last observation. A goal reads its children a cycle late, so a
@@ -129,12 +134,17 @@ class Attempt(SelfDecidingNode, CompositeStatechartNode):
         that arrived did what it was asked, whatever else was true at that moment. The
         task is read through its last observation, which is what it observes for as long
         as this goal holds it open, and what it arrived at if it ended itself.
+
+        A task that ended without succeeding is reported the same way a monitor giving up
+        is: nothing will move it any more, and an attempt still waiting for it would never
+        end.
         """
         return NodeArtifacts(
             observation=if_cases(
                 cases=[
                     (self.task.last_observation.is_true(), Scalar.const_true()),
                     (self.any_failure_monitor_fired, Scalar.const_false()),
+                    (self.task.has_ended_without_succeeding, Scalar.const_false()),
                 ],
                 else_result=Scalar.const_trinary_unknown(),
             )
@@ -333,29 +343,79 @@ class Parallel(MaintenanceNode, NodeListCompositeStatechartNode):
         return self.minimum_success
 
     def expand(self, context: MotionStatechartContext) -> None:
+        """
+        Add the nodes, and declare this goal failed once too few of them can still reach
+        their goals.
+
+        Observing False means the constraints are not satisfied, which is not a failure
+        and is left to the attempt this goal is wrapped in. A node that ended without
+        succeeding is different: nothing brings it back, so once too few are left this
+        goal can no longer arrive and says so rather than holding its owner open forever.
+
+        A node is read through the state it entered the control cycle with, which is what
+        a condition may read about a direct child.
+        """
         self._check_has_children()
         for node in self.nodes:
             self._add_child_to_motion_statechart(node)
+        self.fail_condition = trinary_logic_or(
+            self.fail_condition, self._cannot_arrive_any_more
+        )
+
+    @property
+    def _cannot_arrive_any_more(self) -> Scalar:
+        """
+        Asks whether so many nodes ended without succeeding that
+        :attr:`required_successes` is out of reach.
+
+        Counting would say this in one line, but a transition condition has to render
+        back into the expression it was written as, which only leaves the trinary
+        operators: the question becomes which groups of nodes ending without succeeding
+        are enough, one term per group.
+
+        :return: True once too few nodes are left to reach :attr:`required_successes`.
+        """
+        nodes_that_must_end_without_succeeding = (
+            len(self.nodes) - self.required_successes + 1
+        )
+        if nodes_that_must_end_without_succeeding <= 0:
+            return Scalar.const_true()
+        if nodes_that_must_end_without_succeeding > len(self.nodes):
+            return Scalar.const_false()
+        return trinary_logic_or(
+            *[
+                trinary_logic_and(
+                    *[node.has_ended_without_succeeding for node in group]
+                )
+                for group in combinations(
+                    self.nodes, nodes_that_must_end_without_succeeding
+                )
+            ]
+        )
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         """
-        Count the nodes whose last observation is True against
-        :attr:`required_successes`.
+        Count the nodes that are at their goals against :attr:`required_successes`.
 
         This goal ends none of its nodes, so a node that keeps running is counted by
-        what it observes now and stops counting once it observes False again.
-        A node something *else* ended is counted by the last observation it took, which
-        outlasts it.
+        what it observes now and stops counting once it observes False again. A node that
+        succeeded on its own is counted by the last observation it took, which outlasts
+        it; one that ended without succeeding stops counting, because the reading it kept
+        says where it was cut off rather than where it is.
 
         Observing False means the constraints are not satisfied, not that anything went
         wrong: whether that is worth giving up on is decided outside, by the attempt this
         goal is wrapped in.
         """
-        nodes_that_observed_true = [
-            node.last_observation.is_true() for node in self.nodes
+        nodes_at_their_goals = [
+            trinary_logic_and(
+                node.last_observation.is_true(),
+                trinary_logic_not(node.has_ended_without_succeeding),
+            )
+            for node in self.nodes
         ]
         return NodeArtifacts(
-            observation=self.required_successes <= sum(*nodes_that_observed_true)
+            observation=self.required_successes <= sum(*nodes_at_their_goals)
         )
 
 

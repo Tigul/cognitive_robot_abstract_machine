@@ -18,9 +18,11 @@ from giskardpy.motion_statechart.data_types import (
     LifeCyclePredicate,
     ObservationStateValues,
     DefaultWeights,
+    SettledLifeCyclePredicate,
     TransitionKind,
 )
 from giskardpy.motion_statechart.exceptions import (
+    ChildPredicateInConditionError,
     ChildTransitionAlreadyWiredError,
     NodeCannotDecideItselfError,
     NotInMotionStatechartError,
@@ -3355,6 +3357,69 @@ class TestReadingChildrenThatEnded:
         assert still_running.life_cycle_state == LifeCycleValues.RUNNING
         assert parallel.observation_state == ObservationStateValues.TRUE
 
+    def test_a_parallel_stops_counting_a_child_that_ended_without_succeeding(self):
+        """
+        A child that ended short of its goal cannot be at it any more, however true the
+        observation it kept still reads.
+        """
+        msc = MotionStatechart()
+        msc.add_node(
+            parallel := Parallel(
+                nodes=[failed := Pulse(), still_trying := ConstFalseNode()],
+                minimum_success=1,
+            )
+        )
+        failed.fail_condition = failed.observation_variable
+
+        executor = _compile_msc(msc)
+        for _ in range(4):
+            executor.tick()
+
+        assert failed.life_cycle_state == LifeCycleValues.FAILED
+        assert failed.last_observation_state == ObservationStateValues.TRUE
+        assert still_trying.life_cycle_state == LifeCycleValues.RUNNING
+        assert parallel.observation_state == ObservationStateValues.FALSE
+
+    def test_a_parallel_fails_once_too_few_children_can_reach_their_goals(self):
+        """
+        Nothing brings a child that ended back, so a parallel that can no longer reach
+        its goal says so rather than holding whoever runs it open forever.
+        """
+        msc = MotionStatechart()
+        msc.add_node(parallel := Parallel(nodes=[failed := Pulse(), ConstTrueNode()]))
+        failed.fail_condition = failed.observation_variable
+
+        executor = _compile_msc(msc)
+        for _ in range(4):
+            executor.tick()
+
+        assert parallel.life_cycle_state == LifeCycleValues.FAILED
+
+    def test_a_parallel_keeps_going_while_enough_children_can_still_reach_their_goals(
+        self,
+    ):
+        """
+        A child that ended without succeeding only decides the parallel once the ones
+        left cannot make up the number it asks for.
+        """
+        msc = MotionStatechart()
+        msc.add_node(
+            parallel := Parallel(
+                nodes=[failed := Pulse(), at_its_goal := ConstTrueNode()],
+                minimum_success=1,
+            )
+        )
+        failed.fail_condition = failed.observation_variable
+
+        executor = _compile_msc(msc)
+        for _ in range(4):
+            executor.tick()
+
+        assert failed.life_cycle_state == LifeCycleValues.FAILED
+        assert at_its_goal.life_cycle_state == LifeCycleValues.RUNNING
+        assert parallel.life_cycle_state == LifeCycleValues.RUNNING
+        assert parallel.observation_state == ObservationStateValues.TRUE
+
     def test_a_parallel_is_not_satisfied_by_children_true_at_different_times(self):
         """
         A parallel asks whether its children reached their goals at the same time, so a
@@ -3985,21 +4050,33 @@ class TestIsFailedOrInterrupted:
 
 class TestHasEndedWithoutSucceeding:
     """
-    Tests the expression that answers whether a node ended any way but by succeeding,
-    which an observation may read where the verdict predicates are out of bounds.
+    Tests the settled predicate that answers whether a node ended any way but by
+    succeeding, which an observation may read where the verdict predicates are out of
+    bounds.
     """
 
     @staticmethod
     def _answer(life_cycle_state: LifeCycleValues) -> ObservationStateValues:
         """
-        :param life_cycle_state: The state to evaluate the expression in.
-        :return: What the expression answers.
+        :param life_cycle_state: The state to evaluate the predicate in.
+        :return: What the predicate answers, read off the expression it compiles into.
         """
         node = ConstTrueNode()
-        substituted = sm.Scalar(node.has_ended_without_succeeding).substitute(
-            [node.life_cycle_variable], [float(life_cycle_state)]
-        )
+        substituted = SettledLifeCyclePredicate.HAS_ENDED_WITHOUT_SUCCEEDING.expression(
+            node.life_cycle_variable
+        ).substitute([node.life_cycle_variable], [float(life_cycle_state)])
         return ObservationStateValues(float(substituted))
+
+    def test_the_node_reads_this_predicate(self):
+        """
+        The attribute a caller reaches for is what the tested truth table belongs to.
+        """
+        node = ConstTrueNode()
+
+        assert (
+            node.has_ended_without_succeeding.predicate
+            is SettledLifeCyclePredicate.HAS_ENDED_WITHOUT_SUCCEEDING
+        )
 
     @pytest.mark.parametrize(
         "life_cycle_state, expected",
@@ -4029,21 +4106,29 @@ class TestHasEndedWithoutSucceeding:
 
 class TestHasSucceeded:
     """
-    Tests the expression that answers whether a node ended by succeeding, which an
-    observation may read where the verdict predicates are out of bounds.
+    Tests the settled predicate that answers whether a node ended by succeeding, which
+    an observation may read where the verdict predicates are out of bounds.
     """
 
     @staticmethod
     def _answer(life_cycle_state: LifeCycleValues) -> ObservationStateValues:
         """
-        :param life_cycle_state: The state to evaluate the expression in.
-        :return: What the expression answers.
+        :param life_cycle_state: The state to evaluate the predicate in.
+        :return: What the predicate answers, read off the expression it compiles into.
         """
         node = ConstTrueNode()
-        substituted = sm.Scalar(node.has_succeeded).substitute(
-            [node.life_cycle_variable], [float(life_cycle_state)]
-        )
+        substituted = SettledLifeCyclePredicate.HAS_SUCCEEDED.expression(
+            node.life_cycle_variable
+        ).substitute([node.life_cycle_variable], [float(life_cycle_state)])
         return ObservationStateValues(float(substituted))
+
+    def test_the_node_reads_this_predicate(self):
+        """
+        The attribute a caller reaches for is what the tested truth table belongs to.
+        """
+        node = ConstTrueNode()
+
+        assert node.has_succeeded.predicate is SettledLifeCyclePredicate.HAS_SUCCEEDED
 
     @pytest.mark.parametrize("life_cycle_state", list(LifeCycleValues))
     def test_only_a_succeeded_node_answers_true(self, life_cycle_state):
@@ -4159,10 +4244,13 @@ class TestEagerStateVariables:
 
 class TestConditionScoping:
     """
-    A condition may only reference the node itself or nodes sharing the same parent.
+    A condition may reference the node itself, a node sharing its parent, or a direct
+    child of it, the last only through the state that child entered the control cycle
+    with.
 
     References across template levels raise :class:`ConditionScopeError` during
-    compilation.
+    compilation, and a predicate of a child raises
+    :class:`ChildPredicateInConditionError`.
     """
 
     def test_outside_node_cannot_reference_node_inside_template(self):
@@ -4207,6 +4295,76 @@ class TestConditionScoping:
         parallel.success_condition = child.observation_variable
         msc.add_node(parallel)
         msc.add_node(EndMotion.when_true(parallel))
+
+        kin_sim = Executor(MotionStatechartContext(world=World()))
+        with pytest.raises(ConditionScopeError):
+            kin_sim.compile(motion_statechart=msc)
+
+    def test_parent_can_reference_child_through_its_last_observation(self):
+        """
+        What a child observed is settled by the time the parent's own transition is
+        decided, so a parent may read it.
+        """
+        msc = MotionStatechart()
+        child = ConstTrueNode()
+        parallel = Parallel([child])
+        msc.add_node(parallel)
+        parallel.success_condition = child.last_observation
+        msc.add_node(EndMotion.when_true(parallel))
+
+        kin_sim = Executor(MotionStatechartContext(world=World()))
+        kin_sim.compile(motion_statechart=msc)
+        kin_sim.tick_until_end(timeout=10)
+
+        assert parallel.life_cycle_state == LifeCycleValues.SUCCEEDED
+
+    def test_parent_can_reference_child_through_a_settled_predicate(self):
+        """
+        A child that ended without succeeding is what a parent gives up on, and the
+        state it ended in is settled by the time the parent is decided.
+        """
+        msc = MotionStatechart()
+        child = ConstTrueNode()
+        parallel = Parallel([child])
+        msc.add_node(parallel)
+        child.fail_condition = child.observation_variable
+        parallel.fail_condition = child.has_ended_without_succeeding
+        msc.add_node(EndMotion.when_true(parallel))
+
+        kin_sim = Executor(MotionStatechartContext(world=World()))
+        kin_sim.compile(motion_statechart=msc)
+        for _ in range(4):
+            kin_sim.tick()
+
+        assert child.life_cycle_state == LifeCycleValues.FAILED
+        assert parallel.life_cycle_state == LifeCycleValues.FAILED
+
+    def test_parent_cannot_reference_child_through_a_life_cycle_predicate(self):
+        """
+        A predicate answers about the state its node reaches this control cycle, which
+        the parent is deciding at the same moment.
+        """
+        msc = MotionStatechart()
+        child = ConstTrueNode()
+        parallel = Parallel([child])
+        msc.add_node(parallel)
+        parallel.success_condition = child.is_succeeded
+        msc.add_node(EndMotion.when_true(parallel))
+
+        kin_sim = Executor(MotionStatechartContext(world=World()))
+        with pytest.raises(ChildPredicateInConditionError):
+            kin_sim.compile(motion_statechart=msc)
+
+    def test_parent_cannot_reference_grandchild(self):
+        """
+        Reaching past a direct child skips the node that owns the one being read.
+        """
+        msc = MotionStatechart()
+        grandchild = ConstTrueNode()
+        outer = Parallel([Parallel([grandchild])])
+        msc.add_node(outer)
+        outer.success_condition = grandchild.last_observation
+        msc.add_node(EndMotion.when_true(outer))
 
         kin_sim = Executor(MotionStatechartContext(world=World()))
         with pytest.raises(ConditionScopeError):

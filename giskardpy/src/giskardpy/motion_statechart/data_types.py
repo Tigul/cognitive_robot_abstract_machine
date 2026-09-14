@@ -249,6 +249,31 @@ class LifeCyclePredicate(LifeCyclePredicateDefinition, Enum):
         return self.name.lower()
 
 
+class SettledLifeCyclePredicate(LifeCyclePredicateDefinition, Enum):
+    """
+    A test on the life cycle state a node entered the control cycle with.
+
+    Every member is binary: the state it reads is the one the node arrived with, so
+    there is nothing left to decide and no state in which the answer is unknown. That is
+    what lets one be read about a direct child, which :class:`LifeCyclePredicate` cannot
+    be, and what lets an observation read one, where an unknown would select the case it
+    guards.
+    """
+
+    HAS_SUCCEEDED = frozenset({LifeCycleValues.SUCCEEDED})
+    HAS_ENDED_WITHOUT_SUCCEEDING = LifeCycleValues.terminal_states() - frozenset(
+        {LifeCycleValues.SUCCEEDED}
+    )
+
+    @property
+    def attribute_name(self) -> str:
+        """
+        :return: The name this predicate is reached under on a node, also used to render
+            it inside a condition.
+        """
+        return self.name.lower()
+
+
 # %% weights and transitions
 
 

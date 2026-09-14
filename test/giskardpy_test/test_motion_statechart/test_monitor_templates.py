@@ -14,6 +14,7 @@ from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     ObservationStateValues,
+    SettledLifeCyclePredicate,
 )
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.monitors.templates import (
@@ -74,6 +75,7 @@ def observation_for(
             goal.monitored_node.observation_variable,
             goal.monitored_node.last_observation,
             goal.monitored_node.life_cycle_variable,
+            goal.monitored_node.has_succeeded,
             goal.monitor.observation_variable,
             goal.monitor.last_observation,
         ],
@@ -81,6 +83,7 @@ def observation_for(
             monitored_observation,
             monitored_observation,
             monitored_life_cycle,
+            SettledLifeCyclePredicate.HAS_SUCCEEDED.truth_value(monitored_life_cycle),
             monitor_observation,
             monitor_observation,
         ],

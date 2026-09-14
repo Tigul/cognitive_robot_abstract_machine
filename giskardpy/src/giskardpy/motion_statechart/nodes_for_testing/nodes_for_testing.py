@@ -301,6 +301,23 @@ class NodeObservingLastObservation(MotionStatechartNode):
         return NodeArtifacts(observation=sm.Scalar(self.watched_node.last_observation))
 
 
+@dataclass(repr=False, eq=False)
+class NodeDeclaringItsOwnFailure(MaintenanceNode, CompositeStatechartNode):
+    """
+    A node short of its goal that declares it cannot continue, which is what a node may
+    decide about itself where succeeding is left to its owner.
+
+    Being a composite statechart node is what gives it an :meth:`expand` hook to declare
+    the failure in; it runs no children of its own.
+    """
+
+    def expand(self, context: MotionStatechartContext) -> None:
+        self.fail_condition = sm.Scalar.const_true()
+
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        return NodeArtifacts(observation=sm.Scalar.const_false())
+
+
 # %% goals that end their child
 
 

@@ -448,15 +448,15 @@ def test_stopped_when_true_ends_the_monitored_node():
     )
     _compile_and_tick(goal)
 
-    assert goal.monitor.observation_state == ObservationStateValues.TRUE
+    assert goal.monitor.last_observation_state == ObservationStateValues.TRUE
     # Stopping a node decides when it ends, not that it failed.
     assert goal.monitored_node.life_cycle_state == LifeCycleValues.INTERRUPTED
 
 
 def test_stopped_when_true_fails_once_it_stopped_the_monitored_node():
     """
-    Its observation turns False, reporting that the monitored node was cut short rather
-    than reaching its goal.
+    Stopping a node short of its goal is reported as a failure of the subtree, which it
+    declares itself so that whoever runs it is not left waiting.
     """
     goal = StoppedWhenTrue(
         monitor=CountControlCycles(control_cycles=2, name="trip"),
@@ -464,7 +464,8 @@ def test_stopped_when_true_fails_once_it_stopped_the_monitored_node():
     )
     _compile_and_tick(goal)
 
-    assert goal.observation_state == ObservationStateValues.FALSE
+    assert goal.last_observation_state == ObservationStateValues.FALSE
+    assert goal.life_cycle_state == LifeCycleValues.FAILED
 
 
 def test_stopped_when_true_observes_false_once_it_stopped_a_node_at_its_goal():
@@ -479,7 +480,25 @@ def test_stopped_when_true_observes_false_once_it_stopped_a_node_at_its_goal():
     _compile_and_tick(goal)
 
     assert goal.monitored_node.life_cycle_state == LifeCycleValues.INTERRUPTED
-    assert goal.observation_state == ObservationStateValues.FALSE
+    assert goal.last_observation_state == ObservationStateValues.FALSE
+
+
+def test_a_stopped_subtree_makes_its_sequence_report_a_failure():
+    """
+    A stopped subtree used to leave the sequence running it waiting forever, because a
+    node short of its goal never ends on its own.
+    """
+    stopped = StoppedWhenTrue(
+        monitor=CountControlCycles(control_cycles=2, name="trip"),
+        monitored_node=CountControlCycles(control_cycles=99, name="work"),
+    )
+    sequence = Sequence(nodes=[stopped])
+
+    _compile_and_tick(sequence)
+
+    assert stopped.life_cycle_state == LifeCycleValues.FAILED
+    assert sequence.life_cycle_state == LifeCycleValues.FAILED
+    assert sequence.last_observation_state == ObservationStateValues.FALSE
 
 
 def test_monitored_goals_observe_the_monitored_node_when_the_monitor_never_fires():

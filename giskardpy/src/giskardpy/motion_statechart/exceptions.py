@@ -12,6 +12,7 @@ from semantic_digital_twin.collision_checking.collision_detector import ClosestP
 if TYPE_CHECKING:
     from giskardpy.motion_statechart.data_types import TransitionKind
     from giskardpy.motion_statechart.graph_node import (
+        LifeCyclePredicateVariable,
         MotionStatechartNode,
         TrinaryCondition,
     )
@@ -619,6 +620,34 @@ class ConditionScopeError(InvalidConditionError):
         if parent_node is None:
             return "top level"
         return parent_node.unique_name
+
+
+@dataclass
+class ChildPredicateInConditionError(InvalidConditionError):
+    """
+    Raised when a condition reads a life cycle predicate of a direct child.
+
+    A predicate answers about the state its node reaches this control cycle, which a
+    parent cannot wait for, because the child's own transitions already read the
+    parent's conditions.
+    """
+
+    unsupported_variable: LifeCyclePredicateVariable
+    """
+    The predicate of a child that the condition may not read.
+    """
+
+    def reason(self) -> str:
+        return (
+            f'Reads "{self.unsupported_variable.display_name}", a life cycle predicate '
+            f"of a direct child, which is only decided after this condition."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Read the state the child entered the control cycle with instead, e.g. "
+            "'child.has_ended_without_succeeding' or 'child.last_observation'."
+        )
 
 
 @dataclass

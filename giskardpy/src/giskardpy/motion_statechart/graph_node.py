@@ -28,6 +28,7 @@ from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     LifeCyclePredicate,
     ObservationStateValues,
+    SettledLifeCyclePredicate,
     TransitionKind,
     DefaultWeights,
     NodeJSONKey,
@@ -511,6 +512,70 @@ class LastObservationVariable(ConditionVariable):
         return self.motion_statechart_node.last_observation_state
 
 
+@dataclass(repr=False, eq=False, init=False)
+class SettledLifeCyclePredicateVariable(ConditionVariable):
+    """
+    A symbol representing a binary test on the life cycle state a node entered the
+    control cycle with.
+
+    A :class:`LifeCyclePredicateVariable` answers about the state its node reaches this
+    control cycle, which nothing being decided in the same cycle can wait for. This one
+    is settled before the cycle begins, which is what lets a condition read it about a
+    direct child and an observation read it at all.
+    """
+
+    predicate: SettledLifeCyclePredicate = field(kw_only=True)
+    """
+    The test this variable holds the value of.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        motion_statechart_node: MotionStatechartNode,
+        predicate: SettledLifeCyclePredicate,
+    ):
+        super().__init__(name, motion_statechart_node)
+        self.predicate = predicate
+
+    @property
+    def display_name(self) -> str:
+        return (
+            f"{self.motion_statechart_node.unique_name}.{self.predicate.attribute_name}"
+        )
+
+    def resolve(self) -> ObservationStateValues:
+        return self.predicate.truth_value(self.motion_statechart_node.life_cycle_state)
+
+    @classmethod
+    def substitute_in(cls, expression: Scalar) -> Scalar:
+        """
+        Replaces every settled predicate in `expression` by its truth table over the life
+        cycle state its node entered the control cycle with, which is what the compiled
+        updaters evaluate.
+
+        :param expression: The expression to replace them in.
+        :return: `expression` with every settled predicate replaced.
+        """
+        variables = [
+            variable
+            for variable in expression.free_variables()
+            if isinstance(variable, cls)
+        ]
+        if not variables:
+            return expression
+        # A node may hand back one of these unwrapped, which cannot be substituted into.
+        return Scalar(expression).substitute(
+            variables,
+            [
+                variable.predicate.expression(
+                    variable.motion_statechart_node.life_cycle_variable
+                )
+                for variable in variables
+            ],
+        )
+
+
 @dataclass
 class DebugExpression:
     """
@@ -715,6 +780,12 @@ class MotionStatechartNode(SubclassJSONSerializer):
     ] = field(init=False, default_factory=dict, repr=False)
     """
     The predicate variables handed out so far, so each one is created only once.
+    """
+    _settled_life_cycle_predicate_variables: Dict[
+        SettledLifeCyclePredicate, SettledLifeCyclePredicateVariable
+    ] = field(init=False, default_factory=dict, repr=False)
+    """
+    The settled predicate variables handed out so far, so each one is created only once.
     """
 
     plot_specifications: NodePlotSpec = plot_specification_field(
@@ -1367,6 +1438,30 @@ class MotionStatechartNode(SubclassJSONSerializer):
             )
         return self._life_cycle_predicate_variables[predicate]
 
+    def _settled_life_cycle_predicate(
+        self, predicate: SettledLifeCyclePredicate
+    ) -> SettledLifeCyclePredicateVariable:
+        """
+        Hands out the variable for one test on the life cycle state this node entered the
+        control cycle with, creating it on first use so an unused predicate costs nothing.
+
+        :param predicate: The test to read.
+        :return: The variable holding that test's value for this node.
+        """
+        if predicate not in self._settled_life_cycle_predicate_variables:
+            self._settled_life_cycle_predicate_variables[predicate] = (
+                SettledLifeCyclePredicateVariable(
+                    name=str(
+                        PrefixedName(
+                            predicate.attribute_name, f"{self.name}#{self._node_id}"
+                        )
+                    ),
+                    motion_statechart_node=self,
+                    predicate=predicate,
+                )
+            )
+        return self._settled_life_cycle_predicate_variables[predicate]
+
     @property
     def conditions(self) -> List[TrinaryCondition]:
         """
@@ -1454,7 +1549,7 @@ class MotionStatechartNode(SubclassJSONSerializer):
         return sm.trinary_logic_or(self.is_failed, self.is_interrupted)
 
     @property
-    def has_ended_without_succeeding(self) -> sm.Scalar:
+    def has_ended_without_succeeding(self) -> SettledLifeCyclePredicateVariable:
         """
         Whether this node has ended any way but by succeeding, which covers being cut off
         undecided as much as being judged to have failed.
@@ -1472,23 +1567,21 @@ class MotionStatechartNode(SubclassJSONSerializer):
         interrupted       true
         ================  =====
 
-        .. note:: Read off the life cycle variable rather than through the predicates,
-            because an observation may not read one. A transition condition is the other
-            way around and reads :attr:`is_failed_or_interrupted` instead, which it can
-            afford to: an unknown leaves a transition unfired, whereas an unknown case
-            guard selects its case.
+        .. note:: Answers about the state this node entered the control cycle with, which
+            is what an observation may read, where an unknown case guard would select its
+            case, and what a condition may read about a direct child.
+            :attr:`is_failed_or_interrupted` is the same question answered about the state
+            this node reaches this cycle, which only a condition about itself or a sibling
+            may read.
 
         :return: True once this node ended without succeeding, false before that.
         """
-        return sm.trinary_logic_and(
-            LifeCyclePredicate.IS_TERMINATED.expression(self.life_cycle_variable),
-            LifeCyclePredicate.IS_SUCCEEDED.expression(
-                self.life_cycle_variable
-            ).is_not_true(),
+        return self._settled_life_cycle_predicate(
+            SettledLifeCyclePredicate.HAS_ENDED_WITHOUT_SUCCEEDING
         )
 
     @property
-    def has_succeeded(self) -> sm.Scalar:
+    def has_succeeded(self) -> SettledLifeCyclePredicateVariable:
         """
         Whether this node has ended by succeeding, which only a success condition
         decides.
@@ -1505,14 +1598,15 @@ class MotionStatechartNode(SubclassJSONSerializer):
         interrupted       false
         ================  =====
 
-        .. note:: Read off the life cycle variable rather than through
-            :attr:`is_succeeded`, because an observation may not read a predicate.
+        .. note:: Answers about the state this node entered the control cycle with, unlike
+            :attr:`is_succeeded`, which an observation may not read and which no condition
+            may read about a direct child.
 
         :return: True once this node succeeded, false before that.
         """
-        return LifeCyclePredicate.IS_SUCCEEDED.expression(
-            self.life_cycle_variable
-        ).is_true()
+        return self._settled_life_cycle_predicate(
+            SettledLifeCyclePredicate.HAS_SUCCEEDED
+        )
 
     def formatted_name(self, quoted: bool = False) -> str:
         """

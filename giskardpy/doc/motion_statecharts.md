@@ -190,6 +190,17 @@ kinds of variables for this:
   | `is_interrupted`     | Unknown     | Unknown | Unknown| False     | False  | True        |
   | `is_failed_or_interrupted` | Unknown | Unknown | Unknown | False  | True   | True        |
 
+- **Settled life cycle predicates**, `node.has_succeeded` and
+  `node.has_ended_without_succeeding`, which answer about the state the node *entered* the
+  control cycle with. They are binary, never Unknown, which is what lets an observation read
+  one, where an Unknown would select the case it guards, and what lets a condition read one
+  about a direct child:
+
+  | Predicate                     | NOT_STARTED | RUNNING | PAUSED | SUCCEEDED | FAILED | INTERRUPTED |
+  |-------------------------------|:-----------:|:-------:|:------:|:---------:|:------:|:-----------:|
+  | `has_succeeded`               | False       | False   | False  | True      | False  | False       |
+  | `has_ended_without_succeeding`| False       | False   | False  | False     | True   | True        |
+
 An observation may change in both directions, while an outcome stays fixed until a reset. A
 condition that has to keep its answer after the node it reads has ended must therefore read
 `last_observation`, or the outcome through a predicate, rather than the observation:
@@ -212,16 +223,19 @@ flowchart LR
 
 Conditions are checked when they are set and when the statechart is compiled:
 
-- A condition may only read its own node or a sibling, a node with the same parent
-  (`ConditionScopeError`). A composite statechart node that has to react to its children does so
-  through its own observation, which may read them.
+- A condition may read its own node, a sibling (a node with the same parent) or a direct
+  child; anything further away raises `ConditionScopeError`. A child may only be read through
+  state it entered the control cycle with, its `last_observation` or one of its `has_*`
+  predicates. A life cycle predicate of a child raises `ChildPredicateInConditionError`,
+  because it answers about the state that child reaches this control cycle, which the node
+  reading it is deciding at the same moment.
 - A start condition may not read its own node.
 - No condition may read an EndMotion or CancelMotion node, because nothing happens after one
   of them.
 - Only node variables may appear in a condition.
 
-A node's observation expression may read `observation_variable` and `last_observation` of
-other nodes, but not a life cycle predicate. It reads the observations the previous control
+A node's observation expression may read `observation_variable`, `last_observation` and the
+settled predicates of other nodes, but not a life cycle predicate. It reads the observations the previous control
 cycle left behind, so a node that ended on that cycle still shows the observation it ended
 on; read the life cycle to tell the two apart.
 
@@ -320,6 +334,8 @@ reaches its goal or a monitor gives up on it.
 - It observes **True** once the task's `last_observation` is True, and then succeeds.
 - It observes **False** once any failure monitor's `last_observation` is True, and then fails.
   Reaching the goal wins if both happen on the same control cycle.
+- It observes **False** as well once the task ended without succeeding, which is the task
+  having concluded on its own; an attempt still waiting for it would never end.
 - Otherwise it observes Unknown and keeps going.
 
 The task is never ended by the attempt directly. It keeps being enforced until the attempt
@@ -377,7 +393,9 @@ flowchart LR
 
 Runs all of its `nodes` at the same time and observes **True** while at least
 `minimum_success` of them (all of them by default) have `last_observation` True on the same
-control cycle.
+control cycle. A node that ended without succeeding stops counting, because the reading it
+kept says where it was cut off rather than where it is, and `Parallel` fails once too few
+nodes are left to reach `minimum_success` at all.
 
 `Parallel` never ends any of its nodes: ending a task that reached its goal would let a node
 that is still running pull the robot out of that goal again. For the same reason it is a
@@ -491,7 +509,9 @@ flowchart LR
 ```
 
 `StoppedWhenTrue` observes True while the monitored node observes True or once it succeeded,
-False once the monitor stopped it, and Unknown otherwise.
+False once the monitor stopped it, and Unknown otherwise. Observing False is what it declares
+its own failure on: the monitored node is down by then, so nothing is being held any more, and
+whoever runs it would otherwise wait for a subtree that can no longer arrive.
 
 ## Ending the motion
 

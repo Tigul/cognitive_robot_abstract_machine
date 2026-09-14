@@ -25,6 +25,7 @@ from giskardpy.motion_statechart.monitors.payload_monitors import (
 from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     ConstFalseNode,
     ConstTrueNode,
+    NodeDeclaringItsOwnFailure,
     NodeObservingNothingYet,
 )
 from semantic_digital_twin.world import World
@@ -199,6 +200,26 @@ def test_an_attempt_without_failure_monitors_never_gives_up():
         executor.tick_until_end(timeout=SETTLE_CYCLES)
 
 
+def test_an_attempt_fails_once_its_task_ended_without_succeeding():
+    """
+    A task that reached a verdict of its own is as decided as one a monitor gave up on,
+    and an attempt still waiting for it would never end.
+    """
+    task = Attempt(
+        task=ConstFalseNode(name="inner_task"),
+        failure_monitors=[
+            CountControlCycles(control_cycles=CYCLES_UNTIL_GIVING_UP, name="gave_up")
+        ],
+    )
+    attempt = Attempt(task=task, failure_monitors=[])
+
+    _compile_and_tick(attempt)
+
+    assert task.life_cycle_state == LifeCycleValues.FAILED
+    assert attempt.last_observation_state == ObservationStateValues.FALSE
+    assert attempt.life_cycle_state == LifeCycleValues.FAILED
+
+
 def test_reaching_the_goal_wins_over_a_failure_on_the_same_cycle():
     """
     A monitor firing on the cycle the motion arrives must not undo the arrival.
@@ -337,4 +358,20 @@ def test_a_failed_attempt_makes_its_sequence_report_a_failure():
     _compile_and_tick(sequence)
 
     assert failing_step.life_cycle_state == LifeCycleValues.FAILED
+    assert sequence.last_observation_state == ObservationStateValues.FALSE
+
+
+def test_a_task_that_fails_on_its_own_makes_its_sequence_report_a_failure():
+    """
+    A motion may declare that it cannot continue, and the attempt a sequence wraps it in
+    has to pass that on rather than hold the sequence open forever.
+    """
+    task = NodeDeclaringItsOwnFailure(name="task")
+    sequence = Sequence(nodes=[task])
+
+    _compile_and_tick(sequence)
+
+    assert task.life_cycle_state == LifeCycleValues.FAILED
+    assert task.parent_node.life_cycle_state == LifeCycleValues.FAILED
+    assert sequence.life_cycle_state == LifeCycleValues.FAILED
     assert sequence.last_observation_state == ObservationStateValues.FALSE

@@ -19,15 +19,18 @@ from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     LifeCyclePredicate,
     ObservationStateValues,
+    SettledLifeCyclePredicate,
 )
 from giskardpy.motion_statechart.exceptions import (
     EmptyMotionStatechartError,
+    ChildPredicateInConditionError,
     ConditionScopeError,
     CyclicNodeDependencyError,
     CyclicPredicateDependencyError,
     UnsupportedObservationVariableError,
 )
 from giskardpy.motion_statechart.graph_node import (
+    ConditionVariable,
     DeserializedNodeTracker,
     MotionStatechartNode,
     TrinaryCondition,
@@ -38,6 +41,7 @@ from giskardpy.motion_statechart.graph_node import (
     ObservationVariable,
     LifeCycleVariable,
     LifeCyclePredicateVariable,
+    SettledLifeCyclePredicateVariable,
     LastObservationVariable,
     NodeStateVariable,
     DebugExpression,
@@ -323,7 +327,9 @@ class ObservationState(State):
                 b_result_cases=[
                     (
                         int(LifeCycleValues.RUNNING),
-                        node._observation_expression,
+                        SettledLifeCyclePredicateVariable.substitute_in(
+                            node._observation_expression
+                        ),
                     ),
                     (
                         int(LifeCycleValues.PAUSED),
@@ -484,12 +490,14 @@ class NextLifeCycle:
 
     def _resolve_predicates_in(self, expression: sm.Scalar) -> sm.Scalar:
         """
-        Replaces every life cycle predicate in `expression` by the value it takes in the
-        state its node reaches this control cycle.
+        Replaces every life cycle predicate in `expression` by the value it takes, one
+        about the state its node reaches this control cycle and a settled one about the
+        state its node entered the cycle with.
 
         :param expression: The expression to replace them in.
         :return:`expression` with every life cycle predicate replaced.
         """
+        expression = SettledLifeCyclePredicateVariable.substitute_in(expression)
         variables = [
             variable
             for variable in expression.free_variables()
@@ -870,7 +878,7 @@ class MotionStatechart(SubclassJSONSerializer):
         them, which is what makes a deserialized condition able to refer to one.
 
         :return: The observation variable, the last observation variable and every life
-            cycle predicate of every node.
+            cycle predicate, settled ones included, of every node.
         """
         variables: List[NodeStateVariable] = list(
             self.observation_state.observation_symbols()
@@ -880,6 +888,10 @@ class MotionStatechart(SubclassJSONSerializer):
             variables.extend(
                 node._life_cycle_predicate(predicate)
                 for predicate in LifeCyclePredicate
+            )
+            variables.extend(
+                node._settled_life_cycle_predicate(predicate)
+                for predicate in SettledLifeCyclePredicate
             )
         return variables
 
@@ -922,17 +934,57 @@ class MotionStatechart(SubclassJSONSerializer):
         :param condition: The condition to validate.
         :raises ConditionScopeError: If `condition` depends on a node from a different
             scope level.
+        :raises ChildPredicateInConditionError: If `condition` reads a life cycle
+            predicate of a direct child.
         """
-        for dependency in condition.node_dependencies:
+        for variable in condition.variables:
+            dependency = variable.motion_statechart_node
             if dependency is owner:
                 continue
             if dependency.parent_node_index == owner.parent_node_index:
+                continue
+            if dependency.parent_node_index == owner.index:
+                self._validate_child_is_read_settled(condition, variable)
                 continue
             raise ConditionScopeError(
                 condition=condition,
                 new_expression=condition.expression,
                 dependency=dependency,
             )
+
+    @staticmethod
+    def _validate_child_is_read_settled(
+        condition: TrinaryCondition, variable: ConditionVariable
+    ) -> None:
+        """
+        Checks that a condition reads a direct child through state that child entered
+        the control cycle with.
+
+        Anything a child settles later is out of bounds: a life cycle predicate answers
+        about the state it reaches this control cycle, which the owner of the condition is
+        deciding at the same moment, and its observation is recomputed every cycle.
+
+        :param condition: The condition reading the child.
+        :param variable: The state of the child that `condition` reads.
+        :raises ChildPredicateInConditionError: If `variable` is a life cycle predicate.
+        :raises ConditionScopeError: If `variable` is any other state a child only settles
+            during the control cycle.
+        """
+        if isinstance(
+            variable, (LastObservationVariable, SettledLifeCyclePredicateVariable)
+        ):
+            return
+        if isinstance(variable, LifeCyclePredicateVariable):
+            raise ChildPredicateInConditionError(
+                condition=condition,
+                new_expression=condition.expression,
+                unsupported_variable=variable,
+            )
+        raise ConditionScopeError(
+            condition=condition,
+            new_expression=condition.expression,
+            dependency=variable.motion_statechart_node,
+        )
 
     def _create_edge_for_condition(
         self, owner: MotionStatechartNode, condition: TrinaryCondition
