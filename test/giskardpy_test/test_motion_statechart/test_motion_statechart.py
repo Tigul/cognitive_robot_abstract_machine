@@ -172,6 +172,26 @@ def test_condition_to_str():
     assert a == '("ConstTrueNode#0" and ("ConstTrueNode#1" or not "ConstTrueNode#2"))'
 
 
+def test_a_condition_asking_is_true_round_trips_through_its_string():
+    """
+    A condition asking whether a node has not observed True reads back as the same
+    condition from the string it renders to.
+    """
+    msc = MotionStatechart()
+    msc.add_nodes([monitor := ConstTrueNode(), node := ConstFalseNode()])
+    node.start_condition = trinary_logic_not(monitor.last_observation.is_true())
+    rendered = str(node._start_condition)
+
+    reparsed = TrinaryCondition.create_from_trinary_logic_str(
+        kind=TransitionKind.START,
+        trinary_logic_str=rendered,
+        state_variables=msc.condition_variables(),
+        owner=node,
+    )
+
+    assert str(reparsed) == rendered
+
+
 def test_motion_statechart_to_dot(tmp_path):
     msc = MotionStatechart()
     node1 = ConstTrueNode()

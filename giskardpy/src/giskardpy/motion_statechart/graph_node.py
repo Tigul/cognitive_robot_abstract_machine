@@ -323,6 +323,12 @@ class TrinaryCondition(SubclassJSONSerializer):
                 return TrinaryCondition._parse_ast_or(node, state_variables)
             case ast.UnaryOp():
                 return TrinaryCondition._parse_ast_not(node, state_variables)
+            case ast.Call(
+                func=ast.Name(id=sm.TrinaryLogicFunction.IS_TRUE), args=[argument]
+            ):
+                return Scalar(
+                    TrinaryCondition._parse_ast_expression(argument, state_variables)
+                ).is_true()
             case ast.Constant(value=str(val)):
                 for state_variable in state_variables:
                     if val == state_variable.display_name:

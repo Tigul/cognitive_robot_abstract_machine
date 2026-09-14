@@ -29,7 +29,7 @@ from giskardpy.motion_statechart.monitors.templates import StoppedWhenTrue
 from krrood.exceptions import DataclassException
 from krrood.symbolic_math.symbolic_math import (
     Scalar,
-    if_cases,
+    trinary_if_cases,
     sum,
     trinary_logic_and,
     trinary_logic_not,
@@ -134,7 +134,7 @@ class Attempt(SelfFailingNode, SelfDecidingNode, CompositeStatechartNode):
         end.
         """
         return NodeArtifacts(
-            observation=if_cases(
+            observation=trinary_if_cases(
                 cases=[
                     (self.task.last_observation.is_true(), Scalar.const_true()),
                     (self.any_failure_monitor_fired, Scalar.const_false()),
@@ -269,7 +269,7 @@ class Sequence(
         step that ended decides anything.
         """
         return NodeArtifacts(
-            observation=if_cases(
+            observation=trinary_if_cases(
                 cases=[
                     (
                         trinary_logic_or(
@@ -443,13 +443,14 @@ class RepeatUntil(CompositeStatechartNodeOverSelfDecidingNodes):
         try: a node reading its own life cycle reads the state it entered the control
         cycle with, so the reset lands the cycle after the failure rather than on it.
 
-        The stop monitor is read through its last observation, which outlasts a monitor
-        that ends itself on reaching what it counts.
+        The stop monitor is asked whether its last observation is True, which outlasts a
+        monitor that ends itself on reaching what it counts, and which a monitor that has
+        not observed anything yet has not reached either.
         """
         self._attempt = self._add_self_deciding(self.task)
         self._add_child_to_motion_statechart(self.stop_retry_monitor)
 
-        retrying_stopped = Scalar(self.stop_retry_monitor.last_observation)
+        retrying_stopped = self._retrying_stopped
         still_trying = trinary_logic_not(retrying_stopped)
         # Starting is gated as well as ending, because a reset task is not started and
         # ending is not considered while it is not.
@@ -459,6 +460,14 @@ class RepeatUntil(CompositeStatechartNodeOverSelfDecidingNodes):
         )
         self._attempt.interrupt_condition = retrying_stopped
         self._end_motion_once_retrying_stops()
+
+    @property
+    def _retrying_stopped(self) -> Scalar:
+        """
+        :return: True once :attr:`stop_retry_monitor` observed True, even if it ended
+            since; false while it has not.
+        """
+        return self.stop_retry_monitor.last_observation.is_true()
 
     def _end_motion_once_retrying_stops(self) -> None:
         """
@@ -471,7 +480,7 @@ class RepeatUntil(CompositeStatechartNodeOverSelfDecidingNodes):
             name=f"{self.name}/exhausted", exception=self.exception
         )
         self._add_child_to_motion_statechart(exhausted)
-        exhausted.start_condition = self.stop_retry_monitor.observation_variable
+        exhausted.start_condition = self._retrying_stopped
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         """
@@ -482,13 +491,10 @@ class RepeatUntil(CompositeStatechartNodeOverSelfDecidingNodes):
         monitor through its last observation.
         """
         return NodeArtifacts(
-            observation=if_cases(
+            observation=trinary_if_cases(
                 cases=[
                     (self._attempt.has_succeeded, Scalar.const_true()),
-                    (
-                        self.stop_retry_monitor.last_observation.is_true(),
-                        Scalar.const_false(),
-                    ),
+                    (self._retrying_stopped, Scalar.const_false()),
                 ],
                 else_result=Scalar.const_trinary_unknown(),
             )
@@ -583,7 +589,7 @@ class TryAll(
         Report the first alternative that worked, or that none of them did.
         """
         return NodeArtifacts(
-            observation=if_cases(
+            observation=trinary_if_cases(
                 cases=[
                     (
                         trinary_logic_or(
@@ -654,7 +660,7 @@ class TryInOrder(
         Report the alternative that worked, or that none of them did.
         """
         return NodeArtifacts(
-            observation=if_cases(
+            observation=trinary_if_cases(
                 cases=[
                     (
                         trinary_logic_or(
@@ -709,4 +715,4 @@ class CancelledWhenTrue(StoppedWhenTrue):
             name=f"{self.name}/cancelled", exception=self.exception
         )
         self._add_child_to_motion_statechart(cancelled)
-        cancelled.start_condition = self.monitor.observation_variable
+        cancelled.start_condition = self.monitor.last_observation.is_true()

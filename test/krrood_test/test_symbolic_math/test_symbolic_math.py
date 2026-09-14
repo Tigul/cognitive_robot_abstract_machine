@@ -10,6 +10,7 @@ import scipy.sparse as sp
 import krrood.symbolic_math.symbolic_math as sm
 from krrood.adapters.json_serializer import from_json, to_json
 from krrood.symbolic_math.exceptions import (
+    CannotConvertToStringError,
     FloatVariableAlreadyHasResolveError,
     HasFreeVariablesError,
     NotColumnVectorError,
@@ -161,6 +162,28 @@ class TestLogic3:
         const_expr_str = sm.trinary_logic_to_str(const_expr)
         assert const_expr_str == '("a" or Unknown)'
 
+    def test_trinary_logic_to_str_renders_is_true(self):
+        """
+        Asking whether a value is True renders as a call naming that question, around
+        the rendered value, so a negation of it renders too.
+        """
+        a = sm.FloatVariable(name="a")
+
+        expression_str = sm.trinary_logic_to_str(sm.trinary_logic_not(a.is_true()))
+
+        assert expression_str == (
+            f"not {sm.TrinaryLogicFunction.IS_TRUE}({sm.trinary_logic_to_str(a)})"
+        )
+
+    def test_trinary_logic_to_str_still_rejects_other_comparisons(self):
+        """
+        Only the question whether a value is True has a rendered form.
+        """
+        a = sm.FloatVariable(name="a")
+
+        with pytest.raises(CannotConvertToStringError):
+            sm.trinary_logic_to_str(a.is_false())
+
 
 class TestTrinaryPredicates:
     """
@@ -265,6 +288,32 @@ class TestTrinaryPredicates:
 
 
 class TestIfElse:
+    @pytest.mark.parametrize(
+        "guard, selected",
+        [
+            (sm.Scalar.const_true(), True),
+            (sm.Scalar.const_trinary_unknown(), False),
+            (sm.Scalar.const_false(), False),
+        ],
+    )
+    def test_trinary_if_cases_selects_a_case_only_while_its_guard_is_true(
+        self, guard: sm.Scalar, selected: bool
+    ):
+        """
+        A trinary guard selects its case only while it is True, where :func:`if_cases`
+        would take Unknown for true as well.
+        """
+        a = sm.FloatVariable(name="a")
+        case_result = sm.Scalar(1)
+        else_result = sm.Scalar(2)
+
+        result = sm.trinary_if_cases(
+            cases=[(guard * a, case_result)], else_result=else_result
+        )
+
+        expected = case_result if selected else else_result
+        assert result.substitute([a], [sm.Scalar(1)]).to_np() == expected.to_np()
+
     def test_if_one_arg(self):
         inputs = [
             (sm.FloatVariable(name="muh"), sm.FloatVariable(name="muh2")),

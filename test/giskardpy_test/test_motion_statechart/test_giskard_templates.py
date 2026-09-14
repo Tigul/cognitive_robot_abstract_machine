@@ -437,6 +437,21 @@ def test_paused_until_true_holds_the_monitored_node_until_the_monitor_turns_true
     assert goal.monitored_node.life_cycle_state == LifeCycleValues.RUNNING
 
 
+def test_paused_until_true_holds_the_monitored_node_while_the_monitor_has_not_decided():
+    """
+    A monitor that has not observed anything yet has not turned True, so the monitored
+    node is held all the same.
+    """
+    goal = PausedUntilTrue(
+        monitor=NodeObservingNothingYet(name="undecided"),
+        monitored_node=CountControlCycles(control_cycles=2, name="work"),
+    )
+
+    _compile_and_tick(goal)
+
+    assert goal.monitored_node.life_cycle_state == LifeCycleValues.PAUSED
+
+
 def test_stopped_when_true_ends_the_monitored_node():
     """
     The monitored node is retired as soon as the monitor fires, without ever having

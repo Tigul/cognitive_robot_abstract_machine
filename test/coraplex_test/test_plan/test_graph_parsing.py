@@ -253,7 +253,7 @@ def test_cancel_monitor_ends_the_motion_when_the_monitor_fires(
         node for node in monitored_goal.nodes if isinstance(node, CancelMotion)
     ]
     assert cancelled.exception == monitored_goal.exception
-    assert cancelled.start_condition.free_variables() == [monitor.observation_variable]
+    assert cancelled.start_condition.free_variables() == [monitor.last_observation]
 
 
 def test_monitored_subtree_nested_in_a_sequence_compiles(
@@ -306,7 +306,7 @@ def test_repeat_node_wraps_its_children_in_a_repeating_goal(
     assert counter.target == 3
     assert counter is loop.stop_retry_monitor
     [exhausted] = [node for node in loop.nodes if isinstance(node, CancelMotion)]
-    assert exhausted.start_condition.free_variables() == [counter.observation_variable]
+    assert exhausted.start_condition.free_variables() == [counter.last_observation]
 
 
 def test_repeat_node_with_failure_monitor_gives_the_stall_template_one_attempt(

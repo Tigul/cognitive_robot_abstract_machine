@@ -15,7 +15,7 @@ from giskardpy.motion_statechart.graph_node import (
 )
 from krrood.symbolic_math.symbolic_math import (
     Scalar,
-    if_cases,
+    trinary_if_cases,
     trinary_logic_and,
     trinary_logic_not,
     trinary_logic_or,
@@ -74,7 +74,8 @@ class PausedWhileTrue(MonitoredCompositeStatechartNode):
 
     def wire_monitor(self) -> None:
         self.monitored_node.pause_condition = trinary_logic_or(
-            self.monitor.observation_variable, self.monitored_node.pause_condition
+            self.monitor.observation_variable.is_true(),
+            self.monitored_node.pause_condition,
         )
 
 
@@ -83,12 +84,15 @@ class PausedUntilTrue(MonitoredCompositeStatechartNode):
     """
     Holds the monitored node until the monitor observes True, and lets it continue from
     then on.
+
+    A monitor that has not observed anything yet has not turned True either, so it holds
+    the monitored node as well.
     """
 
     def wire_monitor(self) -> None:
         self.monitored_node.pause_condition = trinary_logic_or(
             self.monitored_node.pause_condition,
-            trinary_logic_not(self.monitor.observation_variable),
+            trinary_logic_not(self.monitor.observation_variable.is_true()),
         )
 
 
@@ -110,7 +114,8 @@ class StoppedWhenTrue(SelfFailingNode, MonitoredCompositeStatechartNode):
 
     def wire_monitor(self) -> None:
         self.monitored_node.interrupt_condition = trinary_logic_or(
-            self.monitored_node.interrupt_condition, self.monitor.last_observation
+            self.monitored_node.interrupt_condition,
+            self.monitor.last_observation.is_true(),
         )
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
@@ -123,7 +128,7 @@ class StoppedWhenTrue(SelfFailingNode, MonitoredCompositeStatechartNode):
         succeeded by its life cycle rather than by that observation.
         """
         return NodeArtifacts(
-            observation=if_cases(
+            observation=trinary_if_cases(
                 [
                     (
                         self._monitored_node_observing_true_or_succeeded,

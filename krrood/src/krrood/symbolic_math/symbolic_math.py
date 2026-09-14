@@ -2255,6 +2255,19 @@ def logic_all(args: GenericVectorOrMatrixType) -> Scalar:
 
 
 # %% trinary logic
+
+
+class TrinaryLogicFunction(StrEnum):
+    """
+    The functions a rendered trinary logic expression may call, by the name it calls them.
+    """
+
+    IS_TRUE = "is_true"
+    """
+    Whether its argument is True, which is False for both False and Unknown.
+    """
+
+
 def trinary_logic_not(expression: FloatVariable | Scalar) -> Scalar:
     """
     |   Not ------------------ True    |  False Unknown | Unknown False   |  True.
@@ -2362,6 +2375,9 @@ def trinary_logic_to_str(expression: Scalar) -> str:
             left = trinary_logic_to_str(cas_expr.dep(0))
             right = trinary_logic_to_str(cas_expr.dep(1))
             return f"({left} or {right})"
+        case ca.OP_EQ if ca.is_equal(cas_expr.dep(1), ca.SX(1)):  # is_true is x == 1
+            argument = trinary_logic_to_str(cas_expr.dep(0))
+            return f"{TrinaryLogicFunction.IS_TRUE}({argument})"
         case _:
             raise CannotConvertToStringError(expression=expression)
 
@@ -2564,6 +2580,9 @@ def if_cases(
     ...
     else:
         return else_result
+
+    .. warning:: Any guard that is not 0 selects its case, the trinary Unknown included.
+        Use :func:`trinary_if_cases` for guards in trinary logic.
     """
     result_sx_list = []
     ind = to_sx(len(cases))
@@ -2574,6 +2593,25 @@ def if_cases(
 
     result_sx = ca.conditional(ind, result_sx_list, to_sx(else_result))
     return _create_return_type(else_result).from_casadi_sx(result_sx)
+
+
+def trinary_if_cases(
+    cases: Sequence[Tuple[ScalarData, GenericSymbolicType]],
+    else_result: GenericSymbolicType,
+) -> GenericSymbolicType:
+    """
+    Like :func:`if_cases`, for guards in trinary logic: a case is selected only while its
+    guard is True, never while it is Unknown.
+
+    :param cases: The (guard, result) pairs; the first guard that is True selects its
+        result.
+    :param else_result: The result while no guard is True.
+    :return: The expression selecting between the results.
+    """
+    return if_cases(
+        cases=[(Scalar(guard).is_true(), result) for guard, result in cases],
+        else_result=else_result,
+    )
 
 
 def if_less_eq_cases(

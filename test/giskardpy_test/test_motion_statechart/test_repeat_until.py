@@ -35,6 +35,7 @@ from giskardpy.motion_statechart.monitors.progress_monitors import Stalled
 from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     ConstFalseNode,
     ConstTrueNode,
+    NodeObservingNothingYet,
     TestNodeAssertionError,
 )
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPosition
@@ -164,6 +165,26 @@ def test_repeat_until_does_not_retry_after_giving_up():
     assert loop.stop_retry_monitor.resets == resets_when_given_up
     assert loop.task.life_cycle_state == LifeCycleValues.NOT_STARTED
     assert loop.last_observation_state == ObservationStateValues.FALSE
+
+
+def test_repeat_until_starts_its_task_while_the_stop_monitor_has_not_decided():
+    """
+    A stop monitor that has not observed anything yet has not called the retrying off,
+    so the task runs meanwhile.
+    """
+    loop = RepeatUntil(
+        name="loop",
+        task=ConstFalseNode(name="task"),
+        stop_retry_monitor=NodeObservingNothingYet(name="undecided"),
+    )
+    motion_statechart = MotionStatechart()
+    motion_statechart.add_node(loop)
+    executor = Executor(MotionStatechartContext(world=World()))
+    executor.compile(motion_statechart=motion_statechart)
+
+    executor.tick()
+
+    assert loop.task.life_cycle_state == LifeCycleValues.RUNNING
 
 
 def test_repeat_until_attempts_a_task_that_never_ends_on_its_own():
