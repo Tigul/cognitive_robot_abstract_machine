@@ -19,11 +19,9 @@ from giskardpy.motion_statechart.data_types import (
     ObservationPredicate,
     ObservationStateValues,
     DefaultWeights,
-    SettledLifeCyclePredicate,
     TransitionKind,
 )
 from giskardpy.motion_statechart.exceptions import (
-    ChildPredicateInConditionError,
     ChildTransitionAlreadyWiredError,
     NodeCannotDecideItselfError,
     NotInMotionStatechartError,
@@ -37,8 +35,6 @@ from giskardpy.motion_statechart.exceptions import (
     TerminalNodeInConditionError,
     EmptyDegreesOfFreedomError,
     MissingErrorSignalError,
-    CyclicPredicateDependencyError,
-    UnsupportedObservationVariableError,
 )
 from giskardpy.motion_statechart.goals.templates import Attempt, Sequence, Parallel
 from giskardpy.motion_statechart.graph_node import (
@@ -75,7 +71,6 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     CompositeStatechartNodeWithChildFailingOnItsOwn,
     CompositeStatechartNodeWithChildStartingLate,
     CompositeStatechartNodeWithChildSucceedingOnItsOwn,
-    NodeObservingAPredicate,
     NodeObservingAnObservationPredicate,
     NodeObservingLastObservation,
     NodeObservingNothingYet,
@@ -3966,21 +3961,6 @@ class TestLifeCyclePredicates:
         assert node.life_cycle_state == LifeCycleValues.FAILED
         assert node.is_failed.resolve() == ObservationStateValues.TRUE
 
-    def test_nodes_reading_each_others_verdicts_in_a_cycle_are_rejected(self):
-        """
-        Neither next state can be computed before the other, so there is no order in
-        which the step could be evaluated.
-        """
-        msc = MotionStatechart()
-        msc.add_nodes([first := ConstTrueNode(), second := ConstFalseNode()])
-        first.start_condition = second.is_failed
-        second.start_condition = first.is_failed
-
-        with pytest.raises(CyclicPredicateDependencyError) as exception_info:
-            _compile_msc(msc)
-
-        assert set(exception_info.value.cycle) == {first, second}
-
     def test_a_node_reading_its_own_verdict_reads_the_state_it_entered_with(self):
         """
         A node cannot react to the state the current step gives it, so a predicate it
@@ -3998,22 +3978,6 @@ class TestLifeCyclePredicates:
 
         executor.tick()
         assert node.life_cycle_state == LifeCycleValues.NOT_STARTED
-
-    def test_a_predicate_in_an_observation_expression_is_rejected(self):
-        """
-        Observations are computed before the life cycle update, so there is no next
-        state for them to read.
-        """
-        msc = MotionStatechart()
-        msc.add_nodes(
-            [watched := ConstTrueNode(), watcher := NodeObservingAPredicate()]
-        )
-        watcher.watched_node = watched
-
-        with pytest.raises(UnsupportedObservationVariableError) as exception_info:
-            _compile_msc(msc)
-
-        assert exception_info.value.unsupported_variable is watched.is_succeeded
 
     def test_a_predicate_variable_is_created_once_per_node(self):
         node = ConstTrueNode()
@@ -4157,102 +4121,6 @@ class TestIsFailedOrInterrupted:
         A node that is still on its way has not ended at all.
         """
         assert self._answer(life_cycle_state) == ObservationStateValues.FALSE
-
-
-class TestHasEndedWithoutSucceeding:
-    """
-    Tests the settled predicate that answers whether a node ended any way but by
-    succeeding, which an observation may read where the verdict predicates are out of
-    bounds.
-    """
-
-    @staticmethod
-    def _answer(life_cycle_state: LifeCycleValues) -> ObservationStateValues:
-        """
-        :param life_cycle_state: The state to evaluate the predicate in.
-        :return: What the predicate answers, read off the expression it compiles into.
-        """
-        node = ConstTrueNode()
-        substituted = SettledLifeCyclePredicate.HAS_ENDED_WITHOUT_SUCCEEDING.expression(
-            node.life_cycle_variable
-        ).substitute([node.life_cycle_variable], [float(life_cycle_state)])
-        return ObservationStateValues(float(substituted))
-
-    def test_the_node_reads_this_predicate(self):
-        """
-        The attribute a caller reaches for is what the tested truth table belongs to.
-        """
-        node = ConstTrueNode()
-
-        assert (
-            node.has_ended_without_succeeding.predicate
-            is SettledLifeCyclePredicate.HAS_ENDED_WITHOUT_SUCCEEDING
-        )
-
-    @pytest.mark.parametrize(
-        "life_cycle_state, expected",
-        [
-            (LifeCycleValues.SUCCEEDED, ObservationStateValues.FALSE),
-            (LifeCycleValues.FAILED, ObservationStateValues.TRUE),
-            (LifeCycleValues.INTERRUPTED, ObservationStateValues.TRUE),
-        ],
-    )
-    def test_every_way_of_ending_is_answered(self, life_cycle_state, expected):
-        """
-        Being cut off undecided is as much a way of ending without succeeding as being
-        judged to have failed, even though no verdict was reached.
-        """
-        assert self._answer(life_cycle_state) == expected
-
-    @pytest.mark.parametrize(
-        "life_cycle_state",
-        sorted(set(LifeCycleValues) - LifeCycleValues.terminal_states()),
-    )
-    def test_a_node_that_has_not_ended_answers_false(self, life_cycle_state):
-        """
-        A node that is still on its way has not ended at all.
-        """
-        assert self._answer(life_cycle_state) == ObservationStateValues.FALSE
-
-
-class TestHasSucceeded:
-    """
-    Tests the settled predicate that answers whether a node ended by succeeding, which
-    an observation may read where the verdict predicates are out of bounds.
-    """
-
-    @staticmethod
-    def _answer(life_cycle_state: LifeCycleValues) -> ObservationStateValues:
-        """
-        :param life_cycle_state: The state to evaluate the predicate in.
-        :return: What the predicate answers, read off the expression it compiles into.
-        """
-        node = ConstTrueNode()
-        substituted = SettledLifeCyclePredicate.HAS_SUCCEEDED.expression(
-            node.life_cycle_variable
-        ).substitute([node.life_cycle_variable], [float(life_cycle_state)])
-        return ObservationStateValues(float(substituted))
-
-    def test_the_node_reads_this_predicate(self):
-        """
-        The attribute a caller reaches for is what the tested truth table belongs to.
-        """
-        node = ConstTrueNode()
-
-        assert node.has_succeeded.predicate is SettledLifeCyclePredicate.HAS_SUCCEEDED
-
-    @pytest.mark.parametrize("life_cycle_state", list(LifeCycleValues))
-    def test_only_a_succeeded_node_answers_true(self, life_cycle_state):
-        """
-        Being interrupted is no verdict and a node on its way has none yet, so both
-        answer false rather than unknown.
-        """
-        expected = (
-            ObservationStateValues.TRUE
-            if life_cycle_state is LifeCycleValues.SUCCEEDED
-            else ObservationStateValues.FALSE
-        )
-        assert self._answer(life_cycle_state) == expected
 
 
 # %% observation predicates
@@ -4530,12 +4398,10 @@ class TestEagerStateVariables:
 class TestConditionScoping:
     """
     A condition may reference the node itself, a node sharing its parent, or a direct
-    child of it, the last only through the state that child entered the control cycle
-    with.
+    child of it.
 
     References across template levels raise :class:`ConditionScopeError` during
-    compilation, and a predicate of a child raises
-    :class:`ChildPredicateInConditionError`.
+    compilation.
     """
 
     def test_outside_node_cannot_reference_node_inside_template(self):
@@ -4622,43 +4488,6 @@ class TestConditionScoping:
 
         kin_sim = Executor(MotionStatechartContext(world=World()))
         with pytest.raises(ConditionScopeError):
-            kin_sim.compile(motion_statechart=msc)
-
-    def test_parent_can_reference_child_through_a_settled_predicate(self):
-        """
-        A child that ended without succeeding is what a parent gives up on, and the
-        state it ended in is settled by the time the parent is decided.
-        """
-        msc = MotionStatechart()
-        child = ConstTrueNode()
-        parallel = Parallel([child])
-        msc.add_node(parallel)
-        child.fail_condition = child.observes_true
-        parallel.fail_condition = child.has_ended_without_succeeding
-        msc.add_node(EndMotion.when_true(parallel))
-
-        kin_sim = Executor(MotionStatechartContext(world=World()))
-        kin_sim.compile(motion_statechart=msc)
-        for _ in range(4):
-            kin_sim.tick()
-
-        assert child.life_cycle_state == LifeCycleValues.FAILED
-        assert parallel.life_cycle_state == LifeCycleValues.FAILED
-
-    def test_parent_cannot_reference_child_through_a_life_cycle_predicate(self):
-        """
-        A predicate answers about the state its node reaches this control cycle, which
-        the parent is deciding at the same moment.
-        """
-        msc = MotionStatechart()
-        child = ConstTrueNode()
-        parallel = Parallel([child])
-        msc.add_node(parallel)
-        parallel.success_condition = child.is_succeeded
-        msc.add_node(EndMotion.when_true(parallel))
-
-        kin_sim = Executor(MotionStatechartContext(world=World()))
-        with pytest.raises(ChildPredicateInConditionError):
             kin_sim.compile(motion_statechart=msc)
 
     def test_parent_cannot_reference_grandchild(self):

@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import Enum, auto
+
+from typing_extensions import List
 
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import ObservationStateValues
+from giskardpy.motion_statechart.data_types import (
+    LifeCycleValues,
+    ObservationStateValues,
+)
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.graph_node import (
     MotionStatechartNode,
@@ -20,6 +26,7 @@ from giskardpy.motion_statechart.monitors.payload_monitors import (
     Pulse,
 )
 from giskardpy.data_types.exceptions import GiskardException
+from krrood.symbolic_math.symbolic_math import FloatVariable
 
 
 @dataclass
@@ -547,3 +554,185 @@ class CompositeStatechartNodeCuttingOffItsGrandchild(CompositeStatechartNode):
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar.const_true())
+
+
+# %% nodes that record what the statechart does to them
+
+
+class LifeCycleCallback(Enum):
+    """
+    A callback the motion statechart runs on a node when its life cycle state changes.
+    """
+
+    START = auto()
+    """
+    :meth:`~giskardpy.motion_statechart.graph_node.MotionStatechartNode.on_start`.
+    """
+
+    PAUSE = auto()
+    """
+    :meth:`~giskardpy.motion_statechart.graph_node.MotionStatechartNode.on_pause`.
+    """
+
+    UNPAUSE = auto()
+    """
+    :meth:`~giskardpy.motion_statechart.graph_node.MotionStatechartNode.on_unpause`.
+    """
+
+    END = auto()
+    """
+    :meth:`~giskardpy.motion_statechart.graph_node.MotionStatechartNode.on_end`.
+    """
+
+    RESET = auto()
+    """
+    :meth:`~giskardpy.motion_statechart.graph_node.MotionStatechartNode.on_reset`.
+    """
+
+
+@dataclass(eq=False, repr=False)
+class NodeRecordingItsCallbacks(MotionStatechartNode):
+    """
+    A node that never reaches its goal and records every life cycle callback run on it.
+    """
+
+    callbacks: List[LifeCycleCallback] = field(default_factory=list, init=False)
+    """
+    The callbacks run on this node since :meth:`take_callbacks` was last called, in the
+    order they ran.
+    """
+
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        return NodeArtifacts(observation=sm.Scalar.const_false())
+
+    def take_callbacks(self) -> List[LifeCycleCallback]:
+        """
+        :return: The callbacks recorded so far, which are forgotten afterwards.
+        """
+        callbacks = self.callbacks
+        self.callbacks = []
+        return callbacks
+
+    def on_start(self, context: MotionStatechartContext):
+        self.callbacks.append(LifeCycleCallback.START)
+
+    def on_pause(self, context: MotionStatechartContext):
+        self.callbacks.append(LifeCycleCallback.PAUSE)
+
+    def on_unpause(self, context: MotionStatechartContext):
+        self.callbacks.append(LifeCycleCallback.UNPAUSE)
+
+    def on_end(self, context: MotionStatechartContext):
+        self.callbacks.append(LifeCycleCallback.END)
+
+    def on_reset(self, context: MotionStatechartContext):
+        self.callbacks.append(LifeCycleCallback.RESET)
+
+
+@dataclass(eq=False, repr=False)
+class NodeObservingTrueOnlyOnTick(MotionStatechartNode):
+    """
+    A node whose observation expression is False but whose
+    :meth:`~giskardpy.motion_statechart.graph_node.MotionStatechartNode.on_tick` overrides
+    it with True, counting how often it is ticked.
+    """
+
+    on_tick_calls: int = field(default=0, init=False)
+    """
+    How often :meth:`on_tick` was called.
+    """
+
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        return NodeArtifacts(observation=sm.Scalar.const_false())
+
+    def on_tick(self, context: MotionStatechartContext) -> ObservationStateValues:
+        self.on_tick_calls += 1
+        return ObservationStateValues.TRUE
+
+
+@dataclass(eq=False, repr=False)
+class NodeWritingAVariableOnStart(MotionStatechartNode):
+    """
+    A node that sets a float variable to True when it starts, so what its start callback
+    wrote can be observed by another node.
+    """
+
+    variable: FloatVariable = field(init=False)
+    """
+    The variable written when this node starts, False until then.
+    """
+
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        self.variable = FloatVariable(f"{self.name}/written_on_start")
+        context.float_variable_data.register_expression(self.variable)
+        return NodeArtifacts(observation=sm.Scalar.const_trinary_unknown())
+
+    def on_start(self, context: MotionStatechartContext):
+        context.float_variable_data.set_value(
+            self.variable, float(ObservationStateValues.TRUE)
+        )
+
+
+@dataclass(eq=False, repr=False)
+class NodeObservingAWrittenVariable(MotionStatechartNode):
+    """
+    A node that observes True once another node's start callback wrote its variable.
+    """
+
+    writer: NodeWritingAVariableOnStart = field(kw_only=True)
+    """
+    The node whose written variable this node observes.
+    """
+
+    @property
+    def prerequisite_nodes(self) -> List[MotionStatechartNode]:
+        """
+        :return: :attr:`writer`, which creates the variable this node reads.
+        """
+        return [self.writer]
+
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        return NodeArtifacts(
+            observation=sm.if_eq(
+                self.writer.variable,
+                float(ObservationStateValues.TRUE),
+                sm.Scalar.const_true(),
+                sm.Scalar.const_false(),
+            )
+        )
+
+
+@dataclass(repr=False, eq=False)
+class CompositeStatechartNodeObservingItsSecondChildRun(CompositeStatechartNode):
+    """
+    Composite statechart node that observes True once its second child is running, which
+    starts once its first child succeeded, so the second child is started and then cut off
+    by this node ending.
+    """
+
+    first: ConstTrueNode = field(init=False)
+    """
+    The child that succeeds as soon as it observes its goal.
+    """
+
+    second: NodeRecordingItsCallbacks = field(init=False)
+    """
+    The child that starts once :attr:`first` succeeded and is cut off by this node.
+    """
+
+    def expand(self, context: MotionStatechartContext) -> None:
+        self.first = ConstTrueNode()
+        self.second = NodeRecordingItsCallbacks()
+        self._add_children_to_motion_statechart(nodes=[self.first, self.second])
+        self.first.success_condition = self.first.observes_true
+        self.second.start_condition = self.first.is_succeeded
+
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        return NodeArtifacts(
+            observation=sm.if_eq(
+                self.second.life_cycle_variable,
+                int(LifeCycleValues.RUNNING),
+                sm.Scalar.const_true(),
+                sm.Scalar.const_false(),
+            )
+        )
