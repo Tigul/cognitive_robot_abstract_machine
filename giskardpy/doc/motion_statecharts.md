@@ -277,7 +277,9 @@ A few rules keep a control cycle predictable:
   never ends, resets and starts again within one. Two nodes that each pause while the other
   runs therefore take turns once per control cycle instead of looping.
 - Life cycle callbacks run once after the passes, so what they change, for example the
-  world state, is seen by observations from the next control cycle on.
+  world state, is seen by observations from the next control cycle on. A node its parents
+  force through several states within one control cycle gets each matching callback once, in
+  order, for example `on_pause`, `on_end` and `on_reset`.
 - Observations that read each other can contradict each other, for example two nodes each
   observing True while the other does not. Such a control cycle never settles, so once more
   than `CompiledControlCycle.pass_limit` passes change the statechart, the tick raises

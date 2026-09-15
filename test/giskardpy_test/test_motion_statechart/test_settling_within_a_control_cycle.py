@@ -382,6 +382,36 @@ class TestLifeCycleCallbacks:
             [LifeCycleCallback.START],
         ] + [[]] * (CYCLES_TO_WATCH - 2)
 
+    def test_a_child_forced_through_pause_end_and_reset_runs_each_callback_once(self):
+        """
+        Each ancestor of the child takes one transition of its own, triggered by what
+        the level below it did on the previous pass, so the child is paused, ended and
+        reset within one control cycle and only starts again on the next one.
+        """
+        motion_statechart = MotionStatechart()
+        child = NodeRecordingItsCallbacks()
+        trigger = ConstTrueNode()
+        inner = Parallel([trigger, child])
+        middle = Parallel([inner])
+        outer = Parallel([middle])
+        motion_statechart.add_node(outer)
+        inner.pause_condition = trigger.observes_true
+        middle.success_condition = inner.is_paused
+        outer.reset_condition = middle.is_succeeded
+        executor = _compile(motion_statechart)
+
+        callbacks = _callbacks_per_cycle(executor, child)
+
+        forced_through_and_restarted = [
+            [LifeCycleCallback.PAUSE, LifeCycleCallback.END, LifeCycleCallback.RESET],
+            [LifeCycleCallback.START],
+        ]
+        assert (
+            callbacks
+            == [[LifeCycleCallback.START]]
+            + (forced_through_and_restarted * CYCLES_TO_WATCH)[:CYCLES_TO_WATCH]
+        )
+
     def test_nodes_pausing_each_other_alternate_once_per_cycle(self):
         """
         Each node pauses while the other runs, which no single consistent state
