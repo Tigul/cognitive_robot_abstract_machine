@@ -736,3 +736,57 @@ class CompositeStatechartNodeObservingItsSecondChildRun(CompositeStatechartNode)
                 sm.Scalar.const_false(),
             )
         )
+
+
+@dataclass(repr=False, eq=False)
+class CompositeStatechartNodeWithARecordingChild(CompositeStatechartNode):
+    """
+    Composite statechart node holding one child that records its callbacks and would start
+    whenever it may.
+    """
+
+    child: NodeRecordingItsCallbacks = field(init=False)
+    """
+    The child whose callbacks are recorded.
+    """
+
+    def expand(self, context: MotionStatechartContext) -> None:
+        self.child = NodeRecordingItsCallbacks()
+        self._add_child_to_motion_statechart(self.child)
+
+
+@dataclass(repr=False, eq=False)
+class CompositeStatechartNodeObservingItsCancelMotionRun(CompositeStatechartNode):
+    """
+    Composite statechart node that observes True once its :class:`CancelMotion` child is
+    running, which starts once its other child observes True, so the cancel motion is
+    started and then cut off by this node ending.
+    """
+
+    trigger: ConstTrueNode = field(init=False)
+    """
+    The child whose observation starts :attr:`cancel`.
+    """
+
+    cancel: CancelMotion = field(init=False)
+    """
+    The child that is cut off right after starting.
+    """
+
+    def expand(self, context: MotionStatechartContext) -> None:
+        self.trigger = ConstTrueNode()
+        self.cancel = CancelMotion(
+            exception=TestNodeAssertionError(reason="cancelled right after starting")
+        )
+        self._add_children_to_motion_statechart(nodes=[self.trigger, self.cancel])
+        self.cancel.start_condition = self.trigger.observes_true
+
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        return NodeArtifacts(
+            observation=sm.if_eq(
+                self.cancel.life_cycle_variable,
+                int(LifeCycleValues.RUNNING),
+                sm.Scalar.const_true(),
+                sm.Scalar.const_false(),
+            )
+        )

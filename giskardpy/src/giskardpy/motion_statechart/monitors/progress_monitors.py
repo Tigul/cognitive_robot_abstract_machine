@@ -394,5 +394,5 @@ class _CancelBecauseNoProgress(CancelMotion):
     which tasks are stalled.
     """
 
-    def on_tick(self, context: MotionStatechartContext) -> Optional[float]:
-        raise NoProgressError(progress_monitor=self.progress_monitor)
+    def create_exception(self, context: MotionStatechartContext) -> NoProgressError:
+        return NoProgressError(progress_monitor=self.progress_monitor)

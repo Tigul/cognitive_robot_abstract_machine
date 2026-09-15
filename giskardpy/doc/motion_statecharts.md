@@ -22,7 +22,7 @@ the state of other nodes. All nodes are updated together once per control cycle.
 - **Task**: A specific, single-purpose segment of the overall motion. Tasks add constraints to the motion problem and observe whether those constraints are currently satisfied. For example, a Cartesian position task observes whether the distance to its target is below a threshold.
 - **Monitor**: A node that observes a condition without controlling the motion. For example, a monitor watching the distance between the gripper and a goal point, or a counter waiting for a number of control cycles.
 - **CompositeStatechartNode**: A node that contains other nodes and wires their conditions. Composite statechart nodes encapsulate reusable, parameterized patterns, such as [the templates](#templates) that run steps in order or retry a failed motion.
-- **Terminal node**: A node that ends the whole motion. **EndMotion** ends it successfully once it runs and observes True, **CancelMotion** ends it by raising its exception as soon as it runs.
+- **Terminal node**: A node that ends the whole motion. **EndMotion** ends it successfully once it runs and observes True, **CancelMotion** ends it by raising its exception as soon as it starts.
 
 Every node carries two pieces of state:
 
@@ -114,29 +114,33 @@ has no say in it:
 
 ### When several conditions hold at once
 
-A node takes exactly one transition per control cycle. If several conditions are True at the
+A node takes at most one transition triggered by its own conditions per control cycle.
+Transitions its parent forces on it always happen: a node is reset while its parent has not
+started, interrupted once its parent has ended and paused while its parent is paused, and it
+only starts or unpauses while its parent is running. If several transitions are possible at the
 same time, the first matching one in this order wins:
 
-1. reset condition of the node or any ancestor
+1. the node's own reset condition, or its parent has not started
 2. the node's own success condition
 3. the node's own fail condition
-4. the node's own interrupt condition, or any success, fail or interrupt condition of an ancestor
-5. pause condition of the node or any ancestor
-6. start condition
+4. the node's own interrupt condition, or its parent has ended
+5. the node's own pause condition, or its parent is paused
+6. the node's own start condition, while its parent is running
 
-The ladder a RUNNING node goes through every control cycle:
+The ladder a RUNNING node goes through in every pass of a control cycle (see
+[One control cycle](#one-control-cycle)):
 
 ```{mermaid}
 flowchart TD
-    A{"reset of the node or<br/>an ancestor is True?"}
+    A{"own reset is True, or<br/>the parent has not started?"}
     A -- yes --> NS([NOT_STARTED])
     A -- no --> B{"own success<br/>is True?"}
     B -- yes --> S([SUCCEEDED])
     B -- no --> C{"own fail<br/>is True?"}
     C -- yes --> F([FAILED])
-    C -- no --> D{"own interrupt is True, or an<br/>ancestor's success, fail or<br/>interrupt is True?"}
+    C -- no --> D{"own interrupt is True, or<br/>the parent has ended?"}
     D -- yes --> I([INTERRUPTED])
-    D -- no --> E{"pause of the node or<br/>an ancestor is True?"}
+    D -- no --> E{"own pause is True, or<br/>the parent is paused?"}
     E -- yes --> P([PAUSED])
     E -- no --> R([RUNNING])
 
@@ -182,7 +186,7 @@ directly (`UnsupportedConditionVariableError`); it asks about them through a pre
   while the monitor has not observed anything yet. `monitor.observes_false` would stop waiting
   only once the monitor observes False.
 - **Life cycle predicates** such as `node.is_succeeded` answer questions about the life cycle
-  state the node reaches this control cycle:
+  state of the node:
 
   | Predicate            | NOT_STARTED | RUNNING | PAUSED | SUCCEEDED | FAILED | INTERRUPTED |
   |----------------------|:-----------:|:-------:|:------:|:---------:|:------:|:-----------:|
@@ -198,16 +202,6 @@ directly (`UnsupportedConditionVariableError`); it asks about them through a pre
   A negated verdict predicate is True before the node ends as well: `not node.is_succeeded`
   holds while the node runs. Waiting for a node to end any way but by succeeding reads
   `node.is_failed_or_interrupted`.
-- **Settled life cycle predicates**, `node.has_succeeded` and
-  `node.has_ended_without_succeeding`, answer the same questions about the state the node
-  *entered* the control cycle with, which is what lets a condition read one about a direct
-  child:
-
-  | Predicate                     | NOT_STARTED | RUNNING | PAUSED | SUCCEEDED | FAILED | INTERRUPTED |
-  |-------------------------------|:-----------:|:-------:|:------:|:---------:|:------:|:-----------:|
-  | `has_succeeded`               | False       | False   | False  | True      | False  | False       |
-  | `has_ended_without_succeeding`| False       | False   | False  | False     | True   | True        |
-
 An observation may change in both directions, while an outcome stays fixed until a reset. A
 condition that has to keep its answer after the node it reads has ended must therefore read
 `last_observed_true`, or the outcome through a life cycle predicate, rather than
@@ -232,11 +226,7 @@ flowchart LR
 Conditions are checked when they are set and when the statechart is compiled:
 
 - A condition may read its own node, a sibling (a node with the same parent) or a direct
-  child; anything further away raises `ConditionScopeError`. A child may only be read through
-  state it entered the control cycle with, its `last_observed_true` or one of its `has_*`
-  predicates. A life cycle predicate of a child raises `ChildPredicateInConditionError`,
-  because it answers about the state that child reaches this control cycle, which the node
-  reading it is deciding at the same moment.
+  child; anything further away raises `ConditionScopeError`.
 - A start condition may not read its own node.
 - No condition may read an EndMotion or CancelMotion node, because nothing happens after one
   of them.
@@ -245,39 +235,49 @@ Conditions are checked when they are set and when the statechart is compiled:
   rejected because the condition could not be written down and read back.
 
 A node's observation expression is trinary. It may read `observation_variable`,
-`last_observation`, the observation predicates and the settled predicates of other nodes, but
-not a life cycle predicate, and combines them with `trinary_logic_and`, `trinary_logic_or` and
-`trinary_logic_not`. An observation that chooses between cases uses `trinary_if_cases`, which
-selects a case only while its guard is True; `if_cases` would select it while the guard is
-Unknown as well. It reads the observations the previous control
-cycle left behind, so a node that ended on that cycle still shows the observation it ended
-on; read the life cycle to tell the two apart.
+`last_observation`, `life_cycle_variable` and every predicate of other nodes, and combines them
+with `trinary_logic_and`, `trinary_logic_or` and `trinary_logic_not`. An observation that
+chooses between cases uses `trinary_if_cases`, which selects a case only while its guard is
+True; `if_cases` would select it while the guard is Unknown as well. A node that stops running
+during a control cycle keeps the observation it stopped on until the next control cycle; read
+the life cycle to tell the two apart.
 
 ### One control cycle
 
-Every control cycle updates all observations first and all life cycle states second:
+A control cycle settles the whole statechart before the controller runs. It calls `on_tick`
+once for every node that was running when the control cycle started, then repeats one
+**pass** over all nodes until no life cycle state, observation or last observation changes
+any more:
 
 ```{mermaid}
 sequenceDiagram
     participant C as Control loop
-    participant O as Observations
-    participant L as Life cycle states
-    C->>O: update
-    Note over O: RUNNING nodes recompute their observation,<br/>PAUSED nodes keep it, all others are Unknown.<br/>Life cycle states are still the ones<br/>the control cycle started with.
-    O->>L: update
-    Note over L: every node takes one transition,<br/>using the new observations.<br/>on_start, on_pause, on_unpause, on_end<br/>and on_reset are called for changed nodes.
+    participant T as on_tick
+    participant P as Pass
+    participant L as Life cycle callbacks
+    C->>T: once per node running at the start of the control cycle
+    T->>P: repeat until nothing changes
+    Note over P: every node observes, reading the states of the previous pass,<br/>then takes over its last observation,<br/>then takes its next transition, reading the observations of this pass<br/>and the life cycle state its parent reaches in this pass.
+    P->>L: once, in the order the changes happened
+    Note over L: on_start, on_pause, on_unpause, on_end and on_reset.
     L->>C: done
-    Note over C: an EndMotion observing True ends the motion,<br/>a CancelMotion observing True raises its exception.
+    Note over C: an EndMotion observing True ends the motion.
 ```
 
-Within the life cycle update, a life cycle predicate reads the state its node reaches in the
-**same** control cycle. A node waiting for another node's outcome, for example with
-`start_condition = previous.is_succeeded`, therefore starts on the control cycle in which that
-outcome is reached. A predicate a node reads about itself is the exception: it reads the state
-the node started the control cycle with. Two nodes that read each other's predicates are
-rejected with a `CyclicPredicateDependencyError`, since neither could be updated first.
-Observation predicates read the observations updated earlier in the same control cycle, which were computed from the life cycle states the control cycle started
-with.
+Every pass reads the states the previous pass left, so how deeply nodes are nested does not
+change when they react to each other: a node waiting for another node's outcome, for example
+with `start_condition = previous.is_succeeded`, starts on the control cycle in which that
+outcome is reached, even if `previous` is a template several levels deep.
+
+A few rules keep a control cycle predictable:
+
+- A node started during a control cycle first observes on the next one. A node that was
+  paused when the control cycle started keeps its observation.
+- A node takes at most one transition triggered by its own conditions per control cycle, so it
+  never ends, resets and starts again within one. Two nodes that each pause while the other
+  runs therefore take turns once per control cycle instead of looping.
+- Life cycle callbacks run once after the passes, so what they change, for example the
+  world state, is seen by observations from the next control cycle on.
 
 ## Who ends a node
 

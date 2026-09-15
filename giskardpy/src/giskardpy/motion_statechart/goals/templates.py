@@ -141,7 +141,7 @@ class Attempt(SelfFailingNode, SelfDecidingNode, CompositeStatechartNode):
                 cases=[
                     (self.task.last_observed_true, Scalar.const_true()),
                     (self.any_failure_monitor_fired, Scalar.const_false()),
-                    (self.task.has_ended_without_succeeding, Scalar.const_false()),
+                    (self.task.is_failed_or_interrupted, Scalar.const_false()),
                 ],
                 else_result=Scalar.const_trinary_unknown(),
             )
@@ -276,11 +276,11 @@ class Sequence(
                 cases=[
                     (
                         trinary_logic_or(
-                            *[step.has_ended_without_succeeding for step in self._steps]
+                            *[step.is_failed_or_interrupted for step in self._steps]
                         ),
                         Scalar.const_false(),
                     ),
-                    (self._steps[-1].has_succeeded, Scalar.const_true()),
+                    (self._steps[-1].is_succeeded, Scalar.const_true()),
                 ],
                 else_result=Scalar.const_trinary_unknown(),
             )
@@ -327,9 +327,6 @@ class Parallel(MaintenanceNode, NodeListCompositeStatechartNode):
         and is left to the attempt this goal is wrapped in. A node that ended without
         succeeding is different: nothing brings it back, so once too few are left this
         goal can no longer arrive and says so rather than holding its owner open forever.
-
-        A node is read through the state it entered the control cycle with, which is what
-        a condition may read about a direct child.
         """
         self._check_has_children()
         for node in self.nodes:
@@ -360,7 +357,7 @@ class Parallel(MaintenanceNode, NodeListCompositeStatechartNode):
             return Scalar.const_false()
         return logic_or(
             *[
-                logic_and(*[node.has_ended_without_succeeding for node in group])
+                logic_and(*[node.is_failed_or_interrupted for node in group])
                 for group in combinations(
                     self.nodes, nodes_that_must_end_without_succeeding
                 )
@@ -384,7 +381,7 @@ class Parallel(MaintenanceNode, NodeListCompositeStatechartNode):
         nodes_at_their_goals = [
             trinary_logic_and(
                 node.last_observed_true,
-                trinary_logic_not(node.has_ended_without_succeeding),
+                trinary_logic_not(node.is_failed_or_interrupted),
             )
             for node in self.nodes
         ]
@@ -492,7 +489,7 @@ class RepeatUntil(CompositeStatechartNodeOverSelfDecidingNodes):
         return NodeArtifacts(
             observation=trinary_if_cases(
                 cases=[
-                    (self._attempt.has_succeeded, Scalar.const_true()),
+                    (self._attempt.is_succeeded, Scalar.const_true()),
                     (self._retrying_stopped, Scalar.const_false()),
                 ],
                 else_result=Scalar.const_trinary_unknown(),
@@ -593,7 +590,7 @@ class TryAll(
                     (
                         trinary_logic_or(
                             *[
-                                alternative.has_succeeded
+                                alternative.is_succeeded
                                 for alternative in self._alternatives
                             ]
                         ),
@@ -602,7 +599,7 @@ class TryAll(
                     (
                         trinary_logic_and(
                             *[
-                                alternative.has_ended_without_succeeding
+                                alternative.is_failed_or_interrupted
                                 for alternative in self._alternatives
                             ]
                         ),
@@ -664,7 +661,7 @@ class TryInOrder(
                     (
                         trinary_logic_or(
                             *[
-                                alternative.has_succeeded
+                                alternative.is_succeeded
                                 for alternative in self._alternatives
                             ]
                         ),
@@ -673,7 +670,7 @@ class TryInOrder(
                     (
                         trinary_logic_and(
                             *[
-                                alternative.has_ended_without_succeeding
+                                alternative.is_failed_or_interrupted
                                 for alternative in self._alternatives
                             ]
                         ),

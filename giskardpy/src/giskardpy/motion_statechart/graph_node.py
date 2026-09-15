@@ -30,7 +30,6 @@ from giskardpy.motion_statechart.data_types import (
     ObservationPredicate,
     ObservationReading,
     ObservationStateValues,
-    SettledLifeCyclePredicate,
     TransitionKind,
     DefaultWeights,
     NodeJSONKey,
@@ -62,7 +61,11 @@ from krrood.adapters.json_serializer import (
 )
 from krrood.exceptions import DataclassException
 from krrood.patterns.field_metadata import JSONMetadata
-from krrood.symbolic_math.symbolic_math import FloatVariable, Scalar
+from krrood.symbolic_math.symbolic_math import (
+    FloatVariable,
+    GenericSymbolicType,
+    Scalar,
+)
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import (
     Point3,
@@ -456,41 +459,6 @@ class LifeCycleVariable(NodeStateVariable):
 
 
 @dataclass(repr=False, eq=False, init=False)
-class LifeCyclePredicateVariable(ConditionVariable):
-    """
-    A symbol representing a binary test on the life cycle state of a node.
-
-    Unlike the other node state variables this one is not read off a state array, because
-    it is read in the state its node reaches this control cycle rather than the one it
-    entered with. See
-    :meth:`~giskardpy.motion_statechart.motion_statechart.NextLifeCycle.of`.
-    """
-
-    predicate: LifeCyclePredicate = field(kw_only=True)
-    """
-    The test this variable holds the value of.
-    """
-
-    def __init__(
-        self,
-        name: str,
-        motion_statechart_node: MotionStatechartNode,
-        predicate: LifeCyclePredicate,
-    ):
-        super().__init__(name, motion_statechart_node)
-        self.predicate = predicate
-
-    @property
-    def display_name(self) -> str:
-        return (
-            f"{self.motion_statechart_node.unique_name}.{self.predicate.attribute_name}"
-        )
-
-    def resolve(self) -> ObservationStateValues:
-        return self.predicate.truth_value(self.motion_statechart_node.life_cycle_state)
-
-
-@dataclass(repr=False, eq=False, init=False)
 class LastObservationVariable(NodeStateVariable):
     """
     A symbol representing the observation a node took most recently, which it keeps once
@@ -529,10 +497,10 @@ class DerivedConditionVariable(ConditionVariable, ABC):
         """
 
     @classmethod
-    def substitute_in(cls, expression: Scalar) -> Scalar:
+    def substitute_in(cls, expression: GenericSymbolicType) -> GenericSymbolicType:
         """
         Replaces every variable of this kind in `expression` by the expression it stands
-        for, which is what the compiled updaters evaluate.
+        for, which is what the compiled motion statechart evaluates.
 
         :param expression: The expression to replace them in.
         :return: `expression` with every such variable replaced.
@@ -544,25 +512,21 @@ class DerivedConditionVariable(ConditionVariable, ABC):
         ]
         if not variables:
             return expression
-        # A node may hand back one of these unwrapped, which cannot be substituted into.
-        return Scalar(expression).substitute(
+        if isinstance(expression, FloatVariable):
+            # A node may hand back one of these unwrapped, which cannot be substituted into.
+            expression = Scalar(expression)
+        return expression.substitute(
             variables, [variable.expression() for variable in variables]
         )
 
 
 @dataclass(repr=False, eq=False, init=False)
-class SettledLifeCyclePredicateVariable(DerivedConditionVariable):
+class LifeCyclePredicateVariable(DerivedConditionVariable):
     """
-    A symbol representing a binary test on the life cycle state a node entered the
-    control cycle with.
-
-    A :class:`LifeCyclePredicateVariable` answers about the state its node reaches this
-    control cycle, which nothing being decided in the same cycle can wait for. This one
-    is settled before the cycle begins, which is what lets a condition read it about a
-    direct child and an observation read it at all.
+    A symbol representing a binary test on the life cycle state of a node.
     """
 
-    predicate: SettledLifeCyclePredicate = field(kw_only=True)
+    predicate: LifeCyclePredicate = field(kw_only=True)
     """
     The test this variable holds the value of.
     """
@@ -571,7 +535,7 @@ class SettledLifeCyclePredicateVariable(DerivedConditionVariable):
         self,
         name: str,
         motion_statechart_node: MotionStatechartNode,
-        predicate: SettledLifeCyclePredicate,
+        predicate: LifeCyclePredicate,
     ):
         super().__init__(name, motion_statechart_node)
         self.predicate = predicate
@@ -587,8 +551,7 @@ class SettledLifeCyclePredicateVariable(DerivedConditionVariable):
 
     def expression(self) -> Scalar:
         """
-        :return: The truth table of this predicate over the life cycle state its node
-            entered the control cycle with.
+        :return: The truth table of this predicate over the life cycle state of its node.
         """
         return self.predicate.expression(
             self.motion_statechart_node.life_cycle_variable
@@ -853,12 +816,6 @@ class MotionStatechartNode(SubclassJSONSerializer):
     """
     The predicate variables handed out so far, so each one is created only once.
     """
-    _settled_life_cycle_predicate_variables: Dict[
-        SettledLifeCyclePredicate, SettledLifeCyclePredicateVariable
-    ] = field(init=False, default_factory=dict, repr=False)
-    """
-    The settled predicate variables handed out so far, so each one is created only once.
-    """
     _observation_predicate_variables: Dict[
         ObservationPredicate, ObservationPredicateVariable
     ] = field(init=False, default_factory=dict, repr=False)
@@ -1014,78 +971,154 @@ class MotionStatechartNode(SubclassJSONSerializer):
             case _:
                 raise ValueError(f"Unknown transition kind: {transition.kind}")
 
-    def create_lifecycle_transitions(self) -> LifeCycleTransitions:
+    def create_lifecycle_transitions(
+        self, own_transitions_allowed: sm.Scalar
+    ) -> LifeCycleTransitions:
         """
-        Builds the state machine of this node.
+        Builds the state machine of this node for one pass through the motion statechart.
 
+        A transition triggered by this node's own conditions only happens while
+        `own_transitions_allowed` is true. A transition its parent forces on it always
+        happens: the node is reset while its parent has not started, interrupted once its
+        parent has ended and paused while its parent is paused. It only starts or
+        unpauses while its parent is running. The parent is read through its
+        :attr:`life_cycle_variable`.
+
+        If several transitions are possible, a reset comes first, then this node's own
+        ending conditions in the order of
+        :meth:`~giskardpy.motion_statechart.data_types.TransitionKind.ending_kinds`, then
+        its parent having ended, then pausing, then starting.
+
+        :param own_transitions_allowed: Whether this node may still take a transition
+            triggered by its own conditions.
         :return: The next life cycle state of this node, per state it can currently be in.
         """
-        any_reset_condition_true = self._create_any_ancestor_condition_true(
-            TransitionKind.RESET
+        reset = sm.logic_or(
+            self._own_trigger(
+                self.get_condition(TransitionKind.RESET), own_transitions_allowed
+            ),
+            self._parent_is(LifeCyclePredicate.IS_NOT_STARTED),
         )
-
+        end_cases = self._create_end_cases(own_transitions_allowed)
         return LifeCycleTransitions(
-            not_started=self._create_not_started_transitions(
-                any_reset_condition_true=any_reset_condition_true
+            not_started=sm.if_cases(
+                cases=[
+                    (reset, sm.Scalar(LifeCycleValues.NOT_STARTED)),
+                    (
+                        sm.logic_and(
+                            self._own_trigger(
+                                self.get_condition(TransitionKind.START),
+                                own_transitions_allowed,
+                            ),
+                            self._is_top_level_or_parent_running(),
+                        ),
+                        sm.Scalar(LifeCycleValues.RUNNING),
+                    ),
+                ],
+                else_result=sm.Scalar(LifeCycleValues.NOT_STARTED),
             ),
-            running=self._create_running_transitions(
-                any_reset_condition_true=any_reset_condition_true
+            running=sm.if_cases(
+                cases=[
+                    (reset, sm.Scalar(LifeCycleValues.NOT_STARTED)),
+                    *end_cases,
+                    (
+                        sm.logic_or(
+                            self._own_trigger(
+                                self.get_condition(TransitionKind.PAUSE),
+                                own_transitions_allowed,
+                            ),
+                            self._parent_is(LifeCyclePredicate.IS_PAUSED),
+                        ),
+                        sm.Scalar(LifeCycleValues.PAUSED),
+                    ),
+                ],
+                else_result=sm.Scalar(LifeCycleValues.RUNNING),
             ),
-            paused=self._create_pause_transitions(
-                any_reset_condition_true=any_reset_condition_true
+            paused=sm.if_cases(
+                cases=[
+                    (reset, sm.Scalar(LifeCycleValues.NOT_STARTED)),
+                    *end_cases,
+                    (
+                        sm.logic_and(
+                            self._own_trigger(
+                                sm.logic_not(self.get_condition(TransitionKind.PAUSE)),
+                                own_transitions_allowed,
+                            ),
+                            self._is_top_level_or_parent_running(),
+                        ),
+                        sm.Scalar(LifeCycleValues.RUNNING),
+                    ),
+                ],
+                else_result=sm.Scalar(LifeCycleValues.PAUSED),
             ),
-            terminal=self._create_terminal_transitions(
-                any_reset_condition_true=any_reset_condition_true
+            terminal=sm.if_else(
+                condition=reset,
+                if_result=sm.Scalar(LifeCycleValues.NOT_STARTED),
+                else_result=self.life_cycle_variable,
             ),
         )
 
-    def _create_end_cases(self) -> List[Tuple[sm.Scalar, sm.Scalar]]:
+    def _create_end_cases(
+        self, own_transitions_allowed: sm.Scalar
+    ) -> List[Tuple[sm.Scalar, sm.Scalar]]:
         """
         Every way this node leaves RUNNING or PAUSED, and the verdict each yields.
 
-        Each of this node's own ending conditions yields its own verdict, in the order
-        :meth:`~giskardpy.motion_statechart.data_types.TransitionKind.ending_kinds` gives
-        them precedence. An ancestor ending takes this node down with it, which
-        interrupts it however the ancestor ended.
+        Each of this node's own ending conditions yields its own verdict. A parent that
+        has ended takes this node down with it, which interrupts it however the parent
+        ended.
 
+        :param own_transitions_allowed: Whether this node may still take a transition
+            triggered by its own conditions.
         :return: The (condition, resulting life cycle state) pairs, most decisive first.
         """
-        any_ending_condition_true = sm.logic_or(
-            *[
-                self._create_any_ancestor_condition_true(transition_kind)
-                for transition_kind in TransitionKind.ending_kinds()
-            ]
-        )
         return [
             *[
                 (
-                    self.get_condition(transition_kind),
+                    self._own_trigger(
+                        self.get_condition(transition_kind), own_transitions_allowed
+                    ),
                     sm.Scalar(transition_kind.verdict),
                 )
                 for transition_kind in TransitionKind.ending_kinds()
             ],
-            (any_ending_condition_true, sm.Scalar(LifeCycleValues.INTERRUPTED)),
+            (
+                self._parent_is(LifeCyclePredicate.IS_TERMINATED),
+                sm.Scalar(LifeCycleValues.INTERRUPTED),
+            ),
         ]
 
-    def _create_any_ancestor_condition_true(
-        self,
-        transition_kind: TransitionKind,
+    @staticmethod
+    def _own_trigger(
+        trigger: sm.Scalar, own_transitions_allowed: sm.Scalar
     ) -> sm.Scalar:
         """
-        Builds a combined condition by OR-ing the 'true' conditions of this node and its ancestors.
-        Traverses from the current node up to the root, combining conditions using OR.
-
-        :param transition_kind: Transition type to check (e.g., RESET for reset_condition)
-        :return: Combined condition where True = any ancestor condition is Scalar.const_true()
+        :param trigger: When one of this node's own transitions would happen.
+        :param own_transitions_allowed: Whether this node may still take such a
+            transition.
+        :return: When that transition happens.
         """
-        current_node = self
-        condition = current_node.get_condition(transition_kind)
-        while current_node.parent_node is not None:
-            current_node = current_node.parent_node
-            condition = sm.logic_or(
-                condition, current_node.get_condition(transition_kind)
-            )
-        return condition
+        return sm.logic_and(trigger, own_transitions_allowed)
+
+    def _parent_is(self, predicate: LifeCyclePredicate) -> sm.Scalar:
+        """
+        :param predicate: The test on the parent's life cycle state.
+        :return: The test on the life cycle state of this node's parent, false for a
+            top level node.
+        """
+        if self.parent_node is None:
+            return sm.Scalar.const_false()
+        return predicate.expression(self.parent_node.life_cycle_variable)
+
+    def _is_top_level_or_parent_running(self) -> sm.Scalar:
+        """
+        :return: True for a top level node, otherwise whether its parent is running.
+        """
+        if self.parent_node is None:
+            return sm.Scalar.const_true()
+        return LifeCyclePredicate.IS_RUNNING.expression(
+            self.parent_node.life_cycle_variable
+        )
 
     def get_condition(self, transition_kind: TransitionKind) -> Scalar:
         """
@@ -1129,117 +1162,6 @@ class MotionStatechartNode(SubclassJSONSerializer):
                 return self._interrupt_condition
             case _:
                 raise ValueError(f"Unknown transition kind: {transition_kind}")
-
-    def _create_terminal_transitions(
-        self, any_reset_condition_true: sm.Scalar
-    ) -> sm.Scalar:
-        """
-        Create the transitions out of a terminal state for this node. A terminal state is
-        only left by a reset, which is why the verdict is kept as it is otherwise.
-
-        :param any_reset_condition_true: The combined reset condition for this node and its parents. Combined using logic_or.
-        :return: The LifeCycleState transitions for every terminal state.
-        """
-        return sm.if_else(
-            condition=any_reset_condition_true,
-            if_result=sm.Scalar(LifeCycleValues.NOT_STARTED),
-            else_result=self.life_cycle_variable,
-        )
-
-    def _create_pause_transitions(
-        self, any_reset_condition_true: sm.Scalar
-    ) -> sm.Scalar:
-        """
-        Create the pause transitions of the LifeCycleState for this node.
-        :param any_reset_condition_true: The combined reset condition for this node and its parents. Combined using logic_or.
-        :return: The LifeCycleState transitions for the PAUSED state.
-        """
-        unpause_condition = sm.logic_not(self.pause_condition)
-        current = self
-        while current.parent_node is not None:
-            parent = current.parent_node
-            unpause_condition = sm.logic_and(
-                unpause_condition, sm.logic_not(parent.pause_condition)
-            )
-            current = parent
-
-        return sm.if_cases(
-            cases=[
-                (
-                    any_reset_condition_true,
-                    sm.Scalar(LifeCycleValues.NOT_STARTED),
-                ),
-                *self._create_end_cases(),
-                (
-                    unpause_condition,
-                    sm.Scalar(LifeCycleValues.RUNNING),
-                ),
-            ],
-            else_result=sm.Scalar(LifeCycleValues.PAUSED),
-        )
-
-    def _create_running_transitions(
-        self, any_reset_condition_true: sm.Scalar
-    ) -> sm.Scalar:
-        """
-        Create the running transitions of the LifeCycleState for this node.
-        :param any_reset_condition_true: The combined reset condition for this node and its parents. Combined using logic_or.
-        :return: The LifeCycleState transitions for the RUNNING state.
-        """
-        any_pause_condition = self._create_any_ancestor_condition_true(
-            TransitionKind.PAUSE
-        )
-        return sm.if_cases(
-            cases=[
-                (
-                    any_reset_condition_true,
-                    sm.Scalar(LifeCycleValues.NOT_STARTED),
-                ),
-                *self._create_end_cases(),
-                (any_pause_condition, sm.Scalar(LifeCycleValues.PAUSED)),
-            ],
-            else_result=sm.Scalar(LifeCycleValues.RUNNING),
-        )
-
-    def _create_not_started_transitions(
-        self, any_reset_condition_true: sm.Scalar
-    ) -> sm.Scalar:
-        """
-        A node starts once it is asked to and every ancestor is being started too, but
-        never underneath an ancestor that is ending on the same cycle, and never while
-        it or an ancestor is being reset, because a reset outranks a start.
-
-        :param any_reset_condition_true: The combined reset condition for this node and its parents. Combined using logic_or.
-        :return: The life cycle state this node reaches while it has not started.
-        """
-        start_condition = self.get_condition(TransitionKind.START)
-        current = self
-        while current.parent_node is not None:
-            parent = current.parent_node
-            start_condition = sm.logic_and(
-                start_condition,
-                sm.logic_not(
-                    sm.logic_or(
-                        *[
-                            parent.get_condition(transition_kind)
-                            for transition_kind in TransitionKind.ending_kinds()
-                        ]
-                    )
-                ),
-                parent.get_condition(TransitionKind.START),
-            )
-            current = parent
-
-        return sm.if_cases(
-            cases=[
-                (
-                    any_reset_condition_true,
-                    sm.Scalar(LifeCycleValues.NOT_STARTED),
-                ),
-                (start_condition, sm.Scalar(LifeCycleValues.RUNNING)),
-            ],
-            else_result=sm.Scalar(LifeCycleValues.NOT_STARTED),
-        )
 
     @property
     def life_cycle_variable(self) -> LifeCycleVariable:
@@ -1507,30 +1429,6 @@ class MotionStatechartNode(SubclassJSONSerializer):
             )
         return self._life_cycle_predicate_variables[predicate]
 
-    def _settled_life_cycle_predicate(
-        self, predicate: SettledLifeCyclePredicate
-    ) -> SettledLifeCyclePredicateVariable:
-        """
-        Hands out the variable for one test on the life cycle state this node entered the
-        control cycle with, creating it on first use so an unused predicate costs nothing.
-
-        :param predicate: The test to read.
-        :return: The variable holding that test's value for this node.
-        """
-        if predicate not in self._settled_life_cycle_predicate_variables:
-            self._settled_life_cycle_predicate_variables[predicate] = (
-                SettledLifeCyclePredicateVariable(
-                    name=str(
-                        PrefixedName(
-                            predicate.attribute_name, f"{self.name}#{self._node_id}"
-                        )
-                    ),
-                    motion_statechart_node=self,
-                    predicate=predicate,
-                )
-            )
-        return self._settled_life_cycle_predicate_variables[predicate]
-
     @property
     def conditions(self) -> List[TransitionCondition]:
         """
@@ -1664,64 +1562,6 @@ class MotionStatechartNode(SubclassJSONSerializer):
         :return: True once this node ended without succeeding, false before that.
         """
         return sm.logic_or(self.is_failed, self.is_interrupted)
-
-    @property
-    def has_ended_without_succeeding(self) -> SettledLifeCyclePredicateVariable:
-        """
-        Whether this node has ended any way but by succeeding, which covers being cut off
-        undecided as much as being judged to have failed.
-
-        The same truth table as :attr:`is_failed_or_interrupted`:
-
-        ================  =====
-        life cycle state  this
-        ================  =====
-        before it ends    false
-        succeeded         false
-        failed            true
-        interrupted       true
-        ================  =====
-
-        .. note:: Answers about the state this node entered the control cycle with, which
-            is what an observation may read and what a condition may read about a direct
-            child.
-            :attr:`is_failed_or_interrupted` is the same question answered about the state
-            this node reaches this cycle, which only a condition about itself or a sibling
-            may read.
-
-        :return: True once this node ended without succeeding, false before that.
-        """
-        return self._settled_life_cycle_predicate(
-            SettledLifeCyclePredicate.HAS_ENDED_WITHOUT_SUCCEEDING
-        )
-
-    @property
-    def has_succeeded(self) -> SettledLifeCyclePredicateVariable:
-        """
-        Whether this node has ended by succeeding, which only a success condition
-        decides.
-
-        The complement of :attr:`has_ended_without_succeeding` over ended nodes, and
-        false for one that has not ended yet:
-
-        ================  =====
-        life cycle state  this
-        ================  =====
-        before it ends    false
-        succeeded         true
-        failed            false
-        interrupted       false
-        ================  =====
-
-        .. note:: Answers about the state this node entered the control cycle with, unlike
-            :attr:`is_succeeded`, which an observation may not read and which no condition
-            may read about a direct child.
-
-        :return: True once this node succeeded, false before that.
-        """
-        return self._settled_life_cycle_predicate(
-            SettledLifeCyclePredicate.HAS_SUCCEEDED
-        )
 
     def formatted_name(self, quoted: bool = False) -> str:
         """
@@ -2295,7 +2135,8 @@ class EndMotion(TerminalNode):
 @dataclass(eq=False, repr=False)
 class CancelMotion(TerminalNode):
     """
-    Ends the motion by raising :attr:`exception`.
+    Ends the motion by raising :attr:`exception` as soon as it starts, even if it is
+    interrupted again within the same control cycle.
 
     Its factory methods mirror :class:`EndMotion`'s: they read whether a node reached its
     goal, which keeps answering once that node has ended, rather than the observation
@@ -2314,8 +2155,15 @@ class CancelMotion(TerminalNode):
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=Scalar.const_true())
 
-    def on_tick(self, context: MotionStatechartContext) -> Optional[float]:
-        raise self.exception
+    def on_start(self, context: MotionStatechartContext):
+        raise self.create_exception(context)
+
+    def create_exception(self, context: MotionStatechartContext) -> Exception:
+        """
+        :param context: The context of the control cycle this node starts on.
+        :return: The exception that cancels the motion.
+        """
+        return self.exception
 
     @classmethod
     def when_true(

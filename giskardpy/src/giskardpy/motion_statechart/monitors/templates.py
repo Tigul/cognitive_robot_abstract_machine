@@ -156,5 +156,5 @@ class StoppedWhenTrue(SelfFailingNode, MonitoredCompositeStatechartNode):
             self.monitored_node.observes_true,
         )
         return trinary_logic_or(
-            observing_true_while_running, self.monitored_node.has_succeeded
+            observing_true_while_running, self.monitored_node.is_succeeded
         )

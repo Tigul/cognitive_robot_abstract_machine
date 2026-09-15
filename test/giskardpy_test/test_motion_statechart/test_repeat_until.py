@@ -48,8 +48,8 @@ from .test_progress_monitors import unreachable_arm_goal
 ATTEMPT_CYCLES = 2
 
 # Control cycles after which the world free loops below have settled on a verdict.
-# An attempt declares its own failure, and a node reading its own verdict reads the state
-# it entered the cycle with, so every retry costs a cycle on top of ATTEMPT_CYCLES.
+# An attempt declares its own failure and is reset one control cycle later, so every
+# retry costs a cycle on top of ATTEMPT_CYCLES.
 SETTLE_CYCLES = 20
 
 # A stall timeout no world free test below runs long enough to reach.
@@ -125,8 +125,8 @@ def test_repeat_until_puts_the_task_back_to_not_started():
     Retrying really restarts the task rather than leaving it running, so a task that
     only behaves correctly from its start is safe to retry.
 
-    Every reset starts a fresh run, the last of them for the single control cycle it
-    takes the monitor to count that reset and call the retrying off.
+    Every reset but the last starts a fresh run. The monitor calls the retrying off on
+    the control cycle it counts the last reset, so that one is not followed by a run.
     """
     task = ConstFalseNode(name="task")
     loop, motion_statechart, executor = _repeat_on_timeout(task, target=3)
@@ -138,12 +138,12 @@ def test_repeat_until_puts_the_task_back_to_not_started():
     restarts = [
         index
         for index in range(1, len(life_cycles) - 1)
-        if life_cycles[index - 1] == LifeCycleValues.RUNNING
+        if life_cycles[index - 1] != LifeCycleValues.NOT_STARTED
         and life_cycles[index] == LifeCycleValues.NOT_STARTED
         and life_cycles[index + 1] == LifeCycleValues.RUNNING
     ]
     assert loop.stop_retry_monitor.resets == 3
-    assert len(restarts) == loop.stop_retry_monitor.target
+    assert len(restarts) == loop.stop_retry_monitor.target - 1
 
 
 def test_repeat_until_does_not_retry_after_giving_up():

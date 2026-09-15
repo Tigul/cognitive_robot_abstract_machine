@@ -12,7 +12,6 @@ from semantic_digital_twin.collision_checking.collision_detector import ClosestP
 if TYPE_CHECKING:
     from giskardpy.motion_statechart.data_types import TransitionKind
     from giskardpy.motion_statechart.graph_node import (
-        LifeCyclePredicateVariable,
         MotionStatechartNode,
         TransitionCondition,
     )
@@ -376,56 +375,6 @@ class CyclicNodeDependencyError(NodeInitializationError):
 
 
 @dataclass
-class CyclicPredicateDependencyError(MotionStatechartError):
-    """
-    Raised when nodes read each other's life cycle predicates in a cycle, so no order
-    exists in which one control cycle could be evaluated.
-    """
-
-    cycle: list[MotionStatechartNode]
-    """
-    The nodes forming the cycle, in the order in which they read each other.
-    """
-
-    def error_message(self) -> str:
-        cycle_str = " -> ".join(node.unique_name for node in self.cycle)
-        return f"Nodes read each other's life cycle predicates in a cycle: {cycle_str}."
-
-    def suggest_correction(self) -> str:
-        return (
-            "Break the cycle, for example by reading the observation state of one of "
-            "the nodes instead of its verdict."
-        )
-
-
-@dataclass
-class UnsupportedObservationVariableError(NodeInitializationError):
-    """
-    Raised when the observation expression of a node reads a life cycle predicate.
-
-    Observations are computed before the life cycle state, so the state a predicate
-    reads does not exist yet at that point.
-    """
-
-    unsupported_variable: FloatVariable
-    """
-    The variable in the observation expression that a node may not read.
-    """
-
-    def error_message(self) -> str:
-        return (
-            f'Observation of "{self.node.unique_name}" contains '
-            f'"{self.unsupported_variable}", which an observation may not read.'
-        )
-
-    def suggest_correction(self) -> str:
-        return (
-            "Read the life cycle state itself, e.g. 'node.life_cycle_variable', or move "
-            "the test into a transition condition."
-        )
-
-
-@dataclass
 class NoProgressError(MotionStatechartError):
     """
     Raised when the watched tasks stopped approaching their goal for too long.
@@ -620,34 +569,6 @@ class ConditionScopeError(InvalidConditionError):
         if parent_node is None:
             return "top level"
         return parent_node.unique_name
-
-
-@dataclass
-class ChildPredicateInConditionError(InvalidConditionError):
-    """
-    Raised when a condition reads a life cycle predicate of a direct child.
-
-    A predicate answers about the state its node reaches this control cycle, which a
-    parent cannot wait for, because the child's own transitions already read the
-    parent's conditions.
-    """
-
-    unsupported_variable: LifeCyclePredicateVariable
-    """
-    The predicate of a child that the condition may not read.
-    """
-
-    def reason(self) -> str:
-        return (
-            f'Reads "{self.unsupported_variable.display_name}", a life cycle predicate '
-            f"of a direct child, which is only decided after this condition."
-        )
-
-    def suggest_correction(self) -> str:
-        return (
-            "Read the state the child entered the control cycle with instead, e.g. "
-            "'child.has_ended_without_succeeding' or 'child.last_observed_true'."
-        )
 
 
 @dataclass

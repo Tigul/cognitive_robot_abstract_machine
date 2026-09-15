@@ -1,6 +1,5 @@
 from dataclasses import field, dataclass
 from itertools import combinations
-from typing import Optional
 
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.context import MotionStatechartContext
@@ -275,7 +274,9 @@ class _CancelBecauseExternalCollisionViolated(_CancelBecauseCollisionViolated):
         )
         return NodeArtifacts()
 
-    def on_tick(self, context: MotionStatechartContext) -> Optional[float]:
+    def create_exception(
+        self, context: MotionStatechartContext
+    ) -> CollisionViolatedError:
         violated_tasks = [
             task
             for task in self.tasks
@@ -289,7 +290,7 @@ class _CancelBecauseExternalCollisionViolated(_CancelBecauseCollisionViolated):
             ][0]
             collisions.append(collision)
             thresholds.append(task.violated_distance.evaluate()[0])
-        raise CollisionViolatedError(
+        return CollisionViolatedError(
             violated_collisions=collisions, thresholds=thresholds
         )
 
@@ -657,7 +658,9 @@ class _CancelBecauseSelfCollisionViolated(_CancelBecauseCollisionViolated):
         )
         return NodeArtifacts()
 
-    def on_tick(self, context: MotionStatechartContext) -> Optional[float]:
+    def create_exception(
+        self, context: MotionStatechartContext
+    ) -> CollisionViolatedError:
         violated_tasks = [
             task
             for task in self.tasks
@@ -671,7 +674,7 @@ class _CancelBecauseSelfCollisionViolated(_CancelBecauseCollisionViolated):
             ][0]
             collisions.append(collision)
             thresholds.append(task.violated_distance.evaluate()[0])
-        raise CollisionViolatedError(
+        return CollisionViolatedError(
             violated_collisions=collisions, thresholds=thresholds
         )
 

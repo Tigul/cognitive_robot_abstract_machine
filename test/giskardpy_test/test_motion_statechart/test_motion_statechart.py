@@ -1141,9 +1141,8 @@ class TestMotionStatechartLogic:
         kin_sim = Executor(MotionStatechartContext(world=World()))
         kin_sim.compile(motion_statechart=msc)
 
-        kin_sim.tick()  # first tick, cancel goes into running
         with pytest.raises(Exception):
-            kin_sim.tick()  # second tick, cancel goes true and triggers
+            kin_sim.tick()  # cancel starts, which triggers it
         msc.draw(str(tmp_path / "muh.pdf"))
 
     def test_motion_statechart(self):
@@ -1249,7 +1248,7 @@ class TestMotionStatechartLogic:
 
         kin_sim.compile(motion_statechart=msc)
         kin_sim.tick_until_end()
-        assert len(msc.history) == 7
+        assert len(msc.history) == 6
         # %% goal
         assert msc.history.get_life_cycle_history_of_node(goal) == [
             LifeCycleValues.NOT_STARTED,
@@ -1258,10 +1257,8 @@ class TestMotionStatechartLogic:
             LifeCycleValues.RUNNING,
             LifeCycleValues.RUNNING,
             LifeCycleValues.RUNNING,
-            LifeCycleValues.RUNNING,
         ]
         assert msc.history.get_observation_history_of_node(goal) == [
-            ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
@@ -1277,12 +1274,10 @@ class TestMotionStatechartLogic:
             LifeCycleValues.RUNNING,
             LifeCycleValues.RUNNING,
             LifeCycleValues.RUNNING,
-            LifeCycleValues.RUNNING,
         ]
         assert msc.history.get_observation_history_of_node(node1) == [
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
-            ObservationStateValues.TRUE,
             ObservationStateValues.TRUE,
             ObservationStateValues.TRUE,
             ObservationStateValues.TRUE,
@@ -1296,14 +1291,12 @@ class TestMotionStatechartLogic:
             LifeCycleValues.SUCCEEDED,
             LifeCycleValues.SUCCEEDED,
             LifeCycleValues.SUCCEEDED,
-            LifeCycleValues.SUCCEEDED,
         ]
         assert msc.history.get_observation_history_of_node(goal.sub_node1) == [
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.TRUE,
-            ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
         ]
@@ -1315,14 +1308,12 @@ class TestMotionStatechartLogic:
             LifeCycleValues.RUNNING,
             LifeCycleValues.RUNNING,
             LifeCycleValues.RUNNING,
-            LifeCycleValues.RUNNING,
         ]
         assert msc.history.get_observation_history_of_node(goal.sub_node2) == [
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
-            ObservationStateValues.TRUE,
             ObservationStateValues.TRUE,
             ObservationStateValues.TRUE,
         ]
@@ -1332,12 +1323,10 @@ class TestMotionStatechartLogic:
             LifeCycleValues.NOT_STARTED,
             LifeCycleValues.NOT_STARTED,
             LifeCycleValues.NOT_STARTED,
-            LifeCycleValues.NOT_STARTED,
             LifeCycleValues.RUNNING,
             LifeCycleValues.RUNNING,
         ]
         assert msc.history.get_observation_history_of_node(end) == [
-            ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
             ObservationStateValues.UNKNOWN,
@@ -1502,38 +1491,6 @@ class TestMotionStatechartLogic:
         assert outer.inner.sub_node1.observation_state == ObservationStateValues.TRUE
         assert outer.inner.sub_node2.observation_state == ObservationStateValues.UNKNOWN
         assert outer.inner.observation_state == ObservationStateValues.UNKNOWN
-        assert outer.observation_state == ObservationStateValues.UNKNOWN
-        assert end.observation_state == ObservationStateValues.UNKNOWN
-
-        assert node1.life_cycle_state == LifeCycleValues.RUNNING
-        assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.SUCCEEDED
-        assert outer.inner.sub_node2.life_cycle_state == LifeCycleValues.RUNNING
-        assert outer.inner.life_cycle_state == LifeCycleValues.RUNNING
-        assert outer.life_cycle_state == LifeCycleValues.RUNNING
-        assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
-        assert not msc_copy.is_end_motion()
-
-        kin_sim.tick()
-        assert node1.observation_state == ObservationStateValues.TRUE
-        assert outer.inner.sub_node1.observation_state == ObservationStateValues.UNKNOWN
-        assert outer.inner.sub_node2.observation_state == ObservationStateValues.TRUE
-        assert outer.inner.observation_state == ObservationStateValues.UNKNOWN
-        assert outer.observation_state == ObservationStateValues.UNKNOWN
-        assert end.observation_state == ObservationStateValues.UNKNOWN
-
-        assert node1.life_cycle_state == LifeCycleValues.RUNNING
-        assert outer.inner.sub_node1.life_cycle_state == LifeCycleValues.SUCCEEDED
-        assert outer.inner.sub_node2.life_cycle_state == LifeCycleValues.RUNNING
-        assert outer.inner.life_cycle_state == LifeCycleValues.RUNNING
-        assert outer.life_cycle_state == LifeCycleValues.RUNNING
-        assert end.life_cycle_state == LifeCycleValues.NOT_STARTED
-        assert not msc_copy.is_end_motion()
-
-        kin_sim.tick()
-        assert node1.observation_state == ObservationStateValues.TRUE
-        assert outer.inner.sub_node1.observation_state == ObservationStateValues.UNKNOWN
-        assert outer.inner.sub_node2.observation_state == ObservationStateValues.TRUE
-        assert outer.inner.observation_state == ObservationStateValues.TRUE
         assert outer.observation_state == ObservationStateValues.UNKNOWN
         assert end.observation_state == ObservationStateValues.UNKNOWN
 
@@ -2207,7 +2164,7 @@ class TestTemplates:
             executor.tick()
 
         assert sequence.nodes[0].life_cycle_state == LifeCycleValues.FAILED
-        assert sequence.observation_state == ObservationStateValues.FALSE
+        assert sequence.last_observation_state == ObservationStateValues.FALSE
 
     def test_parallel(self):
         msc = MotionStatechart()
@@ -2230,8 +2187,8 @@ class TestTemplates:
         )
         kin_sim.compile(motion_statechart=msc)
         kin_sim.tick_until_end()
-        # 5 (longest ticker) + 1 (for parallel to turn True) + 1 (for end to trigger)
-        assert kin_sim.control_cycles == 7
+        # 5 (longest ticker, parallel turns True on the same cycle) + 1 (for end to trigger)
+        assert kin_sim.control_cycles == 6
 
     def test_parallel_with_tasks(self, pr2_world_state_reset: World):
         map = pr2_world_state_reset.root
@@ -2291,8 +2248,8 @@ class TestTemplates:
         )
         kin_sim.compile(motion_statechart=msc)
         kin_sim.tick_until_end()
-        # 4 (second ticker completes) + 1 (for parallel to turn True) + 1 (for end to trigger)
-        assert kin_sim.control_cycles == 6
+        # 4 (second ticker completes, parallel turns True on the same cycle) + 1 (for end to trigger)
+        assert kin_sim.control_cycles == 5
 
     def test_parallel_minimum_success_zero(self):
         """
@@ -3791,10 +3748,10 @@ class TestLastObservation:
             finished_copy.last_observed_true
         ]
 
-    def test_an_observation_expression_reads_the_previous_control_cycle(self):
+    def test_an_observation_expression_reads_the_current_control_cycle(self):
         """
-        The observation update runs before the last observation is taken over, so an
-        observation expression reads what the previous control cycle left behind.
+        A control cycle settles before it ends, so an observation expression reads the
+        last observation taken on the same control cycle.
         """
         msc = MotionStatechart()
         msc.add_nodes(
@@ -3805,14 +3762,14 @@ class TestLastObservation:
         )
 
         executor = _compile_msc(msc)
-        for _ in range(2):
-            executor.tick()
+        executor.tick()
 
-        assert watched.last_observation_state == ObservationStateValues.TRUE
+        assert watched.last_observation_state == ObservationStateValues.FALSE
         assert observer.observation_state == ObservationStateValues.FALSE
 
         executor.tick()
 
+        assert watched.last_observation_state == ObservationStateValues.TRUE
         assert observer.observation_state == ObservationStateValues.TRUE
 
     def test_a_condition_reads_the_current_control_cycle(self):
@@ -4439,23 +4396,7 @@ class TestConditionScoping:
         with pytest.raises(ConditionScopeError):
             kin_sim.compile(motion_statechart=msc)
 
-    def test_parent_cannot_reference_child(self):
-        msc = MotionStatechart()
-        child = ConstTrueNode()
-        parallel = Parallel([child])
-        parallel.success_condition = child.observes_true
-        msc.add_node(parallel)
-        msc.add_node(EndMotion.when_true(parallel))
-
-        kin_sim = Executor(MotionStatechartContext(world=World()))
-        with pytest.raises(ConditionScopeError):
-            kin_sim.compile(motion_statechart=msc)
-
     def test_parent_can_reference_child_through_its_last_observation(self):
-        """
-        What a child observed is settled by the time the parent's own transition is
-        decided, so a parent may read it.
-        """
         msc = MotionStatechart()
         child = ConstTrueNode()
         parallel = Parallel([child])
@@ -4468,27 +4409,6 @@ class TestConditionScoping:
         kin_sim.tick_until_end(timeout=10)
 
         assert parallel.life_cycle_state == LifeCycleValues.SUCCEEDED
-
-    @pytest.mark.parametrize(
-        "read_predicate",
-        [lambda node: node.observes_true, lambda node: node.observes_false],
-        ids=["observes_true", "observes_false"],
-    )
-    def test_parent_cannot_reference_what_a_child_observes_now(self, read_predicate):
-        """
-        A child recomputes its observation every control cycle, so the parent cannot ask
-        about it.
-        """
-        msc = MotionStatechart()
-        child = ConstTrueNode()
-        parallel = Parallel([child])
-        msc.add_node(parallel)
-        parallel.success_condition = read_predicate(child)
-        msc.add_node(EndMotion.when_true(parallel))
-
-        kin_sim = Executor(MotionStatechartContext(world=World()))
-        with pytest.raises(ConditionScopeError):
-            kin_sim.compile(motion_statechart=msc)
 
     def test_parent_cannot_reference_grandchild(self):
         """

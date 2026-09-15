@@ -104,7 +104,6 @@ class LifeCycleValues(IntEnum):
         """
         return frozenset({cls.SUCCEEDED, cls.FAILED, cls.INTERRUPTED})
 
-
     @property
     def is_terminal(self) -> bool:
         """
@@ -178,8 +177,7 @@ class LifeCyclePredicateDefinition:
     def expression(self, life_cycle: Scalar) -> Scalar:
         """
         The same truth table as :meth:`truth_value`, but read off an expression rather
-        than a value, so a predicate can be resolved while the life cycle state it reads
-        is still being computed.
+        than a value.
 
         :param life_cycle: The life cycle state to evaluate the predicate in.
         :return: True if the predicate holds in that state, false otherwise.
@@ -196,8 +194,8 @@ class LifeCyclePredicateDefinition:
 
 class LifeCyclePredicate(LifeCyclePredicateDefinition, Enum):
     """
-    A test on the life cycle state a node reaches this control cycle, which may be used
-    in transition conditions.
+    A test on the life cycle state of a node, which may be used in transition conditions
+    and observations.
 
     Every member is binary: a node that has not ended, or ended some other way, did not
     end the way a verdict predicate asks about.
@@ -210,29 +208,6 @@ class LifeCyclePredicate(LifeCyclePredicateDefinition, Enum):
     IS_SUCCEEDED = frozenset({LifeCycleValues.SUCCEEDED})
     IS_FAILED = frozenset({LifeCycleValues.FAILED})
     IS_INTERRUPTED = frozenset({LifeCycleValues.INTERRUPTED})
-
-    @property
-    def attribute_name(self) -> str:
-        """
-        :return: The name this predicate is reached under on a node, also used to render
-            it inside a condition.
-        """
-        return self.name.lower()
-
-
-class SettledLifeCyclePredicate(LifeCyclePredicateDefinition, Enum):
-    """
-    A test on the life cycle state a node entered the control cycle with.
-
-    That state is settled before the cycle begins, which is what lets one be read about a
-    direct child, which :class:`LifeCyclePredicate` cannot be, and what lets an
-    observation read one.
-    """
-
-    HAS_SUCCEEDED = frozenset({LifeCycleValues.SUCCEEDED})
-    HAS_ENDED_WITHOUT_SUCCEEDING = LifeCycleValues.terminal_states() - frozenset(
-        {LifeCycleValues.SUCCEEDED}
-    )
 
     @property
     def attribute_name(self) -> str:
