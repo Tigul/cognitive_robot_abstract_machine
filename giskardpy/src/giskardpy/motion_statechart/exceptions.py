@@ -375,6 +375,37 @@ class CyclicNodeDependencyError(NodeInitializationError):
 
 
 @dataclass
+class ControlCycleDoesNotSettleError(MotionStatechartError):
+    """
+    Raised when passes through a motion statechart still change it after the most passes
+    one control cycle may take.
+    """
+
+    pass_limit: int
+    """
+    The most passes that may change the motion statechart within one control cycle.
+    """
+
+    unsettled_nodes: list[MotionStatechartNode]
+    """
+    The nodes whose state the pass after the limit changed.
+    """
+
+    def error_message(self) -> str:
+        names = ", ".join(node.unique_name for node in self.unsettled_nodes)
+        return (
+            f"The motion statechart still changed after {self.pass_limit} passes "
+            f"within one control cycle, at {names}."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Check whether these nodes read each other's observations in a way no state "
+            "satisfies, for example each observing True while the other does not."
+        )
+
+
+@dataclass
 class NoProgressError(MotionStatechartError):
     """
     Raised when the watched tasks stopped approaching their goal for too long.

@@ -35,6 +35,7 @@ from giskardpy.motion_statechart.data_types import (
 from giskardpy.motion_statechart.exceptions import (
     EmptyMotionStatechartError,
     ConditionScopeError,
+    ControlCycleDoesNotSettleError,
     CyclicNodeDependencyError,
 )
 from giskardpy.motion_statechart.graph_node import (
@@ -430,6 +431,13 @@ class CompiledControlCycle:
     The motion statechart whose nodes are updated.
     """
 
+    pass_limit: ClassVar[int] = 20
+    """
+    The most passes that may change the motion statechart within one control cycle, so
+    that even at the limit a statechart of a few hundred nodes settles within a 50 Hz
+    control cycle.
+    """
+
     _nodes: List[MotionStatechartNode] = field(init=False)
     """
     Every node of :attr:`motion_statechart`, in node order.
@@ -721,6 +729,8 @@ class CompiledControlCycle:
         :param context: The context passed to every
             :meth:`~giskardpy.motion_statechart.graph_node.MotionStatechartNode.on_tick`.
         :return: Every life cycle change, in the order it happened.
+        :raises ControlCycleDoesNotSettleError: If more than :attr:`pass_limit` passes
+            change the motion statechart.
         """
         np.copyto(
             self._life_cycle_at_cycle_start.data,
@@ -730,11 +740,16 @@ class CompiledControlCycle:
         self._collect_tick_observations(context)
         changes: List[LifeCycleChange] = []
         self._compiled_pass.evaluate()
-        while self._latest_pass_changed_anything():
+        for _ in range(self.pass_limit):
+            if not self._latest_pass_changed_anything():
+                return changes
             changes.extend(self._life_cycle_changes_of_latest_pass())
             self._take_over_latest_pass()
             self._compiled_pass.evaluate()
-        return changes
+        raise ControlCycleDoesNotSettleError(
+            pass_limit=self.pass_limit,
+            unsettled_nodes=self._nodes_changed_by_latest_pass(),
+        )
 
     def _latest_pass_changed_anything(self) -> bool:
         """
@@ -753,6 +768,21 @@ class CompiledControlCycle:
                 self.motion_statechart.last_observation_state.data,
             )
         )
+
+    def _nodes_changed_by_latest_pass(self) -> List[MotionStatechartNode]:
+        """
+        :return: The nodes whose life cycle state, observation or last observation the
+            latest pass changed, in node order.
+        """
+        changed = (
+            (self._next_life_cycle != self.motion_statechart.life_cycle_state.data)
+            | (self._next_observation != self.motion_statechart.observation_state.data)
+            | (
+                self._next_last_observation
+                != self.motion_statechart.last_observation_state.data
+            )
+        )
+        return [self._nodes[index] for index in np.flatnonzero(changed)]
 
     def _take_over_latest_pass(self) -> None:
         """

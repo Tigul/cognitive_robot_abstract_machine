@@ -322,6 +322,23 @@ class NodeObservingAnObservationPredicate(MotionStatechartNode):
 
 
 @dataclass(eq=False, repr=False)
+class NodeObservingTheOppositeOfAnObservationPredicate(MotionStatechartNode):
+    """
+    A node that observes True while another node does not observe True.
+    """
+
+    watched_node: MotionStatechartNode = field(default=None, kw_only=True)
+    """
+    The node whose observation this node contradicts.
+    """
+
+    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+        return NodeArtifacts(
+            observation=sm.logic_not(sm.Scalar(self.watched_node.observes_true))
+        )
+
+
+@dataclass(eq=False, repr=False)
 class SelfFailingMaintenanceNode(SelfFailingNode, MaintenanceNode):
     """
     A node that fails itself once it observes False and leaves succeeding to its owner.
