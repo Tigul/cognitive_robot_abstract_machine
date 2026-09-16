@@ -26,6 +26,44 @@ class NodeJSONKey(StrEnum):
     """
 
 
+class TransitionConditionJSONKey(StrEnum):
+    """
+    Keys a serialized transition condition carries.
+    """
+
+    KIND = "kind"
+    """
+    The kind of transition the condition controls.
+    """
+
+    EXPRESSION = "expression"
+    """
+    The rendered condition, naming every variable by the id of its node.
+    """
+
+    OWNER = "owner"
+    """
+    The id of the node the condition belongs to.
+    """
+
+
+class MotionStatechartJSONKey(StrEnum):
+    """
+    Keys a serialized motion statechart carries.
+    """
+
+    NODES = "nodes"
+    """
+    The nodes of the motion statechart, in the order of their index.
+    """
+
+    CONDITIONS = "conditions"
+    """
+    Every transition condition of every node the document holds, including the children
+    of goals that join the motion statechart only when it is compiled.
+    """
+
+
 # %% life cycle states
 
 

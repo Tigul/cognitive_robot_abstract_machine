@@ -45,6 +45,7 @@ from giskardpy.motion_statechart.graph_node import (
     MotionStatechartNode,
     NodeArtifacts,
     TerminalNode,
+    DeserializedNodeTracker,
     TransitionCondition,
 )
 from giskardpy.motion_statechart.graph_node import ThreadPayloadMonitor
@@ -171,35 +172,6 @@ def test_condition_to_str():
         '("ConstTrueNode#0.observes_true" and ("ConstTrueNode#1.observes_true" or not '
         '"ConstTrueNode#2.observes_true"))'
     )
-
-
-def test_a_condition_reading_observation_predicates_round_trips_through_its_string():
-    """
-    A condition naming what nodes observe, negated and combined, reads back as the same
-    condition from the string it renders to.
-    """
-    msc = MotionStatechart()
-    msc.add_nodes(
-        [
-            monitor := ConstTrueNode(),
-            other := ConstFalseNode(),
-            node := ConstFalseNode(),
-        ]
-    )
-    node.start_condition = sm.logic_or(
-        sm.logic_not(monitor.last_observed_true),
-        sm.logic_and(other.observes_false, monitor.observes_true),
-    )
-    rendered = str(node._start_condition)
-
-    reparsed = TransitionCondition.create_from_str(
-        kind=TransitionKind.START,
-        rendered_condition=rendered,
-        state_variables=msc.condition_variables(),
-        owner=node,
-    )
-
-    assert str(reparsed) == rendered
 
 
 def test_motion_statechart_to_dot(tmp_path):
@@ -3958,7 +3930,7 @@ class TestLifeCyclePredicates:
 
         condition_copy = TransitionCondition.from_json(
             json.loads(json.dumps(second._start_condition.to_json())),
-            motion_statechart=msc,
+            **DeserializedNodeTracker.from_motion_statechart(msc).create_kwargs(),
         )
 
         assert condition_copy == second._start_condition

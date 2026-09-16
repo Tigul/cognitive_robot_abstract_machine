@@ -469,6 +469,27 @@ class NodeNotFoundError(MotionStatechartError):
 
 
 @dataclass
+class UnknownConditionVariableError(MotionStatechartError):
+    """
+    Raised when a rendered condition names a variable that no node offers.
+    """
+
+    variable_name: str
+    """
+    The name the rendered condition uses for the variable.
+    """
+
+    def error_message(self) -> str:
+        return f'The condition names "{self.variable_name}", which no node offers.'
+
+    def suggest_correction(self) -> str:
+        return (
+            "Name a predicate of a node, e.g. 'observes_true', 'last_observed_true' or "
+            "'is_succeeded'."
+        )
+
+
+@dataclass
 class NotInMotionStatechartError(MotionStatechartError):
     """
     Raised when an operation that requires a surrounding statechart is performed on a

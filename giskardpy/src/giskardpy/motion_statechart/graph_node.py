@@ -19,6 +19,7 @@ from typing_extensions import (
     List,
     TypeVar,
     Tuple,
+    Callable,
 )
 
 import krrood.symbolic_math.symbolic_math as sm
@@ -31,6 +32,7 @@ from giskardpy.motion_statechart.data_types import (
     ObservationReading,
     ObservationStateValues,
     TransitionKind,
+    TransitionConditionJSONKey,
     DefaultWeights,
     NodeJSONKey,
 )
@@ -47,6 +49,7 @@ from giskardpy.motion_statechart.exceptions import (
     NodeNotBuiltError,
     TerminalNodeInConditionError,
     MissingErrorSignalError,
+    UnknownConditionVariableError,
 )
 from giskardpy.motion_statechart.plotters.plot_specs import (
     NodePlotSpec,
@@ -55,6 +58,7 @@ from giskardpy.motion_statechart.plotters.plot_specs import (
 from giskardpy.qp.constraint_collection import ConstraintCollection
 from giskardpy.utils.utils import string_shortener
 from krrood.adapters.deserialized_object_tracker import DeserializedObjectTracker
+from krrood.adapters.exceptions import UntrackedObjectError
 from krrood.adapters.json_serializer import (
     DataclassJSONSerializer,
     SubclassJSONSerializer,
@@ -254,79 +258,66 @@ class TransitionCondition(SubclassJSONSerializer):
 
     def __str__(self):
         """
-        Renders the condition, replacing each variable with its
-        :attr:`~NodeStateVariable.display_name` so the result is readable and reproducible
-        across processes (the variable's own name uses a process-local id).
+        Renders the condition, naming each variable by its
+        :attr:`~DerivedConditionVariable.display_name` so the result is readable.
 
+        :return: The rendered condition.
+        """
+        return self._render(lambda variable: variable.display_name)
+
+    def __repr__(self):
+        return str(self)
+
+    def _render(self, name_variable: Callable[[DerivedConditionVariable], str]) -> str:
+        """
+        Renders the condition with ``and``, ``or``, ``not``, ``True`` and ``False``.
+
+        :param name_variable: Gives the name each variable is written as.
         :return: The rendered condition.
         """
         free_symbols = self.expression.free_variables()
         if not free_symbols:
             return str(self.expression.is_constant_true())
-        str_representation = sm.logic_to_str(self.expression)
+        rendered_condition = sm.logic_to_str(self.expression)
         for variable in free_symbols:
-            str_representation = str_representation.replace(
-                variable.name, variable.display_name
+            rendered_condition = rendered_condition.replace(
+                variable.name, name_variable(variable)
             )
-        return str_representation
-
-    def __repr__(self):
-        return str(self)
+        return rendered_condition
 
     def to_json(self, **kwargs) -> Dict[str, Any]:
+        """
+        Names the owner and every variable by the id of their node, which, unlike the
+        index of a node, exists before the node joins a motion statechart.
+        """
         json_data = super().to_json(**kwargs)
-        json_data["kind"] = self.kind.name
-        json_data["expression"] = str(self)
-        json_data["owner"] = self.owner.index if self.owner else None
-        return json_data
-
-    @classmethod
-    def create_from_str(
-        cls,
-        kind: TransitionKind,
-        rendered_condition: str,
-        state_variables: List[NodeStateVariable],
-        owner: Optional[MotionStatechartNode] = None,
-    ):
-        """
-        Creates a condition from the string representation produced by :meth:`__str__`.
-
-        :param kind: The type of transition this condition controls.
-        :param rendered_condition: The condition, with nodes referenced by their unique name.
-        :param state_variables: The variables the referenced display names are resolved against.
-        :param owner: The node this condition belongs to.
-        :return: The new condition.
-        """
-        tree = ast.parse(rendered_condition, mode="eval")
-        return cls(
-            kind=kind,
-            expression=cls._parse_ast_expression(tree.body, state_variables),
-            owner=owner,
+        json_data[TransitionConditionJSONKey.KIND] = self.kind.name
+        json_data[TransitionConditionJSONKey.EXPRESSION] = self._render(
+            lambda variable: str(variable.reference)
         )
+        json_data[TransitionConditionJSONKey.OWNER] = self.owner._node_id
+        return json_data
 
     @staticmethod
     def _parse_ast_expression(
-        node: ast.expr, state_variables: List[NodeStateVariable]
+        node: ast.expr, resolve_variable: Callable[[str], DerivedConditionVariable]
     ) -> Scalar:
         """
         Translates a parsed condition into a symbolic expression.
 
         :param node: The syntax tree node to translate.
-        :param state_variables: The variables the referenced display names are resolved against.
+        :param resolve_variable: Gives the variable a quoted name stands for.
         :return: The symbolic expression.
         """
         match node:
             case ast.BoolOp(op=ast.And()):
-                return TransitionCondition._parse_ast_and(node, state_variables)
+                return TransitionCondition._parse_ast_and(node, resolve_variable)
             case ast.BoolOp(op=ast.Or()):
-                return TransitionCondition._parse_ast_or(node, state_variables)
+                return TransitionCondition._parse_ast_or(node, resolve_variable)
             case ast.UnaryOp():
-                return TransitionCondition._parse_ast_not(node, state_variables)
-            case ast.Constant(value=str(val)):
-                for state_variable in state_variables:
-                    if val == state_variable.display_name:
-                        return state_variable
-                raise KeyError(f"unknown state variable: {val!r}")
+                return TransitionCondition._parse_ast_not(node, resolve_variable)
+            case ast.Constant(value=str(variable_name)):
+                return resolve_variable(variable_name)
             case ast.Constant(value=True):
                 return Scalar.const_true()
             case ast.Constant(value=False):
@@ -335,60 +326,79 @@ class TransitionCondition(SubclassJSONSerializer):
                 raise TypeError(f"failed to parse {type(node).__name__}")
 
     @staticmethod
-    def _parse_ast_and(node, state_variables: List[NodeStateVariable]):
+    def _parse_ast_and(
+        node: ast.BoolOp, resolve_variable: Callable[[str], DerivedConditionVariable]
+    ) -> Scalar:
         """
         Translates a parsed conjunction into a symbolic expression.
 
         :param node: The syntax tree node to translate.
-        :param state_variables: The variables the referenced display names are resolved against.
+        :param resolve_variable: Gives the variable a quoted name stands for.
         :return: The symbolic expression.
         """
         return sm.logic_and(
             *[
-                TransitionCondition._parse_ast_expression(x, state_variables)
+                TransitionCondition._parse_ast_expression(x, resolve_variable)
                 for x in node.values
             ]
         )
 
     @staticmethod
-    def _parse_ast_or(node, state_variables: List[NodeStateVariable]):
+    def _parse_ast_or(
+        node: ast.BoolOp, resolve_variable: Callable[[str], DerivedConditionVariable]
+    ) -> Scalar:
         """
         Translates a parsed disjunction into a symbolic expression.
 
         :param node: The syntax tree node to translate.
-        :param state_variables: The variables the referenced display names are resolved against.
+        :param resolve_variable: Gives the variable a quoted name stands for.
         :return: The symbolic expression.
         """
         return sm.logic_or(
             *[
-                TransitionCondition._parse_ast_expression(x, state_variables)
+                TransitionCondition._parse_ast_expression(x, resolve_variable)
                 for x in node.values
             ]
         )
 
     @staticmethod
-    def _parse_ast_not(node, state_variables: List[NodeStateVariable]):
+    def _parse_ast_not(
+        node: ast.UnaryOp, resolve_variable: Callable[[str], DerivedConditionVariable]
+    ) -> Optional[Scalar]:
         """
         Translates a parsed negation into a symbolic expression.
 
         :param node: The syntax tree node to translate.
-        :param state_variables: The variables the referenced display names are resolved against.
+        :param resolve_variable: Gives the variable a quoted name stands for.
         :return: The symbolic expression, or None if the unary operator is not a negation.
         """
         if isinstance(node.op, ast.Not):
             return sm.logic_not(
-                TransitionCondition._parse_ast_expression(node.operand, state_variables)
+                TransitionCondition._parse_ast_expression(
+                    node.operand, resolve_variable
+                )
             )
 
     @classmethod
-    def _from_json(
-        cls, data: Dict[str, Any], motion_statechart: MotionStatechart, **kwargs
-    ) -> Self:
-        return cls.create_from_str(
-            kind=TransitionKind[data["kind"]],
-            rendered_condition=data["expression"],
-            state_variables=motion_statechart.condition_variables(),
-            owner=motion_statechart.get_node_by_index(data["owner"]),
+    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
+        """
+        Resolves the nodes the condition names through the
+        :class:`DeserializedNodeTracker` in `kwargs`.
+
+        :raises UnknownConditionVariableError: If the condition names a variable its
+            node does not offer.
+        """
+        nodes = DeserializedNodeTracker.from_kwargs(kwargs)
+        tree = ast.parse(data[TransitionConditionJSONKey.EXPRESSION], mode="eval")
+        return cls(
+            kind=TransitionKind[data[TransitionConditionJSONKey.KIND]],
+            expression=cls._parse_ast_expression(
+                tree.body,
+                lambda variable_name: ConditionVariableReference.parse(
+                    variable_name
+                ).resolve(nodes),
+            ),
+            owner=nodes.get(data[TransitionConditionJSONKey.OWNER]),
         )
 
 
@@ -489,11 +499,39 @@ class DerivedConditionVariable(ConditionVariable, ABC):
     which replaces it before anything is compiled.
     """
 
+    predicate: LifeCyclePredicate | ObservationPredicate = field(kw_only=True)
+    """
+    The test this variable holds the value of.
+    """
+
+    @property
+    def display_name(self) -> str:
+        return (
+            f"{self.motion_statechart_node.unique_name}.{self.predicate.attribute_name}"
+        )
+
+    @property
+    def reference(self) -> ConditionVariableReference:
+        """
+        :return: How a serialized condition names this variable.
+        """
+        return ConditionVariableReference(
+            node_id=self.motion_statechart_node._node_id,
+            attribute_name=self.predicate.attribute_name,
+        )
+
     @abstractmethod
     def expression(self) -> Scalar:
         """
         :return: The expression over this variable's node's state variables that this
             variable stands for.
+        """
+
+    @abstractmethod
+    def for_node(self, node: MotionStatechartNode) -> Self:
+        """
+        :param node: The node to apply this variable's test to.
+        :return: The variable holding the same test on `node`.
         """
 
     @classmethod
@@ -540,14 +578,11 @@ class LifeCyclePredicateVariable(DerivedConditionVariable):
         super().__init__(name, motion_statechart_node)
         self.predicate = predicate
 
-    @property
-    def display_name(self) -> str:
-        return (
-            f"{self.motion_statechart_node.unique_name}.{self.predicate.attribute_name}"
-        )
-
     def resolve(self) -> ObservationStateValues:
         return self.predicate.truth_value(self.motion_statechart_node.life_cycle_state)
+
+    def for_node(self, node: MotionStatechartNode) -> Self:
+        return node._life_cycle_predicate(self.predicate)
 
     def expression(self) -> Scalar:
         """
@@ -583,12 +618,6 @@ class ObservationPredicateVariable(DerivedConditionVariable):
         self.predicate = predicate
 
     @property
-    def display_name(self) -> str:
-        return (
-            f"{self.motion_statechart_node.unique_name}.{self.predicate.attribute_name}"
-        )
-
-    @property
     def observation(self) -> NodeStateVariable:
         """
         :return: The variable holding the observation this test reads.
@@ -604,11 +633,65 @@ class ObservationPredicateVariable(DerivedConditionVariable):
             ObservationStateValues(self.observation.resolve())
         )
 
+    def for_node(self, node: MotionStatechartNode) -> Self:
+        return node._observation_predicate(self.predicate)
+
     def expression(self) -> Scalar:
         """
         :return: The test of this predicate on the observation it reads.
         """
         return self.predicate.expression(self.observation)
+
+
+@dataclass(frozen=True)
+class ConditionVariableReference:
+    """
+    How a serialized condition names a variable: by the id of its node in the JSON
+    document and by the attribute the variable is reached under on that node.
+    """
+
+    node_id: str
+    """
+    The id the node of the variable was serialized with.
+    """
+
+    attribute_name: str
+    """
+    The name of the variable on its node, see
+    :attr:`~giskardpy.motion_statechart.data_types.LifeCyclePredicate.attribute_name`.
+    """
+
+    separator: ClassVar[str] = "."
+    """
+    Separates the node id from the attribute name in the written reference.
+    """
+
+    @classmethod
+    def parse(cls, written_reference: str) -> Self:
+        """
+        :param written_reference: A reference as :meth:`__str__` writes it.
+        :return: The reference.
+        :raises UnknownConditionVariableError: If the name is not a reference at all.
+        """
+        if cls.separator not in written_reference:
+            raise UnknownConditionVariableError(variable_name=written_reference)
+        node_id, attribute_name = written_reference.split(cls.separator, maxsplit=1)
+        return cls(node_id=node_id, attribute_name=attribute_name)
+
+    def resolve(self, nodes: DeserializedNodeTracker) -> DerivedConditionVariable:
+        """
+        :param nodes: The nodes of the JSON document.
+        :return: The variable this reference names.
+        :raises UnknownConditionVariableError: If the node offers no variable of that name.
+        """
+        node = nodes.get(self.node_id)
+        for variable in node.condition_variables:
+            if variable.predicate.attribute_name == self.attribute_name:
+                return variable
+        raise UnknownConditionVariableError(variable_name=str(self))
+
+    def __str__(self) -> str:
+        return f"{self.node_id}{self.separator}{self.attribute_name}"
 
 
 @dataclass
@@ -751,8 +834,8 @@ class MotionStatechartNode(SubclassJSONSerializer):
     Process-unique identifier assigned at construction and used to name this node's state
     variables. Unlike :attr:`index` it exists before the node is added to a motion statechart,
     so variable names are unique from construction time. A deserialized node gets a new one:
-    conditions reference nodes by :attr:`unique_name`, which is reproduced deterministically
-    on load, and the serialized identifier only tells apart the nodes of one JSON document.
+    the serialized identifier only tells apart the nodes of one JSON document, which is
+    also how a serialized condition names its nodes.
     """
 
     parent_node_index: Optional[int] = field(
@@ -1430,6 +1513,25 @@ class MotionStatechartNode(SubclassJSONSerializer):
         return self._life_cycle_predicate_variables[predicate]
 
     @property
+    def condition_variables(self) -> List[DerivedConditionVariable]:
+        """
+        Creates the variables not handed out yet, so that a condition read from a string
+        can refer to any of them.
+
+        :return: Every life cycle predicate and every observation predicate of this node.
+        """
+        return [
+            *(
+                self._life_cycle_predicate(predicate)
+                for predicate in LifeCyclePredicate
+            ),
+            *(
+                self._observation_predicate(predicate)
+                for predicate in ObservationPredicate
+            ),
+        ]
+
+    @property
     def conditions(self) -> List[TransitionCondition]:
         """
         :return: Every transition condition of this node.
@@ -1615,8 +1717,51 @@ class DeserializedNodeTracker(DeserializedObjectTracker[str, MotionStatechartNod
     with.
 
     A document holds a node once for every place that refers to it, for example as a node
-    of a motion statechart and as the node a monitor watches.
+    of a motion statechart and as the node a monitor watches. A node the document does not
+    contain is looked up in the motion statechart the tracker was created with through
+    :meth:`from_motion_statechart`.
     """
+
+    _motion_statechart: Optional[MotionStatechart] = field(init=False, default=None)
+    """
+    The motion statechart to look up the nodes in that were not deserialized from the
+    document.
+    """
+
+    @classmethod
+    def from_motion_statechart(cls, motion_statechart: MotionStatechart) -> Self:
+        """
+        :param motion_statechart: The motion statechart whose nodes are found by the id
+            they carry.
+        :return: A new tracker.
+        """
+        tracker = cls()
+        tracker._motion_statechart = motion_statechart
+        return tracker
+
+    def _has_untracked(self, key: str) -> bool:
+        return self._find_node_of_motion_statechart(key) is not None
+
+    def _get_untracked(self, key: str) -> MotionStatechartNode:
+        node = self._find_node_of_motion_statechart(key)
+        if node is None:
+            raise UntrackedObjectError(key=key)
+        return node
+
+    def _find_node_of_motion_statechart(
+        self, node_id: str
+    ) -> Optional[MotionStatechartNode]:
+        """
+        :param node_id: The id of the node to find.
+        :return: The node of :attr:`_motion_statechart` with that id, or None if there is
+            none or no motion statechart.
+        """
+        if self._motion_statechart is None:
+            return None
+        for node in self._motion_statechart.nodes:
+            if node._node_id == node_id:
+                return node
+        return None
 
 
 def velocity_convergence_expression(

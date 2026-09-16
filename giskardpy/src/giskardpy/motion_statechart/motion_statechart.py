@@ -26,10 +26,10 @@ from krrood.adapters.json_serializer import SubclassJSONSerializer, from_json, t
 from krrood.symbolic_math.symbolic_math import VariableParameters
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
+    MotionStatechartJSONKey,
     TransitionKind,
     LifeCycleValues,
     LifeCyclePredicate,
-    ObservationPredicate,
     ObservationStateValues,
 )
 from giskardpy.motion_statechart.exceptions import (
@@ -50,7 +50,6 @@ from giskardpy.motion_statechart.graph_node import (
     LifeCycleVariable,
     DerivedConditionVariable,
     LastObservationVariable,
-    NodeStateVariable,
     DebugExpression,
 )
 from giskardpy.motion_statechart.graph_node import (
@@ -1107,9 +1106,30 @@ class MotionStatechart(SubclassJSONSerializer):
             node_copy.plot_specifications = deepcopy(node.plot_specifications)
             for transition_kind in TransitionKind:
                 node_copy.set_condition(
-                    transition_kind, node.get_condition(transition_kind)
+                    transition_kind,
+                    motion_statechart_copy._copy_condition(
+                        node.get_condition(transition_kind)
+                    ),
                 )
         return motion_statechart_copy
+
+    def _copy_condition(self, condition: sm.Scalar) -> sm.Scalar:
+        """
+        :param condition: A condition of the chart this chart is a structural copy of.
+        :return: The same condition, reading the nodes of this chart with the same index.
+        """
+        variables: List[DerivedConditionVariable] = condition.free_variables()
+        if not variables:
+            return condition
+        return sm.Scalar(condition).substitute(
+            variables,
+            [
+                variable.for_node(
+                    self.get_node_by_index(variable.motion_statechart_node.index)
+                )
+                for variable in variables
+            ],
+        )
 
     @property
     def nodes(self) -> List[MotionStatechartNode]:
@@ -1181,27 +1201,6 @@ class MotionStatechart(SubclassJSONSerializer):
         """
         for node in nodes:
             self.add_node(node)
-
-    def condition_variables(self) -> List[NodeStateVariable]:
-        """
-        Every variable a rendered condition can name, so a serialized condition can be
-        resolved back into an expression. Reading a node's predicates here also creates
-        them, which is what makes a deserialized condition able to refer to one.
-
-        :return: Every observation predicate and every life cycle predicate of every
-            node.
-        """
-        variables: List[NodeStateVariable] = []
-        for node in self.nodes:
-            variables.extend(
-                node._life_cycle_predicate(predicate)
-                for predicate in LifeCyclePredicate
-            )
-            variables.extend(
-                node._observation_predicate(predicate)
-                for predicate in ObservationPredicate
-            )
-        return variables
 
     def get_node_by_index(self, index: int) -> MotionStatechartNode:
         """
@@ -1533,25 +1532,52 @@ class MotionStatechart(SubclassJSONSerializer):
         World entities are written as references, because whoever reads a motion
         statechart resolves them against its own world, which has the same entities.
 
-        :return: The JSON representation of this motion statechart, including all nodes and their unique edges.
-        .. warning:: This rebuilds the graph's edges from the nodes' current conditions as a side effect, see :meth:`_add_transitions`.
+        :return: The JSON representation of this motion statechart, including all nodes
+            and the transition conditions of every node the document holds.
         """
         kwargs = {**kwargs, **WorldEntityReferenceWriter().create_kwargs()}
-        self._add_transitions()
         result = super().to_json(**kwargs)
-        result["nodes"] = [
+        result[MotionStatechartJSONKey.NODES] = [
             to_json(node, **kwargs)
             for node in sorted(self.nodes, key=lambda n: n.index)
         ]
-        result["unique_edges"] = [edge.to_json(**kwargs) for edge in self.unique_edges]
+        result[MotionStatechartJSONKey.CONDITIONS] = [
+            condition.to_json(**kwargs)
+            for node in self._with_children_not_added(self.nodes)
+            for condition in node.conditions
+        ]
+        return result
+
+    def _with_children_not_added(
+        self, nodes: List[MotionStatechartNode]
+    ) -> List[MotionStatechartNode]:
+        """
+        :param nodes: The nodes to start from.
+        :return: `nodes`, together with the children of every goal among them, recursively,
+            that have not joined this motion statechart yet.
+        """
+        result = []
+        for node in nodes:
+            result.append(node)
+            if not isinstance(node, CompositeStatechartNode):
+                continue
+            result.extend(
+                self._with_children_not_added(
+                    [
+                        child
+                        for child in node.nodes
+                        if child._motion_statechart is not self
+                    ]
+                )
+            )
         return result
 
     @classmethod
     def _from_json(cls, data: dict[str, Any], **kwargs) -> Self:
         """
         Reconstructs a motion statechart from its JSON representation, as produced by
-        :meth:`to_json`: first all nodes, then their transition conditions, then
-        goal/child parent links. A goal that serializes its own nodes already holds
+        :meth:`to_json`: first all nodes, then the transition conditions of every node
+        the document holds, then goal/child parent links. A goal that serializes its own nodes already holds
         them, so it is not handed them a second time.
 
         :param data: The JSON dict.
@@ -1561,13 +1587,11 @@ class MotionStatechart(SubclassJSONSerializer):
         """
         motion_statechart = cls()
         DeserializedNodeTracker.from_kwargs(kwargs)
-        for json_data in data["nodes"]:
+        for json_data in data[MotionStatechartJSONKey.NODES]:
             node = from_json(json_data, **kwargs)
             motion_statechart.add_node(node)
-        for json_data in data["unique_edges"]:
-            transition = TransitionCondition.from_json(
-                json_data, motion_statechart=motion_statechart, **kwargs
-            )
+        for json_data in data[MotionStatechartJSONKey.CONDITIONS]:
+            transition = TransitionCondition.from_json(json_data, **kwargs)
             transition.owner._set_transition(transition)
         for node in motion_statechart.nodes:
             if node.parent_node_index is None:

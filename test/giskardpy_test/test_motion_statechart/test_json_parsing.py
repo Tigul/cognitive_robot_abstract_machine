@@ -7,15 +7,20 @@ import pytest
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
+    LifeCyclePredicate,
+    MotionStatechartJSONKey,
     LifeCycleValues,
+    ObservationPredicate,
     ObservationStateValues,
     TransitionKind,
 )
 from giskardpy.motion_statechart.exceptions import (
     NodeNotFoundError,
+    UnknownConditionVariableError,
 )
-from giskardpy.motion_statechart.goals.templates import Sequence
+from giskardpy.motion_statechart.goals.templates import Parallel, Sequence
 from giskardpy.motion_statechart.graph_node import (
+    DeserializedNodeTracker,
     TransitionCondition,
     EndMotion,
     CancelMotion,
@@ -37,6 +42,7 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from krrood.adapters.json_serializer import to_json, from_json
 from krrood.symbolic_math.symbolic_math import (
+    Scalar,
     logic_and,
     logic_or,
 )
@@ -89,7 +95,10 @@ def test_trinary_transition():
     json_data = condition.to_json()
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
-    condition_copy = TransitionCondition.from_json(new_json_data, motion_statechart=msc)
+    condition_copy = TransitionCondition.from_json(
+        new_json_data,
+        **DeserializedNodeTracker.from_motion_statechart(msc).create_kwargs(),
+    )
     assert condition_copy == condition
 
 
@@ -112,7 +121,8 @@ def test_ending_condition_round_trip(transition_kind: TransitionKind):
     ]
 
     condition_copy = TransitionCondition.from_json(
-        json.loads(json.dumps(condition.to_json())), motion_statechart=msc
+        json.loads(json.dumps(condition.to_json())),
+        **DeserializedNodeTracker.from_motion_statechart(msc).create_kwargs(),
     )
 
     assert condition_copy == condition
@@ -207,6 +217,9 @@ def test_start_condition(mini_world):
     new_json_data = json.loads(json_str)
     msc_copy = MotionStatechart.from_json(new_json_data, world=mini_world)
 
+    Executor(context=MotionStatechartContext(world=mini_world)).compile(
+        motion_statechart=msc
+    )
     kin_sim = Executor(context=MotionStatechartContext(world=mini_world))
     kin_sim.compile(motion_statechart=msc_copy)
     for index, node in enumerate(msc.nodes):
@@ -434,11 +447,33 @@ def test_structure_copy_keeps_every_condition():
 
     node_copy = msc.create_structure_copy().get_node_by_index(node.index)
 
+    assert [str(condition) for condition in node_copy.conditions] == [
+        str(condition) for condition in node.conditions
+    ]
+
+
+def test_structure_copy_conditions_read_the_copied_nodes():
+    """
+    The conditions of a structural copy read the nodes of the copy, not the nodes of the
+    chart it was made from.
+    """
+    msc = MotionStatechart()
+    msc.add_nodes([trigger := ConstTrueNode(), node := ConstTrueNode()])
+    node.start_condition = logic_and(trigger.observes_true, trigger.is_succeeded)
+    node.success_condition = node.observes_true
+
+    msc_copy = msc.create_structure_copy()
+
     assert [
-        str(node_copy.get_condition(transition_kind))
-        for transition_kind in TransitionKind
+        variable.motion_statechart_node
+        for copied_node in msc_copy.nodes
+        for condition in copied_node.conditions
+        for variable in condition.variables
     ] == [
-        str(node.get_condition(transition_kind)) for transition_kind in TransitionKind
+        msc_copy.get_node_by_index(variable.motion_statechart_node.index)
+        for original_node in msc.nodes
+        for condition in original_node.conditions
+        for variable in condition.variables
     ]
 
 
@@ -488,7 +523,10 @@ def test_to_json_does_not_accumulate_edges():
     edges_after_second = len(msc.edges)
 
     assert edges_after_first == edges_after_second
-    assert first["unique_edges"] == second["unique_edges"]
+    assert (
+        first[MotionStatechartJSONKey.CONDITIONS]
+        == second[MotionStatechartJSONKey.CONDITIONS]
+    )
 
 
 def test_unreachable_cart_goal(pr2_world_state_reset):
@@ -643,3 +681,93 @@ def test_nested_sequence_goal_json_round_trip_compilation():
         )
     )
     executor.compile(motion_statechart=msc_copy)
+
+
+# %% conditions of a chart that is not compiled yet
+
+
+def assert_conditions_survive_json_round_trip(msc: MotionStatechart) -> None:
+    """
+    Serializes `msc` before it is compiled, then compiles it and its copy and checks
+    that every node of both ends up with the same conditions.
+    """
+    msc_copy = MotionStatechart.from_json(json.loads(json.dumps(msc.to_json())))
+
+    msc.compile(MotionStatechartContext(world=World()))
+    msc_copy.compile(MotionStatechartContext(world=World()))
+
+    assert [
+        [str(condition) for condition in node.conditions] for node in msc_copy.nodes
+    ] == [[str(condition) for condition in node.conditions] for node in msc.nodes]
+
+
+def test_conditions_of_goal_children_survive_json_round_trip():
+    """
+    The children of a goal join the chart only when it is compiled, and the conditions
+    set on them before that come along with them.
+    """
+    msc = MotionStatechart()
+    child = ConstTrueNode()
+    sibling = ConstTrueNode()
+    msc.add_node(Parallel([child, sibling]))
+    child.success_condition = child.observes_true
+    sibling.start_condition = child.observes_true
+
+    assert_conditions_survive_json_round_trip(msc)
+
+
+def test_goal_reading_its_child_survives_json_round_trip():
+    """
+    A goal may read its child before the child has joined the chart.
+    """
+    msc = MotionStatechart()
+    child = ConstTrueNode()
+    msc.add_node(parallel := Parallel([child]))
+    parallel.success_condition = child.is_succeeded
+
+    assert_conditions_survive_json_round_trip(msc)
+
+
+def test_constant_condition_survives_json_round_trip():
+    """
+    A condition reading no node is serialized like any other.
+    """
+    msc = MotionStatechart()
+    msc.add_node(node := ConstTrueNode())
+    node.start_condition = Scalar.const_false()
+
+    assert_conditions_survive_json_round_trip(msc)
+
+
+@pytest.mark.parametrize("predicate", [*LifeCyclePredicate, *ObservationPredicate])
+def test_every_predicate_survives_json_round_trip(
+    predicate: LifeCyclePredicate | ObservationPredicate,
+):
+    """
+    Every test a condition can read about a node reads back as the same test.
+    """
+    msc = MotionStatechart()
+    msc.add_nodes([watched := ConstTrueNode(), reader := ConstTrueNode()])
+    match predicate:
+        case LifeCyclePredicate():
+            reader.start_condition = watched._life_cycle_predicate(predicate)
+        case ObservationPredicate():
+            reader.start_condition = watched._observation_predicate(predicate)
+
+    assert_conditions_survive_json_round_trip(msc)
+
+
+def test_condition_naming_an_unknown_variable_is_rejected():
+    """
+    A document may name a predicate nodes no longer offer, for example one that was
+    removed after the document was written.
+    """
+    msc = MotionStatechart()
+    msc.add_nodes([watched := ConstTrueNode(), reader := ConstTrueNode()])
+    reader.start_condition = watched.is_succeeded
+    document = json.dumps(msc.to_json()).replace(
+        f".{LifeCyclePredicate.IS_SUCCEEDED.attribute_name}", ".has_succeeded"
+    )
+
+    with pytest.raises(UnknownConditionVariableError):
+        MotionStatechart.from_json(json.loads(document))
