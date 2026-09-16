@@ -1117,6 +1117,26 @@ class TestMotionStatechartLogic:
             kin_sim.tick()  # cancel starts, which triggers it
         msc.draw(str(tmp_path / "muh.pdf"))
 
+    def test_history_records_the_control_cycle_of_each_snapshot(self):
+        """
+        Control cycles in which nothing changes leave no snapshot, but the snapshots
+        that are kept still name the control cycle they were taken in.
+        """
+        msc = MotionStatechart()
+        counter = CountControlCycles(name="counter", control_cycles=10)
+        msc.add_node(counter)
+        msc.add_node(EndMotion.when_true(counter))
+        executor = Executor(MotionStatechartContext(world=World()))
+        executor.compile(motion_statechart=msc)
+
+        ticks = 0
+        while not msc.is_end_motion():
+            executor.tick()
+            ticks += 1
+
+        assert msc.history.history[0].control_cycle == 0
+        assert msc.history.history[-1].control_cycle == ticks
+
     def test_motion_statechart(self):
         msc = MotionStatechart()
 

@@ -49,9 +49,17 @@ class MonitoredCompositeStatechartNode(MaintenanceNode, CompositeStatechartNode,
     """
 
     def expand(self, context: MotionStatechartContext) -> None:
+        """
+        Add the monitor and the monitored node, wire the monitor, and declare this goal
+        failed once the monitored node ended without succeeding, because it can no
+        longer arrive.
+        """
         self._add_child_to_motion_statechart(self.monitor)
         self._add_child_to_motion_statechart(self.monitored_node)
         self.wire_monitor()
+        self.fail_condition = logic_or(
+            self.fail_condition, self.monitored_node.is_failed_or_interrupted
+        )
 
     @abstractmethod
     def wire_monitor(self) -> None:

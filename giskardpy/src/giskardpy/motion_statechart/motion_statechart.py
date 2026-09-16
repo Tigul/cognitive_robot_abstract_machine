@@ -377,7 +377,9 @@ class LifeCycleChange:
     def run_callback(self, context: MotionStatechartContext) -> None:
         """
         Calls the callback of :attr:`node` that matches this change, e.g.
-        :meth:`~MotionStatechartNode.on_start`. A change with no dedicated callback calls
+        :meth:`~MotionStatechartNode.on_start`. A node that starts paused gets
+        :meth:`~MotionStatechartNode.on_start` and then
+        :meth:`~MotionStatechartNode.on_pause`. A change with no dedicated callback calls
         nothing.
 
         :param context: The context passed to the callback.
@@ -387,6 +389,9 @@ class LifeCycleChange:
                 self.node.on_reset(context=context)
             case (LifeCycleValues.NOT_STARTED, LifeCycleValues.RUNNING):
                 self.node.on_start(context=context)
+            case (LifeCycleValues.NOT_STARTED, LifeCycleValues.PAUSED):
+                self.node.on_start(context=context)
+                self.node.on_pause(context=context)
             case (LifeCycleValues.RUNNING, LifeCycleValues.PAUSED):
                 self.node.on_pause(context=context)
             case (LifeCycleValues.PAUSED, LifeCycleValues.RUNNING):
@@ -432,9 +437,22 @@ class CompiledControlCycle:
 
     pass_limit: ClassVar[int] = 20
     """
-    The most passes that may change the motion statechart within one control cycle, so
-    that even at the limit a statechart of a few hundred nodes settles within a 50 Hz
-    control cycle.
+    The most passes that may change a motion statechart without nested nodes within one
+    control cycle, so that even at the limit a statechart of a few hundred nodes settles
+    within a 50 Hz control cycle.
+    """
+
+    passes_per_nesting_level: ClassVar[int] = 2
+    """
+    The passes added to :attr:`pass_limit` for every nesting level: one to pass an
+    outcome on to the parent, and one for a sibling of that parent to react to it.
+    """
+
+    _pass_budget: int = field(init=False)
+    """
+    The most passes that may change :attr:`motion_statechart` within one control cycle,
+    :attr:`pass_limit` extended by :attr:`passes_per_nesting_level` for every nesting
+    level it has.
     """
 
     _nodes: List[MotionStatechartNode] = field(init=False)
@@ -496,6 +514,10 @@ class CompiledControlCycle:
         :param context: The context whose world and float variable data a pass reads.
         """
         self._nodes = self.motion_statechart.nodes
+        deepest_nesting = max(node.depth for node in self._nodes)
+        self._pass_budget = (
+            self.pass_limit + self.passes_per_nesting_level * deepest_nesting
+        )
         self._life_cycle_at_cycle_start = PassInput.create(
             PassInputKind.LIFE_CYCLE_AT_CYCLE_START, self._nodes
         )
@@ -728,8 +750,9 @@ class CompiledControlCycle:
         :param context: The context passed to every
             :meth:`~giskardpy.motion_statechart.graph_node.MotionStatechartNode.on_tick`.
         :return: Every life cycle change, in the order it happened.
-        :raises ControlCycleDoesNotSettleError: If more than :attr:`pass_limit` passes
-            change the motion statechart.
+        :raises ControlCycleDoesNotSettleError: If a pass returns the motion statechart
+            to a state it already had in this control cycle, which it would then never
+            leave, or if more passes than :attr:`_pass_budget` change it.
         """
         np.copyto(
             self._life_cycle_at_cycle_start.data,
@@ -738,16 +761,56 @@ class CompiledControlCycle:
         self._own_transition_taken.data.fill(0)
         self._collect_tick_observations(context)
         changes: List[LifeCycleChange] = []
+        visited_states = set()
         self._compiled_pass.evaluate()
-        for _ in range(self.pass_limit):
+        for passes_taken in range(self._pass_budget):
             if not self._latest_pass_changed_anything():
                 return changes
+            visited_states.add(self._current_state())
+            if self._state_after_latest_pass() in visited_states:
+                self._raise_does_not_settle(passes_taken + 1)
             changes.extend(self._life_cycle_changes_of_latest_pass())
             self._take_over_latest_pass()
             self._compiled_pass.evaluate()
+        self._raise_does_not_settle(self._pass_budget)
+
+    def _raise_does_not_settle(self, passes_taken: int) -> None:
+        """
+        :param passes_taken: The passes that changed the motion statechart so far.
+        :raises ControlCycleDoesNotSettleError: Always, naming the nodes the latest pass
+            changed.
+        """
         raise ControlCycleDoesNotSettleError(
-            pass_limit=self.pass_limit,
+            pass_limit=self._pass_budget,
+            passes_taken=passes_taken,
             unsettled_nodes=self._nodes_changed_by_latest_pass(),
+        )
+
+    def _current_state(self) -> bytes:
+        """
+        :return: Everything a pass reads that passes change, as one value that can be
+            compared and remembered.
+        """
+        return b"".join(
+            [
+                self.motion_statechart.life_cycle_state.data.tobytes(),
+                self.motion_statechart.observation_state.data.tobytes(),
+                self.motion_statechart.last_observation_state.data.tobytes(),
+                self._own_transition_taken.data.tobytes(),
+            ]
+        )
+
+    def _state_after_latest_pass(self) -> bytes:
+        """
+        :return: What :meth:`_current_state` becomes once the latest pass is taken over.
+        """
+        return b"".join(
+            [
+                self._next_life_cycle.tobytes(),
+                self._next_observation.tobytes(),
+                self._next_last_observation.tobytes(),
+                self._next_own_transition_taken.tobytes(),
+            ]
         )
 
     def _latest_pass_changed_anything(self) -> bool:
@@ -967,7 +1030,8 @@ class MotionStatechart(SubclassJSONSerializer):
     verdict starts on the tick that verdict is reached, however deeply either is nested.
     Nodes are connected with edges, or transitions.
     There are 6 types of transitions:
-        - start condition: If True, the node transitions from NOT_STARTED to RUNNING.
+        - start condition: If True, the node transitions from NOT_STARTED to RUNNING,
+                           or to PAUSED while its pause condition is True.
         - pause condition: If True, the node transitions from RUNNING to PAUSED.
                            If False, the node transitions from PAUSED to RUNNING.
         - success condition: If True, the node ends from RUNNING or PAUSED as SUCCEEDED.
@@ -991,7 +1055,8 @@ class MotionStatechart(SubclassJSONSerializer):
         3. set the transition conditions of nodes
         4. compile the motion statechart.
         5. call tick() to update the observation state and life cycle state.
-            tick() will raise an exception if the cancel motion condition is met.
+            tick() raises the exception of a CancelMotion that started, once the
+            control cycle is complete.
         6. call is_end_motion() to check if the motion is done.
     """
 
@@ -1450,20 +1515,22 @@ class MotionStatechart(SubclassJSONSerializer):
         Executes a single tick of the motion statechart.
 
         Every node is brought to the state it reaches in this control cycle, see
-        :class:`CompiledControlCycle`, then the life cycle callbacks of every change run.
+        :class:`CompiledControlCycle`, then the life cycle callbacks of every change run
+        and the control cycle is recorded. A :class:`CancelMotion` that started in this
+        control cycle ends the motion only after that.
 
         :param context: The context required to execute the tick.
         """
         for change in self._control_cycle.settle(context):
             change.run_callback(context)
-        self._raise_if_cancel_motion()
         self.history.append(
             next_item=StateHistoryItem(
-                control_cycle=len(self.history),
+                control_cycle=context.control_cycle,
                 life_cycle_state=self.life_cycle_state,
                 observation_state=self.observation_state,
             )
         )
+        self._raise_if_cancel_motion()
 
     def get_nodes_by_type(
         self, node_type: Type[GenericMotionStatechartNode]
@@ -1485,12 +1552,11 @@ class MotionStatechart(SubclassJSONSerializer):
 
     def _raise_if_cancel_motion(self):
         """
-        Raises the exception of the first :class:`CancelMotion` node whose observation
-        state is True.
+        Raises the exception of the first :class:`CancelMotion` node that started in
+        the current control cycle.
         """
         for node in self._cancel_motion_nodes:
-            if self.observation_state[node] == ObservationStateValues.TRUE:
-                raise node.exception
+            node.raise_pending_exception()
 
     def cleanup_nodes(self, context: MotionStatechartContext):
         """

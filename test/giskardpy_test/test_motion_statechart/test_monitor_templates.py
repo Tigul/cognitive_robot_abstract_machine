@@ -1,20 +1,23 @@
 """
-Tests for the observation expressions built by the monitored subtree templates (see
+Tests for the monitored subtree templates (see
 ``giskardpy/motion_statechart/monitors/templates.py``).
 
 ``build_artifacts`` reads nothing but the observations of the monitor and the monitored
 node and the life cycle of the monitored node, all of which exist as variables from
-construction, so each expression is evaluated by substituting values into it rather than
-by ticking an executor.
+construction, so each observation expression is evaluated by substituting values into it
+rather than by ticking an executor. How the templates end and pause their monitored node
+is tested by ticking an executor.
 """
 
 import pytest
 
+from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     ObservationStateValues,
 )
+from giskardpy.motion_statechart.goals.templates import Attempt
 from giskardpy.motion_statechart.graph_node import (
     DerivedConditionVariable,
     MotionStatechartNode,
@@ -25,8 +28,20 @@ from giskardpy.motion_statechart.monitors.templates import (
     PausedWhileTrue,
     StoppedWhenTrue,
 )
+from giskardpy.motion_statechart.monitors.payload_monitors import CountControlCycles
+from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
+    ConstFalseNode,
+    ConstTrueNode,
+    SelfFailingMaintenanceNode,
+)
 from krrood.symbolic_math.symbolic_math import Scalar
 from semantic_digital_twin.world import World
+
+SETTLE_CYCLES = 6
+"""
+Control cycles after which the templates ticked below have settled on an outcome.
+"""
 
 UNFINISHED_OBSERVATIONS = [ObservationStateValues.FALSE, ObservationStateValues.UNKNOWN]
 """
@@ -207,3 +222,109 @@ def test_stopped_when_true_stays_unknown_while_the_monitored_node_runs(
         observation_for(goal, monitored_observation, monitor_observation)
         is ObservationStateValues.UNKNOWN
     )
+
+
+# %% a monitored node that ends on its own
+
+
+def compile_chart(nodes: list[MotionStatechartNode]) -> Executor:
+    """
+    :param nodes: The top level nodes of a fresh statechart.
+    :return: The executor, after compiling the statechart.
+    """
+    motion_statechart = MotionStatechart()
+    motion_statechart.add_nodes(nodes)
+    executor = Executor(MotionStatechartContext(world=World()))
+    executor.compile(motion_statechart=motion_statechart)
+    return executor
+
+
+def tick_compiled(node: MotionStatechartNode) -> Executor:
+    """
+    :param node: The node to run as the only top level node of a fresh statechart.
+    :return: The executor, after compiling the statechart and ticking it for
+        :data:`SETTLE_CYCLES` control cycles.
+    """
+    executor = compile_chart([node])
+    for _ in range(SETTLE_CYCLES):
+        executor.tick()
+    return executor
+
+
+@pytest.mark.parametrize(
+    "goal_type, monitor_type",
+    [
+        (PausedWhileTrue, ConstFalseNode),
+        (PausedUntilTrue, ConstTrueNode),
+        (StoppedWhenTrue, ConstFalseNode),
+    ],
+)
+def test_a_template_fails_once_its_monitored_node_failed_on_its_own(
+    goal_type: type[MonitoredCompositeStatechartNode],
+    monitor_type: type[MotionStatechartNode],
+) -> None:
+    """
+    A monitored node that failed never arrives, so the template must not keep its owner
+    waiting for it.
+
+    The monitor lets the monitored node run and never stops it.
+    """
+    monitored_node = SelfFailingMaintenanceNode(
+        name="monitored", observation=ObservationStateValues.FALSE
+    )
+    goal = goal_type(
+        monitor=monitor_type(name="monitor"), monitored_node=monitored_node
+    )
+
+    tick_compiled(goal)
+
+    assert monitored_node.life_cycle_state == LifeCycleValues.FAILED
+    assert goal.life_cycle_state == LifeCycleValues.FAILED
+
+
+@pytest.mark.parametrize("goal_type", [PausedWhileTrue, StoppedWhenTrue])
+def test_a_template_whose_monitored_node_failed_observing_true_fails_its_attempt(
+    goal_type: type[MonitoredCompositeStatechartNode],
+) -> None:
+    """
+    What a monitored node observed on the cycle it failed is no arrival, so an attempt
+    running the template must not succeed on it.
+    """
+    monitored_node = ConstTrueNode(name="monitored")
+    monitored_node.fail_condition = monitored_node.observes_true
+    goal = goal_type(
+        monitor=ConstFalseNode(name="monitor"), monitored_node=monitored_node
+    )
+    attempt = Attempt(task=goal, failure_monitors=[])
+
+    tick_compiled(attempt)
+
+    assert goal.life_cycle_state == LifeCycleValues.FAILED
+    assert attempt.life_cycle_state == LifeCycleValues.FAILED
+
+
+# %% pausing from the start
+
+
+def test_paused_until_true_never_runs_its_node_before_the_monitor_observed_true() -> (
+    None
+):
+    """
+    A monitor that has not observed True yet holds the monitored node from the control
+    cycle the template starts in, so the node's constraints never act before that.
+    """
+    delay = CountControlCycles(name="delay", control_cycles=SETTLE_CYCLES // 2)
+    monitored_node = ConstTrueNode(name="monitored")
+    goal = PausedUntilTrue(
+        monitor=ConstFalseNode(name="monitor"), monitored_node=monitored_node
+    )
+    goal.start_condition = delay.observes_true
+    executor = compile_chart([delay, goal])
+
+    life_cycles = []
+    for _ in range(SETTLE_CYCLES):
+        executor.tick()
+        life_cycles.append(monitored_node.life_cycle_state)
+
+    assert LifeCycleValues.PAUSED in life_cycles
+    assert LifeCycleValues.RUNNING not in life_cycles

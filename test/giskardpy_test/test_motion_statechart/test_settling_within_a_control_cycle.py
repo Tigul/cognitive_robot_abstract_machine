@@ -9,7 +9,11 @@ from giskardpy.motion_statechart.data_types import (
     ObservationStateValues,
 )
 from giskardpy.motion_statechart.goals.templates import Parallel, Sequence
-from giskardpy.motion_statechart.graph_node import EndMotion, MotionStatechartNode
+from giskardpy.motion_statechart.graph_node import (
+    CancelMotion,
+    EndMotion,
+    MotionStatechartNode,
+)
 from giskardpy.motion_statechart.monitors.payload_monitors import Pulse
 from giskardpy.motion_statechart.exceptions import ControlCycleDoesNotSettleError
 from giskardpy.motion_statechart.motion_statechart import (
@@ -31,11 +35,18 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     NodeWritingAVariableOnStart,
     TestNodeAssertionError,
 )
+from krrood.symbolic_math.symbolic_math import Scalar
 from semantic_digital_twin.world import World
 
 CYCLES_TO_WATCH = 8
 """
 How many control cycles a test ticks through, enough for every chart here to settle.
+"""
+
+DEEP_NESTING = 30
+"""
+How many sequences are nested around one task in the deepest statechart here, more than
+a fixed number of passes per control cycle would settle.
 """
 
 
@@ -315,6 +326,39 @@ class TestUnsettledControlCycle:
         assert error.value.pass_limit == CompiledControlCycle.pass_limit
         assert error.value.unsettled_nodes == [first, second]
 
+    def test_observations_contradicting_each_other_are_stopped_once_they_repeat(self):
+        """
+        A control cycle that returns to a state it already had can never settle, so it
+        is stopped right away instead of using up the passes a control cycle may take.
+        """
+        motion_statechart = MotionStatechart()
+        first = NodeObservingTheOppositeOfAnObservationPredicate()
+        second = NodeObservingTheOppositeOfAnObservationPredicate(watched_node=first)
+        first.watched_node = second
+        motion_statechart.add_nodes([first, second])
+        executor = _compile(motion_statechart)
+
+        with pytest.raises(ControlCycleDoesNotSettleError) as error:
+            executor.tick()
+
+        assert error.value.passes_taken < error.value.pass_limit
+
+    def test_deeply_nested_steps_settle_within_one_control_cycle(self):
+        """
+        Every nesting level may need its own passes to pass an outcome on, which is no
+        reason to stop a control cycle that does settle.
+        """
+        motion_statechart = MotionStatechart()
+        plan = ConstTrueNode()
+        for _ in range(DEEP_NESTING):
+            plan = Sequence(nodes=[plan])
+        motion_statechart.add_node(plan)
+        executor = _compile(motion_statechart)
+
+        _tick_until(
+            executor, lambda: plan.life_cycle_state == LifeCycleValues.SUCCEEDED
+        )
+
 
 # %% life cycle callbacks
 
@@ -373,6 +417,55 @@ class TestLifeCycleCallbacks:
                 executor.tick()
 
         assert error.value is composite.cancel.exception
+
+    def test_a_cancel_motion_lets_the_control_cycle_it_starts_in_complete(self):
+        """
+        Cancelling the motion ends it after the control cycle, so every callback of that
+        cycle still runs and the cycle is still recorded.
+        """
+        motion_statechart = MotionStatechart()
+        trigger = ConstTrueNode()
+        cancel = CancelMotion(
+            exception=TestNodeAssertionError(reason="cancelled on the first goal")
+        )
+        ended = NodeRecordingItsCallbacks()
+        motion_statechart.add_nodes([trigger, cancel, ended])
+        cancel.start_condition = trigger.observes_true
+        ended.interrupt_condition = trigger.observes_true
+        executor = _compile(motion_statechart)
+
+        with pytest.raises(TestNodeAssertionError) as error:
+            executor.tick()
+
+        assert error.value is cancel.exception
+        assert ended.take_callbacks() == [
+            LifeCycleCallback.START,
+            LifeCycleCallback.END,
+        ]
+        last_snapshot = motion_statechart.history.history[-1]
+        assert last_snapshot.control_cycle == executor.control_cycles
+        assert last_snapshot.life_cycle_state[cancel] == LifeCycleValues.RUNNING
+
+    def test_a_node_starting_while_its_pause_condition_holds_starts_paused(self):
+        """
+        A node that would be paused right away never runs, not even for the control
+        cycle it starts in, and still gets both callbacks in order.
+        """
+        motion_statechart = MotionStatechart()
+        motion_statechart.add_node(paused := NodeRecordingItsCallbacks())
+        paused.pause_condition = Scalar.const_true()
+        executor = _compile(motion_statechart)
+
+        assert paused.life_cycle_state == LifeCycleValues.PAUSED
+        assert motion_statechart.history.get_life_cycle_history_of_node(paused) == [
+            LifeCycleValues.NOT_STARTED,
+            LifeCycleValues.PAUSED,
+        ]
+        assert (
+            _callbacks_per_cycle(executor, paused)
+            == [[LifeCycleCallback.START, LifeCycleCallback.PAUSE]]
+            + [[]] * CYCLES_TO_WATCH
+        )
 
     def test_a_node_that_restarts_after_failing_takes_one_step_per_cycle(self):
         motion_statechart = MotionStatechart()

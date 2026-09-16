@@ -1068,7 +1068,8 @@ class MotionStatechartNode(SubclassJSONSerializer):
         `own_transitions_allowed` is true. A transition its parent forces on it always
         happens: the node is reset while its parent has not started, interrupted once its
         parent has ended and paused while its parent is paused. It only starts or
-        unpauses while its parent is running. The parent is read through its
+        unpauses while its parent is running, and a node whose pause condition holds
+        when it starts starts paused. The parent is read through its
         :attr:`life_cycle_variable`.
 
         If several transitions are possible, a reset comes first, then this node's own
@@ -1086,21 +1087,22 @@ class MotionStatechartNode(SubclassJSONSerializer):
             ),
             self._parent_is(LifeCyclePredicate.IS_NOT_STARTED),
         )
+        start = sm.logic_and(
+            self._own_trigger(
+                self.get_condition(TransitionKind.START), own_transitions_allowed
+            ),
+            self._is_top_level_or_parent_running(),
+        )
         end_cases = self._create_end_cases(own_transitions_allowed)
         return LifeCycleTransitions(
             not_started=sm.if_cases(
                 cases=[
                     (reset, sm.Scalar(LifeCycleValues.NOT_STARTED)),
                     (
-                        sm.logic_and(
-                            self._own_trigger(
-                                self.get_condition(TransitionKind.START),
-                                own_transitions_allowed,
-                            ),
-                            self._is_top_level_or_parent_running(),
-                        ),
-                        sm.Scalar(LifeCycleValues.RUNNING),
+                        sm.logic_and(start, self.get_condition(TransitionKind.PAUSE)),
+                        sm.Scalar(LifeCycleValues.PAUSED),
                     ),
+                    (start, sm.Scalar(LifeCycleValues.RUNNING)),
                 ],
                 else_result=sm.Scalar(LifeCycleValues.NOT_STARTED),
             ),
@@ -2284,8 +2286,8 @@ class EndMotion(TerminalNode):
 @dataclass(eq=False, repr=False)
 class CancelMotion(TerminalNode):
     """
-    Ends the motion by raising :attr:`exception` as soon as it starts, even if it is
-    interrupted again within the same control cycle.
+    Ends the motion by raising :attr:`exception` at the end of the control cycle it
+    starts in, even if it is interrupted again within that control cycle.
 
     Its factory methods mirror :class:`EndMotion`'s: they read whether a node reached its
     goal, which keeps answering once that node has ended, rather than the observation
@@ -2293,9 +2295,14 @@ class CancelMotion(TerminalNode):
     """
 
     exception: DataclassException = field(kw_only=True)
-    observation_expression: Scalar = field(
-        default_factory=Scalar.const_true, init=False
+
+    _pending_exception: Optional[Exception] = field(
+        default=None, init=False, repr=False
     )
+    """
+    The exception this node started with in the current control cycle, raised once
+    that control cycle is complete.
+    """
 
     plot_specifications: NodePlotSpec = plot_specification_field(
         NodePlotSpec.create_cancel_style
@@ -2305,7 +2312,18 @@ class CancelMotion(TerminalNode):
         return NodeArtifacts(observation=Scalar.const_true())
 
     def on_start(self, context: MotionStatechartContext):
-        raise self.create_exception(context)
+        self._pending_exception = self.create_exception(context)
+
+    def raise_pending_exception(self) -> None:
+        """
+        Raises the exception this node started with in the current control cycle, if
+        any.
+        """
+        if self._pending_exception is None:
+            return
+        exception = self._pending_exception
+        self._pending_exception = None
+        raise exception
 
     def create_exception(self, context: MotionStatechartContext) -> Exception:
         """

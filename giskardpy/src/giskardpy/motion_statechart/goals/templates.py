@@ -128,12 +128,16 @@ class Attempt(SelfFailingNode, SelfDecidingNode, CompositeStatechartNode):
 
         A task that ended without succeeding is reported the same way a monitor giving up
         is: nothing will move it any more, and an attempt still waiting for it would never
-        end.
+        end. What it observed when it ended does not count as reaching its goal.
         """
+        task_at_its_goal = logic_and(
+            self.task.last_observed_true,
+            logic_not(self.task.is_failed_or_interrupted),
+        )
         return NodeArtifacts(
             observation=trinary_if_cases(
                 cases=[
-                    (self.task.last_observed_true, Scalar.const_true()),
+                    (task_at_its_goal, Scalar.const_true()),
                     (self.any_failure_monitor_fired, Scalar.const_false()),
                     (self.task.is_failed_or_interrupted, Scalar.const_false()),
                 ],

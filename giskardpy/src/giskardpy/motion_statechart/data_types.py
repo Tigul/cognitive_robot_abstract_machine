@@ -345,7 +345,8 @@ class DefaultWeights(FloatEnum):
 class TransitionKind(Enum):
     START = 1
     """
-    Transitions nodes from NOT_STARTED to RUNNING.
+    Transitions nodes from NOT_STARTED to RUNNING, or to PAUSED if their pause condition
+    already holds.
     """
 
     PAUSE = 2

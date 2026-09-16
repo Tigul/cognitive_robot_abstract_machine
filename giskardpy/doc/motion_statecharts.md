@@ -22,7 +22,7 @@ the state of other nodes. All nodes are updated together once per control cycle.
 - **Task**: A specific, single-purpose segment of the overall motion. Tasks add constraints to the motion problem and observe whether those constraints are currently satisfied. For example, a Cartesian position task observes whether the distance to its target is below a threshold.
 - **Monitor**: A node that observes a condition without controlling the motion. For example, a monitor watching the distance between the gripper and a goal point, or a counter waiting for a number of control cycles.
 - **CompositeStatechartNode**: A node that contains other nodes and wires their conditions. Composite statechart nodes encapsulate reusable, parameterized patterns, such as [the templates](#templates) that run steps in order or retry a failed motion.
-- **Terminal node**: A node that ends the whole motion. **EndMotion** ends it successfully once it runs and observes True, **CancelMotion** ends it by raising its exception as soon as it starts.
+- **Terminal node**: A node that ends the whole motion. **EndMotion** ends it successfully once it runs and observes True, **CancelMotion** ends it by raising its exception at the end of the control cycle it starts in.
 
 Every node carries two pieces of state:
 
@@ -79,6 +79,7 @@ while its guard is True.
 flowchart LR
     entry(( )) --> NS([NOT_STARTED])
     NS -- start --> R
+    NS -- "start while pause is True" --> P
     subgraph active ["active"]
         direction TB
         R([RUNNING]) -- "pause is True" --> P([PAUSED])
@@ -116,14 +117,16 @@ condition is False again.
 
 | Transition | Condition attribute   | Default | From                          | To          |
 |------------|-----------------------|---------|-------------------------------|-------------|
-| start      | `start_condition`     | True    | NOT_STARTED                   | RUNNING     |
+| start      | `start_condition`     | True    | NOT_STARTED                   | RUNNING, or PAUSED while the pause condition is True |
 | pause      | `pause_condition`     | False   | RUNNING (True), PAUSED (False) | PAUSED, RUNNING |
 | success    | `success_condition`   | False   | RUNNING, PAUSED               | SUCCEEDED   |
 | fail       | `fail_condition`      | False   | RUNNING, PAUSED               | FAILED      |
 | interrupt  | `interrupt_condition` | False   | RUNNING, PAUSED               | INTERRUPTED |
 | reset      | `reset_condition`     | False   | any state                     | NOT_STARTED |
 
-With the defaults a node starts right away and runs until the motion ends.
+With the defaults a node starts right away and runs until the motion ends. A node whose
+pause condition is already True when it starts goes straight to PAUSED, so it never runs
+before its pause condition lets it.
 
 **The condition that ends a node decides its outcome.** What the node observes at that moment
 has no say in it:
@@ -146,7 +149,8 @@ same time, the first matching one in this order wins:
 3. the node's own fail condition
 4. the node's own interrupt condition, or its parent has ended
 5. the node's own pause condition, or its parent is paused
-6. the node's own start condition, while its parent is running
+6. the node's own start condition, while its parent is running; the node starts paused
+   if its own pause condition holds as well
 
 The ladder a RUNNING node goes through in every pass of a control cycle (see
 [One control cycle](#one-control-cycle)):
@@ -272,7 +276,7 @@ sequenceDiagram
     P->>L: once, in the order the changes happened
     Note over L: on_start, on_pause, on_unpause, on_end and on_reset.
     L->>C: done
-    Note over C: an EndMotion observing True ends the motion.
+    Note over C: the control cycle is recorded in the history,<br/>then a CancelMotion that started raises its exception,<br/>and an EndMotion observing True ends the motion.
 ```
 
 Every pass reads the states the previous pass left, so how deeply nodes are nested does not
@@ -290,11 +294,20 @@ A few rules keep a control cycle predictable:
 - Life cycle callbacks run once after the passes, so what they change, for example the
   world state, is seen by observations from the next control cycle on. A node its parents
   force through several states within one control cycle gets each matching callback once, in
-  order, for example `on_pause`, `on_end` and `on_reset`.
+  order, for example `on_pause`, `on_end` and `on_reset`. A node that starts paused gets
+  `on_start` and then `on_pause`.
+- A `CancelMotion` that starts during a control cycle raises its exception only after all
+  life cycle callbacks of that control cycle ran and the control cycle was recorded, even
+  if it was interrupted again within the same control cycle.
 - Observations that read each other can contradict each other, for example two nodes each
-  observing True while the other does not. Such a control cycle never settles, so once more
-  than `CompiledControlCycle.pass_limit` passes change the statechart, the tick raises
-  `ControlCycleDoesNotSettleError` naming the nodes still changing.
+  observing True while the other does not. Such a control cycle never settles: a pass
+  brings the statechart back to a state it already had in this control cycle, and the tick
+  raises `ControlCycleDoesNotSettleError` naming the nodes still changing.
+- A control cycle may take a bounded number of passes, so it always fits into the control
+  loop: `CompiledControlCycle.pass_limit`, plus
+  `CompiledControlCycle.passes_per_nesting_level` for every nesting level of the
+  statechart, because an outcome moves up one level per pass. A tick that needs more passes
+  raises `ControlCycleDoesNotSettleError` as well.
 
 ## Who ends a node
 
@@ -367,7 +380,8 @@ labelled `transition: expression` means that B's condition for that transition r
 Runs a `task` together with a list of `failure_monitors`, and ends as soon as either the task
 reaches its goal or a monitor gives up on it.
 
-- It observes **True** once the task's `last_observed_true` is True, and then succeeds.
+- It observes **True** once the task's `last_observed_true` is True while the task has not
+  ended without succeeding, and then succeeds.
 - It observes **False** once any failure monitor's `last_observed_true` is True, and then fails.
   Reaching the goal wins if both happen on the same control cycle.
 - It observes **False** as well once the task ended without succeeding, which is the task
@@ -530,7 +544,8 @@ flowchart LR
 
 These run a `monitored_node` next to a `monitor`, and let the monitor control the
 monitored node's life cycle. They are maintenance nodes: their observation is the monitored
-node's `last_observation`.
+node's `last_observation`. Once the monitored node ended without succeeding, it can no
+longer arrive, so the template fails.
 
 | Template            | Effect on the monitored node                                            |
 |---------------------|-------------------------------------------------------------------------|
@@ -555,7 +570,7 @@ whoever runs it would otherwise wait for a subtree that can no longer arrive.
 
 The motion ends once an `EndMotion` node is running and observes True. `EndMotion` observes
 True once the robot has come to rest. A `CancelMotion` node ends the motion by raising its
-exception as soon as it runs.
+exception at the end of the control cycle it starts in.
 
 Both are usually created with factory methods that set their start condition:
 

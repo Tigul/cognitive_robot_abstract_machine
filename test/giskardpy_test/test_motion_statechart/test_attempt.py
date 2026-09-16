@@ -220,6 +220,21 @@ def test_an_attempt_fails_once_its_task_ended_without_succeeding():
     assert attempt.life_cycle_state == LifeCycleValues.FAILED
 
 
+def test_an_attempt_fails_once_its_task_failed_while_observing_true():
+    """
+    A task that declared its own failure did not reach its goal, whatever it observed on
+    the cycle it failed, so its last observation must not count as an arrival.
+    """
+    task = ConstTrueNode(name="task")
+    task.fail_condition = task.observes_true
+    attempt = Attempt(task=task, failure_monitors=[])
+
+    _compile_and_tick(attempt)
+
+    assert task.life_cycle_state == LifeCycleValues.FAILED
+    assert attempt.life_cycle_state == LifeCycleValues.FAILED
+
+
 def test_reaching_the_goal_wins_over_a_failure_on_the_same_cycle():
     """
     A monitor firing on the cycle the motion arrives must not undo the arrival.

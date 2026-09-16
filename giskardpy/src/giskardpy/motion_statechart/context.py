@@ -89,6 +89,14 @@ class MotionStatechartContext:
     """
 
     @property
+    def control_cycle(self) -> int:
+        """
+        :return: The number of control cycles run since the motion started, as held by
+            :attr:`control_cycle_variable`.
+        """
+        return int(self.float_variable_data.get_value(self.control_cycle_variable))
+
+    @property
     def collision_manager(self) -> CollisionManager:
         return self.world.collision_manager
 
