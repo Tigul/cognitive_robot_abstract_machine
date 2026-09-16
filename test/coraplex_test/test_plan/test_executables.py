@@ -174,6 +174,23 @@ def test_prepare_for_execution_adds_a_single_end_motion(reach_action_executable)
     assert len(chart.get_nodes_by_type(EndMotion)) == 1
 
 
+def test_the_end_motion_waits_for_the_root_goal(reach_action_executable):
+    """
+    The motion ends once the root goal reaches its goal, read through what the root goal
+    observes and whether it succeeded.
+    """
+    with real_robot:
+        reach_action_executable.prepare_for_execution()
+
+    chart = reach_action_executable.motion_state_chart
+    [end_motion] = chart.get_nodes_by_type(EndMotion)
+    root_goal = reach_action_executable.root_node
+    assert set(end_motion.start_condition.free_variables()) == {
+        root_goal.observes_true,
+        root_goal.is_succeeded,
+    }
+
+
 @pytest.mark.parametrize("execution_environment", [real_robot, simulated_robot])
 def test_execution_does_not_add_condition_monitors(
     reach_action_executable, execution_environment

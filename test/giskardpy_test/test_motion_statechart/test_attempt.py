@@ -270,9 +270,8 @@ def test_failure_reasons_is_empty_once_the_task_reached_its_goal():
 
 def test_failure_reasons_names_a_monitor_that_fired_for_a_single_cycle():
     """
-    A goal reads its children a control cycle late, so a monitor that does not hold its
-    reading is already back to observing nothing by the time it is asked why the attempt
-    ended.
+    The monitor is back to observing nothing after its single cycle, so the attempt has
+    to name it from the observation the monitor ended with.
     """
     fired_briefly = Pulse(name="fired_briefly")
     attempt = Attempt(

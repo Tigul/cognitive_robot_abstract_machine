@@ -50,6 +50,7 @@ from giskardpy.motion_statechart.exceptions import (
     TerminalNodeInConditionError,
     MissingErrorSignalError,
     UnknownConditionVariableError,
+    UnsupportedConditionSyntaxError,
 )
 from giskardpy.motion_statechart.plotters.plot_specs import (
     NodePlotSpec,
@@ -308,13 +309,15 @@ class TransitionCondition(SubclassJSONSerializer):
         :param node: The syntax tree node to translate.
         :param resolve_variable: Gives the variable a quoted name stands for.
         :return: The symbolic expression.
+        :raises UnsupportedConditionSyntaxError: If `node` is neither a quoted name,
+            ``True``, ``False``, nor an ``and``, ``or`` or ``not``.
         """
         match node:
             case ast.BoolOp(op=ast.And()):
                 return TransitionCondition._parse_ast_and(node, resolve_variable)
             case ast.BoolOp(op=ast.Or()):
                 return TransitionCondition._parse_ast_or(node, resolve_variable)
-            case ast.UnaryOp():
+            case ast.UnaryOp(op=ast.Not()):
                 return TransitionCondition._parse_ast_not(node, resolve_variable)
             case ast.Constant(value=str(variable_name)):
                 return resolve_variable(variable_name)
@@ -323,7 +326,9 @@ class TransitionCondition(SubclassJSONSerializer):
             case ast.Constant(value=False):
                 return Scalar.const_false()
             case _:
-                raise TypeError(f"failed to parse {type(node).__name__}")
+                raise UnsupportedConditionSyntaxError(
+                    unsupported_part=ast.unparse(node)
+                )
 
     @staticmethod
     def _parse_ast_and(
@@ -364,20 +369,17 @@ class TransitionCondition(SubclassJSONSerializer):
     @staticmethod
     def _parse_ast_not(
         node: ast.UnaryOp, resolve_variable: Callable[[str], DerivedConditionVariable]
-    ) -> Optional[Scalar]:
+    ) -> Scalar:
         """
         Translates a parsed negation into a symbolic expression.
 
-        :param node: The syntax tree node to translate.
+        :param node: The syntax tree node to translate, whose operator is ``not``.
         :param resolve_variable: Gives the variable a quoted name stands for.
-        :return: The symbolic expression, or None if the unary operator is not a negation.
+        :return: The symbolic expression.
         """
-        if isinstance(node.op, ast.Not):
-            return sm.logic_not(
-                TransitionCondition._parse_ast_expression(
-                    node.operand, resolve_variable
-                )
-            )
+        return sm.logic_not(
+            TransitionCondition._parse_ast_expression(node.operand, resolve_variable)
+        )
 
     @classmethod
     def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
@@ -387,6 +389,8 @@ class TransitionCondition(SubclassJSONSerializer):
 
         :raises UnknownConditionVariableError: If the condition names a variable its
             node does not offer.
+        :raises UnsupportedConditionSyntaxError: If the condition contains syntax that
+            has no meaning as a condition.
         """
         nodes = DeserializedNodeTracker.from_kwargs(kwargs)
         tree = ast.parse(data[TransitionConditionJSONKey.EXPRESSION], mode="eval")

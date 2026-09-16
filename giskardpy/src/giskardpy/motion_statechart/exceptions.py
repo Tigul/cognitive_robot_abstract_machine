@@ -490,6 +490,29 @@ class UnknownConditionVariableError(MotionStatechartError):
 
 
 @dataclass
+class UnsupportedConditionSyntaxError(MotionStatechartError):
+    """
+    Raised when a rendered condition contains syntax that has no meaning as a condition.
+    """
+
+    unsupported_part: str
+    """
+    The part of the rendered condition that is not supported.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f'The condition contains "{self.unsupported_part}", which is not supported.'
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Write the condition from quoted node predicates, True and False, combined "
+            "with 'and', 'or' and 'not'."
+        )
+
+
+@dataclass
 class NotInMotionStatechartError(MotionStatechartError):
     """
     Raised when an operation that requires a surrounding statechart is performed on a

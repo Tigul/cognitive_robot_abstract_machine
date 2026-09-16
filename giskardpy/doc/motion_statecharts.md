@@ -364,7 +364,8 @@ reaches its goal or a monitor gives up on it.
 - Otherwise it observes Unknown and keeps going.
 
 The task is never ended by the attempt directly. It keeps being enforced until the attempt
-itself ends and interrupts it. Each failure monitor succeeds on the control cycle it fires, so
+itself ends and interrupts it. The attempt fails on the control cycle a failure monitor fires,
+which interrupts the monitor and keeps what it observed as its last observation, so
 `attempt.failure_reasons` can list the monitors that caused a failure after the fact. An empty
 `failure_monitors` list states that the attempt cannot fail.
 

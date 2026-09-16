@@ -9,7 +9,7 @@ from giskardpy.motion_statechart.data_types import (
     ObservationStateValues,
 )
 from giskardpy.motion_statechart.goals.templates import Parallel, Sequence
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode
+from giskardpy.motion_statechart.graph_node import EndMotion, MotionStatechartNode
 from giskardpy.motion_statechart.monitors.payload_monitors import Pulse
 from giskardpy.motion_statechart.exceptions import ControlCycleDoesNotSettleError
 from giskardpy.motion_statechart.motion_statechart import (
@@ -140,6 +140,35 @@ class TestReactionTimeAcrossNesting:
         )
 
         assert started_cycle == goal_reached_cycle
+
+    @pytest.mark.parametrize(
+        "make_step",
+        [_bare, _in_a_sequence, _in_nested_sequences],
+        ids=["bare task", "task in a sequence", "task in nested sequences"],
+    )
+    def test_the_motion_ends_on_the_cycle_after_a_step_reaches_its_goal(
+        self, make_step: Callable[[ConstTrueNode], MotionStatechartNode]
+    ):
+        """
+        The end motion node starts on the cycle the step's task reaches its goal and,
+        like any node started during a cycle, first observes on the next one.
+        """
+        motion_statechart = MotionStatechart()
+        task = ConstTrueNode()
+        step = make_step(task)
+        motion_statechart.add_nodes([step, EndMotion.when_true(step)])
+        executor = _compile(motion_statechart)
+
+        goal_reached_cycle, end_cycle = _first_cycles(
+            executor,
+            [
+                lambda: motion_statechart.observation_state[task]
+                == ObservationStateValues.TRUE,
+                motion_statechart.is_end_motion,
+            ],
+        )
+
+        assert end_cycle == goal_reached_cycle + 1
 
     def test_a_parent_reads_the_verdict_its_child_reaches_on_the_same_cycle(self):
         motion_statechart = MotionStatechart()

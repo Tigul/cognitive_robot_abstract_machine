@@ -111,17 +111,11 @@ class Attempt(SelfFailingNode, SelfDecidingNode, CompositeStatechartNode):
         """
         Add the task and the monitors.
 
-        A monitor succeeds on the control cycle it fires, which keeps the observation it
-        fired on as its last observation. A goal reads its children a cycle late, so a
-        monitor that fires only briefly would otherwise be indistinguishable afterwards
-        from one that never fired at all.
+        A monitor that fires fails this goal on the same control cycle, which interrupts
+        the monitor and so keeps the observation it fired on as its last observation.
         """
         self._add_child_to_motion_statechart(self.task)
         self._add_children_to_motion_statechart(self.failure_monitors)
-        for failure_monitor in self.failure_monitors:
-            failure_monitor.success_condition = logic_or(
-                failure_monitor.success_condition, failure_monitor.observes_true
-            )
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         """

@@ -3,6 +3,7 @@ from dataclasses import fields
 
 import numpy as np
 import pytest
+from typing_extensions import Callable
 
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
@@ -12,11 +13,13 @@ from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     ObservationPredicate,
     ObservationStateValues,
+    TransitionConditionJSONKey,
     TransitionKind,
 )
 from giskardpy.motion_statechart.exceptions import (
     NodeNotFoundError,
     UnknownConditionVariableError,
+    UnsupportedConditionSyntaxError,
 )
 from giskardpy.motion_statechart.goals.templates import Parallel, Sequence
 from giskardpy.motion_statechart.graph_node import (
@@ -771,3 +774,41 @@ def test_condition_naming_an_unknown_variable_is_rejected():
 
     with pytest.raises(UnknownConditionVariableError):
         MotionStatechart.from_json(json.loads(document))
+
+
+def _negated_arithmetically(expression: str) -> str:
+    return f"-{expression}"
+
+
+def _compared_with_itself(expression: str) -> str:
+    return f"{expression} == {expression}"
+
+
+@pytest.mark.parametrize(
+    "rewrite_condition",
+    [_negated_arithmetically, _compared_with_itself],
+    ids=["a unary operator other than not", "a comparison"],
+)
+def test_condition_using_unsupported_syntax_is_rejected(
+    rewrite_condition: Callable[[str], str],
+):
+    """
+    A rendered condition is Python syntax, so a document may hold syntax that has no
+    meaning as a condition.
+    """
+    msc = MotionStatechart()
+    msc.add_nodes([watched := ConstTrueNode(), reader := ConstTrueNode()])
+    reader.start_condition = watched.is_succeeded
+    document = msc.to_json()
+    [start_condition] = [
+        condition
+        for condition in document[MotionStatechartJSONKey.CONDITIONS]
+        if condition[TransitionConditionJSONKey.OWNER] == reader._node_id
+        and condition[TransitionConditionJSONKey.KIND] == TransitionKind.START.name
+    ]
+    start_condition[TransitionConditionJSONKey.EXPRESSION] = rewrite_condition(
+        start_condition[TransitionConditionJSONKey.EXPRESSION]
+    )
+
+    with pytest.raises(UnsupportedConditionSyntaxError):
+        MotionStatechart.from_json(json.loads(json.dumps(document)))
