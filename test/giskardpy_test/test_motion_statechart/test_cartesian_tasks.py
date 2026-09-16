@@ -325,7 +325,7 @@ class TestCartesianPositionTrajectory:
             goal_point=Point3(-0.5, 0, 0, reference_frame=root),
         )
         motion_statechart.add_node(move_away)
-        move_away.end_condition = move_away.observation_variable
+        move_away.success_condition = move_away.observes_true
         cartesian_trajectory.start_condition = move_away.is_succeeded
         motion_statechart.add_node(EndMotion.when_true(cartesian_trajectory))
 
@@ -1377,7 +1377,7 @@ class TestDiffDriveBaseGoal:
         motion_statechart.add_node(
             second_leg := DifferentialDriveBaseGoal(goal_pose=second_goal_pose)
         )
-        second_leg.start_condition = first_leg.observation_variable
+        second_leg.start_condition = first_leg.observes_true
         motion_statechart.add_node(EndMotion.when_true(second_leg))
 
         executor = Executor(MotionStatechartContext(world=cylinder_bot_diff_world))
