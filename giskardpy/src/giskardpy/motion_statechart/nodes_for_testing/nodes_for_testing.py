@@ -283,7 +283,7 @@ class NodeObservingAPredicate(MotionStatechartNode):
 
     watched_node: MotionStatechartNode = field(default=None, kw_only=True)
     """
-    The node whose verdict this node tries to observe.
+    The node whose outcome this node tries to observe.
     """
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
@@ -445,7 +445,7 @@ class CompositeStatechartNodeWithChildInterruptedBySibling(CompositeStatechartNo
 class CompositeStatechartNodeWithChildFailingOnItsOwn(CompositeStatechartNode):
     """
     Composite statechart node whose child declares its own failure on the first tick, so
-    that a caller ending this node on that same tick makes the child's own verdict
+    that a caller ending this node on that same tick makes the child's own outcome
     compete with being cut off.
     """
 
@@ -473,7 +473,7 @@ class CompositeStatechartNodeWithChildFailingOnItsOwn(CompositeStatechartNode):
 class CompositeStatechartNodeWithChildSucceedingOnItsOwn(CompositeStatechartNode):
     """
     Composite statechart node whose child declares its own success on the first tick, so
-    that a caller ending this node on that same tick makes the child's own verdict
+    that a caller ending this node on that same tick makes the child's own outcome
     compete with being cut off.
     """
 

@@ -209,24 +209,24 @@ class ChildTransitionAlreadyWiredError(NodeInitializationError):
 
 
 @dataclass
-class TransitionHasNoVerdictError(MotionStatechartError):
+class TransitionHasNoOutcomeError(MotionStatechartError):
     """
-    Raised when the verdict of a transition that does not end a node is asked for.
+    Raised when the outcome of a transition that does not end a node is asked for.
     """
 
     transition_kind: TransitionKind
     """
-    The transition whose verdict was asked for.
+    The transition whose outcome was asked for.
     """
 
     def error_message(self) -> str:
         return (
             f"The {self.transition_kind.name.lower()} transition does not end a node, "
-            f"so it has no verdict."
+            f"so it has no outcome."
         )
 
     def suggest_correction(self) -> str:
-        return "Only ask the transitions that end a node for their verdict."
+        return "Only ask the transitions that end a node for their outcome."
 
 
 @dataclass

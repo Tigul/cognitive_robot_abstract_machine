@@ -47,7 +47,7 @@ from .test_progress_monitors import unreachable_arm_goal
 # Control cycles an attempt is given in the world free tests before it counts as failed.
 ATTEMPT_CYCLES = 2
 
-# Control cycles after which the world free loops below have settled on a verdict.
+# Control cycles after which the world free loops below have settled on an outcome.
 # An attempt declares its own failure and is reset one control cycle later, so every
 # retry costs a cycle on top of ATTEMPT_CYCLES.
 SETTLE_CYCLES = 20

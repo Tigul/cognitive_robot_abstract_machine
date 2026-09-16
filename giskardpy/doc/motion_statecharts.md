@@ -20,7 +20,7 @@ the state of other nodes. All nodes are updated together once per control cycle.
 ### Node types
 
 - **Task**: A specific, single-purpose segment of the overall motion. Tasks add constraints to the motion problem and observe whether those constraints are currently satisfied. For example, a Cartesian position task observes whether the distance to its target is below a threshold.
-- **Monitor**: A node that observes a condition without controlling the motion. For example, a monitor watching the distance between the gripper and a goal point, or a counter waiting for a number of control cycles.
+- **Monitor**: A node that observes a condition without adding constraints to the motion. For example, a monitor watching the distance between the gripper and a goal point, or a counter waiting for a number of control cycles. There is no monitor class: a monitor is a plain `MotionStatechartNode`, or a `MaintenanceNode` if its owner ends it (see [Who ends a node](#who-ends-a-node)).
 - **CompositeStatechartNode**: A node that contains other nodes and wires their conditions. Composite statechart nodes encapsulate reusable, parameterized patterns, such as [the templates](#templates) that run steps in order or retry a failed motion.
 - **Terminal node**: A node that ends the whole motion. **EndMotion** ends it successfully once it runs and observes True, **CancelMotion** ends it by raising its exception at the end of the control cycle it starts in.
 
@@ -64,8 +64,12 @@ change in both directions:
 | PAUSED                            | frozen at its last value, because the node resumes later |
 | SUCCEEDED, FAILED, INTERRUPTED    | Unknown, because the node never observes again           |
 
-A node that stops running during a control cycle keeps the observation it stopped on until the
-next control cycle.
+The table describes a node that was already in that state when the control cycle started. A
+node that changes state during a control cycle follows the state it started the control
+cycle in until the next one:
+
+- A node that pauses during a control cycle is still recomputed for the rest of it.
+- A node that ends or is reset during a control cycle keeps the observation it stopped on.
 
 A node's observation expression may read `observation_variable`, `last_observation`,
 `life_cycle_variable` and every [predicate](#reading-other-nodes-in-conditions) of other
@@ -200,9 +204,9 @@ observation or life cycle state to True or False.
   | `last_observed_true` | the observation the node took most recently is True         |
 
   A node observing Unknown makes all three False, including a node that has not observed
-  anything yet. `observes_true` and `observes_false` turn False as soon as the node ends.
-  `last_observed_true` keeps the value the node observed when it ended, however it ended,
-  until a reset clears it. Read it to ask what a node saw, for example whether a monitor that
+  anything yet. `observes_true` and `observes_false` turn False on the control cycle after
+  the node ended. `last_observed_true` keeps the value the node observed when it ended,
+  however it ended, until the control cycle after a reset. Read it to ask what a node saw, for example whether a monitor that
   ended itself had fired. It says nothing about how the node ended: a node interrupted while
   observing True still answers True, so read a life cycle predicate to learn its outcome.
 
@@ -220,10 +224,10 @@ observation or life cycle state to True or False.
   | `is_succeeded`       | False       | False   | False  | True      | False  | False       |
   | `is_failed`          | False       | False   | False  | False     | True   | False       |
   | `is_interrupted`     | False       | False   | False  | False     | False  | True        |
-  | `is_failed_or_interrupted` | False | False   | False  | False     | True   | True        |
 
   `logic_not(node.is_succeeded)` is also True before the node has ended. To wait for a node
-  to end any way but by succeeding, read `node.is_failed_or_interrupted`.
+  to end any way but by succeeding, read `node.is_failed_or_interrupted`, a shorthand for
+  `logic_or(node.is_failed, node.is_interrupted)`.
 
 An observation may change in both directions, while an outcome stays fixed until a reset. A
 condition that has to keep its answer after the node it reads has ended must therefore read
@@ -335,6 +339,11 @@ False means it can no longer reach its goal. When the statechart is compiled, ev
 `not observation` added to its fail condition, so it fails once it observes False. `Attempt` and
 the ordering templates are self-deciding and self-failing; `StoppedWhenTrue` and
 `CancelledWhenTrue` are maintenance nodes that are self-failing.
+
+A maintenance node may also fail on its own without being a `SelfFailingNode`, by setting its
+own fail condition: `Parallel` fails once too few of its nodes are left to reach
+`minimum_success`, and every monitored composite statechart node fails once its monitored
+node ended without succeeding.
 
 `Attempt` is the bridge between the two: it runs a maintenance node and turns it into a node
 that ends itself.
@@ -450,7 +459,8 @@ nodes are left to reach `minimum_success` at all.
 
 `Parallel` never ends any of its nodes: ending a task that reached its goal would let a node
 that is still running pull the robot out of that goal again. For the same reason it is a
-`MaintenanceNode` itself and never ends on its own. Put it into an `Attempt`, or hand it to an
+`MaintenanceNode` itself and never succeeds on its own; it only fails on its own, once too
+few nodes are left. Put it into an `Attempt`, or hand it to an
 ordering template, which does that for you, to get a step that finishes once all nodes are at
 their goals together.
 
@@ -569,8 +579,16 @@ whoever runs it would otherwise wait for a subtree that can no longer arrive.
 ## Ending the motion
 
 The motion ends once an `EndMotion` node is running and observes True. `EndMotion` observes
-True once the robot has come to rest. A `CancelMotion` node ends the motion by raising its
-exception at the end of the control cycle it starts in.
+True once every active degree of freedom with a velocity limit has come to rest and more
+than one second of
+trajectory time has passed since the start of the whole motion, not since the `EndMotion`
+started. In a world without active degrees of freedom it observes True as soon as it runs.
+A `CancelMotion` node ends the motion by raising its exception at the end of the control
+cycle it starts in.
+
+An `EndMotion` must be added at the top level of the statechart; adding it to a composite
+statechart node raises `EndMotionInCompositeStatechartNodeError`. A `CancelMotion` may be
+placed anywhere.
 
 Both are usually created with factory methods that set their start condition:
 

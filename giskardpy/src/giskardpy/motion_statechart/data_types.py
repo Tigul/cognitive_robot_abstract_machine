@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import IntEnum, Enum, StrEnum, auto
 from typing import Union, FrozenSet
 
-from giskardpy.motion_statechart.exceptions import TransitionHasNoVerdictError
+from giskardpy.motion_statechart.exceptions import TransitionHasNoOutcomeError
 from krrood.symbolic_math.symbolic_math import Scalar, if_eq_cases
 from semantic_digital_twin.world_description.geometry import Color
 
@@ -236,7 +236,7 @@ class LifeCyclePredicate(LifeCyclePredicateDefinition, Enum):
     and observations.
 
     Every member is binary: a node that has not ended, or ended some other way, did not
-    end the way a verdict predicate asks about.
+    end the way an outcome predicate asks about.
     """
 
     IS_NOT_STARTED = frozenset({LifeCycleValues.NOT_STARTED})
@@ -403,10 +403,10 @@ class TransitionKind(Enum):
         return cls.SUCCEED, cls.FAIL, cls.INTERRUPT
 
     @property
-    def verdict(self) -> LifeCycleValues:
+    def outcome(self) -> LifeCycleValues:
         """
         :return: The terminal state this transition ends a node in.
-        :raises TransitionHasNoVerdictError: If this transition does not end a node.
+        :raises TransitionHasNoOutcomeError: If this transition does not end a node.
         """
         match self:
             case TransitionKind.SUCCEED:
@@ -415,7 +415,7 @@ class TransitionKind(Enum):
                 return LifeCycleValues.FAILED
             case TransitionKind.INTERRUPT:
                 return LifeCycleValues.INTERRUPTED
-        raise TransitionHasNoVerdictError(transition_kind=self)
+        raise TransitionHasNoOutcomeError(transition_kind=self)
 
     def can_trigger_from(self, life_cycle: LifeCycleValues) -> bool:
         """

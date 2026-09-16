@@ -181,7 +181,7 @@ class TestReactionTimeAcrossNesting:
 
         assert end_cycle == goal_reached_cycle + 1
 
-    def test_a_parent_reads_the_verdict_its_child_reaches_on_the_same_cycle(self):
+    def test_a_parent_reads_the_outcome_its_child_reaches_on_the_same_cycle(self):
         motion_statechart = MotionStatechart()
         child = ConstTrueNode()
         parallel = Parallel([child])
@@ -212,7 +212,7 @@ class TestReactionTimeAcrossNesting:
 
         assert parallel.life_cycle_state == LifeCycleValues.SUCCEEDED
 
-    def test_an_observation_reads_the_verdict_another_node_reaches_on_the_same_cycle(
+    def test_an_observation_reads_the_outcome_another_node_reaches_on_the_same_cycle(
         self,
     ):
         motion_statechart = MotionStatechart()

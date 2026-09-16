@@ -1004,30 +1004,30 @@ class MotionStatechart(SubclassJSONSerializer):
         - NOT_STARTED: the node has not started yet.
         - RUNNING: the node is running.
         - PAUSED: the node is paused.
-        - SUCCEEDED: the node was ended while it was observing its goal as reached.
-        - FAILED: the node was ended while it was not.
-        - INTERRUPTED: the node was ended while it was not observing anything decisive,
-                       which is no basis for a judgement.
+        - SUCCEEDED: the node's success condition ended it.
+        - FAILED: the node's fail condition ended it.
+        - INTERRUPTED: the node's interrupt condition ended it, or one of its ancestors
+                       ended.
     Out of these 6 states, nodes are only "active" if they are in the RUNNING state, and
-    the last 3 are terminal: they are only left by a reset.
+    the last 3 are terminal: they are the node's outcome and only left by a reset.
     Observation states indicate the current observation of the node:
         - TrinaryFalse: the thing the node is observing is not True.
         - TrinaryUnknown: the node cannot determine the truth value yet, or is not
                           observing at all.
         - TrinaryTrue: the thing the node is observing is True.
     Only a running node observes. A node that has not started or has reached a terminal
-    state reports TrinaryUnknown, while a paused node keeps its last observation because
-    it resumes and observes again.
+    state reports TrinaryUnknown from the next control cycle on, while a paused node
+    keeps its last observation because it resumes and observes again.
     An observation is re-evaluated every tick and may change in both directions, whereas a
-    verdict is latched. A condition is two-valued and may read either through a
+    outcome is latched. A condition is two-valued and may read either through a
     predicate: the observation state of a node through `node.observes_true` or
     `node.observes_false`, or its life cycle state through e.g. `node.is_failed`. What a
-    node observes is gone once that node ends, so a condition that outlives the node it
+    node observes is gone once the control cycle it ended in is over, so a condition that outlives the node it
     reads has to read something that outlasts it: `node.last_observed_true` keeps whether
-    the observation the node took most recently was True, whatever its verdict, and a
-    life cycle predicate keeps the verdict. Every tick settles the whole statechart before
+    the observation the node took most recently was True, whatever its outcome, and a
+    life cycle predicate keeps the outcome. Every tick settles the whole statechart before
     it returns, see :class:`CompiledControlCycle`, so a node waiting on another node's
-    verdict starts on the tick that verdict is reached, however deeply either is nested.
+    outcome starts on the tick that outcome is reached, however deeply either is nested.
     Nodes are connected with edges, or transitions.
     There are 6 types of transitions:
         - start condition: If True, the node transitions from NOT_STARTED to RUNNING,
@@ -1039,7 +1039,7 @@ class MotionStatechart(SubclassJSONSerializer):
         - interrupt condition: If True, the node ends from RUNNING or PAUSED as
                                INTERRUPTED.
         - reset condition: If True, the node transitions from any state to NOT_STARTED.
-    The condition that ends a node decides its verdict; what the node observes at that
+    The condition that ends a node decides its outcome; what the node observes at that
     moment has no say in it. A node ending takes its descendants down with it, and each
     of them is INTERRUPTED, however the node ended.
     If multiple conditions are met, the following order is used:

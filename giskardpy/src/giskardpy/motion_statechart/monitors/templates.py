@@ -133,9 +133,9 @@ class StoppedWhenTrue(SelfFailingNode, MonitoredCompositeStatechartNode):
         The monitored node's observation counts only while it has not ended; after that,
         only its success does.
 
-        An observation expression reads the observation a node took on the previous
-        control cycle, so a node the monitor stopped is told apart from one that
-        succeeded by its life cycle rather than by that observation.
+        A node that ended keeps the observation it ended on until the next control
+        cycle, so a node the monitor stopped is told apart from one that succeeded by
+        its life cycle rather than by that observation.
         """
         return NodeArtifacts(
             observation=trinary_if_cases(

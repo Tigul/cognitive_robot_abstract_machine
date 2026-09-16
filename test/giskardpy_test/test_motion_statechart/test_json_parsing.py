@@ -109,7 +109,7 @@ def test_trinary_transition():
 def test_ending_condition_round_trip(transition_kind: TransitionKind):
     """
     Every condition that ends a node survives serialization, including the predicate it
-    reads, and keeps the kind that decides the verdict it yields.
+    reads, and keeps the kind that decides the outcome it yields.
     """
     msc = MotionStatechart()
     msc.add_nodes([first := ConstTrueNode(), second := ConstTrueNode()])

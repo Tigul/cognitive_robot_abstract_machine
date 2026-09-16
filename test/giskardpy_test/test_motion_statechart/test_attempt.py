@@ -30,7 +30,7 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
 )
 from semantic_digital_twin.world import World
 
-# Control cycles after which the attempts below have settled on a verdict.
+# Control cycles after which the attempts below have settled on an outcome.
 SETTLE_CYCLES = 6
 
 # Control cycles a failure monitor is given before it fires. Small enough that
@@ -80,7 +80,7 @@ def test_an_attempt_succeeds_once_its_task_reaches_its_goal():
     rather than leaving the caller to read the task.
 
     What it observed is read through its last observation, because the observation
-    behind it is gone once the attempt ended. The verdict belongs to the attempt: the
+    behind it is gone once the attempt ended. The outcome belongs to the attempt: the
     task it held open is only taken down with it.
     """
     task = ConstTrueNode(name="task")
@@ -150,11 +150,8 @@ def test_an_attempt_holds_its_task_open_until_it_is_decided():
 
 def test_giving_up_on_a_task_that_observed_nothing_interrupts_it():
     """
-    Whether a task was judged or merely cut off is decided by what it observed, not by
-    what gave up on it, so a task that never answered is interrupted rather than failed.
-
-    The attempt itself fails either way: being given up on is a verdict about the
-    attempt, not the absence of one.
+    A failure monitor fails the attempt, and the attempt ending interrupts its task,
+    because a node whose parent ended is interrupted whatever it observed.
     """
     task = NodeObservingNothingYet(name="task")
     attempt = Attempt(
@@ -202,8 +199,8 @@ def test_an_attempt_without_failure_monitors_never_gives_up():
 
 def test_an_attempt_fails_once_its_task_ended_without_succeeding():
     """
-    A task that reached a verdict of its own is as decided as one a monitor gave up on,
-    and an attempt still waiting for it would never end.
+    A task that ended on its own is as decided as one a monitor gave up on, and an
+    attempt still waiting for it would never end.
     """
     task = Attempt(
         task=ConstFalseNode(name="inner_task"),
@@ -353,7 +350,7 @@ def test_a_failed_attempt_makes_its_sequence_report_a_failure():
     A step that can never succeed used to leave a sequence waiting forever, because a
     motion short of its goal never ends.
 
-    An attempt ends on its failure monitor instead, which is the verdict the sequence
+    An attempt ends on its failure monitor instead, which is the outcome the sequence
     was already looking for.
     """
     failing_step = Attempt(

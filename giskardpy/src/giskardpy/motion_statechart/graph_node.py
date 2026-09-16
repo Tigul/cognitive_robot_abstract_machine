@@ -476,7 +476,7 @@ class LifeCycleVariable(NodeStateVariable):
 class LastObservationVariable(NodeStateVariable):
     """
     A symbol representing the observation a node took most recently, which it keeps once
-    it has ended, whatever its verdict.
+    it has ended, whatever its outcome.
 
     .. warning:: Legal in observation expressions, but not in transition conditions,
         because it may be unknown. Use an :class:`ObservationPredicateVariable` there.
@@ -798,7 +798,7 @@ class LifeCycleTransitions:
     terminal: sm.Scalar
     """
     Where the node goes while it has ended. Shared by every terminal state, because a
-    verdict is only left by a reset.
+    outcome is only left by a reset.
     """
 
     def as_cases(self) -> List[Tuple[LifeCycleValues, sm.Scalar]]:
@@ -1151,9 +1151,9 @@ class MotionStatechartNode(SubclassJSONSerializer):
         self, own_transitions_allowed: sm.Scalar
     ) -> List[Tuple[sm.Scalar, sm.Scalar]]:
         """
-        Every way this node leaves RUNNING or PAUSED, and the verdict each yields.
+        Every way this node leaves RUNNING or PAUSED, and the outcome each yields.
 
-        Each of this node's own ending conditions yields its own verdict. A parent that
+        Each of this node's own ending conditions yields its own outcome. A parent that
         has ended takes this node down with it, which interrupts it however the parent
         ended.
 
@@ -1167,7 +1167,7 @@ class MotionStatechartNode(SubclassJSONSerializer):
                     self._own_trigger(
                         self.get_condition(transition_kind), own_transitions_allowed
                     ),
-                    sm.Scalar(transition_kind.verdict),
+                    sm.Scalar(transition_kind.outcome),
                 )
                 for transition_kind in TransitionKind.ending_kinds()
             ],
@@ -1344,7 +1344,7 @@ class MotionStatechartNode(SubclassJSONSerializer):
     def on_end(self, context: MotionStatechartContext):
         """
         Triggered when the node transitions from RUNNING or PAUSED into any terminal
-        state. Read :attr:`life_cycle_state` for the verdict.
+        state. Read :attr:`life_cycle_state` for the outcome.
         .. warning:: This method is called inside a control loop, make sure it is fast.
         :param context: The context that contains data that can be used by this node.
         """
@@ -1383,8 +1383,9 @@ class MotionStatechartNode(SubclassJSONSerializer):
     @property
     def last_observation(self) -> LastObservationVariable:
         """
-        Unlike :attr:`observation_variable`, which turns unknown once this node ends, this
-        keeps the reading the transition that ended it saw, until a reset clears it.
+        Unlike :attr:`observation_variable`, which turns unknown on the control cycle after
+        this node ended, this keeps the reading the transition that ended it saw, until
+        the control cycle after a reset clears it.
 
         :return: A variable holding the observation this node took most recently.
         """
@@ -1595,7 +1596,7 @@ class MotionStatechartNode(SubclassJSONSerializer):
     def last_observed_true(self) -> ObservationPredicateVariable:
         """
         Unlike :attr:`observes_true`, this keeps its answer once this node has ended,
-        until a reset clears it.
+        until the control cycle after a reset.
 
         :return: True if the observation this node took most recently is True, false
             otherwise.
@@ -1626,7 +1627,7 @@ class MotionStatechartNode(SubclassJSONSerializer):
     @property
     def is_terminated(self) -> LifeCyclePredicateVariable:
         """
-        :return: True once this node has ended, whatever its verdict, false before that.
+        :return: True once this node has ended, whatever its outcome, false before that.
         """
         return self._life_cycle_predicate(LifeCyclePredicate.IS_TERMINATED)
 
@@ -1647,16 +1648,19 @@ class MotionStatechartNode(SubclassJSONSerializer):
     @property
     def is_interrupted(self) -> LifeCyclePredicateVariable:
         """
-        :return: True once this node ended without earning a verdict, false otherwise.
+        :return: True once this node ended because its interrupt condition held or an
+            ancestor ended, false otherwise.
         """
         return self._life_cycle_predicate(LifeCyclePredicate.IS_INTERRUPTED)
 
     @property
     def is_failed_or_interrupted(self) -> sm.Scalar:
         """
-        Whether this node ended any way but by succeeding, which covers being cut off
-        undecided as much as being judged to have failed. A node that ended without a
-        verdict is of no more use than one that failed outright.
+        Whether this node ended any way but by succeeding. A node that was interrupted is
+        of no more use than one that failed.
+
+        .. note:: This is not a :class:`~giskardpy.motion_statechart.data_types.LifeCyclePredicate`
+            but the disjunction of :attr:`is_failed` and :attr:`is_interrupted`.
 
         ================  =====
         life cycle state  this
@@ -2241,7 +2245,7 @@ class EndMotion(TerminalNode):
         has a false observation state.
 
         Unlike :meth:`when_true` this asks only what the node observes now, so it stops
-        mattering once that node ends rather than latching onto the verdict it earned.
+        mattering once that node ends rather than latching onto the outcome it earned.
 
         .. note:: Use :meth:`when_failed` to wait for a node to end short of its goal.
 

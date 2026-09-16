@@ -87,7 +87,7 @@ def _compile_and_tick(
 def _alternative(node: MotionStatechartNode) -> Attempt:
     """
     Wrap a node the way a caller of the try-templates has to: an attempt that reaches a
-    verdict on its own, giving up once the node stops making progress.
+    outcome on its own, giving up once the node stops making progress.
 
     :param node: The node to try.
     :return: The alternative to hand to the template.
@@ -260,8 +260,8 @@ def test_slow_alternative_is_not_abandoned_while_still_working():
 
 def test_the_next_alternative_starts_on_the_cycle_the_previous_one_fails():
     """
-    An alternative waits for its predecessor's verdict, which it reads on the cycle that
-    verdict is reached, so no control cycle passes with neither of them running.
+    An alternative waits for its predecessor's outcome, which it reads on the cycle that
+    outcome is reached, so no control cycle passes with neither of them running.
     """
     first = _alternative(ConstFalseNode(name="first"))
     second = _alternative(ConstTrueNode(name="second"))

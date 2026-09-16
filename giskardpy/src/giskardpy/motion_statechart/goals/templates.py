@@ -186,7 +186,7 @@ class CompositeStatechartNodeOverSelfDecidingNodes(
     Base for the goals that order or choose between children, which only works if each
     child reaches a terminal state by itself.
 
-    Such a goal reads its children's verdicts and never their observations, and it owns
+    Such a goal reads its children's outcomes and never their observations, and it owns
     their life cycles: what starts and ends a child is this goal's to decide. What comes
     out decides itself in turn, which is what lets one be a step of another.
     """
@@ -245,8 +245,8 @@ class Sequence(
 
     def expand(self, context: MotionStatechartContext) -> None:
         """
-        Each step is a node that ends on its own, and the next one waits for the verdict
-        it earned, because only a verdict outlasts the step that reached it.
+        Each step is a node that ends on its own, and the next one waits for the outcome
+        it earned, because only an outcome outlasts the step that reached it.
         """
         self._check_has_children()
         previous_step: Optional[MotionStatechartNode] = None
@@ -264,7 +264,7 @@ class Sequence(
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         """
-        Report success, a failed step, or neither, all read off the steps' verdicts.
+        Report success, a failed step, or neither, all read off the steps' outcomes.
 
         A step that is still running has not failed, it has not arrived yet, so only a
         step that ended decides anything.
@@ -435,9 +435,9 @@ class RepeatUntil(CompositeStatechartNodeOverSelfDecidingNodes):
         """
         Wire the retry loop.
 
-        The attempt declares its own failure, and that verdict is what starts the next
-        try: a node reading its own life cycle reads the state it entered the control
-        cycle with, so the reset lands the cycle after the failure rather than on it.
+        The attempt declares its own failure, and that outcome is what starts the next
+        try: a node takes at most one transition triggered by its own conditions per
+        control cycle, so the reset lands the cycle after the failure rather than on it.
 
         The stop monitor is asked whether its last observation is True, which outlasts a
         monitor that ends itself on reaching what it counts, and which a monitor that has
@@ -481,7 +481,7 @@ class RepeatUntil(CompositeStatechartNodeOverSelfDecidingNodes):
         Report success, giving up, or neither.
 
         Both children are read through something that outlasts them: the attempt through
-        its verdict, which the reset that starts the next try clears again, and the stop
+        its outcome, which the reset that starts the next try clears again, and the stop
         monitor through its last observation.
         """
         return NodeArtifacts(

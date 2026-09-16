@@ -172,7 +172,7 @@ def test_stopped_when_true_keeps_succeeding_once_the_monitored_node_succeeded(
     monitor_observation: ObservationStateValues,
 ) -> None:
     """
-    A monitored node that succeeded observes nothing any more, so its verdict is what
+    A monitored node that succeeded observes nothing any more, so its outcome is what
     makes the template succeed.
     """
     goal = create_goal(StoppedWhenTrue)
@@ -214,7 +214,7 @@ def test_stopped_when_true_stays_unknown_while_the_monitored_node_runs(
 ) -> None:
     """
     Neither a monitored node that has not succeeded yet nor a monitor that has not fired
-    is an outcome, so the template reports that it has none.
+    decides anything, so the template observes Unknown.
     """
     goal = create_goal(StoppedWhenTrue)
 

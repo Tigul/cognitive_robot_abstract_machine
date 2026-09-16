@@ -877,7 +877,7 @@ class TestOpenClose:
         kin_sim.tick_until_end()
         msc.draw(str(tmp_path / "muh.pdf"))
 
-        # A step's verdict belongs to the attempt the sequence wrapped it in.
+        # A step's outcome belongs to the attempt the sequence wrapped it in.
         assert opening.parent_node.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert closing.parent_node.life_cycle_state == LifeCycleValues.SUCCEEDED
 
@@ -971,7 +971,7 @@ class TestOpenClose:
         kin_sim.compile(motion_statechart=unscrew_statechart)
         kin_sim.tick_until_end()
 
-        # A step's verdict belongs to the attempt the sequence wrapped it in.
+        # A step's outcome belongs to the attempt the sequence wrapped it in.
         assert open.parent_node.life_cycle_state == LifeCycleValues.SUCCEEDED
 
         # One full turn must have moved the cap one screw pitch along the screw axis,

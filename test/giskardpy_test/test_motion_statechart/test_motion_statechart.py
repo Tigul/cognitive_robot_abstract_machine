@@ -1333,7 +1333,7 @@ class TestMotionStatechartLogic:
         A reset returns a node to NOT_STARTED, from where it starts and observes again.
 
         The node that triggers the reset is ended by its own goal, so what outlives it
-        is its verdict, and both the reset trigger and the end of the motion read that.
+        is its outcome, and both the reset trigger and the end of the motion read that.
         """
         msc = MotionStatechart()
         node1 = ConstTrueNode()
@@ -1860,10 +1860,10 @@ class TestEndMotion:
         "factory",
         [CancelMotion.when_true, EndMotion.when_true],
     )
-    def test_when_true_reads_the_verdict_as_well_as_the_observation(self, factory):
+    def test_when_true_reads_the_outcome_as_well_as_the_observation(self, factory):
         """
-        The observation behind a verdict is gone once the node ends, so a terminal node
-        built from the observation alone would stop arming exactly when the verdict it
+        The observation behind an outcome is gone once the node ends, so a terminal node
+        built from the observation alone would stop arming exactly when the outcome it
         waits for arrives.
         """
         msc = MotionStatechart()
@@ -2829,7 +2829,7 @@ class TestLifeCycleTransitions:
         for _ in range(3):
             executor.tick()
 
-        assert goal.life_cycle_state is transition_kind.verdict
+        assert goal.life_cycle_state is transition_kind.outcome
         assert goal.child.life_cycle_state == LifeCycleValues.NOT_STARTED
 
     def test_a_reset_outranks_a_start(self):
@@ -2896,10 +2896,10 @@ class TestLifeCycleTransitions:
         assert goal.child.life_cycle_state == LifeCycleValues.NOT_STARTED
 
 
-# %% life cycle verdicts
+# %% life cycle outcomes
 
 
-class TestLifeCycleVerdicts:
+class TestLifeCycleOutcomes:
     """
     Tests which terminal state a node ends in, depending on the condition that ended it.
     """
@@ -2973,7 +2973,7 @@ class TestLifeCycleVerdicts:
     def test_a_nodes_own_success_outranks_an_ending_ancestor(self):
         """
         A child that declares its success on the control cycle its parent ends keeps
-        that verdict rather than being cut off.
+        that outcome rather than being cut off.
         """
         msc = MotionStatechart()
         msc.add_nodes(
@@ -3008,7 +3008,7 @@ class TestLifeCycleVerdicts:
 
         self._compile(msc).tick()
 
-        assert goal.life_cycle_state is transition_kind.verdict
+        assert goal.life_cycle_state is transition_kind.outcome
         assert goal.child.observation_state == ObservationStateValues.TRUE
         assert goal.child.life_cycle_state == LifeCycleValues.INTERRUPTED
 
@@ -3176,16 +3176,16 @@ class TestLifeCycleVerdicts:
 
         assert (
             ended_by_a_sibling.child.life_cycle_state
-            == TransitionKind.INTERRUPT.verdict
+            == TransitionKind.INTERRUPT.outcome
         )
         assert (
             ended_by_its_parent.child.life_cycle_state
-            == TransitionKind.INTERRUPT.verdict
+            == TransitionKind.INTERRUPT.outcome
         )
 
-    def test_a_child_that_already_ended_keeps_its_verdict(self):
+    def test_a_child_that_already_ended_keeps_its_outcome(self):
         """
-        A verdict is only left by a reset, so a parent ending later does not overwrite
+        An outcome is only left by a reset, so a parent ending later does not overwrite
         one its child already earned.
         """
         msc = MotionStatechart()
@@ -3262,10 +3262,10 @@ class TestLifeCycleVerdicts:
         executor.tick()
         assert goal.child.life_cycle_state == LifeCycleValues.NOT_STARTED
 
-    def test_an_ended_node_observes_nothing_and_keeps_its_verdict(self):
+    def test_an_ended_node_observes_nothing_and_keeps_its_outcome(self):
         """
         A node that is no longer running is no longer observing, so its observation says
-        so and only its verdict still answers for it.
+        so and only its outcome still answers for it.
         """
         msc = MotionStatechart()
         msc.add_nodes([trigger := ConstTrueNode(), node := ConstFalseNode()])
@@ -3296,9 +3296,9 @@ class TestLifeCycleVerdicts:
         assert node.life_cycle_state == LifeCycleValues.PAUSED
         assert node.observation_state == ObservationStateValues.TRUE
 
-    def test_only_the_verdict_of_an_ended_node_still_starts_a_later_node(self):
+    def test_only_the_outcome_of_an_ended_node_still_starts_a_later_node(self):
         """
-        A condition that outlives the node it reads has to read the verdict, since the
+        A condition that outlives the node it reads has to read the outcome, since the
         observation behind it is gone by the time the condition is asked again.
         """
         msc = MotionStatechart()
@@ -3307,12 +3307,12 @@ class TestLifeCycleVerdicts:
                 trigger := ConstTrueNode(),
                 finished := ConstTrueNode(),
                 later := CountControlCycles(control_cycles=3),
-                on_verdict := ConstTrueNode(),
+                on_outcome := ConstTrueNode(),
                 on_observation := ConstTrueNode(),
             ]
         )
         finished.success_condition = trigger.observes_true
-        on_verdict.start_condition = sm.logic_and(
+        on_outcome.start_condition = sm.logic_and(
             finished.is_succeeded, later.observes_true
         )
         on_observation.start_condition = sm.logic_and(
@@ -3325,7 +3325,7 @@ class TestLifeCycleVerdicts:
 
         assert finished.life_cycle_state == LifeCycleValues.SUCCEEDED
         assert later.observation_state == ObservationStateValues.TRUE
-        assert on_verdict.life_cycle_state == LifeCycleValues.RUNNING
+        assert on_outcome.life_cycle_state == LifeCycleValues.RUNNING
         assert on_observation.life_cycle_state == LifeCycleValues.NOT_STARTED
 
 
@@ -3342,7 +3342,7 @@ class TestReadingChildrenThatEnded:
         """
         A finished step's observation is only kept because a terminal state freezes it.
 
-        Reading the verdict instead makes the sequence independent of that.
+        Reading the outcome instead makes the sequence independent of that.
         """
         msc = MotionStatechart()
         msc.add_node(sequence := Sequence(nodes=[ConstTrueNode(), ConstTrueNode()]))
@@ -3421,7 +3421,7 @@ class TestReadingChildrenThatEnded:
     def test_a_parallel_counts_an_ended_child_and_a_running_one(self):
         """
         A parallel ends none of its children, so a child that keeps running is judged by
-        what it observes now and a child something else ended by its verdict.
+        what it observes now and a child something else ended by its outcome.
         """
         msc = MotionStatechart()
         msc.add_node(
@@ -3572,10 +3572,10 @@ class TestLastObservation:
         assert node.life_cycle_state == LifeCycleValues.RUNNING
         assert node.last_observation_state == expected
 
-    def test_every_ended_node_reads_what_it_observed_whatever_its_verdict(self):
+    def test_every_ended_node_reads_what_it_observed_whatever_its_outcome(self):
         """
         One node per life cycle state and observation, so a node reading another node's
-        row, or its verdict instead of its observation, would show up here.
+        row, or its outcome instead of its observation, would show up here.
         """
         msc = MotionStatechart()
         msc.add_nodes(
@@ -3673,7 +3673,7 @@ class TestLastObservation:
     def test_a_condition_reads_it_after_the_node_ended(self):
         """
         The watched node was cut off at its goal, so neither its live observation nor
-        its verdict could start the watcher once the delay is over.
+        its outcome could start the watcher once the delay is over.
         """
         msc = MotionStatechart()
         msc.add_nodes(
@@ -3795,29 +3795,29 @@ class TestLifeCyclePredicates:
     """
 
     @pytest.mark.parametrize(
-        "predicate, verdict",
+        "predicate, outcome",
         [
             (LifeCyclePredicate.IS_SUCCEEDED, LifeCycleValues.SUCCEEDED),
             (LifeCyclePredicate.IS_FAILED, LifeCycleValues.FAILED),
             (LifeCyclePredicate.IS_INTERRUPTED, LifeCycleValues.INTERRUPTED),
         ],
     )
-    def test_a_verdict_predicate_is_true_only_in_its_own_state(
-        self, predicate, verdict
+    def test_an_outcome_predicate_is_true_only_in_its_own_state(
+        self, predicate, outcome
     ):
         """
         A node that has not ended, or ended some other way, did not end this way, so a
-        verdict predicate answers in every state.
+        outcome predicate answers in every state.
         """
         for life_cycle_state in LifeCycleValues:
             expected = (
                 ObservationStateValues.TRUE
-                if life_cycle_state is verdict
+                if life_cycle_state is outcome
                 else ObservationStateValues.FALSE
             )
             assert predicate.truth_value(life_cycle_state) == expected
 
-    def test_a_negated_verdict_predicate_fires_for_an_interrupted_node(self):
+    def test_a_negated_outcome_predicate_fires_for_an_interrupted_node(self):
         """
         A node that was interrupted did not succeed, so a node waiting for another to
         end without succeeding starts once that one is interrupted.
@@ -3873,10 +3873,10 @@ class TestLifeCyclePredicates:
             LifeCyclePredicate.IS_TERMINATED.truth_value(life_cycle_state) == expected
         )
 
-    def test_a_condition_starts_a_node_on_the_cycle_a_verdict_is_reached(self):
+    def test_a_condition_starts_a_node_on_the_cycle_an_outcome_is_reached(self):
         """
         A predicate reads the life cycle its node reaches in the same step, so a node
-        reacting to a verdict starts on the cycle that verdict is reached.
+        reacting to an outcome starts on the cycle that outcome is reached.
         """
         msc = MotionStatechart()
         msc.add_nodes(
@@ -3910,10 +3910,10 @@ class TestLifeCyclePredicates:
         assert node.life_cycle_state == LifeCycleValues.FAILED
         assert node.is_failed.resolve() == ObservationStateValues.TRUE
 
-    def test_a_node_reading_its_own_verdict_reads_the_state_it_entered_with(self):
+    def test_a_node_reset_by_its_own_outcome_is_reset_on_the_next_control_cycle(self):
         """
-        A node cannot react to the state the current step gives it, so a predicate it
-        reads about itself is the one it started the step in.
+        Failing and resetting are both triggered by the node's own conditions, and a
+        node takes at most one such transition per control cycle.
         """
         msc = MotionStatechart()
         msc.add_nodes([trigger := ConstTrueNode(), node := ConstFalseNode()])
@@ -3988,7 +3988,7 @@ class TestLifeCyclePredicates:
 
     def test_a_predicate_variable_resolves_to_the_value_of_its_predicate(self):
         """
-        A verdict predicate follows the life cycle state alone, however decisive the
+        An outcome predicate follows the life cycle state alone, however decisive the
         observation of its node already is.
         """
         msc = MotionStatechart()
@@ -4012,7 +4012,7 @@ class TestLifeCyclePredicates:
         with pytest.raises(UnsupportedConditionVariableError):
             second.start_condition = first.life_cycle_variable
 
-    def test_a_start_condition_may_not_read_its_own_verdict(self):
+    def test_a_start_condition_may_not_read_its_own_outcome(self):
         msc = MotionStatechart()
         msc.add_node(node := ConstTrueNode())
 
