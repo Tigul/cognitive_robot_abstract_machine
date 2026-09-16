@@ -1,3 +1,10 @@
+"""
+JSON serialization of ROS2 messages.
+
+..note:: Set the ``ROS_PYTHON_CHECK_FIELDS`` environment variable to ``"1"`` to see why
+    message parsing fails.
+"""
+
 from dataclasses import dataclass
 
 from rclpy.duration import Duration
