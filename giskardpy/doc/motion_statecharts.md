@@ -26,8 +26,26 @@ the state of other nodes. All nodes are updated together once per control cycle.
 
 Every node carries two pieces of state:
 
-- an **observation**, which says whether what the node observes is currently True, False or Unknown, and
-- a **life cycle state**, which says where the node is in its own execution.
+- a **life cycle state**, which says where the node is in its own execution, and
+- an **observation**, which says whether what the node observes is currently True, False or Unknown.
+
+## Life cycle state
+
+A node's life cycle has six states:
+
+| Life cycle state | Meaning                                                  |
+|------------------|----------------------------------------------------------|
+| NOT_STARTED      | the node has not started yet, or was reset               |
+| RUNNING          | the node is active                                       |
+| PAUSED           | the node was running and is suspended until it resumes   |
+| SUCCEEDED        | the node ended successfully                              |
+| FAILED           | the node ended because it could not continue             |
+| INTERRUPTED      | the node was ended from outside                          |
+
+Only RUNNING is active: its constraints influence the motion, its observation is recomputed
+and its `on_tick` callback is called. SUCCEEDED, FAILED and INTERRUPTED are **final states**,
+and together they are the node's **outcome**. A node only leaves a final state when it is
+reset.
 
 ## Observation state
 
@@ -46,12 +64,16 @@ change in both directions:
 | PAUSED                            | frozen at its last value, because the node resumes later |
 | SUCCEEDED, FAILED, INTERRUPTED    | Unknown, because the node never observes again           |
 
-## Life cycle
+A node that stops running during a control cycle keeps the observation it stopped on until the
+next control cycle.
 
-A node's life cycle has six states. Only RUNNING is active: its constraints influence the
-motion, its observation is recomputed and its `on_tick` callback is called. SUCCEEDED,
-FAILED and INTERRUPTED are **final states**, and together they are the node's **outcome**.
-A node only leaves a final state when it is reset.
+A node's observation expression may read `observation_variable`, `last_observation`,
+`life_cycle_variable` and every [predicate](#reading-other-nodes-in-conditions) of other
+nodes, and combines them with `trinary_logic_and`, `trinary_logic_or` and `trinary_logic_not`.
+An observation that chooses between cases uses `trinary_if_cases`, which selects a case only
+while its guard is True.
+
+## Life cycle transitions
 
 ```{mermaid}
 flowchart LR
@@ -60,7 +82,7 @@ flowchart LR
     subgraph active ["active"]
         direction TB
         R([RUNNING]) -- "pause is True" --> P([PAUSED])
-        P -- "pause is not True" --> R
+        P -- "pause is False" --> R
     end
     subgraph ended ["final, left only by reset"]
         direction TB
@@ -88,7 +110,9 @@ flowchart LR
     class I interrupted
 ```
 
-Each transition is driven by one condition of the node:
+Each transition is driven by one condition of the node. Conditions are binary: a transition
+happens when its condition is **True**, and a paused node resumes as soon as its pause
+condition is False again.
 
 | Transition | Condition attribute   | Default | From                          | To          |
 |------------|-----------------------|---------|-------------------------------|-------------|
@@ -100,9 +124,6 @@ Each transition is driven by one condition of the node:
 | reset      | `reset_condition`     | False   | any state                     | NOT_STARTED |
 
 With the defaults a node starts right away and runs until the motion ends.
-
-Unlike observations, conditions are two-valued: a transition happens when its condition is
-**True**, and a paused node resumes as soon as its pause condition is False again.
 
 **The condition that ends a node decides its outcome.** What the node observes at that moment
 has no say in it:
@@ -161,10 +182,10 @@ flowchart TD
 ## Reading other nodes in conditions
 
 Conditions are symbolic expressions over the state of other nodes, combined with
-`logic_and`, `logic_or` and `logic_not`. Every variable a condition may read is a **predicate**
-that is always True or False, so `not` is plain negation. A node's observation itself may be
-Unknown, which is why a condition cannot read `observation_variable` or `last_observation`
-directly (`UnsupportedConditionVariableError`); it asks about them through a predicate instead.
+`logic_and`, `logic_or` and `logic_not`. Since an observation may be Unknown, a condition
+cannot read `observation_variable` or `last_observation` directly
+(`UnsupportedConditionVariableError`). Instead, it reads **predicates**, which map a node's
+observation or life cycle state to True or False.
 
 - **Observation predicates** ask what a node observes:
 
@@ -174,17 +195,15 @@ directly (`UnsupportedConditionVariableError`); it asks about them through a pre
   | `observes_false`     | the node observes False                                     |
   | `last_observed_true` | the observation the node took most recently is True         |
 
-  Unknown is neither True nor False, so a node that has not observed anything yet makes all
-  three False. `observes_true` and `observes_false` turn False as soon as the node ends.
-  `last_observed_true` keeps the answer the transition that ended the node saw, however the
-  node ended, until a reset clears it. Read it to ask what a node saw, for example whether a
-  monitor that ended itself had fired. It says nothing about how the node ended: a node
-  interrupted while observing True still answers True, so ask a life cycle predicate when the
-  verdict matters.
+  A node observing Unknown makes all three False, including a node that has not observed
+  anything yet. `observes_true` and `observes_false` turn False as soon as the node ends.
+  `last_observed_true` keeps the value the node observed when it ended, however it ended,
+  until a reset clears it. Read it to ask what a node saw, for example whether a monitor that
+  ended itself had fired. It says nothing about how the node ended: a node interrupted while
+  observing True still answers True, so read a life cycle predicate to learn its outcome.
 
-  Waiting for a monitor to turn True reads `logic_not(monitor.observes_true)`, which also waits
-  while the monitor has not observed anything yet. `monitor.observes_false` would stop waiting
-  only once the monitor observes False.
+  `logic_not(monitor.observes_true)` is True while the monitor observes False *or* Unknown,
+  whereas `monitor.observes_false` is True only while it observes False.
 - **Life cycle predicates** such as `node.is_succeeded` answer questions about the life cycle
   state of the node:
 
@@ -199,9 +218,9 @@ directly (`UnsupportedConditionVariableError`); it asks about them through a pre
   | `is_interrupted`     | False       | False   | False  | False     | False  | True        |
   | `is_failed_or_interrupted` | False | False   | False  | False     | True   | True        |
 
-  A negated verdict predicate is True before the node ends as well: `not node.is_succeeded`
-  holds while the node runs. Waiting for a node to end any way but by succeeding reads
-  `node.is_failed_or_interrupted`.
+  `logic_not(node.is_succeeded)` is also True before the node has ended. To wait for a node
+  to end any way but by succeeding, read `node.is_failed_or_interrupted`.
+
 An observation may change in both directions, while an outcome stays fixed until a reset. A
 condition that has to keep its answer after the node it reads has ended must therefore read
 `last_observed_true`, or the outcome through a life cycle predicate, rather than
@@ -231,18 +250,10 @@ Conditions are checked when they are set and when the statechart is compiled:
 - No condition may read an EndMotion or CancelMotion node, because nothing happens after one
   of them.
 - Only predicates of nodes may appear in a condition, combined with `logic_and`, `logic_or`
-  and `logic_not`; anything else, such as the trinary operators or the constant Unknown, is
-  rejected because the condition could not be written down and read back.
+  and `logic_not`; anything else, such as the trinary operators or the constant Unknown,
+  raises `CannotConvertToStringError`.
 
-A node's observation expression is trinary. It may read `observation_variable`,
-`last_observation`, `life_cycle_variable` and every predicate of other nodes, and combines them
-with `trinary_logic_and`, `trinary_logic_or` and `trinary_logic_not`. An observation that
-chooses between cases uses `trinary_if_cases`, which selects a case only while its guard is
-True; `if_cases` would select it while the guard is Unknown as well. A node that stops running
-during a control cycle keeps the observation it stopped on until the next control cycle; read
-the life cycle to tell the two apart.
-
-### One control cycle
+## One control cycle
 
 A control cycle settles the whole statechart before the controller runs. It calls `on_tick`
 once for every node that was running when the control cycle started, then repeats one
