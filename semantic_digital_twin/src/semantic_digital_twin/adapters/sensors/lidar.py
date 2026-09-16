@@ -5,7 +5,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 import numpy as np
-from typing_extensions import List, Self
+from typing_extensions import List, Self, TYPE_CHECKING
 
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.lidar_reading import LidarReading
@@ -15,6 +15,10 @@ from semantic_digital_twin.spatial_types import Vector3
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
+
+if TYPE_CHECKING:
+    from rclpy.node import Node
+
 
 # %% where readings come from
 
@@ -56,7 +60,7 @@ class SimulatedLidarSource(LidarSource):
         )
 
         return LidarReading(
-            direction=lidar.beam_directions,
+            direction=lidar.scan_pattern.beam_directions_in_frame(lidar.root),
             distance=self._nearest_hit_per_beam(
                 points, index_ray, world_P_lidar, lidar.scan_pattern.beam_count
             ),
@@ -115,13 +119,6 @@ class Lidar(Sensor, ABC):
     Where the readings of this lidar come from.
     """
 
-    @property
-    def beam_directions(self) -> List[Vector3]:
-        """
-        :return: A unit vector along every beam, expressed in this lidar's own frame.
-        """
-        return self.scan_pattern.beam_directions_in_frame(self.root)
-
     def get_lidar_reading(self) -> LidarReading:
         """
         :return: The most recent sweep of this lidar.
@@ -153,6 +150,23 @@ class Lidar(Sensor, ABC):
         :return: This lidar, measuring the world it stands in.
         """
         return cls.with_source(robot_root, SimulatedLidarSource())
+
+    @classmethod
+    def with_real_source(
+        cls, robot_root: KinematicStructureEntity, node: Node, topic: str
+    ) -> Self:
+        """
+        Creates a Lidar sensor attached to a real source.
+
+        :param robot_root: The root of the robot carrying this lidar.
+        :param node: The ros node, used for subscribing
+        :param topic: The topic name of the real source.
+        :return: A lidar sensor, measuring the real  world it stands in.
+        """
+        from semantic_digital_twin.adapters.ros.lidar import SubscribedLidarSource
+        return cls.with_source(
+            robot_root, SubscribedLidarSource(node=node, topic_name=topic)
+        )
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(
