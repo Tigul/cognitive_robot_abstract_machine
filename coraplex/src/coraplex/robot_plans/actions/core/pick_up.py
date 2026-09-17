@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing_extensions import Any, Dict, Optional
 
 from coraplex.locations.pose_validator import AreReachableBy, IsObjectReachableBy
-from coraplex.plans.attachment_nodes import AttachNode
+from coraplex.plans.attachment_nodes import ReAttachNode
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.navigation import LookAtAction
@@ -31,6 +31,7 @@ from coraplex.exceptions import PerceptionTargetMissing
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.mixins import (
     HasGraspDetectionThreshold,
+    HasTcpGoalThresholds,
     PickUpTuningParameters,
     ReachTuningParameters,
 )
@@ -51,7 +52,12 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class ReachAction(ActionDescription, ReachTuningParameters, HasGraspDetectionThreshold):
+class ReachAction(
+    ActionDescription,
+    ReachTuningParameters,
+    HasGraspDetectionThreshold,
+    HasTcpGoalThresholds,
+):
     """
     Let the robot reach a specific pose.
     """
@@ -108,9 +114,11 @@ class ReachAction(ActionDescription, ReachTuningParameters, HasGraspDetectionThr
             MoveToolCenterPointMotion(
                 target_pre_pose,
                 self.arm,
-                allow_gripper_collision=False,
+                allow_gripper_collision=True,
                 max_linear_velocity=self.pre_approach_linear_velocity,
-            )
+                position_threshold=self.position_threshold,
+                orientation_threshold=self.orientation_threshold,
+            ),
         ]
         if self.open_gripper_at_pre_pose:
             children.append(
@@ -131,8 +139,10 @@ class ReachAction(ActionDescription, ReachTuningParameters, HasGraspDetectionThr
             MoveToolCenterPointMotion(
                 target_pose,
                 self.arm,
-                allow_gripper_collision=False,
+                allow_gripper_collision=True,
                 max_linear_velocity=self.final_approach_linear_velocity,
+                position_threshold=self.position_threshold,
+                orientation_threshold=self.orientation_threshold,
             )
         )
         return sequential(children=children)
@@ -190,7 +200,10 @@ class ReachAction(ActionDescription, ReachTuningParameters, HasGraspDetectionThr
 
 @dataclass
 class PickUpAction(
-    ActionDescription, PickUpTuningParameters, HasGraspDetectionThreshold
+    ActionDescription,
+    PickUpTuningParameters,
+    HasGraspDetectionThreshold,
+    HasTcpGoalThresholds,
 ):
     """
     Let the robot pick up an object.
@@ -247,16 +260,19 @@ class PickUpAction(
                     pre_approach_linear_velocity=self.pre_approach_linear_velocity,
                     final_approach_linear_velocity=self.final_approach_linear_velocity,
                     open_gripper_at_pre_pose=True,
+                    position_threshold=self.position_threshold,
+                    orientation_threshold=self.orientation_threshold,
                     perceive_before_grasp=self.perceive_before_grasp,
                 ),
                 MoveGripperMotion(
                     motion=GripperState.CLOSE,
                     gripper=self.arm,
+                    allow_gripper_collision=True,
                     finger_velocity=self.grasp_closing_velocity,
                     stall_minimum_time=self.grasp_stall_minimum_time,
                     tolerate_stall=self.tolerate_grasp_stall,
                 ),
-                AttachNode(
+                ReAttachNode(
                     body=self.object_designator.root,
                     new_parent=ViewManager.get_end_effector_view(
                         self.arm, self.robot
@@ -279,6 +295,8 @@ class PickUpAction(
                     allow_gripper_collision=True,
                     movement_type=MovementType.TRANSLATION,
                     max_linear_velocity=self.lift_linear_velocity,
+                    position_threshold=self.position_threshold,
+                    orientation_threshold=self.orientation_threshold,
                 ),
             ],
         )
@@ -329,7 +347,7 @@ class PickUpAction(
 
 
 @dataclass
-class GraspingAction(ActionDescription):
+class GraspingAction(ActionDescription, HasTcpGoalThresholds):
     """
     Grasps an object described by the given Object Designator description.
     """
@@ -357,10 +375,20 @@ class GraspingAction(ActionDescription):
 
         return sequential(
             [
-                MoveToolCenterPointMotion(pre_pose, self.arm),
+                MoveToolCenterPointMotion(
+                    pre_pose,
+                    self.arm,
+                    position_threshold=self.position_threshold,
+                    orientation_threshold=self.orientation_threshold,
+                    allow_gripper_collision=True,
+                ),
                 MoveGripperMotion(GripperState.OPEN, self.arm),
                 MoveToolCenterPointMotion(
-                    grasp_pose, self.arm, allow_gripper_collision=True
+                    grasp_pose,
+                    self.arm,
+                    allow_gripper_collision=True,
+                    position_threshold=self.position_threshold,
+                    orientation_threshold=self.orientation_threshold,
                 ),
                 MoveGripperMotion(
                     GripperState.CLOSE, self.arm, allow_gripper_collision=True

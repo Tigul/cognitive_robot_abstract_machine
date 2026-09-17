@@ -546,13 +546,29 @@ class EndEffector(AbstractRobotPart, ABC):
 
     front_facing_axis: Vector3 = field(init=False)
     """
-    The axis of the end_effector's tool frame that is facing forward.
+The axis of the end_effector's tool frame that is facing forward.
     """
 
     def __post_init__(self):
         super().__post_init__()
         rotation_matrix = RotationMatrix.from_quaternion(self.front_facing_orientation)
         self.front_facing_axis = Vector3.from_iterable(rotation_matrix[:3, 0])
+
+    @property
+    def held_bodies(self) -> list[Body]:
+        """
+        :return: The bodies with collision attached below the tool frame, where a grasped
+            object hangs after a pick-up.
+        """
+        return [
+            entity
+            for entity in self._world.get_kinematic_structure_entities_of_branch(
+                self.tool_frame
+            )
+            if entity != self.tool_frame
+            and isinstance(entity, Body)
+            and entity.has_collision()
+        ]
 
 
 @dataclass(eq=False)
@@ -637,6 +653,15 @@ class MobileBase(AbstractRobotPart, Generic[TGenericDrive], ABC):
             self._world.root
         ).bounding_box()
 
+    @property
+    def base_radius(self) -> float:
+        """
+        Approximates the radius of the mobile base, as the average between the radius in the x and y axis.
+
+        :return: The approximate radius of the mobile base, in meters.
+        """
+        return (self.bounding_box.depth / 2 + self.bounding_box.width / 2) / 2
+
 
 @dataclass(eq=False)
 class AbstractRobot(Agent, HasRobotParts, ABC):
@@ -704,6 +729,21 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
     Call the ``validate()`` method to confirm that all fields are plausibly
     filled and that the robot can be synchronized without issues.
     """
+
+    @property
+    def is_in_collision(self) -> bool:
+        """
+        :return: Whether any body of this robot touches something under the collision
+            rules currently in force.
+
+        The rules the question is asked under are the caller's to set, so that the same
+        robot can be asked about the clearances of a plan or of a standing pose.
+        """
+        own_bodies = set(self.bodies_with_collision)
+        return any(
+            contact.body_a in own_bodies or contact.body_b in own_bodies
+            for contact in self._world.collision_manager.compute_collisions().contacts
+        )
 
     @classmethod
     @abstractmethod
