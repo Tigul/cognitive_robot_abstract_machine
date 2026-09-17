@@ -7,7 +7,7 @@ from typing import Any, Dict
 
 from json_msgs.action import JsonAction
 
-from giskardpy.executor import Executor
+from cramph.executor import StatechartExecutor
 from giskardpy.middleware.ros2.action_server import ActionServerHandler
 
 
@@ -48,7 +48,7 @@ class ActionFeedbackPublisher:
     Reports the state of the running motion statechart to the action client.
     """
 
-    executor: Executor
+    executor: StatechartExecutor
     """
     The executor holding the motion statechart that is reported on.
     """

@@ -1,12 +1,13 @@
 import numpy as np
 import pytest
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import EndMotion
 from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 
 def test_end_motion_abruptness(cylinder_bot_world: World):
@@ -23,7 +24,10 @@ def test_end_motion_abruptness(cylinder_bot_world: World):
     end = EndMotion.when_true(goal)
     motion_statechart.add_node(end)
 
-    executor = Executor(MotionStatechartContext(world=cylinder_bot_world))
+    executor = StatechartExecutor(
+        context=StatechartContext(world=cylinder_bot_world),
+        extensions=[MotionControl()],
+    )
     executor.compile(statechart=motion_statechart)
 
     # We want to check the velocity in the last tick BEFORE cleanup

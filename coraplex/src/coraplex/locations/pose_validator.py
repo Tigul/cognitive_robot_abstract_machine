@@ -6,8 +6,6 @@ from dataclasses import dataclass, field
 
 from typing_extensions import List
 
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
@@ -47,6 +45,9 @@ from semantic_digital_twin.world_description.world_entity import (
     Body,
     KinematicStructureEntity,
 )
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 logger = logging.getLogger("coraplex")
 
@@ -289,19 +290,21 @@ class AreReachableBy(PoseValidator):
 
         return msc
 
-    def create_executor(self, msc: Statechart) -> Executor:
+    def create_executor(self, msc: Statechart) -> StatechartExecutor:
         """
         Creates the executor that runs a probe of this validator.
 
         :param msc: The motion statechart the executor is compiled against.
         """
-        executor = Executor(
-            context=MotionStatechartContext(
-                world=self.world,
-                qp_controller_config=QPControllerConfig(
-                    target_frequency=50, prediction_horizon=4, verbose=False
-                ),
-            ),
+        executor = StatechartExecutor(
+            context=StatechartContext(world=self.world),
+            extensions=[
+                MotionControl(
+                    qp_controller_config=QPControllerConfig(
+                        target_frequency=50, prediction_horizon=4, verbose=False
+                    )
+                )
+            ],
         )
         executor.compile(msc)
         return executor

@@ -13,7 +13,7 @@ from semantic_digital_twin.world_description.world_entity import (
 )
 from cramph.composites import Sequence, Parallel
 from giskardpy.motion_statechart.binding_policy import GoalBindingPolicy
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.exceptions import UnexpectedWorldEntityCountError
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
@@ -63,7 +63,7 @@ class DifferentialDriveBaseGoal(Sequence):
     Threshold when the drive goals for the base are considered achieved.
     """
 
-    def expand(self, context: MotionStatechartContext) -> None:
+    def expand(self, context: StatechartContext) -> None:
         if self.diff_drive_connection is None:
             diff_drives = context.world.get_connections_by_type(DifferentialDrive)
             if len(diff_drives) == 0:
@@ -170,7 +170,7 @@ class CartesianPoseStraight(Parallel):
 
     nodes: list[MotionStatechartNode] = field(default_factory=list, init=False)
 
-    def expand(self, context: MotionStatechartContext) -> None:
+    def expand(self, context: StatechartContext) -> None:
         self.nodes = [
             CartesianPositionStraight(
                 name=self.name + "/position",

@@ -11,7 +11,6 @@ from json_msgs.action import JsonAction
 from sqlalchemy.orm import sessionmaker
 
 from giskardpy.data_types.exceptions import NoControlledJointsError
-from giskardpy.executor import Executor
 from giskardpy.middleware.ros2 import rospy
 from giskardpy.middleware.ros2.action_server import ActionServerHandler
 from giskardpy.middleware.ros2.control_loop import ControlLoop
@@ -30,9 +29,7 @@ from giskardpy.middleware.ros2.robot_interface_config import RobotInterfaceConfi
 from giskardpy.middleware.ros2.server_config import GiskardServerConfig
 from giskardpy.middleware.ros2.world_updates import IncomingWorldUpdates
 from giskardpy.model.world_config import WorldConfig
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.qp.qp_controller_config import QPControllerConfig
-from giskardpy.ros_executor import Ros2Executor
 from krrood.ormatic.utils import create_engine
 from krrood.patterns.caching import clear_memoization_cache
 from semantic_digital_twin.adapters.ros.tf_publisher import TFPublisher
@@ -49,6 +46,10 @@ from semantic_digital_twin.adapters.ros.world_synchronizer import (
 )
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.world_description.connections import ActiveConnection
+from giskardpy.motion_control import MotionControl
+from giskardpy.motion_statechart.ros_context import RosNodeAccess
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ class Giskard:
     server_config: GiskardServerConfig
     robot_interface_config: RobotInterfaceConfig
     qp_controller_config: QPControllerConfig = field(default_factory=QPControllerConfig)
-    executor: Executor = field(init=False)
+    executor: StatechartExecutor = field(init=False)
     motion_server: MotionServer = field(init=False)
     world_synchronizer: WorldSynchronizer = field(init=False)
     tf_publisher: TFPublisher = field(init=False)
@@ -99,13 +100,13 @@ class Giskard:
         with self.world_config.world.modify_world():
             self.world_config.setup_world()
             clear_memoization_cache(self.world_config.world)
-            self.executor = Ros2Executor(
-                ros_node=rospy.get_node(),
-                context=MotionStatechartContext(
-                    world=self.world_config.world,
-                    qp_controller_config=self.qp_controller_config,
-                ),
+            self.executor = StatechartExecutor(
+                context=StatechartContext(world=self.world_config.world),
                 pacer=self.server_config.create_pacer(),
+                extensions=[
+                    RosNodeAccess(rospy.get_node()),
+                    MotionControl(qp_controller_config=self.qp_controller_config),
+                ],
             )
 
         self.setup_world_model_ros_interface()

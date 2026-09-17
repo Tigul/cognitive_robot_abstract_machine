@@ -1,8 +1,6 @@
 import pytest
 
-from giskardpy.executor import Executor
 from giskardpy.motion_statechart.binding_policy import GoalBindingPolicy
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.data_types import ObservationStateValues
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.cartesian_monitors import (
@@ -28,10 +26,15 @@ from semantic_digital_twin.spatial_types import (
     RotationMatrix,
 )
 from semantic_digital_twin.world import World
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 
 def _run(msc: Statechart, world: World) -> None:
-    kin_sim = Executor(MotionStatechartContext(world=world))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=world), extensions=[MotionControl()]
+    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 

@@ -28,6 +28,7 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     UpdateTemporaryCollisionRules,
 )
 from cramph.composites import Parallel, Sequence
+from giskardpy.motion_statechart.context import MotionControlContext
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
@@ -212,7 +213,9 @@ class BenchmarkRobot(GiskardTester):
 
         :return: The length of one control cycle in seconds.
         """
-        return self.giskard.executor.context.qp_controller_config.control_dt
+        return self.giskard.executor.context.require_extension(
+            MotionControlContext
+        ).qp_controller_config.control_dt
 
     def get_kinematic_structure_entity(self, name: str) -> KinematicStructureEntity:
         """

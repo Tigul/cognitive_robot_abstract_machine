@@ -52,7 +52,8 @@ from coraplex.plans.plan_node import MotionNode
 from coraplex.robot_plans import MoveToolCenterPointMotion
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.motions.misc import DetectingMotion, PerceptionTask
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
 from cramph.data_types import ObservationStateValues
 from giskardpy.motion_statechart.graph_node import EndMotion
 from cramph.statechart import Statechart
@@ -758,7 +759,7 @@ def test_labelled_candidates_are_narrowed_to_the_requested_type(
 
 def build_perception_task(
     task: PerceptionTask, world: World, ros_node: Node
-) -> MotionStatechartContext:
+) -> StatechartContext:
     """
     Put a perception task through the build phase a motion state chart would give it.
 
@@ -767,13 +768,14 @@ def build_perception_task(
     :param ros_node: Node the task reaches a real perception pipeline through.
     :return: The context it was built with.
     """
-    context = MotionStatechartContext(world=world)
+    context = StatechartContext(world=world)
+    MotionControl().extend_context(context)
     context.add_extension(RosContextExtension(ros_node))
     task.build(context)
     return context
 
 
-def run_perception_task(task: PerceptionTask, context: MotionStatechartContext) -> None:
+def run_perception_task(task: PerceptionTask, context: StatechartContext) -> None:
     """
     Start a built perception task and tick it once, as its chart does.
 

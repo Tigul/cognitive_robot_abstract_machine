@@ -5,7 +5,6 @@ from typing import Any, List
 
 import pytest
 
-from giskardpy.executor import Executor
 from cramph.executor import NoPacing
 from giskardpy.middleware.ros2 import rospy
 from giskardpy.middleware.ros2.control_loop import ControlLoop
@@ -20,7 +19,6 @@ from giskardpy.middleware.ros2.world_updates import (
     ClientWorldUpdates,
     IncomingWorldUpdates,
 )
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import EndMotion
 from cramph.monitors import CountSimulationTimeSeconds
 from cramph.statechart import Statechart
@@ -40,6 +38,9 @@ from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedomLimits,
 )
 from semantic_digital_twin.world_description.world_entity import Body
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 # %% mimics of the synchronizers
 
@@ -427,12 +428,14 @@ def control_loop(init_rospy) -> ControlLoopFixture:
     assert len(controlled_world.kinematic_structure_entities) == 2
     controlled_synchronizer.defer_incoming_updates = True
 
-    executor = Executor(
-        context=MotionStatechartContext(
-            world=controlled_world,
-            qp_controller_config=QPControllerConfig.create_with_simulation_defaults(),
-        ),
+    executor = StatechartExecutor(
+        context=StatechartContext(world=controlled_world),
         pacer=NoPacing(),
+        extensions=[
+            MotionControl(
+                qp_controller_config=QPControllerConfig.create_with_simulation_defaults()
+            )
+        ],
     )
     motion_statechart = Statechart()
     motion_statechart.add_node(counter := CountSimulationTimeSeconds(seconds=1000.0))

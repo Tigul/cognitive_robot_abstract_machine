@@ -1,7 +1,5 @@
 import numpy as np
 
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.data_types import LifeCycleValues, ObservationStateValues
 from cramph.composites import Parallel, Sequence
 from giskardpy.motion_statechart.graph_node import (
@@ -44,6 +42,9 @@ from semantic_digital_twin.world_description.world_entity import (
     Body,
 )
 from semantic_digital_twin.robots.pr2 import PR2Joint
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 
 def test_set_seed_configuration(pr2_world_state_reset):
@@ -63,7 +64,10 @@ def test_set_seed_configuration(pr2_world_state_reset):
     node1.success_condition = node1.observes_true
     end.start_condition = node1.observes_true
 
-    kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
     kin_sim.compile(statechart=msc)
 
     kin_sim.tick_until_end()
@@ -99,7 +103,10 @@ def test_set_seed_odometry(pr2_world_state_reset):
     node1.success_condition = node1.observes_true
     end.start_condition = node1.observes_true
 
-    kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
     kin_sim.compile(statechart=msc)
 
     kin_sim.tick_until_end()
@@ -157,14 +164,16 @@ def test_joint_goal(tmp_path):
     task1.start_condition = always_true.observes_true
     end.start_condition = logic_and(task1.observes_true, always_true.observes_true)
 
-    kin_sim = Executor(
-        MotionStatechartContext(
-            world=world,
-            qp_controller_config=QPControllerConfig(
-                target_frequency=20,
-                prediction_horizon=7,
-            ),
-        )
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=world),
+        extensions=[
+            MotionControl(
+                qp_controller_config=QPControllerConfig(
+                    target_frequency=20,
+                    prediction_horizon=7,
+                )
+            )
+        ],
     )
     kin_sim.compile(statechart=msc)
 
@@ -215,10 +224,9 @@ def test_continuous_joint(pr2_world_state_reset):
     msc.add_node(end)
     end.start_condition = joint_goal.observes_true
 
-    kin_sim = Executor(
-        MotionStatechartContext(
-            world=pr2_world_state_reset,
-        )
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
     )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
@@ -251,10 +259,9 @@ def test_revolute_joint(pr2_world_state_reset):
     msc.add_node(end)
     end.start_condition = joint_goal.observes_true
 
-    kin_sim = Executor(
-        MotionStatechartContext(
-            world=pr2_world_state_reset,
-        )
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
     )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
@@ -282,7 +289,10 @@ def test_joint_velocity_limit_caps_a_fast_goal(pr2_world_state_reset):
         ]
     )
 
-    kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
     kin_sim.compile(statechart=msc)
 
     for i in range(400):
@@ -322,10 +332,9 @@ def test_joint_sequence(pr2_world_state_reset):
     )
     msc.add_node(EndMotion.when_true(sequence))
 
-    kin_sim = Executor(
-        MotionStatechartContext(
-            world=pr2_world_state_reset,
-        )
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
     )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()

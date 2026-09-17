@@ -14,7 +14,8 @@ from typing_extensions import (
 
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.constraint_builders import GeometricConstraintBuilder
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from giskardpy.motion_statechart.context import MotionControlContext
+from cramph.context import StatechartContext
 from cramph.data_types import (
     SuccessDecider,
 )
@@ -166,7 +167,7 @@ class MotionStatechartNode(StatechartNode):
         motion_artifacts.constraints.link_to_motion_statechart_node(self)
         super().apply_artifacts(motion_artifacts)
 
-    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
         """
         Describe this node in terms of constraints, observation and debug expressions.
 
@@ -200,7 +201,7 @@ class MotionStatechartNode(StatechartNode):
 
 
 def velocity_convergence_expression(
-    context: MotionStatechartContext,
+    context: StatechartContext,
     joint_convergence_threshold: float,
     minimum_threshold: float,
     maximum_threshold: float,
@@ -253,8 +254,10 @@ def velocity_convergence_expression(
         symbols.append(dof.variables.velocity)
 
     dt = (
-        context.qp_controller_config.control_dt
-        or context.qp_controller_config.model_predictive_control_time_step
+        context.require_extension(MotionControlContext).qp_controller_config.control_dt
+        or context.require_extension(
+            MotionControlContext
+        ).qp_controller_config.model_predictive_control_time_step
     )
     elapsed_cycles = context.tick_variable
     if reference_cycle_variable is not None:
@@ -314,7 +317,7 @@ class ConvergingTask(ABC, Task):
     Error at or below which the goal counts as reached, in the task's own units.
     """
 
-    def build(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+    def build(self, context: StatechartContext) -> MotionNodeArtifacts:
         """
         Build the task and derive its observation from its error.
 
@@ -328,7 +331,7 @@ class ConvergingTask(ABC, Task):
         return artifacts
 
     @abstractmethod
-    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
         """
         Add the motion constraints of this task and set
         :attr:`MotionNodeArtifacts.error` to the error they drive to zero.
@@ -389,7 +392,7 @@ class EndMotion(EndStatechart):
     def create_structure_copy(self) -> EndMotion:
         return EndMotion(name=self.name)
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         """
         Reports "done" only once the world has actually settled, so the motion isn't cut
         short while the controller is still commanding nonzero velocity.

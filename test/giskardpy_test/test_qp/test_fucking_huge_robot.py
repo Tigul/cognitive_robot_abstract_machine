@@ -1,7 +1,5 @@
 from copy import deepcopy
 
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.composites import Sequence
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
@@ -29,6 +27,9 @@ from semantic_digital_twin.world_description.shape_collection import ShapeCollec
 from semantic_digital_twin.world_description.world_entity import (
     Body,
 )
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 
 def robot_factory(fucking_huge_link_length: float, vel_limit: float) -> World:
@@ -196,14 +197,16 @@ def execute(link_length: float, vel_limit: float):
     )
     msc.add_node(EndMotion.when_true(node1))
 
-    kin_sim = Executor(
-        MotionStatechartContext(
-            world=fucking_huge_robot,
-            qp_controller_config=QPControllerConfig(
-                target_frequency=100,
-                prediction_horizon=50,
-            ),
-        ),
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=fucking_huge_robot),
+        extensions=[
+            MotionControl(
+                qp_controller_config=QPControllerConfig(
+                    target_frequency=100,
+                    prediction_horizon=50,
+                )
+            )
+        ],
     )
     kin_sim.compile(statechart=msc)
 

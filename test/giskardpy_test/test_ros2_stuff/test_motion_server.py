@@ -4,7 +4,6 @@ from typing import Any, List, Optional
 
 import pytest
 
-from giskardpy.executor import Executor
 from cramph.executor import NoPacing
 from giskardpy.middleware.ros2.action_server import GoalOutcome
 from giskardpy.middleware.ros2.command_publishing import CommandPublisher
@@ -27,7 +26,6 @@ from giskardpy.middleware.ros2.input_synchronization import (
 from giskardpy.middleware.ros2.motion_goal import MotionGoal
 from giskardpy.middleware.ros2.motion_server import MotionServer
 from giskardpy.middleware.ros2.post_goal_plotters import PostGoalPlotter
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.exceptions import SelfInStartConditionError
 from giskardpy.motion_statechart.graph_node import EndMotion
 from cramph.monitors import CountSimulationTimeSeconds
@@ -39,6 +37,9 @@ from krrood.utils import get_full_class_name
 from semantic_digital_twin.adapters.ros.messages import MetaData, StreamPosition
 from semantic_digital_twin.callbacks.callback import StateChangeCallback
 from semantic_digital_twin.world import World
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 # %% mimics of the ros facing collaborators
 
@@ -143,7 +144,7 @@ class WorldUpdatesMimic:
     recording what the server had already done whenever it asked about a position.
     """
 
-    executor: Optional[Executor] = None
+    executor: Optional[StatechartExecutor] = None
     """
     The executor whose compiled motion statechart is observed while a goal waits.
     """
@@ -238,7 +239,7 @@ class RecordingInputSynchronizer(InputSynchronizer):
     Records in which order inputs are read relative to the control cycles.
     """
 
-    executor: Executor = None
+    executor: StatechartExecutor = None
     """
     The executor whose control cycles are recorded on every apply.
     """
@@ -496,16 +497,18 @@ class BrokenPlotError(Exception):
 # %% fixtures
 
 
-def create_executor() -> Executor:
+def create_executor() -> StatechartExecutor:
     """
     Build an executor that simulates as fast as possible in an empty world.
     """
-    return Executor(
-        context=MotionStatechartContext(
-            world=World(),
-            qp_controller_config=QPControllerConfig.create_with_simulation_defaults(),
-        ),
+    return StatechartExecutor(
+        context=StatechartContext(world=World()),
         pacer=NoPacing(),
+        extensions=[
+            MotionControl(
+                qp_controller_config=QPControllerConfig.create_with_simulation_defaults()
+            )
+        ],
     )
 
 
@@ -537,7 +540,7 @@ class MotionServerFixture:
     A motion server wired to mimics, so its lifecycle can be driven from a test.
     """
 
-    executor: Executor
+    executor: StatechartExecutor
     action_server: GoalQueueMimic
     world_updates: WorldUpdatesMimic
     publication_progress: PublicationProgressMimic

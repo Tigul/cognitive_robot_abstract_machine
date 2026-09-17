@@ -9,7 +9,7 @@ from semantic_digital_twin.world_description.connections import ActiveConnection
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from cramph.data_types import SuccessDecider
 from cramph.node import CompositeNode, NodeArtifacts
@@ -68,7 +68,7 @@ class Open(CompositeNode):
     letting the end effector drift off the grasped part, and the two move independently.
     """
 
-    def expand(self, context: MotionStatechartContext) -> None:
+    def expand(self, context: StatechartContext) -> None:
         self.connection = self.environment_link.get_first_parent_connection_of_type(
             ActiveConnection1DOF
         )
@@ -102,7 +102,7 @@ class Open(CompositeNode):
             return limit
         return min(limit, self.goal_joint_state)
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         """
         Build an observation that is True once both the degree of freedom and the grip
         on the grasped part reached their goals.

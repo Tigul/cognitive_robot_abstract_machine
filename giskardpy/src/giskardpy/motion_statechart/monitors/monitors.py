@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import field
 from typing_extensions import List, Optional
 
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
 from cramph.data_types import SuccessDecider
 from giskardpy.motion_statechart.exceptions import EmptyDegreesOfFreedomError
 from giskardpy.motion_statechart.graph_node import (
@@ -79,14 +79,14 @@ class LocalMinimumReached(MotionStatechartNode):
     ``on_start`` when :attr:`measure_from_own_start` is True.
     """
 
-    def on_start(self, context: MotionStatechartContext):
+    def on_start(self, context: StatechartContext):
         if self.measure_from_own_start:
             context.float_variable_data.set_value(
                 self._start_cycle_variable,
                 context.tick_variable.evaluate()[0],
             )
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         if self.degrees_of_freedom is not None and not self.degrees_of_freedom:
             raise EmptyDegreesOfFreedomError(node=self)
         if self.measure_from_own_start:

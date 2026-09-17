@@ -1,7 +1,5 @@
 from math import radians
 
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.data_types import ObservationStateValues
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.feature_monitors import (
@@ -19,10 +17,15 @@ from giskardpy.motion_statechart.tasks.feature_functions import (
 )
 from semantic_digital_twin.spatial_types import Point3, Vector3
 from semantic_digital_twin.world import World
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 
 def _run(msc: Statechart, world: World) -> None:
-    kin_sim = Executor(MotionStatechartContext(world=world))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=world), extensions=[MotionControl()]
+    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 

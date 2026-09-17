@@ -7,7 +7,8 @@ from typing_extensions import List, Optional
 
 import krrood.symbolic_math.symbolic_math as sm
 from krrood.symbolic_math.symbolic_math import Scalar
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from giskardpy.motion_statechart.context import MotionControlContext
+from cramph.context import StatechartContext
 from cramph.data_types import SuccessDecider, LifeCycleValues, ObservationStateValues
 from giskardpy.motion_statechart.exceptions import NoProgressError
 from giskardpy.motion_statechart.error_signals import ErrorSignal
@@ -67,7 +68,7 @@ class NotApproachingGoal(MotionStatechartNode):
     def prerequisite_nodes(self) -> List[MotionStatechartNode]:
         return [self.monitored_task]
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         """
         Compare the rate of change of the monitored task's error against
         :attr:`minimum_convergence_rate`.
@@ -76,7 +77,9 @@ class NotApproachingGoal(MotionStatechartNode):
         velocities. One that cannot is differenced across control cycles in
         :meth:`on_tick` instead.
         """
-        self._control_dt = context.qp_controller_config.control_dt
+        self._control_dt = context.require_extension(
+            MotionControlContext
+        ).qp_controller_config.control_dt
         error_signal = self.monitored_task.error_signal
         rate = error_signal.create_rate_expression()
         if rate is None:
@@ -118,12 +121,10 @@ class NotApproachingGoal(MotionStatechartNode):
             self.monitored_task.life_cycle_variable != int(LifeCycleValues.RUNNING)
         )
 
-    def on_start(self, context: MotionStatechartContext):
+    def on_start(self, context: StatechartContext):
         self._previous_error = None
 
-    def on_tick(
-        self, context: MotionStatechartContext
-    ) -> Optional[ObservationStateValues]:
+    def on_tick(self, context: StatechartContext) -> Optional[ObservationStateValues]:
         """
         Measure the convergence rate of an error that cannot be differentiated.
 
@@ -165,7 +166,7 @@ class AnyMonitoredTaskRunning(MotionStatechartNode):
     The tasks whose life cycle states are watched.
     """
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         """
         Each life cycle comparison is ``0`` or ``1``, so their maximum is ``1`` exactly
         when at least one task runs.
@@ -274,7 +275,7 @@ class StillProgressing(CompositeNode):
         cancel.start_condition = self.observes_false
         return cancel
 
-    def expand(self, context: MotionStatechartContext) -> None:
+    def expand(self, context: StatechartContext) -> None:
         self._monitored_tasks = self._find_converging_tasks(self.monitored_node)
         self._timer = CountSimulationTimeSeconds(
             name=f"{self.name}/timer", seconds=self.timeout.total_seconds()
@@ -318,7 +319,7 @@ class StillProgressing(CompositeNode):
         self._add_children_to_statechart(self._not_approaching_monitors + [any_running])
         return [any_running, *self._not_approaching_monitors]
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         """
         The timer only reaches what it counts once progress has stalled for
         :attr:`timeout`, so every other reading of it means this node has not given up
@@ -361,7 +362,7 @@ class Stalled(StillProgressing):
     wrong, not as the thing that goes right.
     """
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         """
         The timer reaches what it counts once progress has stalled for :attr:`timeout`,
         which is exactly when this node has something to report.
@@ -387,5 +388,5 @@ class _CancelBecauseNoProgress(CancelStatechart):
     which tasks are stalled.
     """
 
-    def create_exception(self, context: MotionStatechartContext) -> NoProgressError:
+    def create_exception(self, context: StatechartContext) -> NoProgressError:
         return NoProgressError(progress_monitor=self.progress_monitor)

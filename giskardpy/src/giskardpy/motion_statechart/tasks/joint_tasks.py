@@ -4,7 +4,7 @@ from dataclasses import field, dataclass
 from typing_extensions import List
 
 import krrood.symbolic_math.symbolic_math as sm
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.exceptions import EmptyGoalStateError
 from giskardpy.motion_statechart.error_signals import SymbolicErrorSignal
@@ -46,7 +46,7 @@ class JointPositionList(ConvergingTask):
     The maximum velocity of the joints.
     """
 
-    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
         """
         Build one equality constraint per joint of the goal state.
 
@@ -134,7 +134,7 @@ class JointVelocityLimit(Task):
     :class:`JointPositionList`).
     """
 
-    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
         artifacts = MotionNodeArtifacts()
         velocities = []
         for connection in self.connections:

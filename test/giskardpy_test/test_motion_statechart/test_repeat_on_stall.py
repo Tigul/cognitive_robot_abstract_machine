@@ -11,8 +11,6 @@ from functools import partial
 
 from cramph.data_types import ObservationStateValues
 from cramph.composites import Attempt
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.goals.templates import RepeatOnStall
 from giskardpy.motion_statechart.graph_node import EndMotion
 from cramph.statechart import Statechart
@@ -29,6 +27,9 @@ from ...cramph_test.test_statechart.test_repeat_until import (
     SETTLE_TICKS,
     _repeat_on_timeout,
 )
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 STALL_TIMEOUT_OUTLASTING_THE_TEST = timedelta(days=1)
 """
@@ -59,7 +60,9 @@ def test_repeat_on_stall_retries_when_a_failure_monitor_of_its_attempt_fires():
     """
     task = ConstFalseNode(name="task")
     loop, _, executor = _repeat_on_timeout(
-        Executor(MotionStatechartContext(world=World())),
+        StatechartExecutor(
+            context=StatechartContext(world=World()), extensions=[MotionControl()]
+        ),
         task,
         target=3,
         repeat_template=partial(
@@ -135,7 +138,10 @@ def test_repeat_on_stall_retries_a_motion_that_stops_converging(
     motion_statechart.add_node(loop)
     motion_statechart.add_node(EndMotion.when_true(loop))
 
-    executor = Executor(MotionStatechartContext(world=pr2_world_state_reset))
+    executor = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
     executor.compile(statechart=motion_statechart)
     for _ in range(2000):
         executor.tick()
@@ -166,7 +172,10 @@ def test_repeat_on_stall_leaves_a_reachable_motion_alone(cylinder_bot_world: Wor
     motion_statechart.add_node(loop)
     motion_statechart.add_node(EndMotion.when_true(loop))
 
-    executor = Executor(MotionStatechartContext(world=cylinder_bot_world))
+    executor = StatechartExecutor(
+        context=StatechartContext(world=cylinder_bot_world),
+        extensions=[MotionControl()],
+    )
     executor.compile(statechart=motion_statechart)
     executor.tick_until_end(2000)
 

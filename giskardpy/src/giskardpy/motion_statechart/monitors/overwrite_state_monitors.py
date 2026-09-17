@@ -9,7 +9,7 @@ from semantic_digital_twin.world_description.connections import (
     OmniDrive,
 )
 from semantic_digital_twin.world_description.world_entity import Connection
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
 from giskardpy.motion_statechart.exceptions import UnexpectedWorldEntityCountError
 from cramph.data_types import SuccessDecider
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
@@ -33,14 +33,14 @@ class SetSeedConfiguration(MotionStatechartNode):
 
     seed_configuration: JointState = field(kw_only=True)
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         """
         Applying the configuration is what this node is for and it cannot fail, so it
         counts as succeeded from the moment it runs.
         """
         return NodeArtifacts(observation=sm.Scalar.const_true())
 
-    def on_start(self, context: MotionStatechartContext):
+    def on_start(self, context: StatechartContext):
         self.seed_configuration.apply_to(context.world)
 
 
@@ -66,11 +66,11 @@ class SetOdometry(MotionStatechartNode):
 
     _odom_joints: Tuple[Type[Connection], ...] = field(default=(OmniDrive,), init=False)
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         self.odom_connection = self._current_odom_connection(context)
         return NodeArtifacts(observation=sm.Scalar.const_true())
 
-    def _current_odom_connection(self, context: MotionStatechartContext) -> OmniDrive:
+    def _current_odom_connection(self, context: StatechartContext) -> OmniDrive:
         """
         The drive that moves the body this node sets the odometry of, as the world holds
         it now.
@@ -95,7 +95,7 @@ class SetOdometry(MotionStatechartNode):
             )
         return drive_connections[0]
 
-    def on_start(self, context: MotionStatechartContext):
+    def on_start(self, context: StatechartContext):
         parent_T_pose_ref = HomogeneousTransformationMatrix(
             context.world.compute_forward_kinematics_np(
                 self.odom_connection.parent, self.base_pose.reference_frame

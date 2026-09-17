@@ -12,6 +12,7 @@ from semantic_digital_twin.adapters.ros.visualization.spatial_type_publisher imp
     SpatialTypePublisher,
 )
 from semantic_digital_twin.spatial_types.spatial_types import SpatialType, Vector3
+from cramph.executor import ExecutorExtension, StatechartExecutor
 from semantic_digital_twin.world import World
 from giskardpy.motion_statechart.graph_node import DebugExpression
 
@@ -93,3 +94,33 @@ class DebugExpressionPublisher:
         if self._publisher is not None:
             self._publisher.clear()
             self._publisher.stop()
+
+
+@dataclass
+class DebugExpressionPublishing(ExecutorExtension):
+    """
+    Visualizes the debug expressions of every compiled statechart as RViz markers.
+
+    .. warning::
+        You should only use this while debugging and preferably only in simulation,
+        because it slows down the control loop.
+    """
+
+    ros_node: Node
+    """
+    The ROS2 node used to create the marker publisher.
+    """
+
+    publisher: DebugExpressionPublisher | None = field(init=False, default=None)
+    """
+    The publisher of the most recently compiled statechart, None before the first
+    compile.
+    """
+
+    def after_compile(self, executor: StatechartExecutor) -> None:
+        if self.publisher is not None:
+            self.publisher.stop()
+        self.publisher = DebugExpressionPublisher(
+            world=executor.context.world, node=self.ros_node
+        )
+        self.publisher.attach(executor.statechart)

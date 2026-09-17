@@ -7,7 +7,8 @@ import numpy as np
 from typing_extensions import Optional, Tuple
 
 import krrood.symbolic_math.symbolic_math as symbolic_math
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from giskardpy.motion_statechart.context import MotionControlContext
+from cramph.context import StatechartContext
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from cramph.data_types import ObservationStateValues
 from giskardpy.motion_statechart.error_signals import SymbolicErrorSignal
@@ -159,7 +160,7 @@ class WiggleInsert(ConvergingTask):
     Auxiliary variable holding the current angular noise.
     """
 
-    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
         """
         Build motion constraints that press the tip into the hole while wiggling.
 
@@ -179,7 +180,9 @@ class WiggleInsert(ConvergingTask):
             ),
         )
 
-        control_dt = context.qp_controller_config.control_dt
+        control_dt = context.require_extension(
+            MotionControlContext
+        ).qp_controller_config.control_dt
         self._control_frequency = 1 / control_dt
 
         self._current_angle = 0.0
@@ -245,9 +248,7 @@ class WiggleInsert(ConvergingTask):
         )
         return artifacts
 
-    def on_tick(
-        self, context: MotionStatechartContext
-    ) -> Optional[ObservationStateValues]:
+    def on_tick(self, context: StatechartContext) -> Optional[ObservationStateValues]:
         if self.random_walk:
             translation = self._random_walk_translation()
             angle = self._random_walk_angle()

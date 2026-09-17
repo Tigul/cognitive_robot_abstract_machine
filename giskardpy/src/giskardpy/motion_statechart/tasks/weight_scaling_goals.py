@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import krrood.symbolic_math.symbolic_math as sm
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
 from giskardpy.motion_statechart.error_signals import SymbolicErrorSignal
 from giskardpy.motion_statechart.graph_node import ConvergingTask, MotionNodeArtifacts
 from semantic_digital_twin.world_description.world_entity import Body
@@ -34,7 +34,7 @@ class MaxManipulability(ConvergingTask):
     Manipulability value the goal drives the measure towards.
     """
 
-    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
         """
         Build a constraint that drives the manipulability measure towards
         :attr:`manipulability_threshold`.

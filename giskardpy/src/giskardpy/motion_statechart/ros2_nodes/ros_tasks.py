@@ -20,7 +20,7 @@ from std_msgs.msg import Header
 from typing_extensions import Type, TypeVar, Generic
 
 import krrood.symbolic_math.symbolic_math as sm
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
 from cramph.data_types import ObservationStateValues, SuccessDecider
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from cramph.node import NodeArtifacts
@@ -75,13 +75,13 @@ class ActionServerTask(
     """
 
     @abstractmethod
-    def build_msg(self, context: MotionStatechartContext):
+    def build_msg(self, context: StatechartContext):
         """
         Build the action server message and returns it.
         """
         ...
 
-    def build(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build(self, context: StatechartContext) -> NodeArtifacts:
         """
         Creates the action client.
         """
@@ -94,7 +94,7 @@ class ActionServerTask(
         self._action_client.wait_for_server()
         return super().build(context)
 
-    def on_start(self, context: MotionStatechartContext):
+    def on_start(self, context: StatechartContext):
         """
         Creates a goal and sends it to the action server asynchronously.
         """
@@ -146,7 +146,7 @@ class NavigateActionServerTask(
     Base link of the robot, used for estimating the distance to the goal.
     """
 
-    def build_msg(self, context: MotionStatechartContext):
+    def build_msg(self, context: StatechartContext):
         root_p_goal = context.world.transform(
             target_frame=context.world.root, spatial_object=self.target_pose
         )
@@ -166,7 +166,7 @@ class NavigateActionServerTask(
         )
         self._msg = NavigateToPose.Goal(pose=pose_stamped)
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         """
         Observes whether the robot is within 1cm of the target pose.
         """
@@ -201,7 +201,7 @@ class NavigateActionServerTask(
             f"Finished navigation with response status: {self._result.result.status} and result code: {self._result.error_code}"
         )
 
-    def on_tick(self, context: MotionStatechartContext) -> ObservationStateValues:
+    def on_tick(self, context: StatechartContext) -> ObservationStateValues:
         if self._result.result:
             return (
                 ObservationStateValues.TRUE

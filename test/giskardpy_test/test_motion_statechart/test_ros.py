@@ -1,8 +1,6 @@
 import json
 import time
 
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.goals.collision_avoidance import SelfCollisionAvoidance
 from cramph.composites import Sequence, Parallel
@@ -24,6 +22,9 @@ from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.robots.pr2 import PR2, PR2Joint
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world import World
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 
 def to_and_from_json(motion_statechart: Statechart, target_world: World):
@@ -94,7 +95,9 @@ def test_execute_collision_goal_in_fetched_world(rclpy_node, pr2_world_state_res
 
     msc_copy = to_and_from_json(msc, pr2_world_copy)
 
-    kin_sim = Executor(MotionStatechartContext(world=pr2_world_copy))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_copy), extensions=[MotionControl()]
+    )
     kin_sim.compile(statechart=msc_copy)
 
     kin_sim.tick_until_end(500)

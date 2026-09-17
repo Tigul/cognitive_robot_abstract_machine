@@ -11,7 +11,6 @@ from coraplex.exceptions import (
     ConditionNotSatisfied,
     UnknownExecutionType,
 )
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.data_types import LifeCycleValues
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
@@ -22,10 +21,13 @@ from giskardpy.motion_statechart.graph_node import EndMotion, Task
 from cramph.node import CompositeNode
 from cramph.statechart import Statechart
 from giskardpy.qp.qp_controller_config import QPControllerConfig
-from giskardpy.ros_executor import Ros2Executor
 from krrood.entity_query_language.factories import evaluate_condition
 from krrood.symbolic_math.symbolic_math import Scalar
 from semantic_digital_twin.world_description.world_entity import Body
+from giskardpy.motion_control import MotionControl
+from giskardpy.motion_statechart.ros_context import RosNodeAccess
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 if TYPE_CHECKING:
     from coraplex.robot_plans.actions.base import ActionDescription
@@ -240,14 +242,16 @@ class GiskardExecutable(Executable):
         Compiles the motion state chart and ticks it in the world of the context until
         it is done.
         """
-        executor = Ros2Executor(
-            context=MotionStatechartContext(
-                world=self.context.world,
-                qp_controller_config=QPControllerConfig(
-                    target_frequency=50, prediction_horizon=4, verbose=False
+        executor = StatechartExecutor(
+            context=StatechartContext(world=self.context.world),
+            extensions=[
+                RosNodeAccess(self.context.ros_node),
+                MotionControl(
+                    qp_controller_config=QPControllerConfig(
+                        target_frequency=50, prediction_horizon=4, verbose=False
+                    )
                 ),
-            ),
-            ros_node=self.context.ros_node,
+            ],
         )
         motion_state_chart = self.motion_state_chart
         executor.compile(motion_state_chart)
@@ -259,7 +263,7 @@ class GiskardExecutable(Executable):
             if executor.statechart.is_ended():
                 break
 
-        executor.set_velocity_acceleration_jerk_to_zero()
+        MotionControl.set_velocity_acceleration_jerk_to_zero(executor.context.world)
         executor.statechart.cleanup_nodes(context=executor.context)
         executor.context.cleanup()
 

@@ -3,8 +3,6 @@ from dataclasses import dataclass
 
 from typing_extensions import List, Union, Iterable
 
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     UpdateTemporaryCollisionRules,
@@ -29,6 +27,9 @@ from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 
 @dataclass
@@ -113,7 +114,7 @@ class GiskardLocationBackend(PoseGeneratorBackend):
         world: World,
         robot: AbstractRobot,
         end_effector: EndEffector,
-    ) -> Executor:
+    ) -> StatechartExecutor:
         """
         Setup the Giskard executor for a specific pose sequence and a given world.
 
@@ -162,13 +163,15 @@ class GiskardLocationBackend(PoseGeneratorBackend):
         )
         msc.add_node(EndMotion.when_true(pose_seq))
 
-        executor = Executor(
-            MotionStatechartContext(
-                world=world,
-                qp_controller_config=QPControllerConfig(
-                    target_frequency=50, prediction_horizon=4, verbose=False
-                ),
-            ),
+        executor = StatechartExecutor(
+            context=StatechartContext(world=world),
+            extensions=[
+                MotionControl(
+                    qp_controller_config=QPControllerConfig(
+                        target_frequency=50, prediction_horizon=4, verbose=False
+                    )
+                )
+            ],
         )
         executor.compile(msc)
 

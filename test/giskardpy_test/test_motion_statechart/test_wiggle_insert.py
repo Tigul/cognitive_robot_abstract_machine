@@ -2,9 +2,7 @@ import random
 
 import numpy as np
 
-from giskardpy.executor import Executor
 from cramph.executor import SimulationPacer
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.data_types import ObservationStateValues
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from cramph.composites import Sequence, Parallel
@@ -24,6 +22,10 @@ from semantic_digital_twin.robots.hsrb import HSRBJoint
 from semantic_digital_twin.spatial_types import Point3, Vector3
 from semantic_digital_twin.world import World
 from test.semantic_digital_twin_test.test_orm.test_orm import hsr_world_state_reset
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
+from ..motion_control_context import create_context_with_motion_control
 
 
 def _hole_at_current_tip(world: World, tip, root) -> Point3:
@@ -56,7 +58,10 @@ def test_wiggle_insert_reaches_hole(pr2_world_state_reset: World, rclpy_node):
     msc.add_node(wiggle)
     msc.add_node(EndMotion.when_true(wiggle))
 
-    kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
@@ -82,7 +87,7 @@ def test_wiggle_insert_basis_uses_root_frame_hole_normal(pr2_world_state_reset: 
         hole_point=hole_point,
         hole_normal=hole_normal_in_tip_frame,
     )
-    context = MotionStatechartContext(world=pr2_world_state_reset)
+    context = create_context_with_motion_control(pr2_world_state_reset)
     wiggle.build(context)
 
     expected_normal_in_root = pr2_world_state_reset.transform(
@@ -122,8 +127,11 @@ def test_wiggle_insert_on_tick_updates_noise(pr2_world_state_reset: World):
     msc.add_node(wiggle)
     msc.add_node(EndMotion.when_true(wiggle))
 
-    context = MotionStatechartContext(world=pr2_world_state_reset)
-    kin_sim = Executor(context)
+    motion_control = MotionControl()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[motion_control],
+    )
     kin_sim.compile(statechart=msc)
 
     kin_sim.tick()
@@ -190,9 +198,10 @@ def test_wiggle_insert(hsr_world_state_reset):
     barrier.success_condition = barrier.observes_true
     msc.add_node(EndMotion.when_true(motion))
 
-    kin_sim = Executor(
-        MotionStatechartContext(world=hsr_world_state_reset),
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=hsr_world_state_reset),
         pacer=SimulationPacer(real_time_factor=1),
+        extensions=[MotionControl()],
     )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()

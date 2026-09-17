@@ -2,38 +2,42 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from typing_extensions import Self, List, Optional
+from typing_extensions import List, Optional
 
+from cramph.context import ContextExtension
+from giskardpy.qp.qp_controller_config import QPControllerConfig
+from krrood.symbolic_math.float_variable_data import FloatVariableData
 from semantic_digital_twin.collision_checking.collision_manager import CollisionManager
 from semantic_digital_twin.collision_checking.collision_variable_managers import (
     BaseCollisionVariableManager,
     SelfCollisionVariableManager,
     ExternalCollisionVariableManager,
 )
-from giskardpy.qp.qp_controller_config import QPControllerConfig
-
 from semantic_digital_twin.world import World
-from cramph.context import StatechartContext
 
 
 @dataclass
-class MotionStatechartContext(StatechartContext):
+class MotionControlContext(ContextExtension):
     """
-    Context used during the build phase of a MotionStatechartNode.
-    """
-
-    qp_controller_config: QPControllerConfig = field(
-        default_factory=QPControllerConfig.create_with_simulation_defaults
-    )
-    """
-    Optional configuration for the QP Controller.
-
-    Is only needed when constraints are present in the motion statechart.
+    What motion statechart nodes need from motion control while they are built and
+    ticked.
     """
 
-    tick_duration: Optional[float] = field(init=False, default=None)
+    qp_controller_config: QPControllerConfig
     """
-    The control time step of :attr:`qp_controller_config`, None without one.
+    The configuration of the QP controller that turns the constraints of the nodes into
+    commands.
+    """
+
+    world: World = field(repr=False)
+    """
+    The world the commands are applied to.
+    """
+
+    float_variable_data: FloatVariableData = field(repr=False)
+    """
+    The auxiliary variables of the statechart context, which the collision variable
+    managers register their variables in.
     """
 
     _self_collision_manager: Optional[SelfCollisionVariableManager] = field(
@@ -50,13 +54,11 @@ class MotionStatechartContext(StatechartContext):
     Backs :attr:`external_collision_manager`, None until a node requests it.
     """
 
-    def __post_init__(self):
-        if self.qp_controller_config is None:
-            return
-        self.tick_duration = self.qp_controller_config.control_dt
-
     @property
     def collision_manager(self) -> CollisionManager:
+        """
+        :return: The collision manager of :attr:`world`.
+        """
         return self.world.collision_manager
 
     @property
@@ -115,16 +117,7 @@ class MotionStatechartContext(StatechartContext):
         """
         Removes the lazy-initialized collision managers from the collision manager.
         """
-        super().cleanup()
         for manager in self._registered_collision_variable_managers:
             self.collision_manager.remove_collision_consumer(manager)
         self._self_collision_manager = None
         self._external_collision_manager = None
-
-    @classmethod
-    def empty(cls) -> Self:
-        return cls(
-            world=World(),
-            float_variable_data=None,
-            qp_controller_config=None,
-        )

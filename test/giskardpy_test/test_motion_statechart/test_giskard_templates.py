@@ -12,8 +12,6 @@ from datetime import timedelta
 from math import ceil
 
 import pytest
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.data_types import LifeCycleValues, ObservationStateValues
 from cramph.exceptions import (
     AttemptCannotFailError,
@@ -33,6 +31,9 @@ from cramph.composites import PausedUntilTrue, PausedWhileTrue, StoppedWhenTrue
 from semantic_digital_twin.world import World
 
 from coraplex.language import TryAllNode, TryInOrderNode
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 # Number of ticks after which the templates below have settled into their final observation.
 SETTLE_TICKS = 6
@@ -46,7 +47,7 @@ def _compile_and_tick(
     goal: MotionStatechartNode,
     ticks: int = SETTLE_TICKS,
     alternatives_to_abandon: int = 0,
-) -> Executor:
+) -> StatechartExecutor:
     """
     Add the goal to a fresh statechart, compile it and tick the executor.
 
@@ -59,11 +60,13 @@ def _compile_and_tick(
     """
     msc = Statechart()
     msc.add_node(goal)
-    context = MotionStatechartContext(world=World())
-    executor = Executor(context)
+    motion_control = MotionControl()
+    executor = StatechartExecutor(
+        context=StatechartContext(world=World()), extensions=[motion_control]
+    )
     executor.compile(statechart=msc)
     cycles_per_alternative = ceil(
-        GIVE_UP_AFTER.total_seconds() / context.qp_controller_config.control_dt
+        GIVE_UP_AFTER.total_seconds() / motion_control.qp_controller_config.control_dt
     )
     for _ in range(ticks + alternatives_to_abandon * cycles_per_alternative):
         executor.tick()
@@ -253,12 +256,14 @@ def test_the_next_alternative_starts_on_the_cycle_the_previous_one_fails():
 
     msc = Statechart()
     msc.add_node(goal)
-    context = MotionStatechartContext(world=World())
-    executor = Executor(context)
+    motion_control = MotionControl()
+    executor = StatechartExecutor(
+        context=StatechartContext(world=World()), extensions=[motion_control]
+    )
     executor.compile(statechart=msc)
 
     cycles_to_abandon_an_alternative = ceil(
-        GIVE_UP_AFTER.total_seconds() / context.qp_controller_config.control_dt
+        GIVE_UP_AFTER.total_seconds() / motion_control.qp_controller_config.control_dt
     )
     for _ in range(cycles_to_abandon_an_alternative + SETTLE_TICKS):
         executor.tick()
@@ -333,7 +338,9 @@ def test_a_try_all_without_nodes_is_rejected():
     msc = Statechart()
     msc.add_node(TryAll(nodes=[]))
 
-    executor = Executor(MotionStatechartContext(world=World()))
+    executor = StatechartExecutor(
+        context=StatechartContext(world=World()), extensions=[MotionControl()]
+    )
     with pytest.raises(CompositeNodeWithoutChildrenError):
         executor.compile(statechart=msc)
 
@@ -342,7 +349,9 @@ def test_a_try_in_order_without_nodes_is_rejected():
     msc = Statechart()
     msc.add_node(TryInOrder(nodes=[]))
 
-    executor = Executor(MotionStatechartContext(world=World()))
+    executor = StatechartExecutor(
+        context=StatechartContext(world=World()), extensions=[MotionControl()]
+    )
     with pytest.raises(CompositeNodeWithoutChildrenError):
         executor.compile(statechart=msc)
 

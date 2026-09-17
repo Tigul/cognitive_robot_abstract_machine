@@ -1,8 +1,6 @@
 import numpy as np
 import pytest
 
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import EndMotion
 from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
@@ -11,6 +9,9 @@ from giskardpy.qp.qp_controller_config import QPControllerConfig
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import ActiveConnection
 from semantic_digital_twin.robots.pr2 import PR2Joint
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 TARGET_FREQUENCY = 20
 PREDICTION_HORIZON = 10
@@ -37,7 +38,10 @@ def test_joint_goal_inside_limits_reached(pr2_world_state_reset):
     msc.add_node(end)
     end.start_condition = joint_goal.observes_true
 
-    kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
@@ -60,7 +64,10 @@ def test_joint_goal_clamped_to_upper_limit(pr2_world_state_reset):
     msc.add_node(end)
     end.start_condition = joint_goal.observes_true
 
-    kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
@@ -82,7 +89,10 @@ def test_joint_goal_clamped_to_lower_limit(pr2_world_state_reset):
     msc.add_node(end)
     end.start_condition = joint_goal.observes_true
 
-    kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
@@ -107,7 +117,10 @@ def test_joint_above_upper_limit_recovers(pr2_world_state_reset):
     msc.add_node(end)
     end.start_condition = joint_goal.observes_true
 
-    kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
@@ -133,7 +146,10 @@ def test_joint_below_lower_limit_recovers(pr2_world_state_reset):
     msc.add_node(end)
     end.start_condition = joint_goal.observes_true
 
-    kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
@@ -165,7 +181,10 @@ def test_multiple_joints_outside_limits_recover(pr2_world_state_reset):
     msc.add_node(end)
     end.start_condition = joint_goal.observes_true
 
-    kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 

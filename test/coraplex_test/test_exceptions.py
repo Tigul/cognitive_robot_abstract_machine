@@ -2,14 +2,15 @@
 Tests for the failures a plan raises about the motions it ran.
 """
 
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from cramph.statechart import Statechart
 from cramph.nodes_for_testing import ConstFalseNode
 from semantic_digital_twin.world import World
 
 from coraplex.exceptions import MotionDidNotFinish
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 
 def _running_motion() -> MotionStatechartNode:
@@ -20,7 +21,9 @@ def _running_motion() -> MotionStatechartNode:
     motion = ConstFalseNode(name="motion")
     motion_statechart = Statechart()
     motion_statechart.add_node(motion)
-    executor = Executor(MotionStatechartContext(world=World()))
+    executor = StatechartExecutor(
+        context=StatechartContext(world=World()), extensions=[MotionControl()]
+    )
     executor.compile(statechart=motion_statechart)
     executor.tick()
     return motion

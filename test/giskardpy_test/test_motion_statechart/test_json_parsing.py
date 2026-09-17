@@ -2,8 +2,6 @@ import json
 
 import numpy as np
 
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.data_types import (
     LifeCycleValues,
     ObservationStateValues,
@@ -46,6 +44,9 @@ from semantic_digital_twin.world_description.world_entity import (
     Body,
     WorldEntityReferenceWriter,
 )
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 # %% motion nodes in JSON
 
@@ -138,8 +139,12 @@ def test_start_condition(mini_world):
     new_json_data = json.loads(json_str)
     msc_copy = Statechart.from_json(new_json_data, world=mini_world)
 
-    Executor(context=MotionStatechartContext(world=mini_world)).compile(statechart=msc)
-    kin_sim = Executor(context=MotionStatechartContext(world=mini_world))
+    StatechartExecutor(
+        context=StatechartContext(world=mini_world), extensions=[MotionControl()]
+    ).compile(statechart=msc)
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=mini_world), extensions=[MotionControl()]
+    )
     kin_sim.compile(statechart=msc_copy)
     for index, node in enumerate(msc.nodes):
         assert node.name == msc_copy.nodes[index].name
@@ -198,11 +203,13 @@ def test_executing_json_parsed_statechart(tmp_path):
         new_json_data, world=world, **tracker.create_kwargs()
     )
 
-    kin_sim = Executor(
-        context=MotionStatechartContext(
-            world=world,
-            qp_controller_config=QPControllerConfig.create_with_simulation_defaults(),
-        )
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=world),
+        extensions=[
+            MotionControl(
+                qp_controller_config=QPControllerConfig.create_with_simulation_defaults()
+            )
+        ],
     )
     kin_sim.compile(statechart=msc_copy)
 
@@ -263,11 +270,13 @@ def test_cart_goal_simple(pr2_world_state_reset: World):
     kwargs = tracker.create_kwargs()
     msc_copy = Statechart.from_json(new_json_data, **kwargs)
 
-    kin_sim = Executor(
-        context=MotionStatechartContext(
-            world=pr2_world_state_reset,
-            qp_controller_config=QPControllerConfig.create_with_simulation_defaults(),
-        )
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[
+            MotionControl(
+                qp_controller_config=QPControllerConfig.create_with_simulation_defaults()
+            )
+        ],
     )
 
     kin_sim.compile(statechart=msc_copy)
@@ -318,7 +327,7 @@ def test_compressed_copy_can_be_plotted(pr2_world_state_reset: World, tmp_path):
     end.start_condition = cart_goal.observes_true
     msc.add_node(CancelStatechart.when_true(cart_goal))
 
-    msc._expand_goals(MotionStatechartContext.empty())
+    msc._expand_goals(StatechartContext(world=World()))
     json_data = msc.create_structure_copy().to_json()
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
@@ -356,11 +365,13 @@ def test_unreachable_cart_goal(pr2_world_state_reset):
     kwargs = tracker.create_kwargs()
     msc_copy = Statechart.from_json(new_json_data, **kwargs)
 
-    kin_sim = Executor(
-        context=MotionStatechartContext(
-            world=pr2_world_state_reset,
-            qp_controller_config=QPControllerConfig.create_with_simulation_defaults(),
-        )
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[
+            MotionControl(
+                qp_controller_config=QPControllerConfig.create_with_simulation_defaults()
+            )
+        ],
     )
 
     kin_sim.compile(statechart=msc_copy)
@@ -406,10 +417,12 @@ def test_nested_sequence_goal_json_round_trip_compilation():
     new_json_data = json.loads(json_str)
 
     msc_copy = Statechart.from_json(new_json_data)
-    executor = Executor(
-        context=MotionStatechartContext(
-            world=World(),
-            qp_controller_config=QPControllerConfig.create_with_simulation_defaults(),
-        )
+    executor = StatechartExecutor(
+        context=StatechartContext(world=World()),
+        extensions=[
+            MotionControl(
+                qp_controller_config=QPControllerConfig.create_with_simulation_defaults()
+            )
+        ],
     )
     executor.compile(statechart=msc_copy)

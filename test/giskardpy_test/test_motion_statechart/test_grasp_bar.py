@@ -1,7 +1,5 @@
 import numpy as np
 
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.data_types import ObservationStateValues
 from giskardpy.motion_statechart.graph_node import EndMotion
 from cramph.statechart import Statechart
@@ -11,6 +9,9 @@ from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
 )
 from semantic_digital_twin.spatial_types import Point3, Vector3
 from semantic_digital_twin.world import World
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 
 def test_grasp_bar(pr2_world_state_reset: World, rclpy_node):
@@ -36,7 +37,10 @@ def test_grasp_bar(pr2_world_state_reset: World, rclpy_node):
     msc.add_node(grasp)
     msc.add_node(EndMotion.when_true(grasp))
 
-    kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 

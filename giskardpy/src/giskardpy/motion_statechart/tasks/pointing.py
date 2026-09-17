@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
 from giskardpy.motion_statechart.error_signals import SymbolicErrorSignal
 from giskardpy.motion_statechart.graph_node import MotionNodeArtifacts
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianTask
@@ -42,7 +42,7 @@ class Pointing(CartesianTask):
     def goal_reference_frame(self) -> KinematicStructureEntity:
         return self.goal_point.reference_frame
 
-    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
         """
         Build motion constraints that swing the pointing axis onto the goal point.
 
@@ -123,7 +123,7 @@ class PointingCone(CartesianTask):
     def goal_reference_frame(self) -> KinematicStructureEntity:
         return self.goal_point.reference_frame
 
-    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
         """
         Build motion constraints that swing the pointing axis into the goal cone.
 

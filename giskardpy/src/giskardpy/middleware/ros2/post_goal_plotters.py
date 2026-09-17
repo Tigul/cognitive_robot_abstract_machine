@@ -5,8 +5,9 @@ import tempfile
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
-from giskardpy.executor import Executor
+from cramph.executor import StatechartExecutor
 from giskardpy.middleware.ros2 import rospy
+from giskardpy.motion_control import WorldStateTrajectoryRecording
 from giskardpy.utils.utils import create_path
 from semantic_digital_twin.world_description.world_state_trajectory_plotter import (
     WorldStateTrajectoryPlotter,
@@ -19,7 +20,7 @@ class PostGoalPlotter(ABC):
     Writes a debug plot of the finished motion to a file.
     """
 
-    executor: Executor
+    executor: StatechartExecutor
     """
     The executor holding the data that is plotted.
     """
@@ -65,7 +66,9 @@ class GoalTrajectoryPlotter(PostGoalPlotter):
     """
 
     def start_recording(self) -> None:
-        self.executor.trajectory_plotter = self.trajectory_plotter
+        self.executor.extensions.append(
+            WorldStateTrajectoryRecording(plotter=self.trajectory_plotter)
+        )
 
     def plot(self, goal_id: int) -> None:
         if len(self.trajectory_plotter.world_state_trajectory.times) <= 1:

@@ -66,8 +66,8 @@ class StatechartContext:
     """
     Dictionary of extensions used to augment the build context.
 
-    Ros2 extensions are automatically added to the build context when using the
-    Ros2Executor.
+    Executor extensions add the context extensions they need when an executor is
+    created, see :meth:`~cramph.executor.ExecutorExtension.extend_context`.
     """
 
     def set_tick_duration(self, tick_duration: float):

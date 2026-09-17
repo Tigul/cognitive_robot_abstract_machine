@@ -517,26 +517,6 @@ class DuplicateContextExtensionError(StatechartError):
 
 
 @dataclass
-class PlotterNotConfiguredError(StatechartError):
-    """
-    Raised when a plot is requested but the corresponding plotter was never configured.
-    """
-
-    plotter_name: str
-    """
-    The human-readable name of the plotter that is missing.
-    """
-
-    def error_message(self) -> str:
-        return (
-            f"Cannot plot: the {self.plotter_name} was not configured on the executor."
-        )
-
-    def suggest_correction(self) -> str:
-        return f"Pass a {self.plotter_name} when constructing the executor."
-
-
-@dataclass
 class NonPositiveRealTimeFactorError(StatechartError):
     """
     Raised when a simulation is configured to run at a non positive speed.

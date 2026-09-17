@@ -5,7 +5,7 @@ import numpy as np
 from geometry_msgs.msg import WrenchStamped
 
 from giskardpy.motion_statechart.ros2_nodes.topic_monitor import TopicSubscriberNode
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
 from cramph.data_types import ObservationStateValues
 
 
@@ -51,9 +51,7 @@ class ForceImpactMonitor(ForceTorqueNode):
 
     threshold: float = field(kw_only=True)
 
-    def on_tick(
-        self, context: MotionStatechartContext
-    ) -> Optional[ObservationStateValues]:
+    def on_tick(self, context: StatechartContext) -> Optional[ObservationStateValues]:
         super().on_tick(context)
         if not self.has_msg():
             return ObservationStateValues.UNKNOWN

@@ -1,13 +1,11 @@
 import numpy as np
 import pytest
 
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.debug_expression_trajectory import (
     DebugExpressionTrajectory,
 )
 from giskardpy.motion_statechart.exceptions import EmptyDebugExpressionTrajectoryError
-from cramph.exceptions import PlotterNotConfiguredError
+from cramph.exceptions import MissingExecutorExtensionError
 from giskardpy.motion_statechart.graph_node import DebugExpression, EndMotion
 from cramph.statechart import Statechart
 from giskardpy.motion_statechart.plotters.debug_expression_trajectory_plotter import (
@@ -18,6 +16,10 @@ from krrood.symbolic_math.symbolic_math import Scalar
 from semantic_digital_twin.exceptions import NonMonotonicTimeError
 from semantic_digital_twin.spatial_types import Point3
 from semantic_digital_twin.world import World
+from giskardpy.motion_control import DebugExpressionRecording
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 
 def _build_motion_statechart(cylinder_bot_world: World) -> Statechart:
@@ -38,13 +40,16 @@ def _build_motion_statechart(cylinder_bot_world: World) -> Statechart:
     return motion_statechart
 
 
-def _build_executor(cylinder_bot_world: World) -> Executor:
+def _build_executor(cylinder_bot_world: World) -> StatechartExecutor:
     """
     Build an executor that moves the bot to a Cartesian point while recording.
     """
-    executor = Executor(
-        context=MotionStatechartContext(world=cylinder_bot_world),
-        debug_expression_plotter=DebugExpressionTrajectoryPlotter(),
+    executor = StatechartExecutor(
+        context=StatechartContext(world=cylinder_bot_world),
+        extensions=[
+            MotionControl(),
+            DebugExpressionRecording(plotter=DebugExpressionTrajectoryPlotter()),
+        ],
     )
     executor.compile(statechart=_build_motion_statechart(cylinder_bot_world))
     return executor
@@ -55,7 +60,9 @@ class TestDebugExpressionRecording:
         executor = _build_executor(cylinder_bot_world)
         executor.tick_until_end()
 
-        trajectory = executor.debug_expression_plotter.debug_expression_trajectory
+        trajectory = executor.require_extension(
+            DebugExpressionRecording
+        ).plotter.debug_expression_trajectory
         assert len(trajectory.recorded_debug_expressions) > 0
         assert len(trajectory.times) > 1
         for recorded in trajectory.recorded_debug_expressions:
@@ -65,7 +72,9 @@ class TestDebugExpressionRecording:
         executor = _build_executor(cylinder_bot_world)
         executor.tick_until_end()
 
-        trajectory = executor.debug_expression_plotter.debug_expression_trajectory
+        trajectory = executor.require_extension(
+            DebugExpressionRecording
+        ).plotter.debug_expression_trajectory
         current = next(
             recorded
             for recorded in trajectory.recorded_debug_expressions
@@ -81,7 +90,7 @@ class TestDebugExpressionRecording:
         executor.tick_until_end()
 
         output = tmp_path / "debug_expressions.pdf"
-        executor.plot_debug_expressions(str(output))
+        executor.require_extension(DebugExpressionRecording).plotter.plot(str(output))
 
         assert output.exists()
         assert output.stat().st_size > 0
@@ -93,7 +102,7 @@ class TestDebugExpressionRecording:
         executor.tick_until_end()
 
         output = tmp_path / "debug_expressions" / "debug_expressions.pdf"
-        executor.plot_debug_expressions(str(output))
+        executor.require_extension(DebugExpressionRecording).plotter.plot(str(output))
 
         assert output.exists()
         assert output.stat().st_size > 0
@@ -101,12 +110,17 @@ class TestDebugExpressionRecording:
     def test_plot_raises_when_plotter_not_configured(
         self, cylinder_bot_world: World, tmp_path
     ):
-        executor = Executor(context=MotionStatechartContext(world=cylinder_bot_world))
+        executor = StatechartExecutor(
+            context=StatechartContext(world=cylinder_bot_world),
+            extensions=[MotionControl()],
+        )
         executor.compile(statechart=_build_motion_statechart(cylinder_bot_world))
 
         output = tmp_path / "debug_expressions.pdf"
-        with pytest.raises(PlotterNotConfiguredError):
-            executor.plot_debug_expressions(str(output))
+        with pytest.raises(MissingExecutorExtensionError):
+            executor.require_extension(DebugExpressionRecording).plotter.plot(
+                str(output)
+            )
 
 
 class TestDebugExpressionTrajectory:

@@ -10,7 +10,7 @@ import rclpy
 from json_msgs.action import JsonAction
 
 from giskardpy.data_types.exceptions import DontPrintStackTrace
-from giskardpy.executor import Executor
+from cramph.executor import StatechartExecutor
 from cramph.executor import RealTimePacer
 from giskardpy.middleware.ros2 import rospy
 from giskardpy.middleware.ros2.action_server import ActionServerHandler
@@ -47,7 +47,7 @@ class MotionServer:
     even if it fails.
     """
 
-    executor: Executor
+    executor: StatechartExecutor
     """
     Compiles and ticks the motion statecharts of incoming goals.
     """

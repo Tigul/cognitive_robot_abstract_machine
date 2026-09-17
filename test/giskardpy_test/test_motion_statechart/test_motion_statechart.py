@@ -5,9 +5,7 @@ import numpy as np
 import pytest
 
 from giskardpy.data_types.exceptions import DuplicateNameException
-from giskardpy.executor import Executor
 from giskardpy.motion_statechart.constraint_builders import GeometricConstraintBuilder
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.data_types import (
     LifeCycleValues,
     ObservationStateValues,
@@ -60,12 +58,18 @@ from semantic_digital_twin.world_description.world_entity import Body
 from semantic_digital_twin.robots.pr2 import PR2Joint
 
 from ...semantic_digital_twin_test.test_orm.test_orm import hsr_world_state_reset
+from giskardpy.motion_control import MotionControl
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
+from ..motion_control_context import create_context_with_motion_control
 
 # %% motion nodes in a statechart
 
 
-def _compile_msc(msc: Statechart) -> Executor:
-    executor = Executor(MotionStatechartContext(world=World()))
+def _compile_msc(msc: Statechart) -> StatechartExecutor:
+    executor = StatechartExecutor(
+        context=StatechartContext(world=World()), extensions=[MotionControl()]
+    )
     executor.compile(statechart=msc)
     return executor
 
@@ -76,7 +80,7 @@ class _ConvergingTaskWithoutErrorSignal(ConvergingTask):
     Converging task whose artifacts leave the error unset.
     """
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         return NodeArtifacts()
 
 
@@ -104,10 +108,9 @@ def test_two_goals(pr2_world_state_reset: World):
     )
     msc.add_node(EndMotion.when_true(local_min))
 
-    kin_sim = Executor(
-        MotionStatechartContext(
-            world=pr2_world_state_reset,
-        )
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
     )
     kin_sim.compile(statechart=msc)
 
@@ -122,10 +125,9 @@ def test_two_goals(pr2_world_state_reset: World):
     )
     msc.add_node(EndMotion.when_true(joint_goal))
 
-    kin_sim = Executor(
-        MotionStatechartContext(
-            world=pr2_world_state_reset,
-        )
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
     )
     kin_sim.compile(statechart=msc)
 
@@ -173,7 +175,10 @@ def test_parallel_local_minimum_reached_tolerates_stall(pr2_world_state_reset: W
     )
     msc.add_node(EndMotion.when_true(combined))
 
-    kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end(timeout=1000)
 
@@ -209,7 +214,10 @@ def test_joint_position_list_alone_times_out_on_stall(
     )
     msc.add_node(EndMotion.when_true(joint_goal))
 
-    kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
     kin_sim.compile(statechart=msc)
 
     with pytest.raises(TimeoutError):
@@ -241,7 +249,10 @@ def test_local_minimum_reached_only_depends_on_given_degrees_of_freedom(
     )
     msc.add_node(EndMotion.when_true(local_min))
 
-    kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
     kin_sim.compile(statechart=msc)
 
     # Checked directly against local_min's own observation state, not against
@@ -281,7 +292,7 @@ def test_local_minimum_reached_raises_on_explicitly_empty_degrees_of_freedom(
     the monitor into a constant-true observation that could mask the bug.
     """
     monitor = LocalMinimumReached(degrees_of_freedom=[])
-    context = MotionStatechartContext(world=pr2_world_state_reset)
+    context = create_context_with_motion_control(pr2_world_state_reset)
 
     with pytest.raises(EmptyDegreesOfFreedomError):
         monitor.build(context)
@@ -328,10 +339,9 @@ def test_long_goal(pr2_world_state_reset: World):
     )
     msc.add_node(EndMotion.when_true(cart_goal))
 
-    kin_sim = Executor(
-        MotionStatechartContext(
-            world=pr2_world_state_reset,
-        )
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
     )
     kin_sim.compile(statechart=msc)
     t = time.perf_counter()
@@ -463,7 +473,10 @@ class TestTemplates:
         cut.reset_condition = done.observes_false
         msc.add_node(EndMotion.when_true(done))
 
-        executor = Executor(MotionStatechartContext(world=hsr_world_state_reset))
+        executor = StatechartExecutor(
+            context=StatechartContext(world=hsr_world_state_reset),
+            extensions=[MotionControl()],
+        )
         executor.compile(statechart=msc)
 
         executor.tick_until_end()
@@ -506,10 +519,9 @@ class TestTemplates:
         )
         msc.add_node(EndMotion.when_true(parallel))
 
-        kin_sim = Executor(
-            MotionStatechartContext(
-                world=pr2_world_state_reset,
-            )
+        kin_sim = StatechartExecutor(
+            context=StatechartContext(world=pr2_world_state_reset),
+            extensions=[MotionControl()],
         )
         kin_sim.compile(statechart=msc)
         kin_sim.tick_until_end()
@@ -632,7 +644,10 @@ class TestMaxManipulability:
         manipulability.interrupt_condition = cart_goal.observes_true
         msc.add_node(EndMotion.when_true(cart_goal))
 
-        kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
+        kin_sim = StatechartExecutor(
+            context=StatechartContext(world=pr2_world_state_reset),
+            extensions=[MotionControl()],
+        )
         kin_sim.compile(statechart=msc)
         kin_sim.tick_until_end()
 

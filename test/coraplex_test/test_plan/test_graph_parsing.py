@@ -49,14 +49,12 @@ from coraplex.language import (
 )
 from cramph.composites import PausedUntilTrue, PausedWhileTrue
 from coraplex.utils import split_list_by_type
-from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.composites import Parallel, Sequence, TryAll, TryInOrder, CancelledWhenTrue
 from giskardpy.motion_statechart.goals.templates import RepeatOnStall
 from cramph.node import CancelStatechart
 from cramph.monitors import CountNodeResets
 from giskardpy.motion_statechart.monitors.progress_monitors import Stalled
 from cramph.nodes_for_testing import ConstFalseNode
-from giskardpy.ros_executor import Ros2Executor
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
@@ -67,6 +65,10 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Point3
 from semantic_digital_twin.world_description.geometry import VolumetricBoundingBox
+from giskardpy.motion_control import MotionControl
+from giskardpy.motion_statechart.ros_context import RosNodeAccess
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 
 
 def test_parse_simple_action(immutable_model_world):
@@ -151,8 +153,9 @@ def _parse_and_compile(plan, world, context):
     executable = plan.parse()
     with simulated_robot:
         executable.prepare_for_execution()
-    executor = Ros2Executor(
-        context=MotionStatechartContext(world=world), ros_node=context.ros_node
+    executor = StatechartExecutor(
+        context=StatechartContext(world=world),
+        extensions=[RosNodeAccess(context.ros_node), MotionControl()],
     )
     executor.compile(executable.motion_state_chart)
     return executable

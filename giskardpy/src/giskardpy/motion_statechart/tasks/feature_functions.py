@@ -9,7 +9,7 @@ from semantic_digital_twin.world_description.geometry import Color
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.error_signals import SymbolicErrorSignal
 from giskardpy.motion_statechart.graph_node import (
@@ -56,7 +56,7 @@ class FeatureFunctionGoal(ConvergingTask, ABC):
         """
         raise NotImplementedError
 
-    def build(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+    def build(self, context: StatechartContext) -> MotionNodeArtifacts:
         self.controlled_feature, self.reference_feature = (
             self.get_controlled_and_reference_features()
         )
@@ -156,7 +156,7 @@ class AlignPerpendicular(FeatureFunctionGoal):
     def get_controlled_and_reference_features(self):
         return self.tip_normal, self.reference_normal
 
-    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
         """
         Build a constraint that drives the two normals perpendicular.
 
@@ -218,7 +218,7 @@ class HeightGoal(FeatureFunctionGoal):
     def get_controlled_and_reference_features(self):
         return self.tip_point, self.reference_point
 
-    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
         """
         Build a constraint that keeps the height difference within the limits.
 
@@ -286,7 +286,7 @@ class DistanceGoal(FeatureFunctionGoal):
     def get_controlled_and_reference_features(self):
         return self.tip_point, self.reference_point
 
-    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
         """
         Build a constraint that keeps the planar distance within the limits.
 
@@ -365,7 +365,7 @@ class AngleGoal(FeatureFunctionGoal):
     def get_controlled_and_reference_features(self):
         return self.tip_vector, self.reference_vector
 
-    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
         """
         Build a constraint that keeps the angle between the vectors within the limits.
 

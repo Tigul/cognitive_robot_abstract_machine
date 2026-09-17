@@ -10,7 +10,7 @@ from rclpy.subscription import Subscription
 from typing_extensions import Generic, Type
 
 import krrood.symbolic_math.symbolic_math as sm
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
 from cramph.data_types import ObservationStateValues, SuccessDecider
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from cramph.node import NodeArtifacts
@@ -44,7 +44,7 @@ class TopicNode(MotionStatechartNode, Generic[MsgType]):
 
     ros2_node: Node = field(init=False)
 
-    def build(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build(self, context: StatechartContext) -> NodeArtifacts:
         ros_context_extension = context.require_extension(RosContextExtension)
         self.ros2_node = ros_context_extension.ros_node
         return super().build(context)
@@ -76,7 +76,7 @@ class TopicSubscriberNode(TopicNode[MsgType]):
     __last_msg is copied to this variable on every tick while this node is RUNNING.
     """
 
-    def build(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build(self, context: StatechartContext) -> NodeArtifacts:
         node_artifacts = super().build(context)
         self._subscriber = self.ros2_node.create_subscription(
             msg_type=self.msg_type,
@@ -95,15 +95,13 @@ class TopicSubscriberNode(TopicNode[MsgType]):
     def clear_msg(self):
         self.__last_msg = None
 
-    def on_tick(
-        self, context: MotionStatechartContext
-    ) -> Optional[ObservationStateValues]:
+    def on_tick(self, context: StatechartContext) -> Optional[ObservationStateValues]:
         """
         .. warning:: If you override this method, make sure to call `super().on_tick(context)`.
         """
         self.current_msg = self.__last_msg
 
-    def on_reset(self, context: MotionStatechartContext):
+    def on_reset(self, context: StatechartContext):
         self.clear_msg()
 
 
@@ -120,7 +118,7 @@ class TopicPublisherNode(TopicNode[MsgType]):
     Internal ROS publisher object.
     """
 
-    def build(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build(self, context: StatechartContext) -> NodeArtifacts:
         node_artifacts = super().build(context)
         self._publisher = self.ros2_node.create_publisher(
             msg_type=self.msg_type,
@@ -136,9 +134,7 @@ class WaitForMessage(TopicSubscriberNode[MsgType]):
     This node will turn to True once a message was received on its topic.
     """
 
-    def on_tick(
-        self, context: MotionStatechartContext
-    ) -> Optional[ObservationStateValues]:
+    def on_tick(self, context: StatechartContext) -> Optional[ObservationStateValues]:
         super().on_tick(context)
         if self.has_msg():
             return ObservationStateValues.TRUE
@@ -168,10 +164,10 @@ class PublishOnStart(TopicPublisherNode[MsgType]):
         super().__post_init__()
         self.msg_type = type(self.msg)
 
-    def build(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build(self, context: StatechartContext) -> NodeArtifacts:
         node_artifacts = super().build(context)
         node_artifacts.observation = sm.Scalar.const_true()
         return node_artifacts
 
-    def on_start(self, context: MotionStatechartContext):
+    def on_start(self, context: StatechartContext):
         self._publisher.publish(self.msg)
