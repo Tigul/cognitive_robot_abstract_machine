@@ -31,8 +31,8 @@ from cramph.statechart import Statechart
 from cramph.nodes_for_testing import (
     ConstTrueNode,
     CompositeNodeWithNestedCompositeChild,
-    NodeKind,
-    SpecializedNodeOfAKind,
+    NodeWithOwnStructureCopy,
+    SpecializedNodeWithOwnStructureCopy,
 )
 from krrood.adapters.json_serializer import to_json, from_json
 from krrood.symbolic_math.symbolic_math import (
@@ -174,11 +174,13 @@ def test_structure_copy_uses_the_kind_a_node_declares():
     copy themselves, so a plain statechart copies them without knowing them.
     """
     msc = Statechart()
-    msc.add_node(node := SpecializedNodeOfAKind(name="specialized", detail=3))
+    msc.add_node(
+        node := SpecializedNodeWithOwnStructureCopy(name="specialized", detail=3)
+    )
 
     node_copy = msc.create_structure_copy().get_node_by_index(node.index)
 
-    assert type(node_copy) is NodeKind
+    assert type(node_copy) is NodeWithOwnStructureCopy
     assert node_copy.name == node.name
 
 

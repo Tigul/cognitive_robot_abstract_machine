@@ -63,7 +63,7 @@ class ConstFalseNode(StatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class NodeKind(StatechartNode):
+class NodeWithOwnStructureCopy(StatechartNode):
     """
     A kind of node declared outside of the statechart's own node classes, whose structure
     copy is an instance of this kind.
@@ -71,14 +71,14 @@ class NodeKind(StatechartNode):
 
     success_decided_by = SuccessDecider.OWNER
 
-    def create_structure_copy(self) -> NodeKind:
-        return NodeKind(name=self.name)
+    def create_structure_copy(self) -> NodeWithOwnStructureCopy:
+        return NodeWithOwnStructureCopy(name=self.name)
 
 
 @dataclass(eq=False, repr=False)
-class SpecializedNodeOfAKind(NodeKind):
+class SpecializedNodeWithOwnStructureCopy(NodeWithOwnStructureCopy):
     """
-    A specialization of :class:`NodeKind` whose structure copy falls back to that kind.
+    A specialization of :class:`NodeWithOwnStructureCopy` whose structure copy falls back to that kind.
     """
 
     detail: int = field(default=0, kw_only=True)
