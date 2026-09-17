@@ -1417,6 +1417,7 @@ class MotionStatechart(SubclassJSONSerializer):
         """
         self.sanity_check()
         self._expand_goals(context=context)
+        self._check_children_of_goals()
         self._check_every_node_declares_its_success_decider()
         self._succeed_self_deciding_nodes_observing_true()
         self._fail_self_failing_nodes_observing_false()
@@ -1431,6 +1432,13 @@ class MotionStatechart(SubclassJSONSerializer):
                 observation_state=self.observation_state,
             )
         )
+
+    def _check_children_of_goals(self) -> None:
+        """
+        Lets every goal reject the children it was expanded with.
+        """
+        for goal in self.get_nodes_by_type(CompositeStatechartNode):
+            goal.check_children()
 
     def _check_every_node_declares_its_success_decider(self) -> None:
         """

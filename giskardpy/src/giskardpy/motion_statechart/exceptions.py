@@ -11,6 +11,7 @@ from semantic_digital_twin.collision_checking.collision_detector import ClosestP
 
 if TYPE_CHECKING:
     from giskardpy.motion_statechart.data_types import TransitionKind
+    from giskardpy.motion_statechart.goals.templates import Attempt
     from giskardpy.motion_statechart.graph_node import (
         MotionStatechartNode,
         TransitionCondition,
@@ -169,6 +170,31 @@ class SuccessDeciderNotDeclaredError(NodeInitializationError):
         return (
             "Set success_decided_by on the class: SuccessDecider.OWNER if ending the node "
             "may undo what it reached, SuccessDecider.ITSELF otherwise."
+        )
+
+
+@dataclass
+class AttemptCannotFailError(NodeInitializationError):
+    """
+    Raised when a template that only moves on once an attempt failed is handed an
+    attempt that cannot fail.
+    """
+
+    attempt: Attempt
+    """
+    The attempt that has no failure monitors and whose task cannot fail on its own.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f'"{self.attempt.unique_name}" cannot fail, but "{self.node.unique_name}" '
+            f"only moves on once it failed."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Wrap the task in an Attempt whose failure monitors decide when to give up "
+            "on it."
         )
 
 

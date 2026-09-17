@@ -14,6 +14,7 @@ from giskardpy.motion_statechart.data_types import (
     ObservationStateValues,
     SuccessDecider,
 )
+from giskardpy.motion_statechart.exceptions import AttemptCannotFailError
 from giskardpy.motion_statechart.graph_node import (
     CancelMotion,
     CompositeStatechartNode,
@@ -86,6 +87,14 @@ class Attempt(CompositeStatechartNode):
         return trinary_logic_or(
             *[monitor.last_observed_true for monitor in self.failure_monitors]
         )
+
+    @property
+    def can_fail(self) -> bool:
+        """
+        Whether this goal has a way to fail: a failure monitor, or a task that fails on
+        its own.
+        """
+        return bool(self.failure_monitors) or self.task.can_fail_on_its_own
 
     @property
     def failure_reasons(self) -> List[MotionStatechartNode]:
@@ -198,7 +207,8 @@ class CompositeStatechartNodeOverSelfDecidingNodes(CompositeStatechartNode, ABC)
         converting.
 
         A node whose owner decides its success observes whether it reached its goal, so
-        one is wrapped in an :class:`Attempt` that states no way of failing.
+        one is wrapped in an :class:`Attempt` without failure monitors, which fails only
+        if the node fails on its own.
 
         :param node: The child the caller passed.
         :return: The child to run in its place, which may be `node` itself.
@@ -216,6 +226,18 @@ class CompositeStatechartNodeOverSelfDecidingNodes(CompositeStatechartNode, ABC)
         self._add_child_to_motion_statechart(attempt)
         node.parent_node = attempt
         return attempt
+
+    def _check_attempt_can_fail(self, node: MotionStatechartNode) -> None:
+        """
+        Rejects a child this goal only moves on from once it failed, if it is an attempt
+        that cannot fail.
+
+        :param node: The child this goal waits on to fail.
+        :raises AttemptCannotFailError: If `node` is an :class:`Attempt` that cannot
+            fail.
+        """
+        if isinstance(node, Attempt) and not node.can_fail:
+            raise AttemptCannotFailError(node=self, attempt=node)
 
 
 @dataclass(repr=False, eq=False)
@@ -400,8 +422,8 @@ class RepeatUntil(CompositeStatechartNodeOverSelfDecidingNodes):
     What counts as a failed attempt is stated on the task itself: hand it an
     :class:`Attempt` carrying the failure monitors that decide it, or see
     :class:`RepeatOnStall`, which derives that decision from the task's own progress. A
-    task that never ends on its own is attempted with no way of failing, so it is never
-    retried and ends only by succeeding or once :attr:`stop_retry_monitor` fires.
+    task that never ends on its own is attempted without failure monitors, which is
+    rejected unless the task fails on its own, since it would never be retried.
     """
 
     task: MotionStatechartNode = field(kw_only=True)
@@ -451,6 +473,12 @@ class RepeatUntil(CompositeStatechartNodeOverSelfDecidingNodes):
         self._attempt.reset_condition = logic_and(self._attempt.is_failed, still_trying)
         self._attempt.interrupt_condition = retrying_stopped
         self._end_motion_once_retrying_stops()
+
+    def check_children(self) -> None:
+        """
+        Rejects an attempt that cannot fail, since it would never be retried.
+        """
+        self._check_attempt_can_fail(self._attempt)
 
     @property
     def _retrying_stopped(self) -> Scalar:
@@ -620,6 +648,8 @@ class TryInOrder(
 
     Each alternative decides for itself when to give up, which is why this goal reduces
     to ordering: wrap one in an :class:`Attempt` carrying the monitors that decide it.
+    An attempt that cannot fail is rejected anywhere but last, since the alternatives
+    after it could never start.
 
     .. note:: corresponds to the RPL's TRY-IN-ORDER. (McDermott, Drew. A reactive plan language, 1991)
     """
@@ -645,6 +675,14 @@ class TryInOrder(
                 )
             self._alternatives.append(alternative)
             previous_alternative = alternative
+
+    def check_children(self) -> None:
+        """
+        Rejects an attempt that cannot fail before the last alternative, since the
+        alternatives after it could never start.
+        """
+        for alternative in self._alternatives[:-1]:
+            self._check_attempt_can_fail(alternative)
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         """

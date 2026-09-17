@@ -19,6 +19,7 @@ from giskardpy.motion_statechart.data_types import (
     ObservationStateValues,
 )
 from giskardpy.motion_statechart.exceptions import (
+    AttemptCannotFailError,
     CompositeStatechartNodeWithoutChildrenError,
 )
 from giskardpy.motion_statechart.goals.templates import (
@@ -361,6 +362,80 @@ def test_a_try_in_order_without_nodes_is_rejected():
     executor = Executor(MotionStatechartContext(world=World()))
     with pytest.raises(CompositeStatechartNodeWithoutChildrenError):
         executor.compile(motion_statechart=msc)
+
+
+# %% alternatives that cannot fail
+
+
+def test_a_try_in_order_rejects_a_plain_task_before_its_last_alternative():
+    """
+    A plain task is attempted with no way of failing, so the alternatives after it could
+    never start.
+    """
+    task = ConstFalseNode(name="first")
+    goal = TryInOrder(nodes=[task, _alternative(ConstTrueNode(name="second"))])
+
+    with pytest.raises(AttemptCannotFailError) as error:
+        _compile_and_tick(goal, ticks=0)
+
+    assert error.value.node is goal
+    assert error.value.attempt.task is task
+
+
+def test_a_try_in_order_rejects_an_attempt_without_failure_monitors_before_its_last_alternative():
+    first = Attempt(
+        name="first", task=ConstFalseNode(name="first task"), failure_monitors=[]
+    )
+    goal = TryInOrder(nodes=[first, _alternative(ConstTrueNode(name="second"))])
+
+    with pytest.raises(AttemptCannotFailError) as error:
+        _compile_and_tick(goal, ticks=0)
+
+    assert error.value.attempt is first
+
+
+def test_a_try_in_order_accepts_a_plain_task_as_its_last_alternative():
+    goal = TryInOrder(
+        nodes=[
+            _alternative(ConstFalseNode(name="first")),
+            ConstTrueNode(name="last"),
+        ]
+    )
+    _compile_and_tick(goal, alternatives_to_abandon=1)
+
+    assert goal.last_observation_state == ObservationStateValues.TRUE
+
+
+def test_a_try_in_order_accepts_a_plain_task_that_fails_on_its_own():
+    """
+    A task declaring its own failure gives its attempt a way to fail, so the next
+    alternative is reachable.
+    """
+    first = ConstTrueNode(name="first")
+    first.fail_condition = first.observes_true
+    second = ConstTrueNode(name="second")
+    goal = TryInOrder(nodes=[first, second])
+    _compile_and_tick(goal)
+
+    assert first.life_cycle_state == LifeCycleValues.FAILED
+    assert goal.last_observation_state == ObservationStateValues.TRUE
+
+
+def test_a_try_in_order_accepts_a_monitored_node_that_is_stopped_before_its_last_alternative():
+    """
+    A monitored template fails once its monitor stopped the monitored node, which is a
+    way for its attempt to fail.
+    """
+    first = StoppedWhenTrue(
+        name="first",
+        monitor=ConstTrueNode(name="stop"),
+        monitored_node=ConstFalseNode(name="stuck"),
+    )
+    goal = TryInOrder(nodes=[first, ConstTrueNode(name="second")])
+    _compile_and_tick(goal)
+
+    assert first.life_cycle_state == LifeCycleValues.FAILED
+    assert goal.last_observation_state == ObservationStateValues.TRUE
 
 
 # %% monitored subtrees

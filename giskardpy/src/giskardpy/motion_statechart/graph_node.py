@@ -1514,6 +1514,20 @@ class MotionStatechartNode(SubclassJSONSerializer):
             raise NotInMotionStatechartError(self.name)
         self._fail_condition.update_expression(expression, self)
 
+    @property
+    def can_fail_on_its_own(self) -> bool:
+        """
+        Whether this node declares a way to fail, through its fail condition or by
+        failing once it observes False.
+
+        .. note:: Complete only once every goal of the motion statechart has expanded,
+            because a template may write its own fail condition while expanding.
+        """
+        return (
+            self.fails_when_observing_false
+            or not self.fail_condition.is_constant_false()
+        )
+
     def _life_cycle_predicate(
         self, predicate: LifeCyclePredicate
     ) -> LifeCyclePredicateVariable:
@@ -1960,6 +1974,12 @@ class CompositeStatechartNode(MotionStatechartNode):
         Instantiate child nodes, add them to this node, and wire their life cycle transition conditions.
         ..warning:: Nodes have not been built yet.
         :param context: The context that contains data that can be used to expand this node.
+        """
+
+    def check_children(self) -> None:
+        """
+        Rejects children this node cannot run, once every goal of the motion statechart
+        has expanded and the children's conditions are complete.
         """
 
     def _add_child_to_motion_statechart(self, node: MotionStatechartNode) -> None:

@@ -371,7 +371,13 @@ The ordering templates (`Sequence`, `TryInOrder`, `TryAll`, `RepeatUntil`) decid
 children start and end, so they check every child they are given:
 
 - A child whose owner decides its success is wrapped in an `Attempt` without failure monitors
-  automatically.
+  automatically. Such an attempt fails only if the child fails on its own, as `Parallel` and
+  the monitored composite statechart nodes can.
+- `TryInOrder` (for every alternative but the last) and `RepeatUntil` only move on once an
+  attempt failed. They reject an `Attempt` that cannot fail, written by hand or created
+  automatically, with an `AttemptCannotFailError` at compile time. An attempt cannot fail if it
+  has no failure monitors and its task has neither a fail condition nor
+  `fails_when_observing_false`.
 - A child whose start, pause, success, interrupt or reset condition was already set is
   rejected with a `ChildTransitionAlreadyWiredError`, because those are the template's to
   decide. The fail condition is exempt, since a node declares its own failure.
@@ -488,8 +494,8 @@ alternative starts once the previous one ended without succeeding.
 - It observes **False** once every alternative ended without succeeding.
 
 Each alternative decides for itself when to give up, typically as an `Attempt` with failure
-monitors. An alternative without any way to fail keeps the later alternatives from ever
-starting.
+monitors. An attempt that cannot fail would keep the later alternatives from ever starting, so
+it is rejected anywhere but last.
 
 ```{mermaid}
 flowchart LR
@@ -521,7 +527,7 @@ Runs all of its `nodes` at the same time and takes the first one that works.
 `stop_retry_monitor` calls the retrying off.
 
 - The task is wrapped in an attempt if it needs one. Its failure monitors decide what counts
-  as a failed try.
+  as a failed try. An attempt that cannot fail would never be retried, so it is rejected.
 - A failed try is reset on the next control cycle, as long as the stop monitor has not
   observed True. Resetting a goal resets everything below it, so a composite task starts over as a
   whole.

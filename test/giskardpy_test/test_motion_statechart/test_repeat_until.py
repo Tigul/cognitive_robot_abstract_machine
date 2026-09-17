@@ -20,6 +20,7 @@ from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     ObservationStateValues,
 )
+from giskardpy.motion_statechart.exceptions import AttemptCannotFailError
 from giskardpy.motion_statechart.goals.templates import (
     Attempt,
     RepeatOnStall,
@@ -174,7 +175,13 @@ def test_repeat_until_starts_its_task_while_the_stop_monitor_has_not_decided():
     """
     loop = RepeatUntil(
         name="loop",
-        task=ConstFalseNode(name="task"),
+        task=Attempt(
+            name="attempt",
+            task=ConstFalseNode(name="task"),
+            failure_monitors=[
+                CountControlCycles(name="timeout", control_cycles=ATTEMPT_CYCLES)
+            ],
+        ),
         stop_retry_monitor=NodeObservingNothingYet(name="undecided"),
     )
     motion_statechart = MotionStatechart()
@@ -187,10 +194,9 @@ def test_repeat_until_starts_its_task_while_the_stop_monitor_has_not_decided():
     assert loop.task.life_cycle_state == LifeCycleValues.RUNNING
 
 
-def test_repeat_until_attempts_a_task_that_never_ends_on_its_own():
+def test_repeat_until_rejects_a_task_that_cannot_fail():
     """
-    A task handed over without an attempt around it is attempted all the same, so the
-    loop ends once the task reaches its goal.
+    A plain task is attempted with no way of failing, so it would never be retried.
     """
     task = ConstTrueNode(name="task")
     loop = RepeatUntil(
@@ -200,15 +206,13 @@ def test_repeat_until_attempts_a_task_that_never_ends_on_its_own():
     )
     motion_statechart = MotionStatechart()
     motion_statechart.add_node(loop)
-    motion_statechart.add_node(EndMotion.when_true(loop))
     executor = Executor(MotionStatechartContext(world=World()))
-    executor.compile(motion_statechart=motion_statechart)
 
-    executor.tick_until_end(SETTLE_CYCLES)
+    with pytest.raises(AttemptCannotFailError) as error:
+        executor.compile(motion_statechart=motion_statechart)
 
-    assert type(task.parent_node) is Attempt
-    assert loop.last_observation_state == ObservationStateValues.TRUE
-    assert motion_statechart.is_end_motion()
+    assert error.value.node is loop
+    assert error.value.attempt.task is task
 
 
 def test_repeat_on_stall_retries_when_a_failure_monitor_of_its_attempt_fires():
