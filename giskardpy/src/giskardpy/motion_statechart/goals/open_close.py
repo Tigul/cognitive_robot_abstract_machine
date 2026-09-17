@@ -10,10 +10,10 @@ from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import DefaultWeights
+from giskardpy.motion_statechart.data_types import DefaultWeights, SuccessDecider
 from giskardpy.motion_statechart.graph_node import (
+    MotionStatechartNode,
     CompositeStatechartNode,
-    MaintenanceNode,
     NodeArtifacts,
 )
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
@@ -21,7 +21,7 @@ from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, Joi
 
 
 @dataclass(eq=False, repr=False)
-class Open(MaintenanceNode, CompositeStatechartNode):
+class Open(CompositeStatechartNode):
     """
     Open a 1-dof mechanism in an environment by driving its degree of freedom towards
     its upper limit while keeping the end effector fixed relative to the grasped part.
@@ -30,6 +30,8 @@ class Open(MaintenanceNode, CompositeStatechartNode):
     grasped. Works with any mechanism whose grasped part hangs below an
     :class:`ActiveConnection1DOF`, e.g. drawers, doors, or screw caps.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     tip_link: KinematicStructureEntity = field(kw_only=True)
     """

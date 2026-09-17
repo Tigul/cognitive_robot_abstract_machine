@@ -6,10 +6,12 @@ from dataclasses import field
 from typing_extensions import List, Optional
 
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import ObservationStateValues
+from giskardpy.motion_statechart.data_types import (
+    ObservationStateValues,
+    SuccessDecider,
+)
 from giskardpy.motion_statechart.exceptions import EmptyDegreesOfFreedomError
 from giskardpy.motion_statechart.graph_node import (
-    MaintenanceNode,
     MotionStatechartNode,
     NodeArtifacts,
     velocity_convergence_expression,
@@ -29,6 +31,8 @@ class ThreadedPayloadMonitor(MotionStatechartNode, ABC):
     for expensive operations
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     state: ObservationStateValues = field(
         init=False, default=ObservationStateValues.UNKNOWN
     )
@@ -39,12 +43,14 @@ class ThreadedPayloadMonitor(MotionStatechartNode, ABC):
 
 
 @dataclass(repr=False, eq=False)
-class LocalMinimumReached(MaintenanceNode):
+class LocalMinimumReached(MotionStatechartNode):
     """
     Checks if the robot has reached a local minimum in the trajectory, by checking if
     all velocities are below a degree of freedoms' max velocity
     *`joint_convergence_threshold`.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     joint_convergence_threshold: float = 0.01
     """

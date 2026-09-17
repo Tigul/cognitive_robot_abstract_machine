@@ -11,8 +11,8 @@ from giskardpy.motion_statechart.binding_policy import (
     GoalBindingPolicy,
 )
 from giskardpy.motion_statechart.context import MotionStatechartContext
+from giskardpy.motion_statechart.data_types import SuccessDecider
 from giskardpy.motion_statechart.graph_node import (
-    MaintenanceNode,
     MotionStatechartNode,
     NodeArtifacts,
 )
@@ -28,12 +28,14 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 
 @dataclass(eq=False, repr=False)
-class RootRelativeGoalMonitor(MaintenanceNode, ABC):
+class RootRelativeGoalMonitor(MotionStatechartNode, ABC):
     """
     Base for monitors whose goal is captured relative to the kinematic chain via a forward
     kinematics binding. The :class:`GoalBindingPolicy` decides whether the goal is frozen once at
     build time or recaptured every time the monitor starts.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     root_link: Body = field(kw_only=True)
     """Root link of the kinematic chain the goal is expressed in."""
@@ -170,11 +172,13 @@ class OrientationReached(RootRelativeGoalMonitor):
 
 
 @dataclass(eq=False, repr=False)
-class PointingAt(MaintenanceNode):
+class PointingAt(MotionStatechartNode):
     """
     Observes ``True`` once the pointing axis of the tip link is aimed at the goal point within
     ``threshold``.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     tip_link: Body = field(kw_only=True)
     """Link whose pointing axis is checked."""
@@ -209,10 +213,12 @@ class PointingAt(MaintenanceNode):
 
 
 @dataclass(eq=False, repr=False)
-class VectorsAligned(MaintenanceNode):
+class VectorsAligned(MotionStatechartNode):
     """
     Observes ``True`` once the tip normal is aligned with the goal normal within ``threshold``.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     root_link: Body = field(kw_only=True)
     """Reference link the goal normal is expressed in."""
@@ -245,11 +251,13 @@ class VectorsAligned(MaintenanceNode):
 
 
 @dataclass(eq=False, repr=False)
-class DistanceToLine(MaintenanceNode):
+class DistanceToLine(MotionStatechartNode):
     """
     Observes ``True`` once the tip link is within ``threshold`` of the line segment centered at
     ``center_point`` along ``line_axis``.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     root_link: Body = field(kw_only=True)
     """Reference link the line is expressed in."""

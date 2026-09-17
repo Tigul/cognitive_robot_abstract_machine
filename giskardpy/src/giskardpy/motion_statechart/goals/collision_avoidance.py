@@ -4,6 +4,7 @@ from itertools import combinations
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
+    SuccessDecider,
     DefaultWeights,
     ObservationStateValues,
 )
@@ -12,11 +13,10 @@ from giskardpy.motion_statechart.exceptions import (
     CollisionViolatedError,
 )
 from giskardpy.motion_statechart.graph_node import (
-    MaintenanceNode,
+    MotionStatechartNode,
     CompositeStatechartNode,
     NodeArtifacts,
     CancelMotion,
-    SelfDecidingNode,
 )
 from giskardpy.motion_statechart.graph_node import Task
 from giskardpy.motion_statechart.plotters.plot_specs import (
@@ -296,10 +296,12 @@ class _CancelBecauseExternalCollisionViolated(_CancelBecauseCollisionViolated):
 
 
 @dataclass(eq=False, repr=False)
-class UpdateTemporaryCollisionRules(SelfDecidingNode):
+class UpdateTemporaryCollisionRules(MotionStatechartNode):
     """
     Updates the temporary collision rules for the robot.
     """
+
+    success_decided_by = SuccessDecider.ITSELF
 
     temporary_rules: list[CollisionRule] = field(kw_only=True)
     collision_matrix: CollisionMatrix = field(init=False)
@@ -329,10 +331,12 @@ class UpdateTemporaryCollisionRules(SelfDecidingNode):
 
 
 @dataclass(eq=False, repr=False)
-class SetInitialTemporaryCollisionRules(SelfDecidingNode):
+class SetInitialTemporaryCollisionRules(MotionStatechartNode):
     """
     Updates the temporary collision rules for the robot.
     """
+
+    success_decided_by = SuccessDecider.ITSELF
 
     temporary_rules: list[CollisionRule] = field(kw_only=True)
     collision_matrix: CollisionMatrix = field(init=False)
@@ -376,6 +380,8 @@ class ExternalCollisionAvoidance(CompositeStatechartNode):
     ..note:: This goal expands into one node pair per collision group, so its children are
         left out of drawings. Set `plot_specifications.collapse_children` to False to draw them.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     plot_specifications: NodePlotSpec = plot_specification_field(
         NodePlotSpec.create_collapsed_composite_statechart_node_style
@@ -457,13 +463,15 @@ class ExternalCollisionAvoidance(CompositeStatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class ExternalCollisionDistanceMonitor(MaintenanceNode):
+class ExternalCollisionDistanceMonitor(MotionStatechartNode):
     """
     Monitors the distance to the closest external object for a specific collision group
     of a body. Turns True if the distance falls below a given threshold.
 
     .. note:: the input bodies are only used to look up the collision groups.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     body: Body = field(kw_only=True)
     """
@@ -691,6 +699,8 @@ class SelfCollisionAvoidance(CompositeStatechartNode):
         draw them.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     plot_specifications: NodePlotSpec = plot_specification_field(
         NodePlotSpec.create_collapsed_composite_statechart_node_style
     )
@@ -802,13 +812,15 @@ class SelfCollisionAvoidance(CompositeStatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class SelfCollisionDistanceMonitor(MaintenanceNode):
+class SelfCollisionDistanceMonitor(MotionStatechartNode):
     """
     Monitors the distance to the closest external object for the group of a body.
 
     Turns True if the distance falls below a given threshold.
     .. note:: the input bodies are only used to look up the collision groups.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     body_a: Body = field(kw_only=True)
     """

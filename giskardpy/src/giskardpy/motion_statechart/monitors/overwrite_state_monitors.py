@@ -11,16 +11,16 @@ from semantic_digital_twin.world_description.connections import (
 from semantic_digital_twin.world_description.world_entity import Connection
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.exceptions import UnexpectedWorldEntityCountError
+from giskardpy.motion_statechart.data_types import SuccessDecider
 from giskardpy.motion_statechart.graph_node import (
     MotionStatechartNode,
     NodeArtifacts,
-    SelfDecidingNode,
 )
 from giskardpy.motion_statechart.tasks.joint_tasks import JointState
 
 
 @dataclass(eq=False, repr=False)
-class SetSeedConfiguration(SelfDecidingNode):
+class SetSeedConfiguration(MotionStatechartNode):
     """
     Overwrite the configuration of the world to allow starting the planning from a
     different state.
@@ -30,6 +30,8 @@ class SetSeedConfiguration(SelfDecidingNode):
     :param group_name: if joint names are not unique, it will search in this group for
         matches.
     """
+
+    success_decided_by = SuccessDecider.ITSELF
 
     seed_configuration: JointState = field(kw_only=True)
 
@@ -45,10 +47,12 @@ class SetSeedConfiguration(SelfDecidingNode):
 
 
 @dataclass(eq=False, repr=False)
-class SetOdometry(SelfDecidingNode):
+class SetOdometry(MotionStatechartNode):
     """
     Sets the odometry of the robot to the given pose.
     """
+
+    success_decided_by = SuccessDecider.ITSELF
 
     base_pose: HomogeneousTransformationMatrix = field(kw_only=True)
     """

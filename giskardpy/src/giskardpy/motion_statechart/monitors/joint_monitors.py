@@ -6,18 +6,20 @@ from semantic_digital_twin.world_description.connections import (
     ActiveConnection1DOF,
 )
 from giskardpy.motion_statechart.context import MotionStatechartContext
+from giskardpy.motion_statechart.data_types import SuccessDecider
 from giskardpy.motion_statechart.graph_node import (
-    MaintenanceNode,
     MotionStatechartNode,
     NodeArtifacts,
 )
 
 
 @dataclass(eq=False, repr=False)
-class JointPositionReached(MaintenanceNode):
+class JointPositionReached(MotionStatechartNode):
     """
     Monitors if a joint position is reached within a certain threshold.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     connection: ActiveConnection1DOF = field(kw_only=True)
     """

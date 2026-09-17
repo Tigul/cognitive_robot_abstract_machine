@@ -153,27 +153,22 @@ class EndMotionInCompositeStatechartNodeError(NodeInitializationError):
 
 
 @dataclass
-class NodeCannotDecideItselfError(NodeInitializationError):
+class SuccessDeciderNotDeclaredError(NodeInitializationError):
     """
-    Raised when a template is handed a child that never reaches a terminal state on its
-    own, so nothing would ever move the template past it.
-    """
-
-    child: MotionStatechartNode
-    """
-    The child that would run forever.
+    Raised when a motion statechart is compiled with a node whose class does not declare
+    who decides that it succeeded.
     """
 
     def error_message(self) -> str:
         return (
-            f'Node "{self.child.unique_name}" of "{self.node.unique_name}" never ends '
-            f"on its own."
+            f'Node class "{type(self.node).__name__}" does not declare '
+            f"success_decided_by."
         )
 
     def suggest_correction(self) -> str:
         return (
-            "Wrap it in an Attempt, stating what counts as failure, or declare it a "
-            "SelfDecidingNode if it already reaches a terminal state by itself."
+            "Set success_decided_by on the class: SuccessDecider.OWNER if ending the node "
+            "may undo what it reached, SuccessDecider.ITSELF otherwise."
         )
 
 

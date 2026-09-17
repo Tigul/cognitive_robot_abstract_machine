@@ -10,16 +10,14 @@ from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     ObservationStateValues,
+    SuccessDecider,
 )
 from giskardpy.motion_statechart.goals.templates import Sequence
 from giskardpy.motion_statechart.graph_node import (
     MotionStatechartNode,
     CompositeStatechartNode,
-    MaintenanceNode,
     NodeArtifacts,
     CancelMotion,
-    SelfDecidingNode,
-    SelfFailingNode,
 )
 from giskardpy.motion_statechart.monitors.payload_monitors import (
     CountControlCycles,
@@ -48,20 +46,24 @@ class TestNodeAssertionError(GiskardException):
 
 
 @dataclass(eq=False, repr=False)
-class ConstTrueNode(MaintenanceNode):
+class ConstTrueNode(MotionStatechartNode):
     """
     A node that has always reached its goal, so ending it always succeeds it.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar.const_true())
 
 
 @dataclass(eq=False, repr=False)
-class ConstFalseNode(MaintenanceNode):
+class ConstFalseNode(MotionStatechartNode):
     """
     A node that never reaches its goal, so nothing but being released ever ends it.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar.const_false())
@@ -69,6 +71,8 @@ class ConstFalseNode(MaintenanceNode):
 
 @dataclass(repr=False, eq=False)
 class ChangeStateOnEvents(MotionStatechartNode):
+    success_decided_by = SuccessDecider.OWNER
+
     state: str | None = None
 
     def on_start(self, context: MotionStatechartContext):
@@ -88,7 +92,9 @@ class ChangeStateOnEvents(MotionStatechartNode):
 
 
 @dataclass(repr=False, eq=False)
-class TestCompositeStatechartNode(MaintenanceNode, CompositeStatechartNode):
+class TestCompositeStatechartNode(CompositeStatechartNode):
+    success_decided_by = SuccessDecider.OWNER
+
     sub_node1: ConstTrueNode = field(init=False)
     sub_node2: ConstTrueNode = field(init=False)
 
@@ -105,7 +111,9 @@ class TestCompositeStatechartNode(MaintenanceNode, CompositeStatechartNode):
 
 
 @dataclass(repr=False, eq=False)
-class TestNestedCompositeStatechartNode(MaintenanceNode, CompositeStatechartNode):
+class TestNestedCompositeStatechartNode(CompositeStatechartNode):
+    success_decided_by = SuccessDecider.OWNER
+
     sub_node1: TestCompositeStatechartNode = field(init=False)
     sub_node2: TestCompositeStatechartNode = field(init=False)
     inner: TestCompositeStatechartNode = field(init=False)
@@ -119,7 +127,7 @@ class TestNestedCompositeStatechartNode(MaintenanceNode, CompositeStatechartNode
 
 
 @dataclass(repr=False, eq=False)
-class TestRunAfterStop(SelfDecidingNode, CompositeStatechartNode):
+class TestRunAfterStop(CompositeStatechartNode):
     """
     Composite statechart node that tests if a child node runs after the parent node has
     stopped.
@@ -127,6 +135,8 @@ class TestRunAfterStop(SelfDecidingNode, CompositeStatechartNode):
     Uses a CancelMotion node to raise an exception if the child node runs after the
     parent has stopped.
     """
+
+    success_decided_by = SuccessDecider.ITSELF
 
     ticking1: CountControlCycles = field(init=False)
     ticking2: CountControlCycles = field(init=False)
@@ -166,6 +176,8 @@ class TestEndBeforeStart(CompositeStatechartNode):
     condition is already fulfilled by node2.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     node1: CountControlCycles = field(init=False)
     node2: ConstTrueNode = field(init=False)
     node3: ConstTrueNode = field(init=False)
@@ -187,13 +199,15 @@ class TestEndBeforeStart(CompositeStatechartNode):
 
 
 @dataclass(repr=False, eq=False)
-class TestRunAfterStopFromPause(SelfDecidingNode, CompositeStatechartNode):
+class TestRunAfterStopFromPause(CompositeStatechartNode):
     """
     Test if child node can transition to RUNNING from PAUSED after parent node is DONE.
 
     Uses a CancelMotion node to raise an exception if the child node runs after the
     parent has stopped.
     """
+
+    success_decided_by = SuccessDecider.ITSELF
 
     ticking1: CountControlCycles = field(init=False)
     ticking2: CountControlCycles = field(init=False)
@@ -227,11 +241,13 @@ class TestRunAfterStopFromPause(SelfDecidingNode, CompositeStatechartNode):
 
 
 @dataclass(repr=False, eq=False)
-class TestUnpauseFromParentPause(SelfDecidingNode, CompositeStatechartNode):
+class TestUnpauseFromParentPause(CompositeStatechartNode):
     """
     Tests if a child node paused by its parent transitions from PAUSED back to RUNNING
     once the parent unpauses, while its own pause condition does not hold.
     """
+
+    success_decided_by = SuccessDecider.ITSELF
 
     count_ticks1: CountControlCycles = field(init=False)
     count_ticks2: CountControlCycles = field(init=False)
@@ -270,6 +286,8 @@ class NodeObservingNothingYet(MotionStatechartNode):
     interrupt it.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar.const_trinary_unknown())
 
@@ -280,6 +298,8 @@ class NodeObservingAPredicate(MotionStatechartNode):
     A node whose observation reads a life cycle predicate, which only a transition
     condition may do.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     watched_node: MotionStatechartNode = field(default=None, kw_only=True)
     """
@@ -295,6 +315,8 @@ class NodeObservingLastObservation(MotionStatechartNode):
     """
     A node whose observation reads the observation another node took most recently.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     watched_node: MotionStatechartNode = field(default=None, kw_only=True)
     """
@@ -312,6 +334,8 @@ class NodeObservingAnObservationPredicate(MotionStatechartNode):
     cycle.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     watched_node: MotionStatechartNode = field(default=None, kw_only=True)
     """
     The node whose observation this node asks about.
@@ -327,6 +351,8 @@ class NodeObservingTheOppositeOfAnObservationPredicate(MotionStatechartNode):
     A node that observes True while another node does not observe True.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     watched_node: MotionStatechartNode = field(default=None, kw_only=True)
     """
     The node whose observation this node contradicts.
@@ -339,10 +365,13 @@ class NodeObservingTheOppositeOfAnObservationPredicate(MotionStatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class SelfFailingMaintenanceNode(SelfFailingNode, MaintenanceNode):
+class NodeObservingAFixedValue(MotionStatechartNode):
     """
-    A node that fails itself once it observes False and leaves succeeding to its owner.
+    A node that observes the same value on every control cycle and leaves ending it to its
+    owner.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     observation: ObservationStateValues = field(kw_only=True)
     """
@@ -353,8 +382,33 @@ class SelfFailingMaintenanceNode(SelfFailingNode, MaintenanceNode):
         return NodeArtifacts(observation=sm.Scalar(float(self.observation)))
 
 
+@dataclass(eq=False, repr=False)
+class NodeFailingOnObservingFalse(NodeObservingAFixedValue):
+    """
+    A node that fails itself once it observes False and leaves succeeding to its owner.
+    """
+
+    fails_when_observing_false = True
+
+
+@dataclass(eq=False, repr=False)
+class NodeSucceedingOnObservingTrue(NodeObservingAFixedValue):
+    """
+    A node that succeeds once it observes True and declares no failure of its own.
+    """
+
+    success_decided_by = SuccessDecider.ITSELF
+
+
+@dataclass(eq=False, repr=False)
+class NodeDeclaringNoSuccessDecider(MotionStatechartNode):
+    """
+    A node class that leaves open who decides that it succeeded.
+    """
+
+
 @dataclass(repr=False, eq=False)
-class NodeDeclaringItsOwnFailure(MaintenanceNode, CompositeStatechartNode):
+class NodeDeclaringItsOwnFailure(CompositeStatechartNode):
     """
     A node short of its goal that declares it cannot continue, which is what a node may
     decide about itself where succeeding is left to its owner.
@@ -362,6 +416,8 @@ class NodeDeclaringItsOwnFailure(MaintenanceNode, CompositeStatechartNode):
     Being a composite statechart node is what gives it an :meth:`expand` hook to declare
     the failure in; it runs no children of its own.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     def expand(self, context: MotionStatechartContext) -> None:
         self.fail_condition = sm.Scalar.const_true()
@@ -379,6 +435,8 @@ class CompositeStatechartNodeCuttingOffItsChildAtItsGoal(CompositeStatechartNode
     Composite statechart node whose child has reached its goal but is never ended on its
     own terms, so the child is only ever taken down by this node ending.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     child: ConstTrueNode = field(init=False)
     """
@@ -400,6 +458,8 @@ class CompositeStatechartNodeCuttingOffItsChild(CompositeStatechartNode):
     own terms, so the child is only ever taken down by this node ending.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     child: ConstFalseNode = field(init=False)
     """
     The child that keeps running until it is cut off.
@@ -420,6 +480,8 @@ class CompositeStatechartNodeWithChildInterruptedBySibling(CompositeStatechartNo
     so that a caller ending this node on that same tick makes the two ways of being
     interrupted compete.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     trigger: ConstTrueNode = field(init=False)
     """
@@ -449,6 +511,8 @@ class CompositeStatechartNodeWithChildFailingOnItsOwn(CompositeStatechartNode):
     compete with being cut off.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     trigger: ConstTrueNode = field(init=False)
     """
     Turns true on the first tick, which is what makes the child declare its failure.
@@ -476,6 +540,8 @@ class CompositeStatechartNodeWithChildSucceedingOnItsOwn(CompositeStatechartNode
     that a caller ending this node on that same tick makes the child's own outcome
     compete with being cut off.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     trigger: ConstTrueNode = field(init=False)
     """
@@ -505,6 +571,8 @@ class CompositeStatechartNodeWithChildStartingLate(CompositeStatechartNode):
     conditions have a settled value.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     delay_in_control_cycles: int = field(default=2, kw_only=True)
     """
     How many control cycles pass before the child's start condition turns true.
@@ -532,6 +600,8 @@ class CompositeStatechartNodeCuttingOffItsUndecidedChild(CompositeStatechartNode
     ending is the only thing that ever ends it.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     child: NodeObservingNothingYet = field(init=False)
     """
     The child that observes nothing until it is ended.
@@ -551,6 +621,8 @@ class CompositeStatechartNodeCuttingOffItsGrandchild(CompositeStatechartNode):
     Composite statechart node holding another composite statechart node, so that ending
     it reaches a node more than one level below it.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     inner_node: CompositeStatechartNodeCuttingOffItsChild = field(init=False)
     """
@@ -613,6 +685,8 @@ class NodeRecordingItsCallbacks(MotionStatechartNode):
     A node that never reaches its goal and records every life cycle callback run on it.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     callbacks: List[LifeCycleCallback] = field(default_factory=list, init=False)
     """
     The callbacks run on this node since :meth:`take_callbacks` was last called, in the
@@ -654,6 +728,8 @@ class NodeObservingTrueOnlyOnTick(MotionStatechartNode):
     it with True, counting how often it is ticked.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     on_tick_calls: int = field(default=0, init=False)
     """
     How often :meth:`on_tick` was called.
@@ -673,6 +749,8 @@ class NodeWritingAVariableOnStart(MotionStatechartNode):
     A node that sets a float variable to True when it starts, so what its start callback
     wrote can be observed by another node.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     variable: FloatVariable = field(init=False)
     """
@@ -695,6 +773,8 @@ class NodeObservingAWrittenVariable(MotionStatechartNode):
     """
     A node that observes True once another node's start callback wrote its variable.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     writer: NodeWritingAVariableOnStart = field(kw_only=True)
     """
@@ -726,6 +806,8 @@ class CompositeStatechartNodeObservingItsSecondChildRun(CompositeStatechartNode)
     starts once its first child succeeded, so the second child is started and then cut off
     by this node ending.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     first: ConstTrueNode = field(init=False)
     """
@@ -762,6 +844,8 @@ class CompositeStatechartNodeWithARecordingChild(CompositeStatechartNode):
     whenever it may.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     child: NodeRecordingItsCallbacks = field(init=False)
     """
     The child whose callbacks are recorded.
@@ -779,6 +863,8 @@ class CompositeStatechartNodeObservingItsCancelMotionRun(CompositeStatechartNode
     running, which starts once its other child observes True, so the cancel motion is
     started and then cut off by this node ending.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     trigger: ConstTrueNode = field(init=False)
     """

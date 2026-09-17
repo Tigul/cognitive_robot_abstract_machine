@@ -14,6 +14,7 @@ from giskardpy.executor import Executor, SimulationPacer
 from giskardpy.motion_statechart.constraint_builders import GeometricConstraintBuilder
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
+    SuccessDecider,
     LifeCycleValues,
     LifeCyclePredicate,
     ObservationPredicate,
@@ -23,7 +24,7 @@ from giskardpy.motion_statechart.data_types import (
 )
 from giskardpy.motion_statechart.exceptions import (
     ChildTransitionAlreadyWiredError,
-    NodeCannotDecideItselfError,
+    SuccessDeciderNotDeclaredError,
     NotInMotionStatechartError,
     EndMotionInCompositeStatechartNodeError,
     CompositeStatechartNodeWithoutChildrenError,
@@ -75,7 +76,9 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     NodeObservingAnObservationPredicate,
     NodeObservingLastObservation,
     NodeObservingNothingYet,
-    SelfFailingMaintenanceNode,
+    NodeFailingOnObservingFalse,
+    NodeSucceedingOnObservingTrue,
+    NodeDeclaringNoSuccessDecider,
     ConstTrueNode,
     TestCompositeStatechartNode,
     TestNestedCompositeStatechartNode,
@@ -461,6 +464,8 @@ class _BuildCountingNode(MotionStatechartNode):
     Node that records how often :meth:`build` is invoked.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     build_count: int = field(default=0, init=False)
     """
     Number of times build() has run on this node.
@@ -477,6 +482,8 @@ class _BuildCountingCompositeStatechartNode(CompositeStatechartNode):
     Composite statechart node that records its own build calls and owns a counting child
     node.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     build_count: int = field(default=0, init=False)
     """
@@ -598,6 +605,8 @@ class _SetupThenArtifactsNode(MotionStatechartNode):
     :meth:`build_artifacts`.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     hook_calls: list[str] = field(default_factory=list, init=False)
     """
     Names of the build hooks that ran, in the order they ran.
@@ -633,6 +642,18 @@ def test_build_delegates_to_build_artifacts():
     assert node.hook_calls == ["build", "build_artifacts"]
     executor.tick()
     assert node.observation_state == ObservationStateValues.TRUE
+
+
+def test_a_node_class_declaring_no_success_decider_is_rejected():
+    """
+    Every node class has to say who decides that it succeeded, so a motion statechart
+    holding a node whose class leaves it open cannot be compiled.
+    """
+    msc = MotionStatechart()
+    msc.add_node(NodeDeclaringNoSuccessDecider())
+
+    with pytest.raises(SuccessDeciderNotDeclaredError):
+        _compile_msc(msc)
 
 
 def test_converging_task_without_error_signal_is_rejected():
@@ -2105,16 +2126,18 @@ class TestTemplates:
         assert isinstance(task.parent_node, Attempt)
         assert task.parent_node.parent_node is sequence
 
-    def test_a_sequence_rejects_a_step_that_cannot_decide_itself(self):
+    def test_a_sequence_runs_a_step_deciding_its_own_success_as_it_is(self):
         """
-        A step that never ends leaves the sequence waiting forever, so it is rejected
-        where it is written rather than hanging at runtime.
+        A step that succeeds on its own needs no attempt to end it.
         """
         msc = MotionStatechart()
-        msc.add_node(Sequence(nodes=[NodeObservingNothingYet(name="never ends")]))
+        step = NodeSucceedingOnObservingTrue(observation=ObservationStateValues.TRUE)
+        msc.add_node(sequence := Sequence(nodes=[step]))
 
-        with pytest.raises(NodeCannotDecideItselfError):
-            _compile_msc(msc)
+        _compile_msc(msc).tick()
+
+        assert step.parent_node is sequence
+        assert step.life_cycle_state == LifeCycleValues.SUCCEEDED
 
     def test_a_sequence_rejects_a_step_whose_life_cycle_the_caller_wired(self):
         """
@@ -3056,28 +3079,64 @@ class TestLifeCycleOutcomes:
         assert node.observation_state == ObservationStateValues.TRUE
         assert node.life_cycle_state == LifeCycleValues.FAILED
 
-    def test_a_self_failing_node_fails_once_it_observes_false(self):
+    def test_a_node_failing_on_observing_false_fails_once_it_observes_false(self):
         """
-        A self failing node observing False can no longer reach its goal, so it fails
-        without any condition declaring it.
+        A node declaring that observing False means it can no longer reach its goal
+        fails without any condition declaring it.
         """
         msc = MotionStatechart()
         msc.add_node(
-            node := SelfFailingMaintenanceNode(observation=ObservationStateValues.FALSE)
+            node := NodeFailingOnObservingFalse(
+                observation=ObservationStateValues.FALSE
+            )
         )
 
         self._compile(msc).tick()
 
         assert node.life_cycle_state == LifeCycleValues.FAILED
 
-    def test_a_self_failing_node_keeps_running_while_it_observes_unknown(self):
+    def test_a_node_deciding_its_own_success_succeeds_once_it_observes_true(self):
+        """
+        A node whose ending undoes nothing it did succeeds without any condition
+        declaring it.
+        """
+        msc = MotionStatechart()
+        msc.add_node(
+            node := NodeSucceedingOnObservingTrue(
+                observation=ObservationStateValues.TRUE
+            )
+        )
+
+        self._compile(msc).tick()
+
+        assert node.life_cycle_state == LifeCycleValues.SUCCEEDED
+
+    def test_a_node_deciding_its_own_success_is_not_failed_by_observing_false(self):
+        """
+        Succeeding by itself says nothing about failing, which a node declares
+        separately.
+        """
+        msc = MotionStatechart()
+        msc.add_node(
+            node := NodeSucceedingOnObservingTrue(
+                observation=ObservationStateValues.FALSE
+            )
+        )
+
+        self._compile(msc).tick()
+
+        assert node.life_cycle_state == LifeCycleValues.RUNNING
+
+    def test_a_node_failing_on_observing_false_keeps_running_while_it_observes_unknown(
+        self,
+    ):
         """
         An observation with no answer yet says nothing about whether the goal can still
         be reached.
         """
         msc = MotionStatechart()
         msc.add_node(
-            node := SelfFailingMaintenanceNode(
+            node := NodeFailingOnObservingFalse(
                 observation=ObservationStateValues.UNKNOWN
             )
         )
@@ -3086,20 +3145,22 @@ class TestLifeCycleOutcomes:
 
         assert node.life_cycle_state == LifeCycleValues.RUNNING
 
-    def test_a_self_failing_node_is_not_succeeded_by_observing_true(self):
+    def test_a_node_failing_on_observing_false_is_not_succeeded_by_observing_true(self):
         """
         Failing itself says nothing about succeeding, which stays its owner's to decide.
         """
         msc = MotionStatechart()
         msc.add_node(
-            node := SelfFailingMaintenanceNode(observation=ObservationStateValues.TRUE)
+            node := NodeFailingOnObservingFalse(observation=ObservationStateValues.TRUE)
         )
 
         self._compile(msc).tick()
 
         assert node.life_cycle_state == LifeCycleValues.RUNNING
 
-    def test_a_self_failing_node_keeps_the_fail_condition_it_was_given(self):
+    def test_a_node_failing_on_observing_false_keeps_the_fail_condition_it_was_given(
+        self,
+    ):
         """
         The failure the statechart supplies comes on top of the one declared for the
         node, rather than replacing it.
@@ -3108,7 +3169,7 @@ class TestLifeCycleOutcomes:
         msc.add_nodes(
             [
                 trigger := ConstTrueNode(),
-                node := SelfFailingMaintenanceNode(
+                node := NodeFailingOnObservingFalse(
                     observation=ObservationStateValues.TRUE
                 ),
             ]

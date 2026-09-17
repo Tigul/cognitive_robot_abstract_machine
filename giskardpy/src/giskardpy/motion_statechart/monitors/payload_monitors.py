@@ -9,11 +9,11 @@ from typing_extensions import Self
 
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
+    SuccessDecider,
     LifeCycleValues,
     ObservationStateValues,
 )
 from giskardpy.motion_statechart.graph_node import (
-    MaintenanceNode,
     MotionStatechartNode,
     NodeArtifacts,
 )
@@ -26,6 +26,8 @@ class CheckControlCycleCount(MotionStatechartNode):
     """
     Sets observation to True if control cycle count is above threshold.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     threshold: int = field(kw_only=True)
     """
@@ -44,6 +46,8 @@ class Print(MotionStatechartNode):
     Prints a message to the console every tick.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     message: str = ""
 
     def on_tick(self, context: MotionStatechartContext) -> ObservationStateValues:
@@ -52,13 +56,15 @@ class Print(MotionStatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class CountSeconds(MaintenanceNode):
+class CountSeconds(MotionStatechartNode):
     """
     This node counts X seconds and then turns True.
 
     Only counts while in state RUNNING, and it is up to whoever runs it to stop it once
     it has counted far enough.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     seconds: float = field(kw_only=True)
     _now: Callable[[], float] = field(default=time.monotonic, kw_only=True, repr=False)
@@ -77,7 +83,7 @@ class CountSeconds(MaintenanceNode):
 
 
 @dataclass(eq=False, repr=False)
-class TickCounter(MaintenanceNode, ABC):
+class TickCounter(MotionStatechartNode, ABC):
     """
     Base for nodes that count control ticks while RUNNING and turn True once a target is
     reached.
@@ -85,6 +91,8 @@ class TickCounter(MaintenanceNode, ABC):
     Only counts while in state RUNNING, and it is up to whoever runs it to stop it once
     it reaches its target.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     _counter: int = field(init=False, default=0)
     """
@@ -167,6 +175,8 @@ class ThreadedPredicateMonitor(MotionStatechartNode):
         a locally ticked statechart, not when the statechart is shipped to a
         remote giskard instance.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     predicate: Optional[Callable[[], bool]] = field(kw_only=True)
     """
@@ -265,6 +275,8 @@ class Pulse(MotionStatechartNode):
     Will stay True for a single tick, then turn False.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     _counter: int = field(default=0, init=False)
     """
     Keeps track of how many ticks have passed since first True.
@@ -289,7 +301,7 @@ class Pulse(MotionStatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class CountNodeResets(MaintenanceNode):
+class CountNodeResets(MotionStatechartNode):
     """
     Turns True once :attr:`node` has been reset :attr:`target` times.
 
@@ -297,6 +309,8 @@ class CountNodeResets(MaintenanceNode):
     NOT_STARTED. Its count is never cleared, unlike the counters that reset themselves
     when they start, so it survives the resets it is counting.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     node: MotionStatechartNode = field(kw_only=True)
     """

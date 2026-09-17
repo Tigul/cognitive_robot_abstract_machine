@@ -20,7 +20,7 @@ the state of other nodes. All nodes are updated together once per control cycle.
 ### Node types
 
 - **Task**: A specific, single-purpose segment of the overall motion. Tasks add constraints to the motion problem and observe whether those constraints are currently satisfied. For example, a Cartesian position task observes whether the distance to its target is below a threshold.
-- **Monitor**: A node that observes a condition without adding constraints to the motion. For example, a monitor watching the distance between the gripper and a goal point, or a counter waiting for a number of control cycles. There is no monitor class: a monitor is a plain `MotionStatechartNode`, or a `MaintenanceNode` if its owner ends it (see [Who ends a node](#who-ends-a-node)).
+- **Monitor**: A node that observes a condition without adding constraints to the motion. For example, a monitor watching the distance between the gripper and a goal point, or a counter waiting for a number of control cycles. There is no monitor class: a monitor is a plain `MotionStatechartNode` (see [Who ends a node](#who-ends-a-node)).
 - **CompositeStatechartNode**: A node that contains other nodes and wires their conditions. Composite statechart nodes encapsulate reusable, parameterized patterns, such as [the templates](#templates) that run steps in order or retry a failed motion.
 - **Terminal node**: A node that ends the whole motion. **EndMotion** ends it successfully once it runs and observes True, **CancelMotion** ends it by raising its exception at the end of the control cycle it starts in.
 
@@ -323,56 +323,55 @@ can then be pulled out of the pose that task had just reached, for example by an
 is still running. That is why a task never ends itself on reaching its goal; whoever runs it,
 its **owner**, writes its success and interrupt conditions.
 
-This splits nodes into two kinds:
+Every node class therefore declares who decides that it succeeded, as the class attribute
+`success_decided_by`. Compiling a motion statechart that holds a node whose class leaves it
+unset raises a `SuccessDeciderNotDeclaredError`.
 
-- **`MaintenanceNode`**: a node whose observation says whether it has reached its goal, but
-  which is only ever ended by its owner. Every `Task` is one, as are monitors watching a
-  threshold (`PoseReached`, `JointPositionReached`, …), counters (`CountSeconds`,
-  `CountControlCycles`), `Parallel` and the monitored composite statechart nodes.
-- **`SelfDecidingNode`**: a node that can be ended without undoing what it did, and therefore
-  ends itself. When the statechart is compiled, every such node gets its observation added to
-  its success condition, so it succeeds once it observes True. Examples are `Attempt`, the
-  ordering templates and nodes like `SetOdometry`.
+- **`SuccessDecider.OWNER`**: the node's observation says whether it has reached its goal, but
+  only its owner ends it. Every `Task` is one, as are monitors (`PoseReached`,
+  `JointPositionReached`, `CountSeconds`, `Print`, …), `Parallel` and the monitored composite
+  statechart nodes.
+- **`SuccessDecider.ITSELF`**: ending the node undoes nothing it did, so it ends itself. When
+  the statechart is compiled, the node's observation is added to its success condition, so it
+  succeeds once it observes True. Examples are `Attempt`, the ordering templates and nodes like
+  `SetOdometry`.
 
-Independent of how a node ends on success, a node can also be a **`SelfFailingNode`**: observing
-False means it can no longer reach its goal. When the statechart is compiled, every such node gets
-`not observation` added to its fail condition, so it fails once it observes False. `Attempt` and
-the ordering templates are self-deciding and self-failing; `StoppedWhenTrue` and
-`CancelledWhenTrue` are maintenance nodes that are self-failing.
+Independently, a node class can set **`fails_when_observing_false = True`**: observing False
+means it can no longer reach its goal. When the statechart is compiled, such a node gets
+`not observation` added to its fail condition, so it fails once it observes False. `Attempt`
+and the ordering templates set it.
 
-A maintenance node may also fail on its own without being a `SelfFailingNode`, by setting its
-own fail condition: `Parallel` fails once too few of its nodes are left to reach
-`minimum_success`, and every monitored composite statechart node fails once its monitored
-node ended without succeeding.
+A node may also fail on its own by setting its own fail condition: `Parallel` fails once too
+few of its nodes are left to reach `minimum_success`, and every monitored composite statechart
+node fails once its monitored node ended without succeeding.
 
-`Attempt` is the bridge between the two: it runs a maintenance node and turns it into a node
+`Attempt` is the bridge between the two: it runs a node its owner ends and turns it into a node
 that ends itself.
 
 ```{mermaid}
 flowchart LR
-    subgraph maintenance ["MaintenanceNode: ended by its owner"]
+    subgraph owner ["success_decided_by = OWNER"]
         direction TB
         task(["Task"])
-        monitor(["threshold monitors,<br/>counters"])
+        monitor(["monitors,<br/>counters"])
         parallel(["Parallel"])
         monitored(["PausedWhileTrue, PausedUntilTrue,<br/>StoppedWhenTrue, CancelledWhenTrue"])
     end
-    subgraph self_deciding ["SelfDecidingNode: ends itself"]
+    subgraph itself ["success_decided_by = ITSELF"]
         direction TB
         attempt(["Attempt"])
         ordering(["Sequence, TryInOrder,<br/>TryAll, RepeatUntil"])
         other(["SetOdometry,<br/>SetSeedConfiguration"])
     end
-    maintenance -- "wrapped in an Attempt" --> attempt
-    self_deciding -- "usable as a step of" --> ordering
+    owner -- "wrapped in an Attempt" --> attempt
+    itself -- "usable as a step of" --> ordering
 ```
 
 The ordering templates (`Sequence`, `TryInOrder`, `TryAll`, `RepeatUntil`) decide when their
 children start and end, so they check every child they are given:
 
-- A `MaintenanceNode` child is wrapped in an `Attempt` without failure monitors automatically.
-- A child that is neither kind is rejected with a `NodeCannotDecideItselfError`, because
-  nothing would ever move the template past it.
+- A child whose owner decides its success is wrapped in an `Attempt` without failure monitors
+  automatically.
 - A child whose start, pause, success, interrupt or reset condition was already set is
   rejected with a `ChildTransitionAlreadyWiredError`, because those are the template's to
   decide. The fail condition is exempt, since a node declares its own failure.
@@ -459,8 +458,8 @@ nodes are left to reach `minimum_success` at all.
 
 `Parallel` never ends any of its nodes: ending a task that reached its goal would let a node
 that is still running pull the robot out of that goal again. For the same reason it is a
-`MaintenanceNode` itself and never succeeds on its own; it only fails on its own, once too
-few nodes are left. Put it into an `Attempt`, or hand it to an
+node whose owner decides its success and never succeeds on its own; it only fails on its own,
+once too few nodes are left. Put it into an `Attempt`, or hand it to an
 ordering template, which does that for you, to get a step that finishes once all nodes are at
 their goals together.
 
@@ -553,8 +552,8 @@ flowchart LR
 ### Monitored composite statechart nodes
 
 These run a `monitored_node` next to a `monitor`, and let the monitor control the
-monitored node's life cycle. They are maintenance nodes: their observation is the monitored
-node's `last_observation`. Once the monitored node ended without succeeding, it can no
+monitored node's life cycle. Their owner decides their success, and their observation is the
+monitored node's `last_observation`. Once the monitored node ended without succeeding, it can no
 longer arrive, so the template fails.
 
 | Template            | Effect on the monitored node                                            |
@@ -572,9 +571,9 @@ flowchart LR
 ```
 
 `StoppedWhenTrue` observes True while the monitored node observes True or once it succeeded,
-False once the monitor stopped it, and Unknown otherwise. It is a `SelfFailingNode`, so observing
-False fails it: the monitored node is down by then, so nothing is being held any more, and
-whoever runs it would otherwise wait for a subtree that can no longer arrive.
+False once the monitor stopped it, and Unknown otherwise. Stopping the monitored node
+interrupts it, so the template fails like any monitored composite statechart node whose
+monitored node ended without succeeding.
 
 ## Ending the motion
 

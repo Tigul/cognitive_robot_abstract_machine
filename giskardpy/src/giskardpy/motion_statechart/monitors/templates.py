@@ -5,13 +5,11 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import LifeCyclePredicate
+from giskardpy.motion_statechart.data_types import LifeCyclePredicate, SuccessDecider
 from giskardpy.motion_statechart.graph_node import (
     CompositeStatechartNode,
-    MaintenanceNode,
     MotionStatechartNode,
     NodeArtifacts,
-    SelfFailingNode,
 )
 from krrood.symbolic_math.symbolic_math import (
     Scalar,
@@ -25,7 +23,7 @@ from krrood.symbolic_math.symbolic_math import (
 
 
 @dataclass(repr=False, eq=False)
-class MonitoredCompositeStatechartNode(MaintenanceNode, CompositeStatechartNode, ABC):
+class MonitoredCompositeStatechartNode(CompositeStatechartNode, ABC):
     """
     Runs a monitored node next to the monitor observing it.
 
@@ -37,6 +35,8 @@ class MonitoredCompositeStatechartNode(MaintenanceNode, CompositeStatechartNode,
     node or a sibling of it. Neither node is chained to the other, so the monitor
     observes from the moment this goal starts.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     monitor: MotionStatechartNode = field(kw_only=True)
     """
@@ -107,15 +107,14 @@ class PausedUntilTrue(MonitoredCompositeStatechartNode):
 
 
 @dataclass(repr=False, eq=False)
-class StoppedWhenTrue(SelfFailingNode, MonitoredCompositeStatechartNode):
+class StoppedWhenTrue(MonitoredCompositeStatechartNode):
     """
     Interrupts the monitored node as soon as the monitor observes True.
 
     It observes True while the monitored node observes True or once it succeeded, False
-    once the monitor stopped it, whatever it observed, and Unknown otherwise. Observing
-    False is also what it declares its own failure on: the monitored node is down by
-    then, so nothing is being held any more, and whoever runs this would otherwise wait
-    for a subtree that can no longer arrive.
+    once the monitor stopped it, whatever it observed, and Unknown otherwise. Stopping
+    the monitored node interrupts it, so this goal fails the way every monitored
+    composite statechart node does once its monitored node ended without succeeding.
 
     The monitor is read through its last observation, which outlasts a monitor that ends
     itself on firing, unlike the pausing goals, which need the reading it takes right

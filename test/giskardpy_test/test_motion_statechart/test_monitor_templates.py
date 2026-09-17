@@ -33,7 +33,7 @@ from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
     ConstFalseNode,
     ConstTrueNode,
-    SelfFailingMaintenanceNode,
+    NodeFailingOnObservingFalse,
 )
 from krrood.symbolic_math.symbolic_math import Scalar
 from semantic_digital_twin.world import World
@@ -269,7 +269,7 @@ def test_a_template_fails_once_its_monitored_node_failed_on_its_own(
 
     The monitor lets the monitored node run and never stops it.
     """
-    monitored_node = SelfFailingMaintenanceNode(
+    monitored_node = NodeFailingOnObservingFalse(
         name="monitored", observation=ObservationStateValues.FALSE
     )
     goal = goal_type(

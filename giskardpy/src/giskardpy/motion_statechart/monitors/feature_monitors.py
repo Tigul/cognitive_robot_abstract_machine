@@ -4,8 +4,8 @@ from dataclasses import field, dataclass
 
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.context import MotionStatechartContext
+from giskardpy.motion_statechart.data_types import SuccessDecider
 from giskardpy.motion_statechart.graph_node import (
-    MaintenanceNode,
     MotionStatechartNode,
     NodeArtifacts,
 )
@@ -14,11 +14,13 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 
 @dataclass(eq=False, repr=False)
-class FeatureFunctionMonitor(MaintenanceNode):
+class FeatureFunctionMonitor(MotionStatechartNode):
     """
     Base for monitors that compare a controlled feature (attached to ``tip_link``) with a
     reference feature (attached to ``root_link``) expressed in the root link frame.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     tip_link: Body = field(kw_only=True)
     """Link the controlled feature is attached to."""

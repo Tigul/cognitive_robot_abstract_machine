@@ -12,16 +12,13 @@ from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     ObservationStateValues,
+    SuccessDecider,
 )
-from giskardpy.motion_statechart.exceptions import NodeCannotDecideItselfError
 from giskardpy.motion_statechart.graph_node import (
     CancelMotion,
     CompositeStatechartNode,
-    MaintenanceNode,
     MotionStatechartNode,
     NodeArtifacts,
-    SelfDecidingNode,
-    SelfFailingNode,
     TerminalNode,
 )
 from giskardpy.motion_statechart.monitors.progress_monitors import Stalled
@@ -43,7 +40,7 @@ from krrood.symbolic_math.symbolic_math import (
 
 
 @dataclass(repr=False, eq=False)
-class Attempt(SelfFailingNode, SelfDecidingNode, CompositeStatechartNode):
+class Attempt(CompositeStatechartNode):
     """
     Runs a motion that would never end on its own and decides it, one way or the other.
 
@@ -60,6 +57,9 @@ class Attempt(SelfFailingNode, SelfDecidingNode, CompositeStatechartNode):
         reaching its goal and comes down only with this goal, so a constraint that was
         pushed off its goal again is still being held.
     """
+
+    success_decided_by = SuccessDecider.ITSELF
+    fails_when_observing_false = True
 
     task: MotionStatechartNode = field(kw_only=True)
     """
@@ -179,9 +179,7 @@ class NodeListCompositeStatechartNode(CompositeStatechartNode):
 
 
 @dataclass(repr=False, eq=False)
-class CompositeStatechartNodeOverSelfDecidingNodes(
-    SelfFailingNode, SelfDecidingNode, CompositeStatechartNode, ABC
-):
+class CompositeStatechartNodeOverSelfDecidingNodes(CompositeStatechartNode, ABC):
     """
     Base for the goals that order or choose between children, which only works if each
     child reaches a terminal state by itself.
@@ -191,28 +189,25 @@ class CompositeStatechartNodeOverSelfDecidingNodes(
     out decides itself in turn, which is what lets one be a step of another.
     """
 
+    success_decided_by = SuccessDecider.ITSELF
+    fails_when_observing_false = True
+
     def _add_self_deciding(self, node: MotionStatechartNode) -> MotionStatechartNode:
         """
         Adds a child that ends on its own, converting the caller's node where it needs
         converting.
 
-        A :class:`~giskardpy.motion_statechart.graph_node.MaintenanceNode` observes
-        whether its constraints are satisfied, which is enough to decide that it reached
-        its goal, so one is wrapped in an :class:`Attempt` that states no way of
-        failing. Any other node has to declare that it decides itself.
+        A node whose owner decides its success observes whether it reached its goal, so
+        one is wrapped in an :class:`Attempt` that states no way of failing.
 
         :param node: The child the caller passed.
         :return: The child to run in its place, which may be `node` itself.
-        :raises NodeCannotDecideItselfError: If `node` never ends on its own and cannot
-            be converted.
         """
         self._check_caller_wired_no_transitions(node)
         self._check_node_doesnt_belong_to_different_parent(node)
-        if isinstance(node, SelfDecidingNode):
+        if node.success_decided_by == SuccessDecider.ITSELF:
             self._add_child_to_motion_statechart(node)
             return node
-        if not isinstance(node, MaintenanceNode):
-            raise NodeCannotDecideItselfError(node=self, child=node)
         attempt = Attempt(name=f"{node.name}/attempt", task=node, failure_monitors=[])
         # The attempt takes the node's place among the children and becomes its parent,
         # so the children stay in the order the caller wrote them in.
@@ -286,7 +281,7 @@ class Sequence(
 
 
 @dataclass(repr=False, eq=False)
-class Parallel(MaintenanceNode, NodeListCompositeStatechartNode):
+class Parallel(NodeListCompositeStatechartNode):
     """
     Holds a list of nodes at once until enough of them are at their goals together.
 
@@ -295,9 +290,11 @@ class Parallel(MaintenanceNode, NodeListCompositeStatechartNode):
 
     Unlike the goals that run steps, this one ends none of its nodes and reads what they
     observe now, because releasing a constraint that reached its goal would let a
-    sibling drag the robot back out of it. That also makes it a maintenance node itself:
-    a plan step built from one is an attempt wrapping it.
+    sibling drag the robot back out of it. For the same reason its own owner decides
+    when it succeeded: a plan step built from one is an attempt wrapping it.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     minimum_success: Optional[int] = field(default=None, kw_only=True)
     """

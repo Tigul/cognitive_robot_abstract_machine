@@ -9,13 +9,13 @@ import krrood.symbolic_math.symbolic_math as sm
 from krrood.symbolic_math.symbolic_math import Scalar
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
+    SuccessDecider,
     LifeCycleValues,
     ObservationStateValues,
 )
 from giskardpy.motion_statechart.exceptions import NoProgressError
 from giskardpy.motion_statechart.error_signals import ErrorSignal
 from giskardpy.motion_statechart.graph_node import (
-    MaintenanceNode,
     CancelMotion,
     ConvergingTask,
     CompositeStatechartNode,
@@ -30,7 +30,7 @@ from giskardpy.motion_statechart.monitors.payload_monitors import (
 
 
 @dataclass(eq=False, repr=False)
-class NotApproachingGoal(MaintenanceNode):
+class NotApproachingGoal(MotionStatechartNode):
     """
     Turns ``True`` while :attr:`monitored_task` is not closing on its goal fast enough.
 
@@ -42,6 +42,8 @@ class NotApproachingGoal(MaintenanceNode):
         when the robot drives around an obstacle, so this node on its own is not evidence
         that a task is stuck. :class:`StillProgressing` requires it to hold for a while.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     monitored_task: ConvergingTask = field(kw_only=True)
     """
@@ -159,13 +161,15 @@ class NotApproachingGoal(MaintenanceNode):
 
 
 @dataclass(eq=False, repr=False)
-class AnyMonitoredTaskRunning(MaintenanceNode):
+class AnyMonitoredTaskRunning(MotionStatechartNode):
     """
     Turns ``True`` while at least one of :attr:`monitored_tasks` is running.
 
     Without this, a set of tasks that have all finished, or have not started, would read
     as "nothing is approaching its goal" and be mistaken for a stall.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     monitored_tasks: List[ConvergingTask] = field(kw_only=True)
     """
@@ -209,6 +213,8 @@ class StillProgressing(CompositeStatechartNode):
     Wire :meth:`cancel_motion` to abort a motion that is no longer making progress, or
     the negation of its observation to a node's fail condition to give up on that node.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     monitored_node: MotionStatechartNode = field(kw_only=True)
     """

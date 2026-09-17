@@ -35,6 +35,7 @@ from giskardpy.motion_statechart.data_types import (
     TransitionConditionJSONKey,
     DefaultWeights,
     NodeJSONKey,
+    SuccessDecider,
 )
 from giskardpy.motion_statechart.error_signals import ErrorSignal
 from giskardpy.motion_statechart.exceptions import (
@@ -818,6 +819,24 @@ class LifeCycleTransitions:
 
 @dataclass(repr=False, eq=False)
 class MotionStatechartNode(SubclassJSONSerializer):
+    """
+    A node of a motion statechart.
+
+    Every node class that is compiled declares :attr:`success_decided_by`, and may
+    declare :attr:`fails_when_observing_false`. The motion statechart turns both into
+    conditions when it is compiled, on top of whatever else already ends the node.
+    """
+
+    success_decided_by: ClassVar[Optional[SuccessDecider]] = None
+    """
+    Who decides that this node succeeded.
+    """
+
+    fails_when_observing_false: ClassVar[bool] = False
+    """
+    Whether observing False means this node can no longer reach its goal, so that it fails.
+    """
+
     name: str = field(default=None, kw_only=True)
     """
     A name for the node within a motion statechart.
@@ -1842,25 +1861,15 @@ def velocity_convergence_expression(
 
 
 @dataclass(eq=False, repr=False)
-class MaintenanceNode(MotionStatechartNode):
-    """
-    A node whose observation says whether it has reached its goal, and which nothing but
-    its owner ever ends.
-
-    A constraint is the type case: it knows perfectly well whether it is at its goal, and
-    what it cannot know is whether that is final, because it stops holding what it
-    reached the moment it is released. A monitor watching a threshold and a counter
-    working towards a target answer the same question about themselves. So the
-    observation is enough to decide that such a node succeeded, and its owner still has
-    to decide when it comes down.
-    """
-
-
-@dataclass(eq=False, repr=False)
-class Task(MaintenanceNode):
+class Task(MotionStatechartNode):
     """
     Tasks are MotionStatechartNodes that add motion constraints.
+
+    A task stops holding what it reached the moment it is released, so its owner decides
+    when it succeeded.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     weight: float = field(
         default=DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE.value, kw_only=True
@@ -1937,36 +1946,6 @@ class ConvergingTask(ABC, Task):
         :return: The threshold relative error of this task.
         """
         return self.error_signal.expression / self.threshold
-
-
-@dataclass(eq=False, repr=False)
-class SelfDecidingNode(MotionStatechartNode):
-    """
-    A node that reaches a terminal state without anyone releasing it.
-
-    Releasing such a node undoes nothing it accomplished, which is what lets it end
-    itself once it reaches its goal: a counter keeps its count, an action server keeps
-    what it did. A motion constraint is the opposite and stops holding the pose it
-    reached the moment it is released, so its owner decides when it comes down.
-
-    The statechart supplies that ending as its success condition, so a subclass declares
-    the contract and nothing else. Declaring a failure is separate and optional, through
-    :attr:`~MotionStatechartNode.fail_condition` or by also being a
-    :class:`SelfFailingNode`.
-    """
-
-
-@dataclass(eq=False, repr=False)
-class SelfFailingNode(MotionStatechartNode):
-    """
-    A node whose observing False means it can no longer reach its goal, which is what lets
-    it fail itself.
-
-    The statechart supplies that failure as its fail condition, on top of whatever else
-    already fails it. It says nothing about succeeding: a node that also ends itself on
-    reaching its goal is a :class:`SelfDecidingNode` as well, and one its owner ends stays a
-    :class:`MaintenanceNode`.
-    """
 
 
 @dataclass(eq=False, repr=False)
@@ -2089,6 +2068,8 @@ class ThreadPayloadMonitor(ABC, MotionStatechartNode):
     - Afterwards, returns the last successfully computed value.
     """
 
+    success_decided_by = SuccessDecider.OWNER
+
     # Internal threading primitives
     _request_event: threading.Event = field(
         default_factory=threading.Event, init=False, repr=False
@@ -2160,6 +2141,8 @@ class TerminalNode(ABC, MotionStatechartNode):
 
     No transition can happen afterwards, so conditions may not reference such a node.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     @staticmethod
     def _observing_true_or_succeeded(node: MotionStatechartNode) -> Scalar:

@@ -31,12 +31,14 @@ from giskardpy.motion_statechart.data_types import (
     LifeCycleValues,
     LifeCyclePredicate,
     ObservationStateValues,
+    SuccessDecider,
 )
 from giskardpy.motion_statechart.exceptions import (
     EmptyMotionStatechartError,
     ConditionScopeError,
     ControlCycleDoesNotSettleError,
     CyclicNodeDependencyError,
+    SuccessDeciderNotDeclaredError,
 )
 from giskardpy.motion_statechart.graph_node import (
     DeserializedNodeTracker,
@@ -53,8 +55,6 @@ from giskardpy.motion_statechart.graph_node import (
     DebugExpression,
 )
 from giskardpy.motion_statechart.graph_node import (
-    SelfDecidingNode,
-    SelfFailingNode,
     Task,
 )
 from giskardpy.motion_statechart.plotters.graphviz import MotionStatechartGraphviz
@@ -1417,6 +1417,7 @@ class MotionStatechart(SubclassJSONSerializer):
         """
         self.sanity_check()
         self._expand_goals(context=context)
+        self._check_every_node_declares_its_success_decider()
         self._succeed_self_deciding_nodes_observing_true()
         self._fail_self_failing_nodes_observing_false()
         self._build_nodes(context=context)
@@ -1431,28 +1432,43 @@ class MotionStatechart(SubclassJSONSerializer):
             )
         )
 
+    def _check_every_node_declares_its_success_decider(self) -> None:
+        """
+        :raises SuccessDeciderNotDeclaredError: If a node's class does not declare
+            :attr:`~giskardpy.motion_statechart.graph_node.MotionStatechartNode.success_decided_by`.
+        """
+        for node in self.nodes:
+            if node.success_decided_by is None:
+                raise SuccessDeciderNotDeclaredError(node=node)
+
     def _succeed_self_deciding_nodes_observing_true(self):
         """
-        Gives every :class:`SelfDecidingNode` the success its contract promises, on top
-        of whatever else already ends it.
+        Succeeds every node that declares
+        :attr:`~giskardpy.motion_statechart.data_types.SuccessDecider.ITSELF` once it
+        observes True, on top of whatever else already ends it.
 
         Runs once every goal has expanded, so no template can wire this away, and late
         enough that the conditions are still the ones a caller wrote while the templates
         were checking them.
         """
-        for node in self.get_nodes_by_type(SelfDecidingNode):
+        for node in self.nodes:
+            if node.success_decided_by != SuccessDecider.ITSELF:
+                continue
             node.success_condition = sm.logic_or(
                 node.success_condition, node.observes_true
             )
 
     def _fail_self_failing_nodes_observing_false(self):
         """
-        Gives every :class:`SelfFailingNode` the failure its contract promises, on top
-        of whatever else already fails it.
+        Fails every node that declares
+        :attr:`~giskardpy.motion_statechart.graph_node.MotionStatechartNode.fails_when_observing_false`
+        once it observes False, on top of whatever else already fails it.
 
         Runs once every goal has expanded, so no template can wire this away.
         """
-        for node in self.get_nodes_by_type(SelfFailingNode):
+        for node in self.nodes:
+            if not node.fails_when_observing_false:
+                continue
             node.fail_condition = sm.logic_or(node.fail_condition, node.observes_false)
 
     def _expand_goals(self, context: MotionStatechartContext):
