@@ -1,10 +1,16 @@
+from __future__ import annotations
+
 import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
+from typing_extensions import List, Type, TypeVar
 
 from cramph.context import StatechartContext
-from cramph.exceptions import NonPositiveRealTimeFactorError
+from cramph.exceptions import (
+    MissingExecutorExtensionError,
+    NonPositiveRealTimeFactorError,
+)
 from cramph.statechart import Statechart
 from krrood.symbolic_math.symbolic_math import FloatVariable
 
@@ -119,6 +125,56 @@ class SimulationPacer(ScheduledPacer):
 
 
 @dataclass
+class ExecutorExtension:
+    """
+    Adds behaviour to a :class:`StatechartExecutor` around compiling and ticking a
+    statechart.
+
+    Every stage does nothing unless an extension overrides it.
+    """
+
+    def extend_context(self, context: StatechartContext) -> None:
+        """
+        Called once when the executor is created, before its pacer reads the tick
+        duration of `context`.
+
+        :param context: The context handed to every node of the executed statecharts.
+        """
+
+    def after_compile(self, executor: StatechartExecutor) -> None:
+        """
+        Called once the statechart is compiled, before its first tick.
+
+        :param executor: The executor this extension belongs to.
+        """
+
+    def before_tick(self, executor: StatechartExecutor) -> None:
+        """
+        Called at the start of every tick, before the tick count is advanced.
+
+        :param executor: The executor this extension belongs to.
+        """
+
+    def after_tick(self, executor: StatechartExecutor) -> None:
+        """
+        Called at the end of every tick, after the statechart was ticked.
+
+        :param executor: The executor this extension belongs to.
+        """
+
+    def after_run(self, executor: StatechartExecutor) -> None:
+        """
+        Called once :meth:`StatechartExecutor.tick_until_end` stops, before the nodes
+        are cleaned up.
+
+        :param executor: The executor this extension belongs to.
+        """
+
+
+GenericExecutorExtension = TypeVar("GenericExecutorExtension", bound=ExecutorExtension)
+
+
+@dataclass
 class StatechartExecutor:
     """
     Compiles a statechart and ticks it, counting the ticks.
@@ -134,6 +190,11 @@ class StatechartExecutor:
     Paces the loop that ticks this executor.
     """
 
+    extensions: List[ExecutorExtension] = field(default_factory=list, kw_only=True)
+    """
+    Add behaviour around compiling and ticking, called in the order they are listed.
+    """
+
     # %% init False
     statechart: Statechart | None = field(init=False, default=None)
     """
@@ -141,6 +202,8 @@ class StatechartExecutor:
     """
 
     def __post_init__(self):
+        for extension in self.extensions:
+            extension.extend_context(self.context)
         self.pacer.pace_ticks_of(self.context)
         self._create_tick_variable()
 
@@ -150,6 +213,19 @@ class StatechartExecutor:
         """
         self.context.tick_variable = FloatVariable("tick_count")
         self.context.float_variable_data.register_expression(self.context.tick_variable)
+
+    def require_extension(
+        self, extension_type: Type[GenericExecutorExtension]
+    ) -> GenericExecutorExtension:
+        """
+        :param extension_type: The exact type of the requested extension.
+        :return: The first extension in :attr:`extensions` of `extension_type`.
+        :raises MissingExecutorExtensionError: If no extension is of `extension_type`.
+        """
+        for extension in self.extensions:
+            if type(extension) is extension_type:
+                return extension
+        raise MissingExecutorExtensionError(expected_extension=extension_type)
 
     @property
     def time(self) -> float:
@@ -179,17 +255,20 @@ class StatechartExecutor:
         self.statechart = statechart
         self.tick_count = 0
         self.statechart.compile(self.context)
-        self._after_compile()
+        for extension in self.extensions:
+            extension.after_compile(self)
         self.statechart.tick(self.context)
 
     def tick(self):
         """
         Advances the statechart by one tick.
         """
-        self._before_tick()
+        for extension in self.extensions:
+            extension.before_tick(self)
         self.tick_count += 1
         self.statechart.tick(self.context)
-        self._after_tick()
+        for extension in self.extensions:
+            extension.after_tick(self)
 
     def tick_until_end(self, timeout: int = 1_000):
         """
@@ -207,26 +286,7 @@ class StatechartExecutor:
                     return
             raise TimeoutError("Timeout reached while waiting for end of statechart.")
         finally:
-            self._after_run()
+            for extension in self.extensions:
+                extension.after_run(self)
             self.statechart.cleanup_nodes(context=self.context)
             self.context.cleanup()
-
-    def _after_compile(self):
-        """
-        Called once the statechart is compiled, before its first tick.
-        """
-
-    def _before_tick(self):
-        """
-        Called at the start of every tick, before the tick count is advanced.
-        """
-
-    def _after_tick(self):
-        """
-        Called at the end of every tick, after the statechart was ticked.
-        """
-
-    def _after_run(self):
-        """
-        Called once :meth:`tick_until_end` stops, before the nodes are cleaned up.
-        """

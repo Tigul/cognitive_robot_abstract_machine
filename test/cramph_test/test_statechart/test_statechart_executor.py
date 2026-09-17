@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+from enum import StrEnum, auto
+
 import pytest
+from typing_extensions import List
 
 from cramph.composites import Sequence
-from cramph.context import StatechartContext
+from cramph.context import ContextExtension, StatechartContext
 from cramph.data_types import LifeCycleValues, ObservationStateValues
-from cramph.exceptions import TickDurationUnknownError
-from cramph.executor import SimulationPacer, StatechartExecutor
+from cramph.exceptions import MissingExecutorExtensionError, TickDurationUnknownError
+from cramph.executor import (
+    ExecutorExtension,
+    SimulationPacer,
+    StatechartExecutor,
+)
 from cramph.monitors import CountSimulationTimeSeconds, CountTicks
 from cramph.node import CancelStatechart, EndStatechart, NodeArtifacts
 from cramph.nodes_for_testing import ConstTrueNode, NodeAssertionError
@@ -150,3 +158,222 @@ def test_a_simulation_cannot_be_paced_without_a_tick_duration(
             context=statechart_context_without_tick_duration,
             pacer=SimulationPacer(),
         )
+
+
+# %% executor extensions
+
+
+class ExecutorStage(StrEnum):
+    """
+    The moments at which an executor hands control to its extensions.
+    """
+
+    EXTEND_CONTEXT = auto()
+    AFTER_COMPILE = auto()
+    BEFORE_TICK = auto()
+    AFTER_TICK = auto()
+    AFTER_RUN = auto()
+
+
+@dataclass
+class StageRecord:
+    """
+    One stage an extension was called at.
+    """
+
+    extension: ExecutorExtension
+    """
+    The extension that was called.
+    """
+
+    stage: ExecutorStage
+    """
+    The stage it was called at.
+    """
+
+
+@dataclass
+class ExtensionRecordingItsStages(ExecutorExtension):
+    """
+    An executor extension that appends every stage it is called at to a shared record.
+    """
+
+    records: List[StageRecord]
+    """
+    The record shared by every extension of one executor.
+    """
+
+    def extend_context(self, context: StatechartContext) -> None:
+        self._record(ExecutorStage.EXTEND_CONTEXT)
+
+    def after_compile(self, executor: StatechartExecutor) -> None:
+        self._record(ExecutorStage.AFTER_COMPILE)
+
+    def before_tick(self, executor: StatechartExecutor) -> None:
+        self._record(ExecutorStage.BEFORE_TICK)
+
+    def after_tick(self, executor: StatechartExecutor) -> None:
+        self._record(ExecutorStage.AFTER_TICK)
+
+    def after_run(self, executor: StatechartExecutor) -> None:
+        self._record(ExecutorStage.AFTER_RUN)
+
+    def _record(self, stage: ExecutorStage) -> None:
+        self.records.append(StageRecord(extension=self, stage=stage))
+
+
+@dataclass
+class CountingContext(ContextExtension):
+    """
+    A context extension counting how often the nodes that require it were built.
+    """
+
+    builds: int = 0
+    """
+    How many nodes were built with this extension.
+    """
+
+
+@dataclass
+class ExtensionInstallingACountingContext(ExecutorExtension):
+    """
+    An executor extension that makes a :class:`CountingContext` available to the nodes.
+    """
+
+    counting_context: CountingContext = field(default_factory=CountingContext)
+    """
+    The context extension this extension installs.
+    """
+
+    def extend_context(self, context: StatechartContext) -> None:
+        context.add_extension(self.counting_context)
+
+
+@dataclass(eq=False, repr=False)
+class NodeRequiringACountingContext(ConstTrueNode):
+    """
+    A node that can only be built in a context that holds a :class:`CountingContext`.
+    """
+
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
+        context.require_extension(CountingContext).builds += 1
+        return super().build_artifacts(context)
+
+
+@dataclass
+class ExtensionSettingTheTickDuration(ExecutorExtension):
+    """
+    An executor extension that decides how long a tick lasts.
+    """
+
+    tick_duration: float
+    """
+    How many seconds one tick lasts.
+    """
+
+    def extend_context(self, context: StatechartContext) -> None:
+        context.set_tick_duration(self.tick_duration)
+
+
+def _statechart_ending_after_one_node() -> Statechart:
+    node = ConstTrueNode()
+    statechart = Statechart()
+    statechart.add_nodes([node, EndStatechart.when_true(node)])
+    return statechart
+
+
+def test_an_extension_is_called_at_every_stage_of_a_run(
+    statechart_context: StatechartContext,
+):
+    records: List[StageRecord] = []
+    executor = StatechartExecutor(
+        context=statechart_context,
+        extensions=[ExtensionRecordingItsStages(records)],
+    )
+    assert [record.stage for record in records] == [ExecutorStage.EXTEND_CONTEXT]
+
+    executor.compile(_statechart_ending_after_one_node())
+    assert [record.stage for record in records[1:]] == [ExecutorStage.AFTER_COMPILE]
+
+    executor.tick_until_end()
+    assert [record.stage for record in records[2:]] == [
+        ExecutorStage.BEFORE_TICK,
+        ExecutorStage.AFTER_TICK,
+        ExecutorStage.BEFORE_TICK,
+        ExecutorStage.AFTER_TICK,
+        ExecutorStage.AFTER_RUN,
+    ]
+
+
+def test_extensions_are_called_in_the_order_they_are_listed(
+    statechart_context: StatechartContext,
+):
+    records: List[StageRecord] = []
+    first = ExtensionRecordingItsStages(records)
+    second = ExtensionRecordingItsStages(records)
+    executor = StatechartExecutor(
+        context=statechart_context, extensions=[first, second]
+    )
+
+    executor.compile(_statechart_ending_after_one_node())
+    executor.tick()
+
+    assert [record.extension for record in records] == [first, second] * 4
+
+
+def test_nodes_are_built_with_the_context_extensions_of_every_executor_extension(
+    statechart_context: StatechartContext,
+):
+    first = ExtensionInstallingACountingContext()
+    records: List[StageRecord] = []
+    second = ExtensionRecordingItsStages(records)
+    statechart = Statechart()
+    statechart.add_nodes(
+        [
+            node := NodeRequiringACountingContext(),
+            EndStatechart.when_true(node),
+        ]
+    )
+    executor = StatechartExecutor(
+        context=statechart_context, extensions=[first, second]
+    )
+
+    executor.compile(statechart)
+    executor.tick_until_end()
+
+    assert first.counting_context.builds == 1
+    assert records[-1].stage == ExecutorStage.AFTER_RUN
+
+
+def test_an_extension_can_decide_the_tick_duration_a_pacer_paces(
+    statechart_context_without_tick_duration: StatechartContext,
+):
+    extension = ExtensionSettingTheTickDuration(tick_duration=0.02)
+    pacer = SimulationPacer()
+
+    StatechartExecutor(
+        context=statechart_context_without_tick_duration,
+        pacer=pacer,
+        extensions=[extension],
+    )
+
+    assert pacer.target_frequency == 1 / extension.tick_duration
+
+
+def test_an_executor_finds_its_extension_by_type(
+    statechart_context: StatechartContext,
+):
+    extension = ExtensionInstallingACountingContext()
+    executor = StatechartExecutor(
+        context=statechart_context,
+        extensions=[ExtensionRecordingItsStages([]), extension],
+    )
+
+    assert executor.require_extension(ExtensionInstallingACountingContext) is extension
+
+
+def test_requiring_an_extension_the_executor_does_not_have_is_rejected(
+    statechart_executor: StatechartExecutor,
+):
+    with pytest.raises(MissingExecutorExtensionError):
+        statechart_executor.require_extension(ExtensionRecordingItsStages)

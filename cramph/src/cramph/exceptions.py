@@ -592,3 +592,21 @@ class ConflictingTickDurationError(StatechartError):
 
     def suggest_correction(self) -> str:
         return "Configure everything that sets the tick duration with the same value."
+
+
+@dataclass
+class MissingExecutorExtensionError(StatechartError):
+    """
+    Raised when an executor extension is requested that the executor was not given.
+    """
+
+    expected_extension: Type
+    """
+    The type of the requested extension.
+    """
+
+    def error_message(self) -> str:
+        return f'Missing executor extension "{self.expected_extension.__name__}".'
+
+    def suggest_correction(self) -> str:
+        return "Pass an instance of it in the extensions of the StatechartExecutor."
