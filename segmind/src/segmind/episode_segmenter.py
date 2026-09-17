@@ -6,6 +6,7 @@ from dataclasses import field, dataclass
 from pathlib import Path
 from typing import Optional, List
 from cramph.executor import StatechartExecutor
+from cramph.statechart import Statechart
 from semantic_digital_twin.adapters.package_resolver import FileUriResolver
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
@@ -16,7 +17,7 @@ from semantic_digital_twin.world_description.connections import (
 from semantic_digital_twin.world_description.geometry import Mesh
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import Body
-from .detectors.base import DetectorStateChart, SegmindContext
+from .detectors.base import SegmindContext
 from .episode_player import EpisodePlayer
 
 logger = logging.getLogger(__name__)
@@ -39,11 +40,6 @@ class EpisodeSegmenterExecutor(StatechartExecutor):
     The episode player responsible for stepping the world.
 
     This can be None if no player is used.
-    """
-
-    statechart: DetectorStateChart = field(init=False)
-    """
-    The detector statechart that drives the episode execution.
     """
 
     ignored_objects: Optional[List[str]] = field(default_factory=list)
@@ -70,7 +66,7 @@ class EpisodeSegmenterExecutor(StatechartExecutor):
         if self.player:
             self.player.start()
 
-    def compile(self, statechart: DetectorStateChart):
+    def compile(self, statechart: Statechart):
         """
         Compiles the provided statechart and initializes the episode segmenter for
         execution.

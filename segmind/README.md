@@ -32,18 +32,18 @@ Detectors are the logic units responsible for identifying events. They process t
 
 ### StateCharts
 
-The `SegmindStatechart` orchestrates multiple detectors. It acts as a container that ticks all registered detectors against a shared `SegmindContext`.
+Detectors are ordinary nodes of a cramph `Statechart`, ticked against a shared `SegmindContext`. `DetectorStatechartBuilder` builds such a statechart from a list of detectors.
 
 
 
 ## Example Usage
 
-The following example demonstrates how to set up a `SegmindStatechart` to detect events in a simulation world.
+The following example demonstrates how to set up a statechart of detectors to detect events in a simulation world.
 
 ```python
 from cramph.context import StatechartContext
 from segmind.detectors.base import SegmindContext
-from segmind.statecharts.segmind_statechart import SegmindStatechart
+from segmind.statecharts.segmind_statechart import DetectorStatechartBuilder
 from segmind.episode_segmenter import EpisodeSegmenterExecutor
 
 # 1. Setup Context and Executor, which adds the SegmindContext with its event logger
@@ -52,7 +52,7 @@ executor = EpisodeSegmenterExecutor(context=context)
 logger = context.require_extension(SegmindContext).logger
 
 # 2. Build and compile the Statechart
-statechart = SegmindStatechart().build_statechart()
+statechart = DetectorStatechartBuilder().build()
 executor.compile(statechart)
 
 # 3. Simulation Loop

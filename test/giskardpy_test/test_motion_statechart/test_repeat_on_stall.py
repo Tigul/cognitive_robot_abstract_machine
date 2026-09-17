@@ -65,7 +65,6 @@ def test_repeat_on_stall_retries_when_a_failure_monitor_of_its_attempt_fires():
         repeat_template=partial(
             RepeatOnStall, timeout=STALL_TIMEOUT_OUTLASTING_THE_TEST
         ),
-        statechart_type=Statechart,
     )
 
     for _ in range(SETTLE_TICKS):

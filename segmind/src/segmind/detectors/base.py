@@ -8,24 +8,12 @@ from cramph.context import StatechartContext
 from cramph.context import ContextExtension
 from cramph.data_types import ObservationStateValues, SuccessDecider
 from cramph.node import StatechartNode
-from cramph.statechart import Statechart
 from segmind.datastructures.events import MotionEvent, DetectionEvent, RotationEvent
 from segmind.datastructures.object_tracker import ObjectTrackerFactory
 from segmind.event_logger import EventLogger
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Aperture
 from semantic_digital_twin.world_description.connections import Connection6DoF
 from semantic_digital_twin.world_description.world_entity import Body
-
-
-@dataclass
-class DetectorStateChart(Statechart):
-    """
-    Statechart responsible for running the different motion detectors.
-
-    Currently acts as a container for the detectors and inherits the
-    functionality from Statechart.
-    """
-
 
 IndexedBodyPairs = Dict[Body, Set[Body]]
 """

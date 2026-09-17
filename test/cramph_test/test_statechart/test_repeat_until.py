@@ -8,7 +8,7 @@ neither a world nor a converging task.
 
 from functools import partial
 
-from typing_extensions import Callable, Type
+from typing_extensions import Callable
 
 import pytest
 
@@ -42,7 +42,6 @@ def _repeat_on_timeout(
     task: StatechartNode,
     target: int,
     repeat_template: Callable[..., RepeatUntil] = RepeatUntil,
-    statechart_type: Type[Statechart] = Statechart,
 ) -> tuple[RepeatUntil, Statechart, StatechartExecutor]:
     """
     Build a compiled chart around a task that is retried until it has been reset
@@ -50,7 +49,6 @@ def _repeat_on_timeout(
 
     :param executor: Compiles the chart.
     :param repeat_template: Builds the loop around the attempt.
-    :param statechart_type: The kind of statechart `executor` executes.
     """
     attempt = Attempt(
         name="attempt",
@@ -62,7 +60,7 @@ def _repeat_on_timeout(
         task=attempt,
         stop_retry_monitor=CountNodeResets(name="counter", node=attempt, target=target),
     )
-    statechart = statechart_type()
+    statechart = Statechart()
     statechart.add_node(loop)
     statechart.add_node(EndStatechart.when_true(loop))
     executor.compile(statechart=statechart)
