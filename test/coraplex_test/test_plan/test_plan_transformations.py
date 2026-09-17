@@ -18,8 +18,9 @@ from coraplex.plans.factories import execute_single, sequential
 from coraplex.plans.plan import logger as plan_logger
 from coraplex.plans.plan_node import ActionLike, ActionNode, MotionNode, PlanNode
 from coraplex.plans.plan_transformation import (
-    ActionMatch,
+    DesignatorMatch,
     InsertionRewrite,
+    NodeSelection,
     PlanMatch,
     PlanTransformation,
 )
@@ -67,7 +68,7 @@ def motion_of(plan_node: ActionNode) -> MotionNode:
 
 
 @dataclass
-class MoveGrippersBeforeTorsoMotion(InsertionRewrite, ActionMatch[MoveTorsoAction]):
+class MoveGrippersBeforeTorsoMotion(InsertionRewrite, DesignatorMatch[MoveTorsoAction]):
     """
     Puts two distinguishable gripper motions in front of the motion a torso move expands
     into.
@@ -76,6 +77,9 @@ class MoveGrippersBeforeTorsoMotion(InsertionRewrite, ActionMatch[MoveTorsoActio
     @property
     def position(self) -> InsertionPosition:
         return InsertionPosition.BEFORE
+
+    def is_applicable(self, plan_node: PlanNode) -> bool:
+        return True
 
     def anchor(self, plan_node: ActionNode) -> PlanNode:
         return motion_of(plan_node)
@@ -99,7 +103,7 @@ class MoveGrippersAfterTorsoMotion(MoveGrippersBeforeTorsoMotion):
 
 
 @dataclass
-class ParkArmsBeforeTorsoMotion(InsertionRewrite, ActionMatch[MoveTorsoAction]):
+class ParkArmsBeforeTorsoMotion(InsertionRewrite, DesignatorMatch[MoveTorsoAction]):
     """
     Puts an action, which has a plan of its own, in front of the motion a torso move
     expands into.
@@ -109,6 +113,9 @@ class ParkArmsBeforeTorsoMotion(InsertionRewrite, ActionMatch[MoveTorsoAction]):
     def position(self) -> InsertionPosition:
         return InsertionPosition.BEFORE
 
+    def is_applicable(self, plan_node: PlanNode) -> bool:
+        return True
+
     def anchor(self, plan_node: ActionNode) -> PlanNode:
         return motion_of(plan_node)
 
@@ -117,7 +124,7 @@ class ParkArmsBeforeTorsoMotion(InsertionRewrite, ActionMatch[MoveTorsoAction]):
 
 
 @dataclass
-class MoveGripperLastInTheReachBody(InsertionRewrite, ActionMatch[ReachAction]):
+class MoveGripperLastInTheReachBody(InsertionRewrite, DesignatorMatch[ReachAction]):
     """
     Puts a gripper motion at the end of the sequence a reach expands into.
     """
@@ -125,6 +132,9 @@ class MoveGripperLastInTheReachBody(InsertionRewrite, ActionMatch[ReachAction]):
     @property
     def position(self) -> InsertionPosition:
         return InsertionPosition.LAST_CHILD
+
+    def is_applicable(self, plan_node: PlanNode) -> bool:
+        return True
 
     def anchor(self, plan_node: ActionNode) -> PlanNode:
         [body] = [
@@ -148,7 +158,7 @@ def motions_of(plan_node: PlanNode) -> List[MotionNode]:
 
 
 @dataclass
-class MatchWithoutRewrite(ActionMatch[MoveTorsoAction]):
+class MatchWithoutRewrite(DesignatorMatch[MoveTorsoAction]):
     """
     Selects nodes without saying how to rewrite the plan around them.
     """
@@ -164,6 +174,9 @@ class MoveGripperBeforeEveryAction(InsertionRewrite, PlanMatch[ActionNode]):
     def position(self) -> InsertionPosition:
         return InsertionPosition.BEFORE
 
+    def is_applicable(self, plan_node: PlanNode) -> bool:
+        return True
+
     def anchor(self, plan_node: ActionNode) -> PlanNode:
         return plan_node
 
@@ -172,7 +185,7 @@ class MoveGripperBeforeEveryAction(InsertionRewrite, PlanMatch[ActionNode]):
 
 
 @dataclass
-class RewriteWithoutPosition(InsertionRewrite, ActionMatch[MoveTorsoAction]):
+class RewriteWithoutPosition(InsertionRewrite, DesignatorMatch[MoveTorsoAction]):
     """
     Inserts nodes without saying where they go.
     """
@@ -182,6 +195,22 @@ class RewriteWithoutPosition(InsertionRewrite, ActionMatch[MoveTorsoAction]):
 
     def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
         return [MoveGripperMotion(GripperState.OPEN, Arms.LEFT)]
+
+
+@dataclass
+class SelectionWithoutNodes(NodeSelection):
+    """
+    Rewrites the plan without saying which nodes it selects.
+    """
+
+
+def test_a_selection_that_names_no_nodes_cannot_be_built():
+    """
+    Which nodes it selects is part of what a selection is, so one that leaves it unsaid
+    is incomplete rather than selecting everything.
+    """
+    with pytest.raises(TypeError):
+        SelectionWithoutNodes()
 
 
 def test_a_rewrite_that_says_no_position_cannot_be_built():
@@ -203,8 +232,17 @@ def test_a_transformation_is_a_match_and_a_rewrite():
     assert not issubclass(InsertionRewrite, PlanTransformation)
 
 
+def test_both_ways_of_selecting_nodes_are_one_kind_of_thing():
+    """
+    Matching on the node type and matching on the designator are two ways of selecting
+    the same thing, so a transformation can be written against either.
+    """
+    assert issubclass(PlanMatch, NodeSelection)
+    assert issubclass(DesignatorMatch, NodeSelection)
+
+
 @dataclass
-class MoveGripperBeforeHighTorso(InsertionRewrite, ActionMatch[MoveTorsoAction]):
+class MoveGripperBeforeHighTorso(InsertionRewrite, DesignatorMatch[MoveTorsoAction]):
     """
     Puts a gripper motion in front of a torso move, but only when the torso goes up.
     """
@@ -276,15 +314,23 @@ def test_a_match_on_the_node_type_selects_every_action(immutable_model_world):
     ]
 
 
-def test_a_match_bound_to_an_action_type_selects_the_nodes_of_actions():
+def test_a_match_bound_to_a_designator_type_selects_the_nodes_carrying_it(
+    immutable_model_world,
+):
     """
-    A match bound to an action type keeps selecting action nodes: the action type it
-    binds says which action, not which kind of node.
+    A match bound to a designator type reports that type and selects the nodes carrying
+    one, leaving the nodes of every other designator alone.
     """
+    world, view, context = immutable_model_world
     match = MoveGrippersBeforeTorsoMotion()
+    plan = sequential(
+        [MoveTorsoAction(TorsoState.HIGH), ParkArmsAction(Arms.BOTH)], context
+    )
+    torso, parking = plan.children
 
-    assert match.node_type is ActionNode
-    assert match.action_type is MoveTorsoAction
+    assert match.designator_type is MoveTorsoAction
+    assert match.matches_node(torso)
+    assert not match.matches_node(parking)
 
 
 def test_a_match_bound_to_a_node_type_selects_the_nodes_of_that_type():
@@ -292,6 +338,32 @@ def test_a_match_bound_to_a_node_type_selects_the_nodes_of_that_type():
     A match that binds the node type itself selects the nodes of that type.
     """
     assert MoveGripperBeforeEveryAction().node_type is ActionNode
+
+
+@dataclass
+class JointMotionMatch(DesignatorMatch[MoveJointsMotion]):
+    """
+    Selects the nodes of joint motions.
+    """
+
+    def is_applicable(self, plan_node: PlanNode) -> bool:
+        return True
+
+
+def test_a_designator_match_selects_a_motion_node_too(immutable_model_world):
+    """
+    A designator match selects by the designator a node carries rather than by the kind
+    of node, so binding a motion type selects that motion's node and not the action it
+    belongs to.
+    """
+    world, view, context = immutable_model_world
+    node = execute_single(MoveTorsoAction(TorsoState.HIGH), context=context)
+    node.notify()
+    match = JointMotionMatch()
+
+    assert match.designator_type is MoveJointsMotion
+    assert match.matches_node(motion_of(node))
+    assert not match.matches_node(node)
 
 
 # %% inserting
@@ -752,7 +824,7 @@ def test_the_opening_joins_the_sequence_an_underspecified_pick_up_runs(
 
 
 @dataclass
-class MoveLeftGripperBeforeTorso(InsertionRewrite, ActionMatch[MoveTorsoAction]):
+class MoveLeftGripperBeforeTorso(InsertionRewrite, DesignatorMatch[MoveTorsoAction]):
     """
     Puts a left gripper motion in front of a torso move.
     """
@@ -760,6 +832,8 @@ class MoveLeftGripperBeforeTorso(InsertionRewrite, ActionMatch[MoveTorsoAction])
     @property
     def position(self) -> InsertionPosition:
         return InsertionPosition.BEFORE
+    def is_applicable(self, plan_node: ActionNode) -> bool:
+        return True
 
     def anchor(self, plan_node: ActionNode) -> PlanNode:
         return plan_node

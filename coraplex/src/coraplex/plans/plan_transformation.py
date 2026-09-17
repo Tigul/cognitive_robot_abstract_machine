@@ -13,13 +13,13 @@ from typing_extensions import (
 )
 
 from coraplex.datastructures.enums import InsertionPosition
+from coraplex.plans.designator import Designator
 from coraplex.plans.factories import make_node
-from coraplex.plans.plan_node import ActionLike, ActionNode, PlanNode
-from coraplex.robot_plans.actions.base import ActionDescription
+from coraplex.plans.plan_node import ActionLike, DesignatorNode, PlanNode
 from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
 
 NodeType = TypeVar("NodeType", bound=PlanNode)
-ActionType = TypeVar("ActionType", bound=ActionDescription)
+DesignatorType = TypeVar("DesignatorType", bound=Designator)
 
 
 # %% transformations
@@ -36,7 +36,7 @@ class PlanTransformation(Protocol):
     are expanded in turn.
     """
 
-    def applies_to_node(self, plan_node: PlanNode) -> bool:
+    def matches_node(self, plan_node: PlanNode) -> bool:
         """
         :param plan_node: The node that was just expanded
         :return: Whether the given node is one this transformation rewrites.
@@ -60,7 +60,33 @@ class PlanTransformation(Protocol):
 
 
 @dataclass
-class PlanMatch(Generic[NodeType], SubClassSafeGeneric, ABC):
+class NodeSelection(ABC):
+    """
+    Selects the nodes a transformation rewrites the plan around.
+    """
+
+    @abstractmethod
+    def matches_node(self, plan_node: PlanNode) -> bool:
+        """
+        :param plan_node: The node that was just expanded
+        :return: Whether this selects the given node.
+        """
+
+    @abstractmethod
+    def is_applicable(self, plan_node: PlanNode) -> bool:
+        """
+        Reports whether the case the node describes needs the transformation, which
+        every case does unless a transformation says otherwise.
+
+        It is asked only about nodes :meth:`matches_node` selected.
+
+        :param plan_node: A node this selects
+        :return: Whether the transformation is needed here.
+        """
+
+
+@dataclass
+class PlanMatch(NodeSelection, Generic[NodeType], SubClassSafeGeneric, ABC):
     """
     Selects the nodes of the bound type.
     """
@@ -72,43 +98,32 @@ class PlanMatch(Generic[NodeType], SubClassSafeGeneric, ABC):
         """
         return type(self).get_type_of_generic_parameter(NodeType)
 
-    def applies_to_node(self, plan_node: PlanNode) -> bool:
-        """
-        :param plan_node: The node that was just expanded
-        :return: Whether this selects the given node.
-        """
+    @abstractmethod
+    def is_applicable(self, plan_node: PlanNode) -> bool: ...
+
+    def matches_node(self, plan_node: PlanNode) -> bool:
         return isinstance(plan_node, self.node_type)
-
-    def is_applicable(self, plan_node: PlanNode) -> bool:
-        """
-        Reports whether the case the node describes needs the transformation, which
-        every case does unless a transformation says otherwise.
-
-        It is asked only about nodes :meth:`applies_to_node` selected, so the node can
-        be read as the type this is bound to.
-
-        :param plan_node: A node this selects
-        :return: Whether the transformation is needed here.
-        """
-        return True
 
 
 @dataclass
-class ActionMatch(PlanMatch[ActionNode], Generic[ActionType], SubClassSafeGeneric, ABC):
+class DesignatorMatch(NodeSelection, Generic[DesignatorType], SubClassSafeGeneric, ABC):
     """
-    Selects the nodes of actions of the bound action type.
+    Selects the nodes carrying a designator of the bound type.
     """
 
     @property
-    def action_type(self) -> Type[ActionType]:
+    def designator_type(self) -> Type[DesignatorType]:
         """
-        :return: The type of action this selects the nodes of.
+        :return: The type of designator this selects the nodes of.
         """
-        return type(self).get_type_of_generic_parameter(ActionType)
+        return type(self).get_type_of_generic_parameter(DesignatorType)
 
-    def applies_to_node(self, plan_node: PlanNode) -> bool:
-        return super().applies_to_node(plan_node) and isinstance(
-            plan_node.designator, self.action_type
+    @abstractmethod
+    def is_applicable(self, plan_node: PlanNode) -> bool: ...
+
+    def matches_node(self, plan_node: PlanNode) -> bool:
+        return isinstance(plan_node, DesignatorNode) and isinstance(
+            plan_node.designator, self.designator_type
         )
 
 

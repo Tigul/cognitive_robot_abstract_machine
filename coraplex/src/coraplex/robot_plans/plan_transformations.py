@@ -10,7 +10,7 @@ from coraplex.locations.base import DeferredLocation
 from coraplex.locations.factories import reachability_location
 from coraplex.plans.plan_node import ActionLike, ActionNode, MotionNode, PlanNode
 from coraplex.plans.plan_transformation import (
-    ActionMatch,
+    DesignatorMatch,
     InsertionRewrite,
     PlanMatch,
 )
@@ -35,7 +35,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class DetectBeforeGrasp(InsertionRewrite, ActionMatch[ReachAction]):
+class DetectBeforeGrasp(InsertionRewrite, DesignatorMatch[ReachAction]):
     """
     Looks at the object and detects it before a reach makes its final approach, so that
     the approach acts on a freshly perceived pose instead of the one the world holds.
@@ -44,6 +44,9 @@ class DetectBeforeGrasp(InsertionRewrite, ActionMatch[ReachAction]):
     @property
     def position(self) -> InsertionPosition:
         return InsertionPosition.BEFORE
+
+    def is_applicable(self, plan_node: PlanNode) -> bool:
+        return True
 
     def final_approach(self, plan_node: ActionNode) -> MotionNode:
         """
@@ -139,7 +142,7 @@ class DrawerOpening(InsertionRewrite):
 
 
 @dataclass
-class OpenDrawerBeforePickUp(DrawerOpening, ActionMatch[PickUpAction]):
+class OpenDrawerBeforePickUp(DrawerOpening, DesignatorMatch[PickUpAction]):
     """
     Opens the drawers an object lies in before the robot picks it up, so that it reaches
     into an open drawer instead of a closed one.
@@ -188,7 +191,7 @@ class OpenDrawerBeforePickUp(DrawerOpening, ActionMatch[PickUpAction]):
 
 
 @dataclass
-class OpenDrawerBeforeTransport(DrawerOpening, ActionMatch[TransportAction]):
+class OpenDrawerBeforeTransport(DrawerOpening, DesignatorMatch[TransportAction]):
     """
     Opens the drawers the transported object lies in before the transport starts.
 
@@ -202,7 +205,9 @@ class OpenDrawerBeforeTransport(DrawerOpening, ActionMatch[TransportAction]):
     def is_applicable(self, plan_node: PlanNode) -> bool:
         transport = cast(TransportAction, plan_node.action)
         return bool(
-            self._closed_drawers_containing(transport.object_designator, transport.world)
+            self._closed_drawers_containing(
+                transport.object_designator, transport.world
+            )
         )
 
     def nodes_to_insert(self, plan_node: PlanNode) -> List[ActionLike]:

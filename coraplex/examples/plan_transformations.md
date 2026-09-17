@@ -216,7 +216,7 @@ part on its own is not.
 
 The matching part comes from a `PlanMatch` and the type it is bound to. `ActionMatch[NavigateAction]`
 matches the node of every navigation; `PlanMatch[SomeNode]` matches every node of that type. It
-answers two questions: `applies_to_node` says which nodes the transformation rewrites, and
+answers two questions: `matches_node` says which nodes the transformation rewrites, and
 `is_applicable` says whether the case a matched node describes needs it at all.
 
 The rewriting part comes from a `PlanRewrite`. `InsertionRewrite` inserts nodes and asks for the

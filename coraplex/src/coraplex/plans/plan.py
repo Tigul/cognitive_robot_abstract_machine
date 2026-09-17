@@ -307,7 +307,7 @@ class Plan:
         return [
             transformation
             for transformation in self.plan_transformations
-            if transformation.applies_to_node(node)
+            if transformation.matches_node(node)
             and transformation.is_applicable(node)
         ]
 
