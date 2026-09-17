@@ -110,7 +110,7 @@ def test_the_mobile_base_reports_one_measurement_per_beam(lidar_case):
 
     reading = robot.mobile_base.get_lidar_reading()
 
-    assert len(reading.direction) == len(reading.distance) == beam_count
+    assert len(reading.ranges) == beam_count
 
 
 def test_the_beams_are_expressed_in_the_lidars_own_frame(lidar_case):
@@ -119,9 +119,7 @@ def test_the_beams_are_expressed_in_the_lidars_own_frame(lidar_case):
 
     reading = robot.mobile_base.get_lidar_reading()
 
-    assert {direction.reference_frame for direction in reading.direction} == {
-        lidar.root
-    }
+    assert reading.reference_frame is lidar.root
 
 
 # %% a lidar reading a world it stands in
@@ -134,4 +132,4 @@ def test_a_lidar_in_a_furnished_world_measures_the_surfaces_around_it(
 
     reading = robot.mobile_base.get_lidar_reading()
 
-    assert any(math.isfinite(distance) for distance in reading.distance)
+    assert any(math.isfinite(distance) for distance in reading.ranges)

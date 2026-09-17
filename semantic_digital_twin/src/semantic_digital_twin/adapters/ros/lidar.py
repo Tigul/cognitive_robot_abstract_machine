@@ -12,7 +12,6 @@ from semantic_digital_twin.adapters.ros.ros2_to_semdt_converters import (
 )
 from semantic_digital_twin.adapters.sensors.lidar import Lidar, LidarSource
 from semantic_digital_twin.datastructures.lidar_reading import LidarReading
-from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.exceptions import NoLaserScanReceived
 
 
@@ -72,12 +71,8 @@ class SubscribedLidarSource(LidarSource):
         return self.latest_scan
 
     def get_lidar_reading(self, lidar: Lidar) -> LidarReading:
-        scan = self.received_scan
-        lidar.scan_pattern = ScanPattern(
-            minimum_angle=scan.angle_min,
-            maximum_angle=scan.angle_max,
-            angle_increment=scan.angle_increment,
-            minimum_range=scan.range_min,
-            maximum_range=scan.range_max,
+        reading = LaserScanToSemDTConverter.convert(
+            self.received_scan, lidar.root._world
         )
-        return LaserScanToSemDTConverter.convert(scan, lidar.root._world)
+        lidar.scan_pattern = reading.scan_pattern
+        return reading

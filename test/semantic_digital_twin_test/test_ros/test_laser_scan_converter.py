@@ -75,28 +75,10 @@ def world_with_laser_body() -> World:
 # %% message conversion
 
 
-def test_converted_scan_keeps_one_direction_and_one_distance_per_range(
-    world_with_laser_body,
-):
+def test_converted_scan_keeps_the_ranges_of_the_message(world_with_laser_body):
     reading = LaserScanToSemDTConverter.convert(laser_scan(), world_with_laser_body)
 
-    assert reading.distance == RANGES
-    assert len(reading.direction) == len(RANGES)
-
-
-def test_converted_scan_spans_the_angles_the_message_declares(world_with_laser_body):
-    scan = laser_scan()
-
-    reading = LaserScanToSemDTConverter.convert(scan, world_with_laser_body)
-
-    assert np.allclose(
-        reading.direction[0].to_np(),
-        [np.cos(scan.angle_min), np.sin(scan.angle_min), 0.0, 0.0],
-    )
-    assert np.allclose(
-        reading.direction[-1].to_np(),
-        [np.cos(scan.angle_max), np.sin(scan.angle_max), 0.0, 0.0],
-    )
+    assert reading.ranges.tolist() == RANGES
 
 
 def test_converted_scan_is_expressed_in_the_body_named_by_its_header(
@@ -104,7 +86,23 @@ def test_converted_scan_is_expressed_in_the_body_named_by_its_header(
 ):
     reading = LaserScanToSemDTConverter.convert(laser_scan(), world_with_laser_body)
 
-    assert reading.direction[0].reference_frame is world_with_laser_body.root
+    assert reading.reference_frame is world_with_laser_body.root
+
+
+def test_converted_scan_carries_the_pattern_the_message_declares(
+    world_with_laser_body,
+):
+    scan = laser_scan()
+
+    reading = LaserScanToSemDTConverter.convert(scan, world_with_laser_body)
+
+    assert reading.scan_pattern == ScanPattern(
+        minimum_angle=scan.angle_min,
+        maximum_angle=scan.angle_max,
+        angle_increment=scan.angle_increment,
+        minimum_range=scan.range_min,
+        maximum_range=scan.range_max,
+    )
 
 
 def test_scan_whose_range_count_disagrees_with_its_angles_is_rejected(
@@ -174,10 +172,9 @@ def test_subscribed_source_reports_the_reading_of_its_latest_scan(
     expected = LaserScanToSemDTConverter.convert(scan, world_with_laser_body)
     reading = lidar.get_lidar_reading()
 
-    assert reading.distance == expected.distance
-    assert [direction.to_np().tolist() for direction in reading.direction] == [
-        direction.to_np().tolist() for direction in expected.direction
-    ]
+    np.testing.assert_array_equal(reading.ranges, expected.ranges)
+    assert reading.scan_pattern == expected.scan_pattern
+    assert reading.reference_frame is expected.reference_frame
 
 
 def test_reading_a_subscribed_source_adopts_the_pattern_of_its_latest_scan(

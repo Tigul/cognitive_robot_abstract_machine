@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from typing import Any
 
 import geometry_msgs.msg as geometry_msgs
+import numpy as np
 from sensor_msgs.msg import LaserScan
 from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker
@@ -278,6 +279,7 @@ class LaserScanToSemDTConverter(Ros2ToSemDTConverter[LaserScan, LidarReading]):
                 range_count=len(data.ranges),
             )
         return LidarReading(
-            direction=scan_pattern.beam_directions_in_frame(root),
-            distance=[float(measurement) for measurement in data.ranges],
+            reference_frame=root,
+            scan_pattern=scan_pattern,
+            ranges=np.asarray(data.ranges, dtype=float),
         )

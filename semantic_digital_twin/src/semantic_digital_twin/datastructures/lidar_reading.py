@@ -1,29 +1,38 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
-from typing_extensions import List
+import numpy as np
+from typing_extensions import TYPE_CHECKING
 
-from semantic_digital_twin.spatial_types import Vector3
+from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
+
+if TYPE_CHECKING:
+    from semantic_digital_twin.world_description.world_entity import (
+        KinematicStructureEntity,
+    )
 
 
 @dataclass
 class LidarReading:
     """
-    One sweep of a lidar.
-
-    Both lists hold one entry per beam and share their order, so ``direction[i]`` is the
-    beam that measured ``distance[i]``.
+    One sweep of a lidar, laid out like ``sensor_msgs/LaserScan``.
     """
 
-    direction: List[Vector3] = field(default_factory=list)
+    reference_frame: KinematicStructureEntity
     """
-    The direction of each beam, as a unit vector in the lidar's frame.
+    The frame the sweep was measured in.
     """
 
-    distance: List[float] = field(default_factory=list)
+    scan_pattern: ScanPattern
     """
-    The distance each beam travelled before it hit a surface, in meters.
+    The directions the sweep covered and the distances it could measure.
+    """
+
+    ranges: np.ndarray
+    """
+    The distance each beam travelled before it hit a surface, in meters, ordered like the
+    beams of :attr:`scan_pattern`.
 
     A beam that hit nothing within the scan pattern's range measures ``math.inf``.
     """

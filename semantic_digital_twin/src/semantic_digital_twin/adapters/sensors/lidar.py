@@ -11,7 +11,6 @@ from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.lidar_reading import LidarReading
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.robots.robot_parts import Sensor
-from semantic_digital_twin.spatial_types import Vector3
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
@@ -60,8 +59,9 @@ class SimulatedLidarSource(LidarSource):
         )
 
         return LidarReading(
-            direction=lidar.scan_pattern.beam_directions_in_frame(lidar.root),
-            distance=self._nearest_hit_per_beam(
+            reference_frame=lidar.root,
+            scan_pattern=lidar.scan_pattern,
+            ranges=self._nearest_hit_per_beam(
                 points, index_ray, world_P_lidar, lidar.scan_pattern.beam_count
             ),
         )
@@ -72,7 +72,7 @@ class SimulatedLidarSource(LidarSource):
         index_ray: np.ndarray,
         world_P_lidar: np.ndarray,
         beam_count: int,
-    ) -> List[float]:
+    ) -> np.ndarray:
         """
         Reduces the hits of a ray test to the one distance each beam measures.
 
@@ -88,12 +88,12 @@ class SimulatedLidarSource(LidarSource):
         """
         distances = np.full(beam_count, math.inf)
         if len(index_ray) == 0:
-            return distances.tolist()
+            return distances
 
         hit_distances = np.linalg.norm(points - world_P_lidar[index_ray], axis=1)
         farthest_first = np.argsort(hit_distances)[::-1]
         distances[index_ray[farthest_first]] = hit_distances[farthest_first]
-        return distances.tolist()
+        return distances
 
 
 # %% the lidar a robot carries
@@ -164,6 +164,7 @@ class Lidar(Sensor, ABC):
         :return: A lidar sensor, measuring the real  world it stands in.
         """
         from semantic_digital_twin.adapters.ros.lidar import SubscribedLidarSource
+
         return cls.with_source(
             robot_root, SubscribedLidarSource(node=node, topic_name=topic)
         )
