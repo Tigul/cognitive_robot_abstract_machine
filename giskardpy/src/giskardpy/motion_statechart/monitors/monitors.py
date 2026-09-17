@@ -1,45 +1,19 @@
 from __future__ import annotations
 
-import abc
-from abc import ABC
 from dataclasses import field
 from typing_extensions import List, Optional
 
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import (
-    ObservationStateValues,
-    SuccessDecider,
-)
+from cramph.data_types import SuccessDecider
 from giskardpy.motion_statechart.exceptions import EmptyDegreesOfFreedomError
 from giskardpy.motion_statechart.graph_node import (
     MotionStatechartNode,
-    NodeArtifacts,
     velocity_convergence_expression,
 )
+from cramph.node import NodeArtifacts
 from giskardpy.utils.decorators import dataclass
 from krrood.symbolic_math.symbolic_math import FloatVariable
 from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFreedom
-
-
-@dataclass
-class ThreadedPayloadMonitor(MotionStatechartNode, ABC):
-    """
-    A monitor which executes its __call__ function when start_condition becomes True.
-
-    Subclass this and implement __init__.py and __call__. The __call__ method should
-    change self.state to True when it's done. Calls __call__ in a separate thread. Use
-    for expensive operations
-    """
-
-    success_decided_by = SuccessDecider.OWNER
-
-    state: ObservationStateValues = field(
-        init=False, default=ObservationStateValues.UNKNOWN
-    )
-
-    @abc.abstractmethod
-    def __call__(self):
-        pass
 
 
 @dataclass(repr=False, eq=False)
@@ -92,7 +66,7 @@ class LocalMinimumReached(MotionStatechartNode):
     of from the start of the whole motion chart.
 
     Set this when the monitor is wrapped around one specific, possibly late-starting
-    motion (e.g. via :class:`~giskardpy.motion_statechart.goals.templates.Parallel`)
+    motion (e.g. via :class:`~cramph.composites.Parallel`)
     -- otherwise ``minimum_time`` could already be satisfied by cycles the chart spent
     on earlier, unrelated motions, before this one ever started.
     """
@@ -109,7 +83,7 @@ class LocalMinimumReached(MotionStatechartNode):
         if self.measure_from_own_start:
             context.float_variable_data.set_value(
                 self._start_cycle_variable,
-                context.control_cycle_variable.evaluate()[0],
+                context.tick_variable.evaluate()[0],
             )
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:

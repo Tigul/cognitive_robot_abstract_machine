@@ -2,20 +2,17 @@ import random
 
 import numpy as np
 
-from giskardpy.executor import Executor, SimulationPacer
+from giskardpy.executor import Executor
+from cramph.executor import SimulationPacer
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import (
-    ObservationStateValues,
-    DefaultWeights,
-)
-from giskardpy.motion_statechart.goals.templates import Sequence, Parallel
+from cramph.data_types import ObservationStateValues
+from giskardpy.motion_statechart.data_types import DefaultWeights
+from cramph.composites import Sequence, Parallel
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetSeedConfiguration,
 )
-from giskardpy.motion_statechart.monitors.payload_monitors import (
-    CountSimulationTimeSeconds,
-)
+from cramph.monitors import CountSimulationTimeSeconds
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPosition
 from giskardpy.motion_statechart.tasks.wiggle_insert import WiggleInsert
@@ -60,7 +57,7 @@ def test_wiggle_insert_reaches_hole(pr2_world_state_reset: World, rclpy_node):
     msc.add_node(EndMotion.when_true(wiggle))
 
     kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
     assert wiggle.observation_state == ObservationStateValues.TRUE
@@ -127,7 +124,7 @@ def test_wiggle_insert_on_tick_updates_noise(pr2_world_state_reset: World):
 
     context = MotionStatechartContext(world=pr2_world_state_reset)
     kin_sim = Executor(context)
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
 
     kin_sim.tick()
     first_translation = wiggle._random_translation.evaluate().flatten()[:3].copy()
@@ -197,7 +194,7 @@ def test_wiggle_insert(hsr_world_state_reset):
         MotionStatechartContext(world=hsr_world_state_reset),
         pacer=SimulationPacer(real_time_factor=1),
     )
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
     assert motion.last_observation_state == ObservationStateValues.TRUE

@@ -6,9 +6,7 @@ from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
-from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
-    ConstFalseNode,
-)
+from cramph.nodes_for_testing import ConstFalseNode
 from semantic_digital_twin.world import World
 
 from coraplex.exceptions import MotionDidNotFinish
@@ -23,7 +21,7 @@ def _running_motion() -> MotionStatechartNode:
     motion_statechart = MotionStatechart()
     motion_statechart.add_node(motion)
     executor = Executor(MotionStatechartContext(world=World()))
-    executor.compile(motion_statechart=motion_statechart)
+    executor.compile(statechart=motion_statechart)
     executor.tick()
     return motion
 

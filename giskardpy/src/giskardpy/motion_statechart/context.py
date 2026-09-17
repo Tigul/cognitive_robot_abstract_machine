@@ -2,57 +2,24 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from typing_extensions import Self, Dict, List, Optional, Type, TypeVar, TYPE_CHECKING
+from typing_extensions import Self, List, Optional
 
-from krrood.symbolic_math.float_variable_data import FloatVariableData
-from krrood.symbolic_math.symbolic_math import FloatVariable
 from semantic_digital_twin.collision_checking.collision_manager import CollisionManager
 from semantic_digital_twin.collision_checking.collision_variable_managers import (
     BaseCollisionVariableManager,
     SelfCollisionVariableManager,
     ExternalCollisionVariableManager,
 )
-from giskardpy.motion_statechart.exceptions import (
-    MissingContextExtensionError,
-    DuplicateContextExtensionError,
-)
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 
 from semantic_digital_twin.world import World
+from cramph.context import StatechartContext
 
 
 @dataclass
-class ContextExtension:
-    """
-    Context extension for build context.
-
-    Used together with require_extension to augment BuildContext with custom data.
-    """
-
-
-GenericContextExtension = TypeVar("GenericContextExtension", bound=ContextExtension)
-
-
-@dataclass
-class MotionStatechartContext:
+class MotionStatechartContext(StatechartContext):
     """
     Context used during the build phase of a MotionStatechartNode.
-    """
-
-    world: World
-    """
-    There world in which to execute the Motion Statechart.
-    """
-
-    control_cycle_variable: FloatVariable = field(init=False)
-    """
-    Auxiliary variable used to count control cycles, can be used my Motion
-    StatechartNodes to implement time-dependent actions.
-    """
-
-    float_variable_data: FloatVariableData = field(default_factory=FloatVariableData)
-    """
-    Data structure used to store auxiliary variables.
     """
 
     qp_controller_config: QPControllerConfig = field(
@@ -64,14 +31,9 @@ class MotionStatechartContext:
     Is only needed when constraints are present in the motion statechart.
     """
 
-    extensions: Dict[Type[ContextExtension], ContextExtension] = field(
-        default_factory=dict, repr=False, init=False
-    )
+    tick_duration: Optional[float] = field(init=False, default=None)
     """
-    Dictionary of extensions used to augment the build context.
-
-    Ros2 extensions are automatically added to the build context when using the
-    Ros2Executor.
+    The control time step of :attr:`qp_controller_config`, None without one.
     """
 
     _self_collision_manager: Optional[SelfCollisionVariableManager] = field(
@@ -88,13 +50,10 @@ class MotionStatechartContext:
     Backs :attr:`external_collision_manager`, None until a node requests it.
     """
 
-    @property
-    def control_cycle(self) -> int:
-        """
-        :return: The number of control cycles run since the motion started, as held by
-            :attr:`control_cycle_variable`.
-        """
-        return int(self.float_variable_data.get_value(self.control_cycle_variable))
+    def __post_init__(self):
+        if self.qp_controller_config is None:
+            return
+        self.tick_duration = self.qp_controller_config.control_dt
 
     @property
     def collision_manager(self) -> CollisionManager:
@@ -152,30 +111,11 @@ class MotionStatechartContext:
         """
         return len(self._registered_collision_variable_managers) > 0
 
-    def require_extension(
-        self, extension_type: Type[GenericContextExtension]
-    ) -> GenericContextExtension:
-        """
-        Return an extension instance or raise ``MissingContextExtensionError``.
-        """
-        extension = self.extensions.get(extension_type)
-        if extension is None:
-            raise MissingContextExtensionError(expected_extension=extension_type)
-        return extension
-
-    def add_extension(self, extension: GenericContextExtension):
-        """
-        Extend the build context with a custom extension.
-        """
-        extension_type = type(extension)
-        if extension_type in self.extensions:
-            raise DuplicateContextExtensionError(extension_type=extension_type)
-        self.extensions[extension_type] = extension
-
     def cleanup(self):
         """
         Removes the lazy-initialized collision managers from the collision manager.
         """
+        super().cleanup()
         for manager in self._registered_collision_variable_managers:
             self.collision_manager.remove_collision_consumer(manager)
         self._self_collision_manager = None

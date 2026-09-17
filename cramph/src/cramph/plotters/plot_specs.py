@@ -11,10 +11,7 @@ from typing_extensions import (
 )
 
 from krrood.patterns.field_metadata import JSONMetadata
-from giskardpy.motion_statechart.plotters.styles import (
-    BorderStyle,
-    NodeDrawingStyle,
-)
+from cramph.plotters.styles import BorderStyle, NodeDrawingStyle
 
 if TYPE_CHECKING:
     pass
@@ -27,7 +24,7 @@ class NodePlotSpec:
     """
     Whether the descendants of this node are omitted from the drawing.
 
-    Only has an effect on nodes that own children, i.e. composite statechart nodes.
+    Only has an effect on nodes that own children, i.e. composite nodes.
     """
 
     style: str = NodeDrawingStyle.MONITOR.style
@@ -53,7 +50,7 @@ class NodePlotSpec:
         )
 
     @classmethod
-    def create_composite_statechart_node_style(cls) -> Self:
+    def create_composite_node_style(cls) -> Self:
         return cls(
             visible=True,
             style=NodeDrawingStyle.COMPOSITE.style,
@@ -62,11 +59,11 @@ class NodePlotSpec:
         )
 
     @classmethod
-    def create_collapsed_composite_statechart_node_style(cls) -> Self:
+    def create_collapsed_composite_node_style(cls) -> Self:
         """
-        :return: A composite statechart node style whose descendants are left out of the drawing.
+        :return: A composite node style whose descendants are left out of the drawing.
         """
-        composite_style = cls.create_composite_statechart_node_style()
+        composite_style = cls.create_composite_node_style()
         composite_style.collapse_children = True
         return composite_style
 

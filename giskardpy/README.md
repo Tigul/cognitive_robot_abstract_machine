@@ -1,6 +1,7 @@
 # Giskardpy
 Giskardpy is an open source library for implementing motion control frameworks.
 It uses constraint and optimization based task space control to control the whole body of mobile manipulators.
+Motions are composed as motion statecharts, which are built on the generic statechart engine [cramph](../cramph).
 
 This is a pure python library with the core functionality.
 To use it with ROS you need the following repos, which use giskardpy to create an action server and implement ROS interfaces:

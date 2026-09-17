@@ -3,7 +3,7 @@ import time
 
 import pytest
 
-from giskardpy.motion_statechart.data_types import LifeCycleValues
+from cramph.data_types import LifeCycleValues
 from krrood.rustworkx_utils.graph_visualizer_base import (
     GraphLayout,
     GraphVisualizerBackend,
@@ -429,8 +429,8 @@ def _torso_position(world):
 
 def test_sequence_runs_all_motions(immutable_model_world):
     """
-    Every motion of a sequence is executed, so the torso ends at the target of the *last*
-    motion.
+    Every motion of a sequence is executed, so the torso ends at the target of the
+    *last* motion.
 
     The robot starts in the LOW configuration, so a final HIGH motion proves the second
     motion actually ran.

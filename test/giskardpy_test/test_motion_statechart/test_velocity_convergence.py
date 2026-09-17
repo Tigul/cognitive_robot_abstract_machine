@@ -60,7 +60,7 @@ def context(world) -> MotionStatechartContext:
     A context carrying the cycle counter the :class:`Executor` would otherwise install.
     """
     built = MotionStatechartContext(world=world)
-    built.control_cycle_variable = FloatVariable("control_cycles")
+    built.tick_variable = FloatVariable("control_cycles")
     return built
 
 

@@ -1,3 +1,4 @@
+import abc
 import logging
 import threading
 import time
@@ -5,43 +6,34 @@ from abc import ABC, abstractmethod
 from dataclasses import field, dataclass
 from typing import Optional, Callable
 
-from typing_extensions import Self
-
-from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import (
-    SuccessDecider,
-    LifeCycleValues,
-    ObservationStateValues,
-)
-from giskardpy.motion_statechart.graph_node import (
-    MotionStatechartNode,
-    NodeArtifacts,
-)
+from cramph.context import StatechartContext
+from cramph.data_types import SuccessDecider, LifeCycleValues, ObservationStateValues
+from cramph.node import StatechartNode, NodeArtifacts
 
 logger = logging.getLogger(__name__)
 
 
 @dataclass(eq=False, repr=False)
-class CheckControlCycleCount(MotionStatechartNode):
+class CheckTickCount(StatechartNode):
     """
-    Sets observation to True if control cycle count is above threshold.
+    Sets observation to True if the tick count is above threshold.
     """
 
     success_decided_by = SuccessDecider.OWNER
 
     threshold: int = field(kw_only=True)
     """
-    After this many control cycles, the node will turn True.
+    After this many ticks, the node will turn True.
     """
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         artifacts = NodeArtifacts()
-        artifacts.observation = context.control_cycle_variable > self.threshold
+        artifacts.observation = context.tick_variable > self.threshold
         return artifacts
 
 
 @dataclass(eq=False, repr=False)
-class Print(MotionStatechartNode):
+class Print(StatechartNode):
     """
     Prints a message to the console every tick.
     """
@@ -50,13 +42,13 @@ class Print(MotionStatechartNode):
 
     message: str = ""
 
-    def on_tick(self, context: MotionStatechartContext) -> ObservationStateValues:
+    def on_tick(self, context: StatechartContext) -> ObservationStateValues:
         print(self.message)
         return ObservationStateValues.TRUE
 
 
 @dataclass(eq=False, repr=False)
-class CountSeconds(MotionStatechartNode):
+class CountSeconds(StatechartNode):
     """
     This node counts X seconds and then turns True.
 
@@ -70,22 +62,20 @@ class CountSeconds(MotionStatechartNode):
     _now: Callable[[], float] = field(default=time.monotonic, kw_only=True, repr=False)
     _start_time: float = field(init=False)
 
-    def on_tick(
-        self, context: MotionStatechartContext
-    ) -> Optional[ObservationStateValues]:
+    def on_tick(self, context: StatechartContext) -> Optional[ObservationStateValues]:
         difference = self._now() - self._start_time
         if difference >= self.seconds - 1e-5:
             return ObservationStateValues.TRUE
         return None
 
-    def on_start(self, context: MotionStatechartContext):
+    def on_start(self, context: StatechartContext):
         self._start_time = self._now()
 
 
 @dataclass(eq=False, repr=False)
-class TickCounter(MotionStatechartNode, ABC):
+class TickCounter(StatechartNode, ABC):
     """
-    Base for nodes that count control ticks while RUNNING and turn True once a target is
+    Base for nodes that count ticks while RUNNING and turn True once a target is
     reached.
 
     Only counts while in state RUNNING, and it is up to whoever runs it to stop it once
@@ -99,19 +89,17 @@ class TickCounter(MotionStatechartNode, ABC):
     Number of ticks counted since the last start/reset.
     """
 
-    def on_start(self, context: MotionStatechartContext):
+    def on_start(self, context: StatechartContext):
         self._counter = 0
 
-    def on_tick(
-        self, context: MotionStatechartContext
-    ) -> Optional[ObservationStateValues]:
+    def on_tick(self, context: StatechartContext) -> Optional[ObservationStateValues]:
         self._counter += 1
         if self._reached_target(context):
             return ObservationStateValues.TRUE
         return ObservationStateValues.FALSE
 
     @abstractmethod
-    def _reached_target(self, context: MotionStatechartContext) -> bool:
+    def _reached_target(self, context: StatechartContext) -> bool:
         """
         Whether the counted target has been reached on the current tick.
         """
@@ -120,8 +108,8 @@ class TickCounter(MotionStatechartNode, ABC):
 @dataclass(eq=False, repr=False)
 class CountSimulationTimeSeconds(TickCounter):
     """
-    This node counts X seconds of simulation time (control cycles * simulation time
-    step) and then turns True.
+    This node counts X seconds of simulation time (ticks * tick duration) and then turns
+    True.
 
     Only counts while in state RUNNING.
     """
@@ -131,29 +119,29 @@ class CountSimulationTimeSeconds(TickCounter):
     How many seconds of simulation time to count.
     """
 
-    def _reached_target(self, context: MotionStatechartContext) -> bool:
-        return context.qp_controller_config.control_dt * self._counter >= self.seconds
+    def _reached_target(self, context: StatechartContext) -> bool:
+        return context.require_tick_duration() * self._counter >= self.seconds
 
 
 @dataclass(eq=False, repr=False)
-class CountControlCycles(TickCounter):
+class CountTicks(TickCounter):
     """
-    This node counts 'control_cycles'-many control cycles and then turns True.
+    This node counts :attr:`ticks`-many ticks and then turns True.
 
     Only counts while in state RUNNING.
     """
 
-    control_cycles: int = field(kw_only=True)
+    ticks: int = field(kw_only=True)
     """
-    Turns True after this many control cycles.
+    Turns True after this many ticks.
     """
 
-    def _reached_target(self, context: MotionStatechartContext) -> bool:
-        return self._counter >= self.control_cycles
+    def _reached_target(self, context: StatechartContext) -> bool:
+        return self._counter >= self.ticks
 
 
 @dataclass(eq=False, repr=False)
-class ThreadedPredicateMonitor(MotionStatechartNode):
+class ThreadedPredicateMonitor(StatechartNode):
     """
     Evaluates an arbitrary boolean predicate in a background thread and exposes the
     result as the node's observation state.
@@ -161,19 +149,19 @@ class ThreadedPredicateMonitor(MotionStatechartNode):
     While the node is RUNNING:
 
     - On entering RUNNING (``on_start``), the predicate is launched in a daemon
-      thread so a slow/blocking evaluation does not stall the control loop.
+      thread so a slow/blocking evaluation does not stall the tick loop.
     - Until the thread finishes, the observation is ``UNKNOWN``.
     - Afterwards the observation is ``TRUE`` / ``FALSE`` based on the predicate's
       return value. If the predicate raises, the error is logged and the
       observation becomes ``FALSE``.
 
     The predicate is a plain ``Callable[[], bool]`` so this class has no
-    dependency on whatever produces it (e.g. a Coraplex/EQL condition is wrapped in
-    a lambda by the caller).
+    dependency on whatever produces it (e.g. an EQL condition is wrapped in a lambda
+    by the caller).
 
     .. warning:: The predicate is not serializable, so this monitor only works in
         a locally ticked statechart, not when the statechart is shipped to a
-        remote giskard instance.
+        remote process.
     """
 
     success_decided_by = SuccessDecider.OWNER
@@ -205,7 +193,7 @@ class ThreadedPredicateMonitor(MotionStatechartNode):
         self._error = error
         self._done = True
 
-    def on_start(self, context: MotionStatechartContext) -> None:
+    def on_start(self, context: StatechartContext) -> None:
         """
         On start of this note construct the external thread with self._worker and start
         it as daemon.
@@ -227,11 +215,9 @@ class ThreadedPredicateMonitor(MotionStatechartNode):
         )
         self._thread.start()
 
-    def on_tick(
-        self, context: MotionStatechartContext
-    ) -> Optional[ObservationStateValues]:
+    def on_tick(self, context: StatechartContext) -> Optional[ObservationStateValues]:
         """
-        On tick of the Motion State Chart check if the thread is finished and set the
+        On tick of the statechart check if the thread is finished and set the
         ObservationStateValues accordingly to ObservationStateValues.UNKNOWN if the
         thread is still working ObservationStateValues.TRUE if the Thread finished with
         true and ObservationStateValues.FALSE if the Thread finished with false or
@@ -252,13 +238,13 @@ class ThreadedPredicateMonitor(MotionStatechartNode):
             else ObservationStateValues.FALSE
         )
 
-    def on_reset(self, context: MotionStatechartContext) -> None:
+    def on_reset(self, context: StatechartContext) -> None:
         self._join_thread()
         self._result = None
         self._error = None
         self._done = False
 
-    def cleanup(self, context: MotionStatechartContext) -> None:
+    def cleanup(self, context: StatechartContext) -> None:
         self._join_thread()
 
     def _join_thread(self) -> None:
@@ -270,7 +256,7 @@ class ThreadedPredicateMonitor(MotionStatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class Pulse(MotionStatechartNode):
+class Pulse(StatechartNode):
     """
     Will stay True for a single tick, then turn False.
     """
@@ -287,12 +273,10 @@ class Pulse(MotionStatechartNode):
     Number of ticks to stay True.
     """
 
-    def on_start(self, context: MotionStatechartContext):
+    def on_start(self, context: StatechartContext):
         self._counter = 0
 
-    def on_tick(
-        self, context: MotionStatechartContext
-    ) -> Optional[ObservationStateValues]:
+    def on_tick(self, context: StatechartContext) -> Optional[ObservationStateValues]:
         if self._counter < self.length:
             self._triggered = True
             self._counter += 1
@@ -301,18 +285,18 @@ class Pulse(MotionStatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class CountNodeResets(MotionStatechartNode):
+class CountNodeResets(StatechartNode):
     """
     Turns True once :attr:`node` has been reset :attr:`target` times.
 
-    Counts attempts rather than control cycles, by watching the node re-enter
-    NOT_STARTED. Its count is never cleared, unlike the counters that reset themselves
-    when they start, so it survives the resets it is counting.
+    Counts attempts rather than ticks, by watching the node re-enter NOT_STARTED. Its
+    count is never cleared, unlike the counters that reset themselves when they start,
+    so it survives the resets it is counting.
     """
 
     success_decided_by = SuccessDecider.OWNER
 
-    node: MotionStatechartNode = field(kw_only=True)
+    node: StatechartNode = field(kw_only=True)
     """
     The node whose resets are counted.
     """
@@ -331,12 +315,10 @@ class CountNodeResets(MotionStatechartNode):
         default=None, init=False, repr=False
     )
     """
-    Life cycle state of :attr:`node` on the previous control cycle.
+    Life cycle state of :attr:`node` on the previous tick.
     """
 
-    def on_tick(
-        self, context: MotionStatechartContext
-    ) -> Optional[ObservationStateValues]:
+    def on_tick(self, context: StatechartContext) -> Optional[ObservationStateValues]:
         current_life_cycle = self.node.life_cycle_state
         if (
             self._previous_life_cycle is not None
@@ -348,3 +330,24 @@ class CountNodeResets(MotionStatechartNode):
         if self.resets >= self.target:
             return ObservationStateValues.TRUE
         return ObservationStateValues.FALSE
+
+
+@dataclass
+class ThreadedPayloadMonitor(StatechartNode, ABC):
+    """
+    A monitor which executes its __call__ function when start_condition becomes True.
+
+    Subclass this and implement __init__.py and __call__. The __call__ method should
+    change self.state to True when it's done. Calls __call__ in a separate thread. Use
+    for expensive operations
+    """
+
+    success_decided_by = SuccessDecider.OWNER
+
+    state: ObservationStateValues = field(
+        init=False, default=ObservationStateValues.UNKNOWN
+    )
+
+    @abc.abstractmethod
+    def __call__(self):
+        pass

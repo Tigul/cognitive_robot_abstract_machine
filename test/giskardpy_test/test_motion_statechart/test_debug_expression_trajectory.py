@@ -6,10 +6,8 @@ from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.debug_expression_trajectory import (
     DebugExpressionTrajectory,
 )
-from giskardpy.motion_statechart.exceptions import (
-    EmptyDebugExpressionTrajectoryError,
-    PlotterNotConfiguredError,
-)
+from giskardpy.motion_statechart.exceptions import EmptyDebugExpressionTrajectoryError
+from cramph.exceptions import PlotterNotConfiguredError
 from giskardpy.motion_statechart.graph_node import DebugExpression, EndMotion
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.plotters.debug_expression_trajectory_plotter import (
@@ -48,7 +46,7 @@ def _build_executor(cylinder_bot_world: World) -> Executor:
         context=MotionStatechartContext(world=cylinder_bot_world),
         debug_expression_plotter=DebugExpressionTrajectoryPlotter(),
     )
-    executor.compile(motion_statechart=_build_motion_statechart(cylinder_bot_world))
+    executor.compile(statechart=_build_motion_statechart(cylinder_bot_world))
     return executor
 
 
@@ -104,7 +102,7 @@ class TestDebugExpressionRecording:
         self, cylinder_bot_world: World, tmp_path
     ):
         executor = Executor(context=MotionStatechartContext(world=cylinder_bot_world))
-        executor.compile(motion_statechart=_build_motion_statechart(cylinder_bot_world))
+        executor.compile(statechart=_build_motion_statechart(cylinder_bot_world))
 
         output = tmp_path / "debug_expressions.pdf"
         with pytest.raises(PlotterNotConfiguredError):

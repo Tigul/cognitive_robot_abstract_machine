@@ -13,12 +13,10 @@ from giskardpy.motion_statechart.binding_policy import (
     ForwardKinematicsBinding,
 )
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import (
-    DefaultWeights,
-    ObservationStateValues,
-)
+from giskardpy.motion_statechart.data_types import DefaultWeights
+from cramph.data_types import ObservationStateValues
 from giskardpy.motion_statechart.exceptions import GoalPointsReferenceFrameMismatchError
-from giskardpy.motion_statechart.goals.templates import Parallel
+from cramph.composites import Parallel
 from giskardpy.motion_statechart.error_signals import (
     SampledErrorSignal,
     SymbolicErrorSignal,
@@ -26,7 +24,7 @@ from giskardpy.motion_statechart.error_signals import (
     time_derivative_from_joint_motion,
 )
 from giskardpy.motion_statechart.graph_node import (
-    NodeArtifacts,
+    MotionNodeArtifacts,
     MotionStatechartNode,
     DebugExpression,
 )
@@ -81,7 +79,7 @@ class CartesianTask(ConvergingTask, ABC):
     CURRENT_COLOR: ClassVar[Color] = Color(R=1.0, G=0.0, B=0.0, A=1.0)
     """The color of the current debug expression marker (red)."""
 
-    def build(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
         """
         Bind the goal reference frame before the subclass describes its error against it.
         """
@@ -109,7 +107,7 @@ class CartesianTask(ConvergingTask, ABC):
 
     def add_goal_and_current_debug_expressions(
         self,
-        artifacts: NodeArtifacts,
+        artifacts: MotionNodeArtifacts,
         goal: SpatialType,
         current: SpatialType,
     ) -> None:
@@ -158,14 +156,14 @@ class CartesianPosition(CartesianTask):
     def goal_reference_frame(self) -> KinematicStructureEntity:
         return self.goal_point.reference_frame
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
         """
         Build motion constraints for reaching the goal position.
 
         :param context: Provides access to world model and kinematic expressions.
         :return: The artifacts of this task, whose error is the distance between the tip and the goal point.
         """
-        artifacts = NodeArtifacts()
+        artifacts = MotionNodeArtifacts()
         root_P_goal = self.root_T_goal_reference_frame @ self.goal_point
 
         # Get current tip position in root frame
@@ -256,11 +254,11 @@ class CartesianPositionTrajectory(CartesianTask):
             [point.to_np()[:-1] for point in self.goal_points]
         )
 
-    def build(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
         self._goal_points_to_np()
         return super().build(context)
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
         """
         Build motion constraints that pull the tip along the trajectory.
 
@@ -269,7 +267,7 @@ class CartesianPositionTrajectory(CartesianTask):
             :meth:`on_tick` can compute because it depends on how far along the
             trajectory the tip already is.
         """
-        artifacts = NodeArtifacts()
+        artifacts = MotionNodeArtifacts()
         self._init_goal_reference_frame_P_current_target_point(
             context.float_variable_data
         )
@@ -491,7 +489,7 @@ class CartesianPositionStraight(CartesianTask):
     def goal_reference_frame(self) -> KinematicStructureEntity:
         return self.goal_point.reference_frame
 
-    def build(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
         """
         Bind the pose the line starts at before the constraints are described against it.
         """
@@ -515,7 +513,7 @@ class CartesianPositionStraight(CartesianTask):
         super().on_start(context)
         self._line_start_binding.bind(context.world)
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
         """
         Build motion constraints for reaching the goal along a straight line.
 
@@ -525,7 +523,7 @@ class CartesianPositionStraight(CartesianTask):
         :param context: Provides access to world model and kinematic expressions.
         :return: The artifacts of this task, whose error is the distance between the tip and the goal point.
         """
-        artifacts = NodeArtifacts()
+        artifacts = MotionNodeArtifacts()
         root_P_goal = self.root_T_goal_reference_frame @ self.goal_point
         root_P_line_start = self._line_start_binding.root_T_tip.to_position()
         root_P_tip = context.world.compose_forward_kinematics_expression(
@@ -602,14 +600,14 @@ class CartesianOrientation(CartesianTask):
     def goal_reference_frame(self) -> KinematicStructureEntity:
         return self.goal_orientation.reference_frame
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
         """
         Build motion constraints for reaching the goal orientation.
 
         :param context: Provides access to world model and kinematic expressions.
         :return: The artifacts of this task, whose error is the angle between the tip orientation and the goal orientation.
         """
-        artifacts = NodeArtifacts()
+        artifacts = MotionNodeArtifacts()
         root_R_goal = self.root_T_goal_reference_frame @ self.goal_orientation
 
         # Get current tip orientation in root frame
@@ -759,8 +757,8 @@ class CartesianPositionVelocityLimit(Task):
     over lower weighted constraints when conflicts occur.
     """
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        artifacts = NodeArtifacts()
+    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+        artifacts = MotionNodeArtifacts()
         root_P_tip = context.world.compose_forward_kinematics_expression(
             self.root_link, self.tip_link
         ).to_position()
@@ -816,8 +814,8 @@ class CartesianRotationVelocityLimit(Task):
     limit is enforced. Higher weights give this constraint soft priority
     over lower weighted constraints when conflicts occur."""
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        artifacts = NodeArtifacts()
+    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+        artifacts = MotionNodeArtifacts()
 
         root_R_tip = context.world.compose_forward_kinematics_expression(
             self.root_link, self.tip_link

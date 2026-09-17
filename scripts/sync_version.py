@@ -13,6 +13,7 @@ PACKAGES = [
     "krrood",
     "coraplex",
     "giskardpy",
+    "cramph",
     "probabilistic_model",
     "robokudo",
     "physics_simulators",

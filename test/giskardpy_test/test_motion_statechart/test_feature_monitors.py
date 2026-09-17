@@ -2,7 +2,7 @@ from math import radians
 
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import ObservationStateValues
+from cramph.data_types import ObservationStateValues
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.feature_monitors import (
     HeightMonitor,
@@ -23,7 +23,7 @@ from semantic_digital_twin.world import World
 
 def _run(msc: MotionStatechart, world: World) -> None:
     kin_sim = Executor(MotionStatechartContext(world=world))
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
 

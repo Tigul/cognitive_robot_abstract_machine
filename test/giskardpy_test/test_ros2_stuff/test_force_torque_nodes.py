@@ -3,8 +3,8 @@ import json
 from geometry_msgs.msg import WrenchStamped
 
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import ObservationStateValues
-from giskardpy.motion_statechart.goals.templates import Sequence, Parallel
+from cramph.data_types import ObservationStateValues
+from cramph.composites import Sequence, Parallel
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.ros2_nodes.force_torque_monitor import (
@@ -51,7 +51,7 @@ def test_force_impact_node(rclpy_node):
     kin_sim = Ros2Executor(
         context=MotionStatechartContext(world=World()), ros_node=rclpy_node
     )
-    kin_sim.compile(motion_statechart=msc_copy)
+    kin_sim.compile(statechart=msc_copy)
 
     ft_node = msc_copy.nodes[0].nodes[0]
 

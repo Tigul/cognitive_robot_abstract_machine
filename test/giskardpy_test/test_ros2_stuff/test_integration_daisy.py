@@ -12,14 +12,12 @@ from giskardpy.middleware.ros2.scripts.iai_robots.daisy.configs import (
 )
 from giskardpy.middleware.ros2.utils.utils import load_xacro
 from giskardpy.middleware.ros2.utils.utils_for_tests import compare_poses, GiskardTester
-from giskardpy.motion_statechart.data_types import ObservationStateValues
+from cramph.data_types import ObservationStateValues
 from giskardpy.motion_statechart.goals.collision_avoidance import SelfCollisionAvoidance
-from giskardpy.motion_statechart.goals.templates import Parallel
+from cramph.composites import Parallel
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
-from giskardpy.motion_statechart.monitors.payload_monitors import (
-    CountControlCycles,
-)
+from cramph.monitors import CountTicks
 from giskardpy.motion_statechart.motion_statechart import (
     MotionStatechart,
 )
@@ -325,8 +323,8 @@ class TestCollisionAvoidanceGoals:
                     ],
                 ),
                 SelfCollisionAvoidance(),
-                cycles := CountControlCycles(
-                    control_cycles=ceil(
+                cycles := CountTicks(
+                    ticks=ceil(
                         30
                         * giskard_better_pose.giskard.qp_controller_config.target_frequency
                     )

@@ -77,7 +77,7 @@ class ControlLoop:
         """
         while True:
             self.run_cycle()
-            if self.executor.motion_statechart.is_end_motion():
+            if self.executor.statechart.is_ended():
                 return
             self.executor.pacer.sleep()
 

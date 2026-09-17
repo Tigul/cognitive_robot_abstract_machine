@@ -1,16 +1,12 @@
 """
-Tests for how the states of a motion statechart are presented.
+Tests for how the states of a statechart are presented.
 """
 
 import pytest
 
 from krrood.symbolic_math.symbolic_math import Scalar
-from giskardpy.motion_statechart.data_types import (
-    LifeCycleValues,
-    ObservationStateValues,
-    TransitionKind,
-)
-from giskardpy.motion_statechart.exceptions import TransitionHasNoOutcomeError
+from cramph.data_types import LifeCycleValues, ObservationStateValues, TransitionKind
+from cramph.exceptions import TransitionHasNoOutcomeError
 from semantic_digital_twin.world_description.geometry import Color
 
 # %% every state has to be drawable

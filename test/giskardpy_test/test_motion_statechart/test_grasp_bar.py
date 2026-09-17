@@ -2,7 +2,7 @@ import numpy as np
 
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import ObservationStateValues
+from cramph.data_types import ObservationStateValues
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.tasks.grasp_bar import GraspBar
@@ -14,9 +14,7 @@ from semantic_digital_twin.world import World
 
 
 def test_grasp_bar(pr2_world_state_reset: World, rclpy_node):
-    VizMarkerPublisher(
-        _world=pr2_world_state_reset, node=rclpy_node
-    )
+    VizMarkerPublisher(_world=pr2_world_state_reset, node=rclpy_node)
     tip = pr2_world_state_reset.get_kinematic_structure_entity_by_name(
         "r_gripper_tool_frame"
     )
@@ -39,7 +37,7 @@ def test_grasp_bar(pr2_world_state_reset: World, rclpy_node):
     msc.add_node(EndMotion.when_true(grasp))
 
     kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
     assert grasp.observation_state == ObservationStateValues.TRUE

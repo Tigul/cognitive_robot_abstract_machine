@@ -8,21 +8,15 @@ import pytest
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.binding_policy import GoalBindingPolicy
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import (
-    ObservationStateValues,
-    DefaultWeights,
-    LifeCycleValues,
-)
+from cramph.data_types import ObservationStateValues, LifeCycleValues
+from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.goals.cartesian_goals import (
     DifferentialDriveBaseGoal,
     CartesianPoseStraight,
 )
-from giskardpy.motion_statechart.goals.templates import Sequence, Parallel
-from giskardpy.motion_statechart.graph_node import (
-    EndMotion,
-    CancelMotion,
-    MotionStatechartNode,
-)
+from cramph.composites import Sequence, Parallel
+from giskardpy.motion_statechart.graph_node import EndMotion, MotionStatechartNode
+from cramph.node import CancelStatechart
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetSeedConfiguration,
 )
@@ -130,7 +124,7 @@ def record_tip_path(
     :raises TimeoutError: if the motion does not end within `maximum_ticks`.
     """
     world = executor.context.world
-    life_cycle_state = executor.motion_statechart.life_cycle_state
+    life_cycle_state = executor.statechart.life_cycle_state
 
     def tip_position() -> np.ndarray:
         return world.compute_forward_kinematics_np(root_link, tip_link)[:3, 3].copy()
@@ -145,7 +139,7 @@ def record_tip_path(
             path.append(position_before_tick)
         if path:
             path.append(tip_position())
-        if executor.motion_statechart.is_end_motion():
+        if executor.statechart.is_ended():
             return path
     raise TimeoutError(f"{task.name} did not finish within {maximum_ticks} ticks")
 
@@ -254,7 +248,7 @@ class TestCartesianPositionTrajectory:
             ),
             trajectory_plotter=WorldStateTrajectoryPlotter(),
         )
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
         self.compare_trajectories(
             points,
@@ -293,7 +287,7 @@ class TestCartesianPositionTrajectory:
             ),
             trajectory_plotter=WorldStateTrajectoryPlotter(),
         )
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
         self.compare_trajectories(
             points,
@@ -330,7 +324,7 @@ class TestCartesianPositionTrajectory:
         motion_statechart.add_node(EndMotion.when_true(cartesian_trajectory))
 
         executor = Executor(MotionStatechartContext(world=cylinder_bot_world))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
 
         root_P_tip_start = move_away.goal_point.to_np()[:3]
@@ -390,7 +384,7 @@ class TestCartesianPositionTrajectory:
             ),
             trajectory_plotter=WorldStateTrajectoryPlotter(),
         )
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
         self.compare_trajectories(
             root_points,
@@ -423,7 +417,7 @@ class TestCartesianTasks:
         motion_statechart.add_node(EndMotion.when_true(goal))
 
         executor = Executor(MotionStatechartContext(world=cylinder_bot_world))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
 
         assert np.allclose(
@@ -475,7 +469,7 @@ class TestCartesianTasks:
         motion_statechart.add_node(EndMotion.when_true(loose))
 
         executor = Executor(MotionStatechartContext(world=cylinder_bot_world))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick()
 
         strict_orientation = next(
@@ -514,7 +508,7 @@ class TestCartesianTasks:
         motion_statechart.add_node(EndMotion.when_true(goal))
 
         executor = Executor(MotionStatechartContext(world=cylinder_bot_world))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
 
         goal_reached_tick = None
         for i in range(1000):
@@ -525,7 +519,7 @@ class TestCartesianTasks:
                 == ObservationStateValues.TRUE
             ):
                 goal_reached_tick = i
-            if motion_statechart.is_end_motion():
+            if motion_statechart.is_ended():
                 break
         else:
             raise TimeoutError("motion never ended")
@@ -590,7 +584,7 @@ class TestCartesianTasks:
                 world=pr2_world_state_reset,
             )
         )
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end(1_000_000)
 
         assert cart_goal.observation_state == ObservationStateValues.TRUE
@@ -623,7 +617,7 @@ class TestCartesianTasks:
                 world=pr2_world_state_reset,
             )
         )
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
 
         assert np.allclose(
@@ -678,7 +672,7 @@ class TestCartesianTasks:
         motion_statechart.add_node(EndMotion.when_true(goal))
 
         executor = Executor(MotionStatechartContext(world=_hsr_world_setup))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
 
         assert goal.observation_state == ObservationStateValues.TRUE
@@ -724,7 +718,7 @@ class TestCartesianTasks:
             )
         )
 
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
 
         forward_kinematics = pr2_world_state_reset.compute_forward_kinematics_np(
@@ -773,7 +767,7 @@ class TestCartesianTasks:
                 world=pr2_world_state_reset,
             )
         )
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
 
         forward_kinematics = pr2_world_state_reset.compute_forward_kinematics_np(
@@ -813,7 +807,7 @@ class TestCartesianTasks:
                 world=pr2_world_state_reset,
             )
         )
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
 
         forward_kinematics = pr2_world_state_reset.compute_forward_kinematics_np(
@@ -860,7 +854,7 @@ class TestCartesianTasks:
         motion_statechart.add_node(EndMotion.when_all_true([cart_goal1, cart_goal2]))
 
         executor = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
 
         forward_kinematics = pr2_world_state_reset.compute_forward_kinematics_np(
@@ -911,7 +905,7 @@ class TestCartesianTasks:
         motion_statechart.add_node(EndMotion.when_all_true([cart_goal1, cart_goal2]))
 
         executor = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
 
         forward_kinematics = pr2_world_state_reset.compute_forward_kinematics_np(
@@ -953,7 +947,7 @@ class TestCartesianTasks:
         motion_statechart.add_node(EndMotion.when_true(seq))
 
         executor = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
 
         forward_kinematics = pr2_world_state_reset.compute_forward_kinematics_np(
@@ -1011,7 +1005,7 @@ class TestCartesianTasks:
         motion_statechart.add_node(EndMotion.when_all_true([cart_goal1, cart_goal2]))
 
         executor = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
 
         forward_kinematics = pr2_world_state_reset.compute_forward_kinematics_np(
@@ -1065,7 +1059,7 @@ class TestCartesianTasks:
         motion_statechart.add_node(EndMotion.when_all_true([cart_goal1, cart_goal2]))
 
         executor = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
 
         forward_kinematics = pr2_world_state_reset.compute_forward_kinematics_np(
@@ -1104,7 +1098,7 @@ class TestCartesianTasks:
         end.start_condition = cart_straight.observes_true
 
         executor = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
 
         # Verify goal was achieved
@@ -1134,7 +1128,7 @@ class TestCartesianTasks:
         motion_statechart.add_node(EndMotion.when_true(cart_straight))
 
         executor = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
 
         # Verify task detected completion
@@ -1179,7 +1173,7 @@ class TestCartesianTasks:
         motion_statechart.add_node(EndMotion.when_true(goal))
 
         executor = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         straight = next(
             node for node in goal.nodes if isinstance(node, CartesianPositionStraight)
         )
@@ -1225,7 +1219,7 @@ class TestCartesianTasks:
         motion_statechart.add_node(EndMotion.when_true(straight))
 
         executor = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         path = record_tip_path(executor, straight, root, tip)
 
         line = StraightLine(start=path[0], end=goal_point.to_np()[:3])
@@ -1259,7 +1253,7 @@ class TestCartesianTasks:
         msc.add_node(EndMotion.when_true(goal))
 
         kin_sim = Executor(MotionStatechartContext(world=world))
-        kin_sim.compile(motion_statechart=msc)
+        kin_sim.compile(statechart=msc)
         kin_sim.tick_until_end()
 
         # Retrieve the final tip pose
@@ -1313,7 +1307,7 @@ class TestDiffDriveBaseGoal:
         motion_statechart.add_node(EndMotion.when_true(goal))
 
         executor = Executor(MotionStatechartContext(world=cylinder_bot_diff_world))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
 
         assert np.allclose(
@@ -1344,7 +1338,7 @@ class TestDiffDriveBaseGoal:
         motion_statechart.add_node(EndMotion.when_true(goal))
 
         executor = Executor(MotionStatechartContext(world=cylinder_bot_diff_world))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
 
         # Each step is a maintenance node, so the sequence runs it inside an attempt.
         for step in goal.nodes[1:]:
@@ -1381,7 +1375,7 @@ class TestDiffDriveBaseGoal:
         motion_statechart.add_node(EndMotion.when_true(second_leg))
 
         executor = Executor(MotionStatechartContext(world=cylinder_bot_diff_world))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
 
         assert np.allclose(
@@ -1413,9 +1407,9 @@ class TestVelocityTasks:
         """
         motion_statechart = self._build_msc(goal_node=goal_node, limit_node=limit_node)
         executor = Executor(MotionStatechartContext(world=world))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
         executor.tick_until_end()
-        return executor.control_cycles, executor
+        return executor.tick_count, executor
 
     @pytest.mark.parametrize(
         "goal_type, limit_cls",
@@ -1431,7 +1425,7 @@ class TestVelocityTasks:
         self, pr2_world_state_reset: World, goal_type: str, limit_cls: type
     ):
         """
-        Tests that velocity limit's observation variable can trigger a CancelMotion when
+        Tests that velocity limit's observation variable can trigger a CancelStatechart when
         the optimizer chooses to violate the limit.
         """
         tip = pr2_world_state_reset.get_kinematic_structure_entity_by_name(
@@ -1464,12 +1458,12 @@ class TestVelocityTasks:
             weight=DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE,
         )
         motion_statechart = self._build_msc(goal_node=goal, limit_node=low_weight_limit)
-        cancel_motion = CancelMotion(exception=Exception("test"))
+        cancel_motion = CancelStatechart(exception=Exception("test"))
         cancel_motion.start_condition = low_weight_limit.observes_false
         motion_statechart.add_node(cancel_motion)
 
         executor = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
 
         with pytest.raises(Exception):
             executor.tick_until_end()
@@ -1673,7 +1667,7 @@ class TestDebugExpressions:
         motion_statechart.add_node(EndMotion.when_true(task))
 
         executor = Executor(MotionStatechartContext(world=cylinder_bot_world))
-        executor.compile(motion_statechart=motion_statechart)
+        executor.compile(statechart=motion_statechart)
 
         names = {
             debug_expression.name

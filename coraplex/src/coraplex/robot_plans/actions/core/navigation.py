@@ -13,7 +13,7 @@ from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.motions.navigation import MoveMotion
 from coraplex.robot_plans.motions.robot_body import LookingMotion
-from giskardpy.motion_statechart.goals.templates import Parallel
+from cramph.composites import Parallel
 from giskardpy.motion_statechart.monitors.joint_monitors import (
     JointPositionReached,
 )
@@ -122,8 +122,8 @@ class PathPlanningNavigateAction(ActionDescription):
     The free space is decomposed into a graph of convex sets, so the robot drives around
     the furniture and walls between it and the target instead of straight at them.
 
-
-    This works for obstacles which are known in the environment beforehand not such that are added during navigation.
+     This works for obstacles which are known in the environment beforehand not such
+    that are added during navigation.
     """
 
     target: Pose

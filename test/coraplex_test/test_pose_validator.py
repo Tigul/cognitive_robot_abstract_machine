@@ -19,7 +19,7 @@ from coraplex.locations.pose_validator import (
 )
 from coraplex.robot_plans import MoveToolCenterPointMotion
 from giskardpy.motion_statechart.exceptions import NoProgressError
-from giskardpy.motion_statechart.goals.templates import Sequence
+from cramph.composites import Sequence
 from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.goals.collision_avoidance import (

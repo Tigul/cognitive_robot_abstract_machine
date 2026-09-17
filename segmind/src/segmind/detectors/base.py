@@ -4,16 +4,11 @@ from abc import abstractmethod, ABC
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Set, List, Any
 
-from giskardpy.motion_statechart.context import (
-    MotionStatechartContext,
-    ContextExtension,
-)
-from giskardpy.motion_statechart.data_types import (
-    ObservationStateValues,
-    SuccessDecider,
-)
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode, NodeArtifacts
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.context import StatechartContext
+from cramph.context import ContextExtension
+from cramph.data_types import ObservationStateValues, SuccessDecider
+from cramph.node import StatechartNode
+from cramph.statechart import Statechart
 from segmind.datastructures.events import MotionEvent, DetectionEvent, RotationEvent
 from segmind.datastructures.object_tracker import ObjectTrackerFactory
 from segmind.event_logger import EventLogger
@@ -23,12 +18,12 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 
 @dataclass
-class DetectorStateChart(MotionStatechart):
+class DetectorStateChart(Statechart):
     """
     Statechart responsible for running the different motion detectors.
 
     Currently acts as a container for the detectors and inherits the
-    functionality from MotionStatechart.
+    functionality from Statechart.
     """
 
 
@@ -41,7 +36,7 @@ Type hint for dictionaries mapping bodies to sets of bodies
 @dataclass
 class SegmindContext(ContextExtension):
     """
-    Context object shared across the motion statechart detectors.
+    Context object shared across the statechart detectors.
 
     Stores the latest detected contact and support relationships
     between bodies in the simulation as well as the event logger.
@@ -99,7 +94,7 @@ class SegmindContext(ContextExtension):
 
 
 @dataclass(repr=False, eq=False)
-class AbstractDetector(MotionStatechartNode, ABC):
+class AbstractDetector(StatechartNode, ABC):
     """
     Abstract base class for all detectors.
     """
@@ -112,9 +107,7 @@ class AbstractDetector(MotionStatechartNode, ABC):
     If None, all trackable objects in the world are checked.
     """
 
-    def on_tick(
-        self, context: MotionStatechartContext
-    ) -> Optional[ObservationStateValues]:
+    def on_tick(self, context: StatechartContext) -> Optional[ObservationStateValues]:
         """
         Executes one update cycle of the detector.
 
@@ -122,7 +115,7 @@ class AbstractDetector(MotionStatechartNode, ABC):
         computes new contact relationships, and triggers events if
         contact changes are detected.
 
-        :param context: The current motion statechart context.
+        :param context: The current statechart context.
         :return: ObservationStateValues.TRUE if events were triggered,
         otherwise ObservationStateValues.FALSE.
         """
@@ -147,7 +140,7 @@ class AbstractDetector(MotionStatechartNode, ABC):
         return ObservationStateValues.TRUE if events else ObservationStateValues.FALSE
 
     def get_relation(
-        self, context: MotionStatechartContext, tracked_objects: List[Body], predicate
+        self, context: StatechartContext, tracked_objects: List[Body], predicate
     ) -> Dict[Body, Set[Body]]:
         """
         Get the relation between tracked objects.
@@ -171,7 +164,7 @@ class AbstractDetector(MotionStatechartNode, ABC):
     @abstractmethod
     def update_context_and_events(
         self,
-        context: MotionStatechartContext,
+        context: StatechartContext,
         segmind_context: SegmindContext,
         tracked_objects: List[Body],
     ) -> List[DetectionEvent]:

@@ -8,23 +8,12 @@ from typing_extensions import List, Optional
 import krrood.symbolic_math.symbolic_math as sm
 from krrood.symbolic_math.symbolic_math import Scalar
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import (
-    SuccessDecider,
-    LifeCycleValues,
-    ObservationStateValues,
-)
+from cramph.data_types import SuccessDecider, LifeCycleValues, ObservationStateValues
 from giskardpy.motion_statechart.exceptions import NoProgressError
 from giskardpy.motion_statechart.error_signals import ErrorSignal
-from giskardpy.motion_statechart.graph_node import (
-    CancelMotion,
-    ConvergingTask,
-    CompositeStatechartNode,
-    MotionStatechartNode,
-    NodeArtifacts,
-)
-from giskardpy.motion_statechart.monitors.payload_monitors import (
-    CountSimulationTimeSeconds,
-)
+from cramph.node import CancelStatechart, CompositeNode, NodeArtifacts
+from giskardpy.motion_statechart.graph_node import ConvergingTask, MotionStatechartNode
+from cramph.monitors import CountSimulationTimeSeconds
 
 # %% watching a single task
 
@@ -123,7 +112,7 @@ class NotApproachingGoal(MotionStatechartNode):
     def _monitored_task_is_not_running(self) -> Scalar:
         """
         :return: ``True`` while the monitored task is in any life cycle state other
-            than :attr:`~giskardpy.motion_statechart.data_types.LifeCycleValues.RUNNING`.
+            than :attr:`~cramph.data_types.LifeCycleValues.RUNNING`.
         """
         return sm.Scalar(
             self.monitored_task.life_cycle_variable != int(LifeCycleValues.RUNNING)
@@ -201,14 +190,14 @@ class AnyMonitoredTaskRunning(MotionStatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class StillProgressing(CompositeStatechartNode):
+class StillProgressing(CompositeNode):
     """
     Turns ``False`` once nothing under :attr:`monitored_node` has approached its goal
     for :attr:`timeout`.
 
     Watching each converging task separately, rather than one combined error, keeps the
-    measure meaningful for a :class:`~giskardpy.motion_statechart.goals.templates.Sequence`,
-    whose steps run one after another, and names the task that is actually stuck.
+    measure meaningful for a :class:`~cramph.composites.Sequence`, whose steps run one
+    after another, and names the task that is actually stuck.
 
     Wire :meth:`cancel_motion` to abort a motion that is no longer making progress, or
     the negation of its observation to a node's fail condition to give up on that node.
@@ -275,7 +264,7 @@ class StillProgressing(CompositeStatechartNode):
             and monitor.monitored_task.life_cycle_state == LifeCycleValues.RUNNING
         ]
 
-    def cancel_motion(self) -> CancelMotion:
+    def cancel_motion(self) -> CancelStatechart:
         """
         :return: A node that aborts the motion with a
             :class:`~giskardpy.motion_statechart.exceptions.NoProgressError` once this
@@ -290,7 +279,7 @@ class StillProgressing(CompositeStatechartNode):
         self._timer = CountSimulationTimeSeconds(
             name=f"{self.name}/timer", seconds=self.timeout.total_seconds()
         )
-        self._add_child_to_motion_statechart(self._timer)
+        self._add_child_to_statechart(self._timer)
         stall_monitors = self._expand_stall_detection()
         self._timer.start_condition = sm.logic_and(
             Scalar.const_true(), *[monitor.observes_true for monitor in stall_monitors]
@@ -326,9 +315,7 @@ class StillProgressing(CompositeStatechartNode):
         any_running = AnyMonitoredTaskRunning(
             name=f"{self.name}/any_running", monitored_tasks=self._monitored_tasks
         )
-        self._add_children_to_motion_statechart(
-            self._not_approaching_monitors + [any_running]
-        )
+        self._add_children_to_statechart(self._not_approaching_monitors + [any_running])
         return [any_running, *self._not_approaching_monitors]
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
@@ -354,7 +341,7 @@ class StillProgressing(CompositeStatechartNode):
         """
         if isinstance(node, ConvergingTask):
             return [node]
-        if not isinstance(node, CompositeStatechartNode):
+        if not isinstance(node, CompositeNode):
             return []
         tasks = []
         for child_node in node.nodes:
@@ -370,7 +357,7 @@ class Stalled(StillProgressing):
 
     The same measurement as :class:`StillProgressing`, said the way a failure monitor is
     read: a monitor is passed to an
-    :class:`~giskardpy.motion_statechart.goals.templates.Attempt` as the thing that goes
+    :class:`~cramph.composites.Attempt` as the thing that goes
     wrong, not as the thing that goes right.
     """
 
@@ -383,7 +370,7 @@ class Stalled(StillProgressing):
 
 
 @dataclass(eq=False, repr=False)
-class _CancelBecauseNoProgress(CancelMotion):
+class _CancelBecauseNoProgress(CancelStatechart):
     """
     Cancels the motion by raising an error naming the tasks that stopped approaching
     their goals.

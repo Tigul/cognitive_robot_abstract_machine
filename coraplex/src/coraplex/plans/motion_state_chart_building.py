@@ -7,10 +7,7 @@ from itertools import groupby
 from typing_extensions import TYPE_CHECKING, List
 
 from coraplex.plans.executables import Executable, GiskardExecutable
-from giskardpy.motion_statechart.goals.templates import (
-    NodeListCompositeStatechartNode,
-    Sequence,
-)
+from cramph.composites import NodeListCompositeNode, Sequence
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 
@@ -56,7 +53,7 @@ class BuildsMotionStateChart:
     @abstractmethod
     def add_to_motion_state_chart(
         self,
-        parent_goal: NodeListCompositeStatechartNode,
+        parent_goal: NodeListCompositeNode,
         executable: GiskardExecutable,
     ) -> MotionStatechartNode:
         """
@@ -70,7 +67,7 @@ class BuildsMotionStateChart:
 
     # %% building the chart
 
-    def create_goal(self) -> NodeListCompositeStatechartNode:
+    def create_goal(self) -> NodeListCompositeNode:
         """
         :return: An empty goal describing how the children are executed.
         """
@@ -78,7 +75,7 @@ class BuildsMotionStateChart:
 
     def add_children_to_motion_state_chart(
         self,
-        goal: NodeListCompositeStatechartNode,
+        goal: NodeListCompositeNode,
         children: List[BuildsMotionStateChart],
         executable: GiskardExecutable,
     ) -> None:

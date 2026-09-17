@@ -6,20 +6,14 @@ from dataclasses import dataclass
 from typing_extensions import TYPE_CHECKING, Type
 
 from krrood.exceptions import DataclassException
-from krrood.symbolic_math.symbolic_math import FloatVariable, Scalar
 from semantic_digital_twin.collision_checking.collision_detector import ClosestPoints
 
 if TYPE_CHECKING:
-    from giskardpy.motion_statechart.data_types import TransitionKind
-    from giskardpy.motion_statechart.goals.templates import Attempt
-    from giskardpy.motion_statechart.graph_node import (
-        MotionStatechartNode,
-        TransitionCondition,
-    )
     from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
     from semantic_digital_twin.world_description.world_entity import (
         KinematicStructureEntity,
     )
+from cramph.exceptions import StatechartError, NodeInitializationError
 
 
 @dataclass
@@ -51,35 +45,10 @@ class CollisionViolatedError(DataclassException):
 
 
 @dataclass
-class MotionStatechartError(DataclassException, ABC):
+class MotionStatechartError(StatechartError, ABC):
     """
-    Base class for errors in the motion statechart.
+    Base class for errors in the motion statechart that concern motion control.
     """
-
-
-@dataclass
-class NodeInitializationError(MotionStatechartError, ABC):
-    """
-    Base class for errors that a single node raises while it is set up or built.
-    """
-
-    node: MotionStatechartNode
-    """
-    The node that could not be initialized.
-    """
-
-
-@dataclass
-class EmptyMotionStatechartError(MotionStatechartError):
-    """
-    Raised when a motion statechart without any node is executed.
-    """
-
-    def error_message(self) -> str:
-        return "MotionStatechart is empty."
-
-    def suggest_correction(self) -> str:
-        return ""
 
 
 @dataclass
@@ -113,155 +82,6 @@ class WorldStateArrayReplacedError(MotionStatechartError):
             "such model changes while a motion is running, or re-compile afterwards. "
             "Re-parenting a branch preserves the degrees of freedom and is safe."
         )
-
-
-@dataclass
-class NodeAlreadyBelongsToDifferentNodeError(NodeInitializationError):
-    """
-    Raised when a node that is already part of the statechart is added a second time.
-    """
-
-    new_node: MotionStatechartNode
-    """
-    The node that was about to be added again.
-    """
-
-    def error_message(self) -> str:
-        if self.new_node.parent_node is not None:
-            parent_name = self.new_node.parent_node.unique_name
-        else:
-            parent_name = "top level of motion statechart"
-        return f'Node "{self.new_node.unique_name}" already belongs to "{parent_name}".'
-
-    def suggest_correction(self) -> str:
-        return "Create a copy of the node or remove it from its current parent first."
-
-
-@dataclass
-class EndMotionInCompositeStatechartNodeError(NodeInitializationError):
-    """
-    Raised when a node that ends the motion is added as a child of a composite
-    statechart node.
-    """
-
-    def error_message(self) -> str:
-        return (
-            "Composite statechart nodes are not allowed to have EndMotion as a child."
-        )
-
-    def suggest_correction(self) -> str:
-        return "Use a different node type or move the EndMotion node outside the CompositeStatechartNode."
-
-
-@dataclass
-class SuccessDeciderNotDeclaredError(NodeInitializationError):
-    """
-    Raised when a motion statechart is compiled with a node whose class does not declare
-    who decides that it succeeded.
-    """
-
-    def error_message(self) -> str:
-        return (
-            f'Node class "{type(self.node).__name__}" does not declare '
-            f"success_decided_by."
-        )
-
-    def suggest_correction(self) -> str:
-        return (
-            "Set success_decided_by on the class: SuccessDecider.OWNER if ending the node "
-            "may undo what it reached, SuccessDecider.ITSELF otherwise."
-        )
-
-
-@dataclass
-class AttemptCannotFailError(NodeInitializationError):
-    """
-    Raised when a template that only moves on once an attempt failed is handed an
-    attempt that cannot fail.
-    """
-
-    attempt: Attempt
-    """
-    The attempt that has no failure monitors and whose task cannot fail on its own.
-    """
-
-    def error_message(self) -> str:
-        return (
-            f'"{self.attempt.unique_name}" cannot fail, but "{self.node.unique_name}" '
-            f"only moves on once it failed."
-        )
-
-    def suggest_correction(self) -> str:
-        return (
-            "Wrap the task in an Attempt whose failure monitors decide when to give up "
-            "on it."
-        )
-
-
-@dataclass
-class ChildTransitionAlreadyWiredError(NodeInitializationError):
-    """
-    Raised when a child handed to a template already has one of its life cycle
-    transitions wired, which is the template's to decide.
-    """
-
-    child: MotionStatechartNode
-    """
-    The child whose transition was already wired.
-    """
-
-    transition_kind: TransitionKind
-    """
-    The transition that was already wired.
-    """
-
-    def error_message(self) -> str:
-        return (
-            f"The {self.transition_kind.name.lower()} condition of "
-            f'"{self.child.unique_name}" was wired before it was passed to '
-            f'"{self.node.unique_name}", which decides it.'
-        )
-
-    def suggest_correction(self) -> str:
-        return (
-            "Leave the child's life cycle to the template, or express the condition "
-            "where the template cannot: a fail condition stays with the node itself."
-        )
-
-
-@dataclass
-class TransitionHasNoOutcomeError(MotionStatechartError):
-    """
-    Raised when the outcome of a transition that does not end a node is asked for.
-    """
-
-    transition_kind: TransitionKind
-    """
-    The transition whose outcome was asked for.
-    """
-
-    def error_message(self) -> str:
-        return (
-            f"The {self.transition_kind.name.lower()} transition does not end a node, "
-            f"so it has no outcome."
-        )
-
-    def suggest_correction(self) -> str:
-        return "Only ask the transitions that end a node for their outcome."
-
-
-@dataclass
-class CompositeStatechartNodeWithoutChildrenError(NodeInitializationError):
-    """
-    Raised when a composite statechart node that runs a list of child nodes is built
-    without any.
-    """
-
-    def error_message(self) -> str:
-        return f'CompositeStatechartNode "{self.node.unique_name}" was given no child nodes.'
-
-    def suggest_correction(self) -> str:
-        return "Pass at least one node to it, or leave it out entirely."
 
 
 @dataclass
@@ -345,19 +165,6 @@ class GoalPointsReferenceFrameMismatchError(NodeInitializationError):
 
 
 @dataclass
-class NodeNotBuiltError(NodeInitializationError):
-    """
-    Raised when the build artifacts of a node are read before it has been built.
-    """
-
-    def error_message(self) -> str:
-        return f'Node "{self.node.unique_name}" has not been built yet.'
-
-    def suggest_correction(self) -> str:
-        return "Compile the motion statechart before reading a node's build artifacts."
-
-
-@dataclass
 class MissingErrorSignalError(NodeInitializationError):
     """
     Raised when a converging task builds artifacts that carry no error signal.
@@ -371,64 +178,8 @@ class MissingErrorSignalError(NodeInitializationError):
 
     def suggest_correction(self) -> str:
         return (
-            "Set NodeArtifacts.error in build_artifacts to the error the task's constraints "
+            "Set MotionNodeArtifacts.error in build_artifacts to the error the task's constraints "
             "drive to zero."
-        )
-
-
-@dataclass
-class CyclicNodeDependencyError(NodeInitializationError):
-    """
-    Raised when nodes depend on each other in a cycle, so no build order exists.
-    """
-
-    cycle: list[MotionStatechartNode]
-    """
-    The nodes forming the cycle, in the order in which they depend on each other.
-    """
-
-    def error_message(self) -> str:
-        cycle_str = " -> ".join(node.unique_name for node in self.cycle)
-        return f"Nodes depend on each other in a cycle: {cycle_str}."
-
-    def suggest_correction(self) -> str:
-        return "Break the cycle so the nodes can be expanded and built in some order."
-
-
-@dataclass
-class ControlCycleDoesNotSettleError(MotionStatechartError):
-    """
-    Raised when passes through a motion statechart return it to a state it already had
-    within one control cycle, or still change it after the most passes one control cycle
-    may take.
-    """
-
-    pass_limit: int
-    """
-    The most passes that may change the motion statechart within one control cycle.
-    """
-
-    passes_taken: int
-    """
-    The passes that changed the motion statechart before the control cycle was stopped.
-    """
-
-    unsettled_nodes: list[MotionStatechartNode]
-    """
-    The nodes whose state the last pass changed.
-    """
-
-    def error_message(self) -> str:
-        names = ", ".join(node.unique_name for node in self.unsettled_nodes)
-        return (
-            f"The motion statechart did not settle within one control cycle after "
-            f"{self.passes_taken} of at most {self.pass_limit} passes, at {names}."
-        )
-
-    def suggest_correction(self) -> str:
-        return (
-            "Check whether these nodes read each other's observations in a way no state "
-            "satisfies, for example each observing True while the other does not."
         )
 
 
@@ -478,262 +229,6 @@ class InvalidConstraintExpressionShapeError(MotionStatechartError):
 
 
 @dataclass
-class NodeNotFoundError(MotionStatechartError):
-    """
-    Raised when a node is looked up by name and the statechart has no such node.
-    """
-
-    name: str
-    """
-    The name that was looked up.
-    """
-
-    def error_message(self) -> str:
-        return f"Node '{self.name}' not found in MotionStatechart."
-
-    def suggest_correction(self) -> str:
-        return ""
-
-
-@dataclass
-class UnknownConditionVariableError(MotionStatechartError):
-    """
-    Raised when a rendered condition names a variable that no node offers.
-    """
-
-    variable_name: str
-    """
-    The name the rendered condition uses for the variable.
-    """
-
-    def error_message(self) -> str:
-        return f'The condition names "{self.variable_name}", which no node offers.'
-
-    def suggest_correction(self) -> str:
-        return (
-            "Name a predicate of a node, e.g. 'observes_true', 'last_observed_true' or "
-            "'is_succeeded'."
-        )
-
-
-@dataclass
-class UnsupportedConditionSyntaxError(MotionStatechartError):
-    """
-    Raised when a rendered condition contains syntax that has no meaning as a condition.
-    """
-
-    unsupported_part: str
-    """
-    The part of the rendered condition that is not supported.
-    """
-
-    def error_message(self) -> str:
-        return (
-            f'The condition contains "{self.unsupported_part}", which is not supported.'
-        )
-
-    def suggest_correction(self) -> str:
-        return (
-            "Write the condition from quoted node predicates, True and False, combined "
-            "with 'and', 'or' and 'not'."
-        )
-
-
-@dataclass
-class NotInMotionStatechartError(MotionStatechartError):
-    """
-    Raised when an operation that requires a surrounding statechart is performed on a
-    node that does not belong to one.
-    """
-
-    name: str
-    """
-    The name of the node that does not belong to a statechart.
-    """
-
-    def error_message(self) -> str:
-        return f"Operation can't be performed because node '{self.name}' does not belong to a MotionStatechart."
-
-    def suggest_correction(self) -> str:
-        return ""
-
-
-@dataclass
-class InvalidConditionError(MotionStatechartError):
-    """
-    Base class for errors raised when a condition is set to an unusable expression.
-    """
-
-    condition: TransitionCondition
-    """
-    The condition that was about to be set.
-    """
-
-    new_expression: Scalar
-    """
-    The rejected expression.
-    """
-
-    def reason(self) -> str:
-        """
-        Returns why the expression is not a valid condition.
-        """
-        raise NotImplementedError
-
-    def error_message(self) -> str:
-        return f'Invalid {self.condition.kind.name} condition of node "{self.condition.owner.unique_name}": "{self.new_expression}". Reason: "{self.reason()}"'
-
-    def suggest_correction(self) -> str:
-        return ""
-
-
-@dataclass
-class InputNotExpressionError(InvalidConditionError):
-    """
-    Raised when a condition is set to something that is not a symbolic expression.
-    """
-
-    def reason(self) -> str:
-        return "Input is not an expression."
-
-    def suggest_correction(self) -> str:
-        return "did you forget '.observes_true'?"
-
-
-@dataclass
-class SelfInStartConditionError(InvalidConditionError):
-    """
-    Raised when the start condition of a node references the node itself.
-    """
-
-    def reason(self) -> str:
-        return "Start condition cannot contain the node itself."
-
-
-@dataclass
-class UnsupportedConditionVariableError(InvalidConditionError):
-    """
-    Raised when a condition contains a variable that is not a two-valued predicate of a
-    node, such as a node's observation, which may be unknown.
-    """
-
-    unsupported_variable: FloatVariable
-    """
-    The variable in the condition that a transition may not read.
-    """
-
-    def reason(self) -> str:
-        return (
-            f'Contains "{self.unsupported_variable}", which a transition may not read.'
-        )
-
-    def suggest_correction(self) -> str:
-        return (
-            "Use a predicate of a node, e.g. 'node.observes_true', "
-            "'node.last_observed_true' or 'node.is_failed'."
-        )
-
-
-@dataclass
-class ConditionScopeError(InvalidConditionError):
-    """
-    Raised when a condition references a node from a different scope level.
-
-    A condition may only reference the owning node itself or nodes sharing the same
-    parent.
-    """
-
-    dependency: MotionStatechartNode
-    """
-    The referenced node that lives in a different scope than the condition's owner.
-    """
-
-    def reason(self) -> str:
-        owner_scope = self._scope_name(self.condition.owner)
-        dependency_scope = self._scope_name(self.dependency)
-        return (
-            f'References "{self.dependency.unique_name}" from scope "{dependency_scope}", '
-            f'but the condition\'s owner lives in scope "{owner_scope}". '
-            f"Conditions may only reference the node itself or its siblings."
-        )
-
-    def suggest_correction(self) -> str:
-        return "Reference a sibling of the owning node instead, e.g. the template node that contains the dependency."
-
-    @staticmethod
-    def _scope_name(node: MotionStatechartNode) -> str:
-        """
-        Returns the name of the scope level that a node belongs to.
-
-        Top-level nodes are called "top level".
-        """
-        parent_node = node.parent_node
-        if parent_node is None:
-            return "top level"
-        return parent_node.unique_name
-
-
-@dataclass
-class TerminalNodeInConditionError(InvalidConditionError):
-    """
-    Raised when a condition references a node that ends the motion.
-
-    Such a condition can never take effect, because the motion is already over by the
-    time the referenced node is true.
-    """
-
-    terminal_node: MotionStatechartNode
-    """
-    The referenced node that ends the motion when its observation state turns true.
-    """
-
-    def reason(self) -> str:
-        return (
-            f'References "{self.terminal_node.unique_name}", which ends the motion when '
-            "it turns true, so no transition can depend on it."
-        )
-
-    def suggest_correction(self) -> str:
-        return "Reference the node that makes it true instead."
-
-
-@dataclass
-class MissingContextExtensionError(MotionStatechartError):
-    """
-    Raised when a context extension is requested that was never added to the context.
-    """
-
-    expected_extension: Type
-    """
-    The type of the requested extension.
-    """
-
-    def error_message(self) -> str:
-        return f'Missing context extension "{self.expected_extension.__name__}".'
-
-    def suggest_correction(self) -> str:
-        return ""
-
-
-@dataclass
-class DuplicateContextExtensionError(MotionStatechartError):
-    """
-    Raised when an extension is added to a context that already holds one of that type.
-    """
-
-    extension_type: Type
-    """
-    The type of the extension that is already present.
-    """
-
-    def error_message(self) -> str:
-        return f"Extension of type {self.extension_type.__name__} already exists. You cannot add it twice."
-
-    def suggest_correction(self) -> str:
-        return ""
-
-
-@dataclass
 class ActionClientTypeMismatchError(MotionStatechartError):
     """
     Raised when an action topic is requested with a different message type than the one
@@ -764,26 +259,6 @@ class ActionClientTypeMismatchError(MotionStatechartError):
 
     def suggest_correction(self) -> str:
         return "Use a unique action_topic per message type."
-
-
-@dataclass
-class PlotterNotConfiguredError(MotionStatechartError):
-    """
-    Raised when a plot is requested but the corresponding plotter was never configured.
-    """
-
-    plotter_name: str
-    """
-    The human-readable name of the plotter that is missing.
-    """
-
-    def error_message(self) -> str:
-        return (
-            f"Cannot plot: the {self.plotter_name} was not configured on the executor."
-        )
-
-    def suggest_correction(self) -> str:
-        return f"Pass a {self.plotter_name} when constructing the executor."
 
 
 @dataclass

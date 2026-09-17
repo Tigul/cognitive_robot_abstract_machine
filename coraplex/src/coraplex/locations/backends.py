@@ -9,7 +9,7 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     UpdateTemporaryCollisionRules,
 )
-from giskardpy.motion_statechart.goals.templates import Sequence
+from cramph.composites import Sequence
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose

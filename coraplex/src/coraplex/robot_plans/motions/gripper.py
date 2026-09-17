@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from typing import Optional, List
 
 from giskardpy.motion_statechart.data_types import DefaultWeights
-from giskardpy.motion_statechart.goals.templates import Parallel, Sequence
+from cramph.composites import Parallel, Sequence
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode, Task
 from giskardpy.motion_statechart.binding_policy import GoalBindingPolicy
 from giskardpy.motion_statechart.tasks.align_planes import AlignPlanes

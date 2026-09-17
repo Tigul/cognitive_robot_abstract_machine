@@ -24,14 +24,14 @@ def test_end_motion_abruptness(cylinder_bot_world: World):
     motion_statechart.add_node(end)
 
     executor = Executor(MotionStatechartContext(world=cylinder_bot_world))
-    executor.compile(motion_statechart=motion_statechart)
+    executor.compile(statechart=motion_statechart)
 
     # We want to check the velocity in the last tick BEFORE cleanup
     # tick_until_end calls cleanup. We'll do it manually.
 
     for i in range(1000):
         executor.tick()
-        if motion_statechart.is_end_motion():
+        if motion_statechart.is_ended():
             break
 
     velocities = cylinder_bot_world.state.velocities

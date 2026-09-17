@@ -2,9 +2,7 @@ import json
 
 from giskardpy.middleware.ros2.motion_goal import MotionGoal
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.monitors.payload_monitors import (
-    CountSimulationTimeSeconds,
-)
+from cramph.monitors import CountSimulationTimeSeconds
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from semantic_digital_twin.adapters.ros.messages import MetaData, StreamPosition
 

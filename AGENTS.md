@@ -61,6 +61,8 @@
 - `krrood` must stay self-contained: never import from another workspace package into `krrood` (this includes its tests under `test/krrood_test`). The only permitted exceptions are `random_events` and `probabilistic_model`, because `krrood`'s own source already depends on them. In particular, do not import from `coraplex`, `semantic_digital_twin`, `giskardpy`, `physics_simulators`, `robokudo`, or `experiments` inside `krrood`.
 - When a `krrood` test needs to exercise behaviour that another package triggers, mimic the relevant classes and patterns inside the `krrood` test datasets (`test/krrood_test/dataset`) and test against those mimics. Keep the test in `krrood`; do not move it to another package and do not depend on another package to reproduce the scenario.
 - Mimic classes in the `krrood` test datasets must never import directly from another workspace package either; the only packages they may import from are the ones `krrood`'s source already imports (`random_events`, `probabilistic_model`) plus `krrood` itself.
+- `cramph` may only import from `krrood` and `semantic_digital_twin` among the workspace packages (this includes its tests under `test/cramph_test`). In particular, do not import from `giskardpy`, `coraplex`, `segmind`, `physics_simulators`, `robokudo`, `experiments`, or any ROS package inside `cramph`. `test/cramph_test/test_package_dependencies.py` enforces this.
+- Generic statechart behaviour (life cycles, transition conditions, ticking, composite nodes, generic monitors, plotting) belongs in `cramph`; motion-specific behaviour (QP constraints, tasks, world and robot monitors) belongs in `giskardpy`, built on top of `cramph`.
 
 ## Design Principles
 - Focus on strictly object oriented design

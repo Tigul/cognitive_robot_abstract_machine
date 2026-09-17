@@ -3,8 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import ObservationStateValues
-from giskardpy.motion_statechart.graph_node import NodeArtifacts, Task
+from cramph.data_types import ObservationStateValues
+from giskardpy.motion_statechart.graph_node import MotionNodeArtifacts, Task
 from giskardpy.motion_statechart.ros_context import RosContextExtension
 from typing_extensions import Optional
 
@@ -63,12 +63,12 @@ class PerceptionTask(Task):
     :class:`~coraplex.exceptions.UnidentifiedDetections` instead of being chosen between.
     """
 
-    def build(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
         self.perception_source = PerceptionInterface.for_execution_type(
             self.execution_type,
             context.require_extension(RosContextExtension).ros_node,
         )
-        return NodeArtifacts()
+        return MotionNodeArtifacts()
 
     def on_start(self, context: MotionStatechartContext) -> None:
         self._detections_applied = False

@@ -12,7 +12,7 @@ except ImportError:
 
     ActionClient = None
 
-from giskardpy.motion_statechart.context import ContextExtension
+from cramph.context import ContextExtension
 from giskardpy.motion_statechart.exceptions import ActionClientTypeMismatchError
 
 
@@ -24,8 +24,9 @@ class RosContextExtension(ContextExtension):
         default_factory=dict, init=False, repr=False
     )
     """
-    Action clients keyed by action topic. Reused across every task that targets the
-    same topic instead of constructing (and waiting on) a new client per task build.
+    Action clients keyed by action topic.
+
+    Reused across every task that targets the same topic instead of constructing (and waiting on) a new client per task build.
 
     Safe to share between multiple tasks that are active at the same time: each
     ``send_goal_async``/``get_result_async`` call returns its own future tracking that

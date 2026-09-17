@@ -2,33 +2,28 @@ import time
 
 import pytest
 
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import LifeCycleValues
-from giskardpy.motion_statechart.goals.templates import Sequence
-from giskardpy.motion_statechart.graph_node import EndMotion, MotionStatechartNode
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
-from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
-    ConstTrueNode,
-    ConstFalseNode,
-)
+from cramph.executor import StatechartExecutor
+from cramph.context import StatechartContext
+from cramph.data_types import LifeCycleValues
+from cramph.composites import Sequence
+from cramph.node import EndStatechart, StatechartNode
+from cramph.statechart import Statechart
+from cramph.nodes_for_testing import ConstTrueNode, ConstFalseNode
 from semantic_digital_twin.world import World
 
 
-def _build_chain(
-    motion_statechart: MotionStatechart, length: int
-) -> list[MotionStatechartNode]:
+def _build_chain(statechart: Statechart, length: int) -> list[StatechartNode]:
     """
-    Builds a linear chain of ConstTrueNode instances directly on `motion_statechart`,
-    wired the same way :class:`Sequence` wires its children: each node starts once the
-    previous node's observation is true, and ends on its own observation, so only one
-    node in the chain is ever RUNNING at a time.
+    Builds a linear chain of ConstTrueNode instances directly on `statechart`, wired the
+    same way :class:`Sequence` wires its children: each node starts once the previous
+    node's observation is true, and ends on its own observation, so only one node in the
+    chain is ever RUNNING at a time.
     """
-    chain: list[MotionStatechartNode] = []
+    chain: list[StatechartNode] = []
     previous = None
     for _ in range(length):
         node = ConstTrueNode()
-        motion_statechart.add_node(node)
+        statechart.add_node(node)
         if previous is not None:
             node.start_condition = previous.observes_true
         node.success_condition = node.observes_true
@@ -44,15 +39,15 @@ def test_long_sequence_scale(node_count: int):
     Builds a single long Sequence of cheap ConstTrueNode instances, where exactly one
     node is RUNNING at any time, and measures compile/tick time as the graph grows.
     """
-    msc = MotionStatechart()
+    msc = Statechart()
     sequence = Sequence(nodes=[ConstTrueNode() for _ in range(node_count)])
     msc.add_node(sequence)
-    msc.add_node(EndMotion.when_true(sequence))
+    msc.add_node(EndStatechart.when_true(sequence))
 
-    executor = Executor(MotionStatechartContext(world=World()))
+    executor = StatechartExecutor(StatechartContext(world=World()))
 
     t0 = time.perf_counter()
-    executor.compile(motion_statechart=msc)
+    executor.compile(statechart=msc)
     t_compile = time.perf_counter() - t0
 
     t0 = time.perf_counter()
@@ -64,8 +59,8 @@ def test_long_sequence_scale(node_count: int):
         f"({t_tick / node_count * 1e6:.2f} us/node)"
     )
 
-    assert msc.is_end_motion()
-    assert executor.control_cycles == node_count + 2
+    assert msc.is_ended()
+    assert executor.tick_count == node_count + 2
 
 
 @pytest.mark.slow
@@ -79,7 +74,7 @@ def test_many_alternative_branches_scale(branch_length: int):
     Measures compile/tick time as the total, mostly dormant, graph grows.
     """
     branch_count = 10
-    msc = MotionStatechart()
+    msc = Statechart()
 
     gate = ConstFalseNode()
     msc.add_node(gate)
@@ -90,13 +85,13 @@ def test_many_alternative_branches_scale(branch_length: int):
     for dead_branch in dead_branches:
         dead_branch[0].start_condition = gate.observes_true
 
-    msc.add_node(EndMotion.when_true(active_branch[-1]))
+    msc.add_node(EndStatechart.when_true(active_branch[-1]))
 
-    executor = Executor(MotionStatechartContext(world=World()))
-    total_nodes = branch_count * branch_length + 2  # + gate + EndMotion
+    executor = StatechartExecutor(StatechartContext(world=World()))
+    total_nodes = branch_count * branch_length + 2  # + gate + EndStatechart
 
     t0 = time.perf_counter()
-    executor.compile(motion_statechart=msc)
+    executor.compile(statechart=msc)
     t_compile = time.perf_counter() - t0
 
     t0 = time.perf_counter()
@@ -109,8 +104,8 @@ def test_many_alternative_branches_scale(branch_length: int):
         f"({t_tick / total_nodes * 1e6:.2f} us/node)"
     )
 
-    assert msc.is_end_motion()
-    assert executor.control_cycles == branch_length + 1
+    assert msc.is_ended()
+    assert executor.tick_count == branch_length + 1
     for dead_branch in dead_branches:
         for node in dead_branch:
             assert node.life_cycle_state == LifeCycleValues.NOT_STARTED

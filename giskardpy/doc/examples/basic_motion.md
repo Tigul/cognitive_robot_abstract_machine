@@ -16,10 +16,11 @@ kernelspec:
 This example shows how to set up a basic `MotionStatechart` that runs for a specified amount of time using a `CountSeconds` monitor.
 
 ```{code-cell} ipython3
-from giskardpy.executor import SimulationPacer, Executor
+from cramph.executor import SimulationPacer
+from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.monitors.payload_monitors import CountSeconds
+from cramph.monitors import CountSeconds
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from semantic_digital_twin.world import World
@@ -46,5 +47,5 @@ kin_sim = Executor(
 kin_sim.compile(msc)
 kin_sim.tick_until_end(timeout=1000)
 
-print(f"Control cycles executed: {kin_sim.control_cycles}")
+print(f"Control cycles executed: {kin_sim.tick_count}")
 ```

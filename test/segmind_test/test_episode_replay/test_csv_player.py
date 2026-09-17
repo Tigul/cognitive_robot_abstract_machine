@@ -3,7 +3,7 @@ import time
 from pathlib import Path
 import pytest
 import segmind
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
 from segmind.episode_segmenter import EpisodeSegmenterExecutor
 from segmind.players.csv_player import CSVEpisodePlayer
 from semantic_digital_twin.adapters.package_resolver import FileUriResolver
@@ -30,7 +30,7 @@ def test_csv_player_context():
         time_between_frames=datetime.timedelta(milliseconds=1),
         position_shift=Vector3(0, 0, 0),
     )
-    context = MotionStatechartContext(world=world)
+    context = StatechartContext(world=world)
     episode_executor = EpisodeSegmenterExecutor(
         context=context,
         player=file_player,

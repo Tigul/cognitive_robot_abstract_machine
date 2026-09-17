@@ -10,18 +10,15 @@ from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import DefaultWeights, SuccessDecider
-from giskardpy.motion_statechart.graph_node import (
-    MotionStatechartNode,
-    CompositeStatechartNode,
-    NodeArtifacts,
-)
+from giskardpy.motion_statechart.data_types import DefaultWeights
+from cramph.data_types import SuccessDecider
+from cramph.node import CompositeNode, NodeArtifacts
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
 
 
 @dataclass(eq=False, repr=False)
-class Open(CompositeStatechartNode):
+class Open(CompositeNode):
     """
     Open a 1-dof mechanism in an environment by driving its degree of freedom towards
     its upper limit while keeping the end effector fixed relative to the grasped part.
@@ -77,7 +74,7 @@ class Open(CompositeStatechartNode):
         )
         self.goal_joint_state = self._reachable_goal_joint_state()
 
-        self._add_children_to_motion_statechart(
+        self._add_children_to_statechart(
             [
                 JointPositionList(
                     name="hinge goal",

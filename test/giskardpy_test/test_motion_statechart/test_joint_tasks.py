@@ -2,11 +2,8 @@ import numpy as np
 
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import (
-    LifeCycleValues,
-    ObservationStateValues,
-)
-from giskardpy.motion_statechart.goals.templates import Parallel, Sequence
+from cramph.data_types import LifeCycleValues, ObservationStateValues
+from cramph.composites import Parallel, Sequence
 from giskardpy.motion_statechart.graph_node import (
     EndMotion,
 )
@@ -22,9 +19,7 @@ from giskardpy.motion_statechart.tasks.joint_tasks import (
     JointState,
     JointVelocityLimit,
 )
-from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
-    ConstTrueNode,
-)
+from cramph.nodes_for_testing import ConstTrueNode
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from krrood.symbolic_math.symbolic_math import (
     shortest_angular_distance,
@@ -69,7 +64,7 @@ def test_set_seed_configuration(pr2_world_state_reset):
     end.start_condition = node1.observes_true
 
     kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
 
     kin_sim.tick_until_end()
     assert node1.life_cycle_state == LifeCycleValues.SUCCEEDED
@@ -105,7 +100,7 @@ def test_set_seed_odometry(pr2_world_state_reset):
     end.start_condition = node1.observes_true
 
     kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
 
     kin_sim.tick_until_end()
     assert node1.life_cycle_state == LifeCycleValues.SUCCEEDED
@@ -171,7 +166,7 @@ def test_joint_goal(tmp_path):
             ),
         )
     )
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
 
     assert task1.observation_state == ObservationStateValues.UNKNOWN
     assert end.observation_state == ObservationStateValues.UNKNOWN
@@ -225,7 +220,7 @@ def test_continuous_joint(pr2_world_state_reset):
             world=pr2_world_state_reset,
         )
     )
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
     assert np.isclose(
         shortest_angular_distance(r_wrist_roll_joint.position, -np.pi),
@@ -261,7 +256,7 @@ def test_revolute_joint(pr2_world_state_reset):
             world=pr2_world_state_reset,
         )
     )
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
     assert np.isclose(head_pan_joint.position, 0.042, atol=1e-3)
     assert np.isclose(head_tilt_joint.position, -0.37, atol=1e-2)
@@ -288,7 +283,7 @@ def test_joint_velocity_limit_caps_a_fast_goal(pr2_world_state_reset):
     )
 
     kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
 
     for i in range(400):
         kin_sim.tick()
@@ -332,5 +327,5 @@ def test_joint_sequence(pr2_world_state_reset):
             world=pr2_world_state_reset,
         )
     )
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()

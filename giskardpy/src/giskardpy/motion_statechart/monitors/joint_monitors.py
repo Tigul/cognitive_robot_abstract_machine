@@ -6,11 +6,9 @@ from semantic_digital_twin.world_description.connections import (
     ActiveConnection1DOF,
 )
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import SuccessDecider
-from giskardpy.motion_statechart.graph_node import (
-    MotionStatechartNode,
-    NodeArtifacts,
-)
+from cramph.data_types import SuccessDecider
+from giskardpy.motion_statechart.graph_node import MotionStatechartNode
+from cramph.node import NodeArtifacts
 
 
 @dataclass(eq=False, repr=False)

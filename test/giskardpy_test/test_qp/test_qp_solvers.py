@@ -4,7 +4,7 @@ import pytest
 
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.goals.templates import Sequence
+from cramph.composites import Sequence
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
@@ -77,5 +77,5 @@ def test_joint_goal(solver, pr2_world_state_reset):
             ),
         )
     )
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()

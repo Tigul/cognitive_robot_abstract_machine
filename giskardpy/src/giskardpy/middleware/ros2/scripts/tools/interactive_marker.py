@@ -14,7 +14,7 @@ from visualization_msgs.msg import InteractiveMarker, InteractiveMarkerControl, 
 from visualization_msgs.msg import InteractiveMarkerFeedback
 
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.monitors.payload_monitors import CountSeconds
+from cramph.monitors import CountSeconds
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.middleware.ros2.python_interface import GiskardWrapper

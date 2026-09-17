@@ -5,7 +5,8 @@ from typing import Any, List
 
 import pytest
 
-from giskardpy.executor import Executor, NoPacing
+from giskardpy.executor import Executor
+from cramph.executor import NoPacing
 from giskardpy.middleware.ros2 import rospy
 from giskardpy.middleware.ros2.control_loop import ControlLoop
 from giskardpy.middleware.ros2.exceptions import (
@@ -21,9 +22,7 @@ from giskardpy.middleware.ros2.world_updates import (
 )
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.monitors.payload_monitors import (
-    CountSimulationTimeSeconds,
-)
+from cramph.monitors import CountSimulationTimeSeconds
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from krrood.adapters.json_serializer import to_json

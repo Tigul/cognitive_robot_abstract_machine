@@ -10,10 +10,10 @@ from typing import Optional, Any, List, Type, TYPE_CHECKING, Iterable
 from typing_extensions import Union
 
 from coraplex.plans.designator import Designator
-from giskardpy.motion_statechart.goals.templates import NodeListCompositeStatechartNode
-from giskardpy.motion_statechart.graph_node import CompositeStatechartNode
+from cramph.composites import NodeListCompositeNode
+from cramph.node import CompositeNode
 from krrood.entity_query_language.query.match import Match
-from giskardpy.motion_statechart.data_types import LifeCycleValues
+from cramph.data_types import LifeCycleValues
 from coraplex.datastructures.execution_data import ExecutionData
 from coraplex.plans.executables import (
     Executable,
@@ -533,9 +533,9 @@ class ActionNode(DesignatorNode, BuildsMotionStateChart):
 
     def add_to_motion_state_chart(
         self,
-        parent_goal: NodeListCompositeStatechartNode,
+        parent_goal: NodeListCompositeNode,
         executable: GiskardExecutable,
-    ) -> CompositeStatechartNode:
+    ) -> CompositeNode:
         """
         Add this action's body as its own goal below `parent_goal`.
 
@@ -618,7 +618,7 @@ class MotionNode(DesignatorNode, BuildsMotionStateChart):
 
     def add_to_motion_state_chart(
         self,
-        parent_goal: NodeListCompositeStatechartNode,
+        parent_goal: NodeListCompositeNode,
         executable: GiskardExecutable,
     ) -> Task:
         """

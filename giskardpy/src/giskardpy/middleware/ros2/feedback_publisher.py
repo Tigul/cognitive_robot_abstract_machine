@@ -71,21 +71,21 @@ class ActionFeedbackPublisher:
         Serializing the structure is expensive, so it is sent once while the goal is
         compiled instead of from inside a control cycle.
         """
-        if self.executor.motion_statechart is None:
+        if self.executor.statechart is None:
             return
         data = self.create_states()
         data[MotionStatechartPayloadKey.MOTION_STATECHART] = (
-            self.executor.motion_statechart.create_structure_copy().to_json()
+            self.executor.statechart.create_structure_copy().to_json()
         )
         data[MotionStatechartPayloadKey.GOAL_ID] = self.action_server.goal_id
-        self.last_history_length = len(self.executor.motion_statechart.history)
+        self.last_history_length = len(self.executor.statechart.history)
         self.send(data)
 
     def publish_if_changed(self) -> None:
         """
         Send feedback only when the state of the motion statechart changed.
         """
-        if self.executor.motion_statechart is None:
+        if self.executor.statechart is None:
             return
         if not self.has_state_changed():
             return
@@ -97,7 +97,7 @@ class ActionFeedbackPublisher:
         """
         Send feedback regardless of whether anything changed.
         """
-        if self.executor.motion_statechart is None:
+        if self.executor.statechart is None:
             return
         data = self.create_states()
         data[MotionStatechartPayloadKey.GOAL_ID] = self.action_server.goal_id
@@ -108,7 +108,7 @@ class ActionFeedbackPublisher:
         Collect the life cycle, observation and last observation state of the motion
         statechart.
         """
-        motion_statechart = self.executor.motion_statechart
+        motion_statechart = self.executor.statechart
         return {
             MotionStatechartPayloadKey.LIFE_CYCLE_STATE: motion_statechart.life_cycle_state.to_json(),
             MotionStatechartPayloadKey.OBSERVATION_STATE: motion_statechart.observation_state.to_json(),
@@ -119,7 +119,7 @@ class ActionFeedbackPublisher:
         """
         Whether the statechart history grew since the last feedback.
         """
-        history_length = len(self.executor.motion_statechart.history)
+        history_length = len(self.executor.statechart.history)
         has_changed = self.last_history_length != history_length
         if has_changed:
             self.last_history_length = history_length

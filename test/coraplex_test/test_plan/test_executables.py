@@ -16,17 +16,14 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
 )
-from giskardpy.motion_statechart.goals.templates import Sequence
+from cramph.composites import Sequence
+from cramph.node import CancelStatechart, CompositeNode
 from giskardpy.motion_statechart.graph_node import (
-    CancelMotion,
     EndMotion,
-    CompositeStatechartNode,
     MotionStatechartNode,
     Task,
 )
-from giskardpy.motion_statechart.monitors.payload_monitors import (
-    ThreadedPredicateMonitor,
-)
+from cramph.monitors import ThreadedPredicateMonitor
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
@@ -96,7 +93,7 @@ def test_motion_state_chart_is_created_once(reach_action_executable):
     )
 
 
-def _nodes_below(goal: CompositeStatechartNode) -> List[MotionStatechartNode]:
+def _nodes_below(goal: CompositeNode) -> List[MotionStatechartNode]:
     """
     :return: Every node held by `goal` or by a goal below it.
     """
@@ -105,11 +102,7 @@ def _nodes_below(goal: CompositeStatechartNode) -> List[MotionStatechartNode]:
         for child in goal.nodes
         for descendant in [
             child,
-            *(
-                _nodes_below(child)
-                if isinstance(child, CompositeStatechartNode)
-                else []
-            ),
+            *(_nodes_below(child) if isinstance(child, CompositeNode) else []),
         ]
     ]
 
@@ -148,7 +141,7 @@ def test_parsing_mirrors_the_plan_tree_as_nested_goals(reach_action_executable):
         [parent_goal] = [
             goal
             for goal in root_goal.nodes
-            if isinstance(goal, CompositeStatechartNode) and task in goal.nodes
+            if isinstance(goal, CompositeNode) and task in goal.nodes
         ]
 
 
@@ -160,7 +153,7 @@ def test_parsing_does_not_terminate_the_chart(reach_action_executable):
     chart = reach_action_executable.motion_state_chart
 
     assert chart.get_nodes_by_type(EndMotion) == []
-    assert chart.get_nodes_by_type(CancelMotion) == []
+    assert chart.get_nodes_by_type(CancelStatechart) == []
 
 
 # %% execution-type dependent extension
@@ -207,7 +200,7 @@ def test_execution_does_not_add_condition_monitors(
 
     chart = reach_action_executable.motion_state_chart
     assert chart.get_nodes_by_type(ThreadedPredicateMonitor) == []
-    assert chart.get_nodes_by_type(CancelMotion) == []
+    assert chart.get_nodes_by_type(CancelStatechart) == []
 
 
 # %% wiring conditions into a chart
@@ -228,7 +221,7 @@ def test_condition_monitors_bring_their_own_abort_paths(reach_action_executable)
     # pre- and post-condition monitors
     assert len(chart.get_nodes_by_type(ThreadedPredicateMonitor)) == 2
     # abort paths for pre- and post-condition failing
-    assert len(chart.get_nodes_by_type(CancelMotion)) == 2
+    assert len(chart.get_nodes_by_type(CancelStatechart)) == 2
 
 
 def test_pre_condition_monitor_gates_the_root_goal(reach_action_executable):

@@ -22,13 +22,9 @@ from PyQt5.QtWidgets import (
 )
 from giskardpy.middleware.ros2 import rospy
 from giskardpy.middleware.ros2.feedback_publisher import MotionStatechartPayloadKey
-from giskardpy.motion_statechart.motion_statechart import (
-    MotionStatechart,
-    LastObservationState,
-    LifeCycleState,
-    ObservationState,
-)
-from giskardpy.motion_statechart.plotters.graphviz import MotionStatechartGraphviz
+from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import LastObservationState, LifeCycleState, ObservationState
+from cramph.plotters.graphviz import StatechartGraphviz
 from json_msgs.action import JsonAction
 from json_msgs.action._json_action import JsonAction_FeedbackMessage
 
@@ -289,7 +285,7 @@ class DotGraphViewer(QWidget):
             )
 
     def plot_motion_statechart(self, goal_id: int):
-        graph = MotionStatechartGraphviz(self.motion_statechart).to_dot_graph()
+        graph = StatechartGraphviz(self.motion_statechart).to_dot_graph()
         self.graphs_by_goal[goal_id].append(graph)
 
     def parse_new_motion_statechart(self, json_data: Dict[str, Any]):
@@ -303,17 +299,17 @@ class DotGraphViewer(QWidget):
     def parse_state(self, json_data: Dict[str, Any]):
         life_cycle_data = json_data.get(MotionStatechartPayloadKey.LIFE_CYCLE_STATE)
         life_cycle_state = LifeCycleState.from_json(
-            life_cycle_data, motion_statechart=self.motion_statechart
+            life_cycle_data, statechart=self.motion_statechart
         )
         observation_data = json_data.get(MotionStatechartPayloadKey.OBSERVATION_STATE)
         observation_state = ObservationState.from_json(
-            observation_data, motion_statechart=self.motion_statechart
+            observation_data, statechart=self.motion_statechart
         )
         last_observation_data = json_data.get(
             MotionStatechartPayloadKey.LAST_OBSERVATION_STATE
         )
         last_observation_state = LastObservationState.from_json(
-            last_observation_data, motion_statechart=self.motion_statechart
+            last_observation_data, statechart=self.motion_statechart
         )
         self.motion_statechart.life_cycle_state.data = life_cycle_state.data
         self.motion_statechart.observation_state.data = observation_state.data

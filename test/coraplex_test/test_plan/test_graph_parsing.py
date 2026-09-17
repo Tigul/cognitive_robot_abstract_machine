@@ -47,26 +47,15 @@ from coraplex.language import (
     TryAllNode,
     TryInOrderNode,
 )
-from giskardpy.motion_statechart.monitors.templates import (
-    PausedUntilTrue,
-    PausedWhileTrue,
-)
+from cramph.composites import PausedUntilTrue, PausedWhileTrue
 from coraplex.utils import split_list_by_type
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.goals.templates import (
-    Parallel,
-    RepeatOnStall,
-    Sequence,
-    TryAll,
-    TryInOrder,
-    CancelledWhenTrue,
-)
-from giskardpy.motion_statechart.graph_node import CancelMotion
-from giskardpy.motion_statechart.monitors.payload_monitors import CountNodeResets
+from cramph.composites import Parallel, Sequence, TryAll, TryInOrder, CancelledWhenTrue
+from giskardpy.motion_statechart.goals.templates import RepeatOnStall
+from cramph.node import CancelStatechart
+from cramph.monitors import CountNodeResets
 from giskardpy.motion_statechart.monitors.progress_monitors import Stalled
-from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
-    ConstFalseNode,
-)
+from cramph.nodes_for_testing import ConstFalseNode
 from giskardpy.ros_executor import Ros2Executor
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
@@ -250,7 +239,7 @@ def test_cancel_monitor_ends_the_motion_when_the_monitor_fires(
 
     monitored_goal = _monitored_goal_of(executable)
     [cancelled] = [
-        node for node in monitored_goal.nodes if isinstance(node, CancelMotion)
+        node for node in monitored_goal.nodes if isinstance(node, CancelStatechart)
     ]
     assert cancelled.exception == monitored_goal.exception
     assert cancelled.start_condition.free_variables() == [monitor.last_observed_true]
@@ -305,7 +294,7 @@ def test_repeat_node_wraps_its_children_in_a_repeating_goal(
     [counter] = [node for node in loop.nodes if isinstance(node, CountNodeResets)]
     assert counter.target == 3
     assert counter is loop.stop_retry_monitor
-    [exhausted] = [node for node in loop.nodes if isinstance(node, CancelMotion)]
+    [exhausted] = [node for node in loop.nodes if isinstance(node, CancelStatechart)]
     assert exhausted.start_condition.free_variables() == [counter.last_observed_true]
 
 

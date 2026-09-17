@@ -14,37 +14,22 @@ from math import ceil
 import pytest
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import (
-    LifeCycleValues,
-    ObservationStateValues,
-)
-from giskardpy.motion_statechart.exceptions import (
+from cramph.data_types import LifeCycleValues, ObservationStateValues
+from cramph.exceptions import (
     AttemptCannotFailError,
-    CompositeStatechartNodeWithoutChildrenError,
+    CompositeNodeWithoutChildrenError,
 )
-from giskardpy.motion_statechart.goals.templates import (
-    Attempt,
-    Sequence,
-    TryAll,
-    TryInOrder,
-)
+from cramph.composites import Attempt, Sequence, TryAll, TryInOrder
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
-from giskardpy.motion_statechart.monitors.payload_monitors import (
-    CountControlCycles,
-    Pulse,
-)
+from cramph.monitors import CountTicks, Pulse
 from giskardpy.motion_statechart.monitors.progress_monitors import Stalled
-from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
+from cramph.nodes_for_testing import (
     ConstFalseNode,
     ConstTrueNode,
     NodeObservingNothingYet,
 )
-from giskardpy.motion_statechart.monitors.templates import (
-    PausedUntilTrue,
-    PausedWhileTrue,
-    StoppedWhenTrue,
-)
+from cramph.composites import PausedUntilTrue, PausedWhileTrue, StoppedWhenTrue
 from semantic_digital_twin.world import World
 
 from coraplex.language import TryAllNode, TryInOrderNode
@@ -76,7 +61,7 @@ def _compile_and_tick(
     msc.add_node(goal)
     context = MotionStatechartContext(world=World())
     executor = Executor(context)
-    executor.compile(motion_statechart=msc)
+    executor.compile(statechart=msc)
     cycles_per_alternative = ceil(
         GIVE_UP_AFTER.total_seconds() / context.qp_controller_config.control_dt
     )
@@ -245,9 +230,7 @@ def test_slow_alternative_is_not_abandoned_while_still_working():
     An alternative whose observation is still False because it has not reached its goal
     yet must not be mistaken for one that failed.
     """
-    slow = _alternative(
-        CountControlCycles(name="slow", control_cycles=SLOW_ALTERNATIVE_CYCLES)
-    )
+    slow = _alternative(CountTicks(name="slow", ticks=SLOW_ALTERNATIVE_CYCLES))
     fallback = _alternative(ConstTrueNode(name="fallback"))
     goal = TryInOrder(nodes=[slow, fallback])
     _compile_and_tick(goal, ticks=2)
@@ -272,7 +255,7 @@ def test_the_next_alternative_starts_on_the_cycle_the_previous_one_fails():
     msc.add_node(goal)
     context = MotionStatechartContext(world=World())
     executor = Executor(context)
-    executor.compile(motion_statechart=msc)
+    executor.compile(statechart=msc)
 
     cycles_to_abandon_an_alternative = ceil(
         GIVE_UP_AFTER.total_seconds() / context.qp_controller_config.control_dt
@@ -351,8 +334,8 @@ def test_a_try_all_without_nodes_is_rejected():
     msc.add_node(TryAll(nodes=[]))
 
     executor = Executor(MotionStatechartContext(world=World()))
-    with pytest.raises(CompositeStatechartNodeWithoutChildrenError):
-        executor.compile(motion_statechart=msc)
+    with pytest.raises(CompositeNodeWithoutChildrenError):
+        executor.compile(statechart=msc)
 
 
 def test_a_try_in_order_without_nodes_is_rejected():
@@ -360,8 +343,8 @@ def test_a_try_in_order_without_nodes_is_rejected():
     msc.add_node(TryInOrder(nodes=[]))
 
     executor = Executor(MotionStatechartContext(world=World()))
-    with pytest.raises(CompositeStatechartNodeWithoutChildrenError):
-        executor.compile(motion_statechart=msc)
+    with pytest.raises(CompositeNodeWithoutChildrenError):
+        executor.compile(statechart=msc)
 
 
 # %% alternatives that cannot fail
@@ -449,7 +432,7 @@ def test_paused_while_true_holds_the_monitored_node_while_the_monitor_is_true():
     pulse_length = 2
     goal = PausedWhileTrue(
         monitor=Pulse(length=pulse_length, name="pulse"),
-        monitored_node=CountControlCycles(control_cycles=2, name="work"),
+        monitored_node=CountTicks(ticks=2, name="work"),
     )
     executor = _compile_and_tick(goal, ticks=0)
 
@@ -471,7 +454,7 @@ def test_paused_while_true_costs_the_monitored_node_the_paused_ticks():
     pulse_length = 2
     unmonitored = PausedWhileTrue(
         monitor=ConstFalseNode(name="never"),
-        monitored_node=CountControlCycles(control_cycles=2, name="work"),
+        monitored_node=CountTicks(ticks=2, name="work"),
     )
     ticks_without_pause = _ticks_until_observed_true(
         unmonitored, unmonitored.monitored_node, max_ticks=20
@@ -479,7 +462,7 @@ def test_paused_while_true_costs_the_monitored_node_the_paused_ticks():
 
     paused = PausedWhileTrue(
         monitor=Pulse(length=pulse_length, name="pulse"),
-        monitored_node=CountControlCycles(control_cycles=2, name="work"),
+        monitored_node=CountTicks(ticks=2, name="work"),
     )
     ticks_with_pause = _ticks_until_observed_true(
         paused, paused.monitored_node, max_ticks=20
@@ -495,10 +478,8 @@ def test_paused_until_true_holds_the_monitored_node_until_the_monitor_turns_true
     """
     ticks_until_monitor_fires = 2
     goal = PausedUntilTrue(
-        monitor=CountControlCycles(
-            control_cycles=ticks_until_monitor_fires, name="arrival"
-        ),
-        monitored_node=CountControlCycles(control_cycles=2, name="work"),
+        monitor=CountTicks(ticks=ticks_until_monitor_fires, name="arrival"),
+        monitored_node=CountTicks(ticks=2, name="work"),
     )
     executor = _compile_and_tick(goal, ticks=0)
 
@@ -519,7 +500,7 @@ def test_paused_until_true_holds_the_monitored_node_while_the_monitor_has_not_de
     """
     goal = PausedUntilTrue(
         monitor=NodeObservingNothingYet(name="undecided"),
-        monitored_node=CountControlCycles(control_cycles=2, name="work"),
+        monitored_node=CountTicks(ticks=2, name="work"),
     )
 
     _compile_and_tick(goal)
@@ -533,8 +514,8 @@ def test_stopped_when_true_ends_the_monitored_node():
     succeeded.
     """
     goal = StoppedWhenTrue(
-        monitor=CountControlCycles(control_cycles=2, name="trip"),
-        monitored_node=CountControlCycles(control_cycles=99, name="work"),
+        monitor=CountTicks(ticks=2, name="trip"),
+        monitored_node=CountTicks(ticks=99, name="work"),
     )
     _compile_and_tick(goal)
 
@@ -549,8 +530,8 @@ def test_stopped_when_true_fails_once_it_stopped_the_monitored_node():
     declares itself so that whoever runs it is not left waiting.
     """
     goal = StoppedWhenTrue(
-        monitor=CountControlCycles(control_cycles=2, name="trip"),
-        monitored_node=CountControlCycles(control_cycles=99, name="work"),
+        monitor=CountTicks(ticks=2, name="trip"),
+        monitored_node=CountTicks(ticks=99, name="work"),
     )
     _compile_and_tick(goal)
 
@@ -564,7 +545,7 @@ def test_stopped_when_true_observes_false_once_it_stopped_a_node_at_its_goal():
     when the monitor fires is reported as stopped rather than as having arrived.
     """
     goal = StoppedWhenTrue(
-        monitor=CountControlCycles(control_cycles=2, name="trip"),
+        monitor=CountTicks(ticks=2, name="trip"),
         monitored_node=ConstTrueNode(name="work"),
     )
     _compile_and_tick(goal)
@@ -579,8 +560,8 @@ def test_a_stopped_subtree_makes_its_sequence_report_a_failure():
     node short of its goal never ends on its own.
     """
     stopped = StoppedWhenTrue(
-        monitor=CountControlCycles(control_cycles=2, name="trip"),
-        monitored_node=CountControlCycles(control_cycles=99, name="work"),
+        monitor=CountTicks(ticks=2, name="trip"),
+        monitored_node=CountTicks(ticks=99, name="work"),
     )
     sequence = Sequence(nodes=[stopped])
 

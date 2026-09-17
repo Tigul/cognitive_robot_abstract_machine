@@ -6,10 +6,7 @@ from enum import Enum, StrEnum
 from typing_extensions import Dict
 
 from semantic_digital_twin.world_description.geometry import Color
-from giskardpy.motion_statechart.data_types import (
-    ObservationStateValues,
-    TransitionKind,
-)
+from cramph.data_types import ObservationStateValues, TransitionKind
 
 # %% fonts
 

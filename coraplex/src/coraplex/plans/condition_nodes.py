@@ -1,9 +1,7 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
 
-from giskardpy.motion_statechart.monitors.payload_monitors import (
-    ThreadedPredicateMonitor,
-)
+from cramph.monitors import ThreadedPredicateMonitor
 from krrood.entity_query_language.factories import ConditionType, evaluate_condition
 from coraplex.plans.plan_node import PlanNode, ActionNode
 
@@ -48,7 +46,7 @@ def condition_monitor(condition_node: ConditionNode) -> ThreadedPredicateMonitor
 
     The EQL condition is wrapped in a plain callable, so giskard never sees any
     PyCRAM/EQL types. The condition is evaluated in a background thread (see
-    :class:`~giskardpy.motion_statechart.monitors.payload_monitors.ThreadedPredicateMonitor`),
+    :class:`~cramph.monitors.ThreadedPredicateMonitor`),
     its observation state becoming TRUE/FALSE once evaluation finishes.
 
     :param condition_node: The pre- or post-condition node to evaluate.

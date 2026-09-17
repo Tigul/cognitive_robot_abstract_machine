@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Optional, List, Dict, Set, Any
 import numpy as np
 
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
 from krrood.symbolic_math.symbolic_math import Scalar
 from segmind.datastructures.events import (
     DetectionEvent,
@@ -31,7 +31,7 @@ class ContactDetector(AbstractDetector):
 
     def update_context_and_events(
         self,
-        context: MotionStatechartContext,
+        context: StatechartContext,
         segmind_context: SegmindContext,
         tracked_objects: List[Body],
     ) -> List[DetectionEvent]:
@@ -40,7 +40,7 @@ class ContactDetector(AbstractDetector):
 
         Generates a ContactEvent whenever a new contact between two bodies is detected.
 
-        :param context: The current motion statechart context.
+        :param context: The current statechart context.
         :param segmind_context: The shared SegmindContext containing the information
             required to track events.
         :param tracked_objects: List of bodies to check for new contacts.
@@ -78,7 +78,7 @@ class LossOfContactDetector(AbstractDetector):
 
     def update_context_and_events(
         self,
-        context: MotionStatechartContext,
+        context: StatechartContext,
         segmind_context: SegmindContext,
         tracked_objects: List[Body],
     ) -> List[DetectionEvent]:
@@ -89,7 +89,7 @@ class LossOfContactDetector(AbstractDetector):
         Generates a LossOfContactEvent whenever a previously detected contact no longer
         exists.
 
-        :param context: The current motion statechart context.
+        :param context: The current statechart context.
         :param segmind_context: The shared SegmindContext containing the information
             required to track events.
         :param tracked_objects: List of bodies to check for lost contacts.
@@ -157,14 +157,14 @@ class MotionDetector(AbstractDetector):
 
     def update_context_and_events(
         self,
-        context: MotionStatechartContext,
+        context: StatechartContext,
         segmind_context: SegmindContext,
         tracked_objs: List[Body],
     ) -> List[DetectionEvent]:
         """
         Updates the pose history for each tracked object and checks for motion events.
 
-        :param context: The current motion statechart context.
+        :param context: The current statechart context.
         :param segmind_context: The shared SegmindContext containing the information
             required to track events.
         :param tracked_objs: List of bodies to update and check.

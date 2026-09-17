@@ -1,20 +1,19 @@
 import matplotlib
 
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pytest
 
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
-from giskardpy.motion_statechart.monitors.payload_monitors import CountControlCycles
-from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.plotters.gantt_chart_plotter import (
-    HistoryGanttChartPlotter,
-)
-from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
-    TestNestedCompositeStatechartNode,
+from cramph.executor import StatechartExecutor
+from cramph.statechart import Statechart
+from cramph.exceptions import TickDurationUnknownError
+from cramph.monitors import CountTicks
+from cramph.node import EndStatechart
+from cramph.plotters.gantt_chart_plotter import HistoryGanttChartPlotter
+from cramph.nodes_for_testing import (
+    CompositeNodeWithNestedCompositeChild,
     ConstTrueNode,
 )
 from semantic_digital_twin.world import World
@@ -57,18 +56,18 @@ def _render_and_capture_axes(plotter: HistoryGanttChartPlotter, monkeypatch):
 
 
 @pytest.mark.parametrize("ticks", [3, 50])
-def test_main_and_final_widths_control_cycles(monkeypatch, ticks):
-    # Build a small statechart that runs for `ticks` control cycles
-    msc = MotionStatechart()
-    counter = CountControlCycles(control_cycles=ticks)
+def test_main_and_final_widths_ticks(monkeypatch, ticks):
+    # Build a small statechart that runs for `ticks` ticks
+    msc = Statechart()
+    counter = CountTicks(ticks=ticks)
     msc.add_node(counter)
-    msc.add_node(EndMotion.when_true(counter))
+    msc.add_node(EndStatechart.when_true(counter))
 
-    kin = Executor(context=MotionStatechartContext(world=World()))
+    kin = StatechartExecutor(context=StatechartContext(world=World()))
     kin.compile(msc)
     kin.tick_until_end(ticks + 5)
 
-    # Use control cycles (no context)
+    # Use ticks (no context)
     plotter = HistoryGanttChartPlotter(msc, context=None, second_width_in_cm=2.0)
     axes = _render_and_capture_axes(plotter, monkeypatch)
 
@@ -94,12 +93,12 @@ def test_main_and_final_widths_control_cycles(monkeypatch, ticks):
 
 
 def test_final_column_placed_right_of_main_axis(monkeypatch):
-    msc = MotionStatechart()
-    counter = CountControlCycles(control_cycles=4)
+    msc = Statechart()
+    counter = CountTicks(ticks=4)
     msc.add_node(counter)
-    msc.add_node(EndMotion.when_true(counter))
+    msc.add_node(EndStatechart.when_true(counter))
 
-    kin = Executor(context=MotionStatechartContext(world=World()))
+    kin = StatechartExecutor(context=StatechartContext(world=World()))
     kin.compile(msc)
     kin.tick_until_end()
 
@@ -119,14 +118,14 @@ def test_final_column_placed_right_of_main_axis(monkeypatch):
 
 
 def test_long_labels_not_clipped_on_right(monkeypatch):
-    msc = MotionStatechart()
+    msc = Statechart()
     # Create a few nodes with long names
     n1 = ConstTrueNode(name="NODE_" + ("LONG_" * 10))
     n2 = ConstTrueNode(name="NODE_" + ("VERY_LONG_LABEL_" * 6))
     msc.add_nodes([n1, n2])
-    msc.add_node(EndMotion.when_true(n2))
+    msc.add_node(EndStatechart.when_true(n2))
 
-    kin = Executor(context=MotionStatechartContext(world=World()))
+    kin = StatechartExecutor(context=StatechartContext(world=World()))
     kin.compile(msc)
     kin.tick()
 
@@ -142,22 +141,24 @@ def test_long_labels_not_clipped_on_right(monkeypatch):
     assert rightmost <= fig.bbox.width + 1
 
 
-def test_x_axis_units_control_cycles_vs_seconds(monkeypatch):
-    msc = MotionStatechart()
-    counter = CountControlCycles(control_cycles=5)
+def test_x_axis_units_ticks_vs_seconds(
+    monkeypatch, statechart_executor: StatechartExecutor
+):
+    msc = Statechart()
+    counter = CountTicks(ticks=5)
     msc.add_nodes([counter])
-    msc.add_node(EndMotion.when_true(counter))
+    msc.add_node(EndStatechart.when_true(counter))
 
-    kin = Executor(context=MotionStatechartContext(world=World()))
+    kin = statechart_executor
     kin.compile(msc)
     kin.tick_until_end()
 
-    # Control cycles (no context)
-    plotter_cycles = HistoryGanttChartPlotter(msc, context=None, second_width_in_cm=2.0)
-    axes_cycles = _render_and_capture_axes(plotter_cycles, monkeypatch)
-    ax_main_cycles = axes_cycles["main"]
-    assert ax_main_cycles.get_xlabel() == "Control cycle"
-    assert tuple(ax_main_cycles.get_xlim())[0] == 0.0
+    # Ticks (no context)
+    plotter_ticks = HistoryGanttChartPlotter(msc, context=None, second_width_in_cm=2.0)
+    axes_ticks = _render_and_capture_axes(plotter_ticks, monkeypatch)
+    ax_main_ticks = axes_ticks["main"]
+    assert ax_main_ticks.get_xlabel() == "Tick"
+    assert tuple(ax_main_ticks.get_xlim())[0] == 0.0
 
     # Seconds (with context)
     context = kin.context
@@ -167,22 +168,40 @@ def test_x_axis_units_control_cycles_vs_seconds(monkeypatch):
     axes_seconds = _render_and_capture_axes(plotter_seconds, monkeypatch)
     ax_main_seconds = axes_seconds["main"]
     assert ax_main_seconds.get_xlabel() == "Time [s]"
-    # Upper xlim should equal total_cycles * dt
-    total_cycles = msc.history.history[-1].control_cycle
-    expected_span = total_cycles * context.qp_controller_config.control_dt
+    # Upper xlim should equal total_ticks * dt
+    total_ticks = msc.history.history[-1].tick_count
+    expected_span = total_ticks * context.tick_duration
     assert ax_main_seconds.get_xlim()[1] == pytest.approx(
         expected_span, rel=1e-6, abs=1e-6
     )
 
 
-def test_tree_glyphs_in_labels(monkeypatch):
-    msc = MotionStatechart()
-    root1 = ConstTrueNode(name="A")
-    nested = TestNestedCompositeStatechartNode(name="B")
-    msc.add_nodes([root1, nested])
-    msc.add_node(EndMotion.when_true(root1))
+def test_seconds_cannot_be_plotted_without_a_tick_duration(
+    monkeypatch, statechart_context_without_tick_duration: StatechartContext
+):
+    msc = Statechart()
+    counter = CountTicks(ticks=2)
+    msc.add_nodes([counter, EndStatechart.when_true(counter)])
+    executor = StatechartExecutor(context=statechart_context_without_tick_duration)
+    executor.compile(msc)
+    executor.tick_until_end()
 
-    kin = Executor(context=MotionStatechartContext(world=World()))
+    plotter = HistoryGanttChartPlotter(
+        msc, context=statechart_context_without_tick_duration
+    )
+
+    with pytest.raises(TickDurationUnknownError):
+        _render_and_capture_axes(plotter, monkeypatch)
+
+
+def test_tree_glyphs_in_labels(monkeypatch):
+    msc = Statechart()
+    root1 = ConstTrueNode(name="A")
+    nested = CompositeNodeWithNestedCompositeChild(name="B")
+    msc.add_nodes([root1, nested])
+    msc.add_node(EndStatechart.when_true(root1))
+
+    kin = StatechartExecutor(context=StatechartContext(world=World()))
     kin.compile(msc)
     kin.tick()
 

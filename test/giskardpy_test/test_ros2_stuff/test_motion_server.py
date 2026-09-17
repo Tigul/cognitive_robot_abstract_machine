@@ -4,7 +4,8 @@ from typing import Any, List, Optional
 
 import pytest
 
-from giskardpy.executor import Executor, NoPacing
+from giskardpy.executor import Executor
+from cramph.executor import NoPacing
 from giskardpy.middleware.ros2.action_server import GoalOutcome
 from giskardpy.middleware.ros2.command_publishing import CommandPublisher
 from giskardpy.middleware.ros2.control_loop import ControlLoop
@@ -27,18 +28,12 @@ from giskardpy.middleware.ros2.motion_goal import MotionGoal
 from giskardpy.middleware.ros2.motion_server import MotionServer
 from giskardpy.middleware.ros2.post_goal_plotters import PostGoalPlotter
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.exceptions import SelfInStartConditionError
+from cramph.exceptions import SelfInStartConditionError
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.monitors.payload_monitors import (
-    CountSimulationTimeSeconds,
-)
-from giskardpy.motion_statechart.motion_statechart import (
-    LastObservationState,
-    MotionStatechart,
-)
-from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
-    ConstTrueNode,
-)
+from cramph.monitors import CountSimulationTimeSeconds
+from cramph.statechart import LastObservationState
+from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.nodes_for_testing import ConstTrueNode
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from krrood.adapters.json_serializer import from_json
 from krrood.utils import get_full_class_name
@@ -195,7 +190,7 @@ class WorldUpdatesMimic:
     def has_applied(self, position: StreamPosition) -> bool:
         self.awaited_positions.append(position)
         self.compiled_while_waiting.append(
-            self.executor is not None and self.executor.motion_statechart is not None
+            self.executor is not None and self.executor.statechart is not None
         )
         if self.drains_until_caught_up is None:
             return False
@@ -255,7 +250,7 @@ class RecordingInputSynchronizer(InputSynchronizer):
     """
 
     def apply(self) -> bool:
-        self.applied_at_control_cycles.append(self.executor.control_cycles)
+        self.applied_at_control_cycles.append(self.executor.tick_count)
         return False
 
 
@@ -780,7 +775,7 @@ class TestGoalResult:
         motion_server.motion_server.run_idle_cycle()
 
         result = json.loads(motion_server.action_server.sent_results[0].result)
-        motion_statechart = motion_server.executor.motion_statechart
+        motion_statechart = motion_server.executor.statechart
         assert (
             LastObservationState.from_json(
                 result[MotionStatechartPayloadKey.LAST_OBSERVATION_STATE],
@@ -1000,7 +995,7 @@ class TestControlCycleOrder:
         applied = motion_server.control_input.applied_at_control_cycles
         assert applied == sorted(applied)
         assert applied[0] == 0
-        assert applied[-1] == motion_server.executor.control_cycles - 1
+        assert applied[-1] == motion_server.executor.tick_count - 1
 
     def test_commands_are_published_once_per_cycle(
         self, motion_server: MotionServerFixture

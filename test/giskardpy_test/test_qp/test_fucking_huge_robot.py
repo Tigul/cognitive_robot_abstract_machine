@@ -2,7 +2,7 @@ from copy import deepcopy
 
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.goals.templates import Sequence
+from cramph.composites import Sequence
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetSeedConfiguration,
@@ -205,7 +205,7 @@ def execute(link_length: float, vel_limit: float):
             ),
         ),
     )
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
 
     kin_sim.tick_until_end(10_000)
 

@@ -12,17 +12,14 @@ from coraplex.exceptions import (
     UnknownExecutionType,
 )
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import LifeCycleValues
+from cramph.data_types import LifeCycleValues
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
 )
-from giskardpy.motion_statechart.graph_node import CancelMotion
-from giskardpy.motion_statechart.graph_node import (
-    EndMotion,
-    CompositeStatechartNode,
-    Task,
-)
+from cramph.node import CancelStatechart
+from giskardpy.motion_statechart.graph_node import EndMotion, Task
+from cramph.node import CompositeNode
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from giskardpy.ros_executor import Ros2Executor
@@ -83,7 +80,7 @@ class GiskardExecutable(Executable):
     the motions and the pre- and postconditions.
     """
 
-    root_node: CompositeStatechartNode = field(kw_only=True)
+    root_node: CompositeNode = field(kw_only=True)
     """
     The goal below which every motion of this executable lives.
     """
@@ -167,7 +164,7 @@ class GiskardExecutable(Executable):
 
         The pre-condition gates the start of the motions, the post-condition gates the
         successful end of the motion, and a
-        :class:`~giskardpy.motion_statechart.graph_node.CancelMotion` aborts the motion if
+        :class:`~cramph.node.CancelStatechart` aborts the motion if
         either is observed to be false.
 
         .. note:: Currently unused. Conditions are kept out of the chart while evaluating
@@ -184,7 +181,7 @@ class GiskardExecutable(Executable):
             # only start the motion once the pre-condition holds
             self.root_node.start_condition = pre_monitor.observes_true
             # abort if the pre-condition is observed to be false
-            pre_cancel = CancelMotion(
+            pre_cancel = CancelStatechart(
                 exception=self._condition_not_satisfied(
                     self.pre_condition_node,
                     action_node=self.pre_condition_node.action_node.action,
@@ -200,7 +197,7 @@ class GiskardExecutable(Executable):
             self.motion_state_chart.add_node(post_monitor)
             end_trigger = post_monitor.observes_true
             # abort if the post-condition is observed to be false
-            post_cancel = CancelMotion(
+            post_cancel = CancelStatechart(
                 exception=self._condition_not_satisfied(
                     self.post_condition_node,
                     action_node=self.post_condition_node.action_node.action,
@@ -261,14 +258,14 @@ class GiskardExecutable(Executable):
         while counter < len(self.motion_mappings) * self.context.ticks_per_motion:
             executor.tick()
             counter += 1
-            if executor.motion_statechart.is_end_motion():
+            if executor.statechart.is_ended():
                 break
 
         executor.set_velocity_acceleration_jerk_to_zero()
-        executor.motion_statechart.cleanup_nodes(context=executor.context)
+        executor.statechart.cleanup_nodes(context=executor.context)
         executor.context.cleanup()
 
-        if not executor.motion_statechart.is_end_motion():
+        if not executor.statechart.is_ended():
             unfinished_nodes = [
                 node
                 for node in motion_state_chart.nodes

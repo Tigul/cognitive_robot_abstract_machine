@@ -3,7 +3,7 @@ from typing import Optional
 
 from typing_extensions import List
 
-from giskardpy.motion_statechart.goals.templates import Parallel
+from cramph.composites import Parallel
 from giskardpy.motion_statechart.tasks.joint_tasks import (
     JointPositionList,
     JointState,

@@ -9,10 +9,9 @@ from semantic_digital_twin.spatial_types import (
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import DifferentialDrive
 from semantic_digital_twin.world_description.world_entity import (
-    Body,
     KinematicStructureEntity,
 )
-from giskardpy.motion_statechart.goals.templates import Sequence, Parallel
+from cramph.composites import Sequence, Parallel
 from giskardpy.motion_statechart.binding_policy import GoalBindingPolicy
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import DefaultWeights

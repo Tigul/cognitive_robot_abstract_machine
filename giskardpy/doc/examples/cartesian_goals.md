@@ -17,7 +17,8 @@ This example demonstrates how to use `CartesianPose` goals to move a robot to a 
 
 ```{code-cell} ipython3
 import os
-from giskardpy.executor import SimulationPacer, Executor
+from cramph.executor import SimulationPacer
+from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
@@ -96,5 +97,5 @@ kin_sim = Executor(
 
 kin_sim.compile(msc)
 kin_sim.tick_until_end(timeout=100)
-print(f"Motion finished after {kin_sim.control_cycles} cycles.")
+print(f"Motion finished after {kin_sim.tick_count} cycles.")
 ```

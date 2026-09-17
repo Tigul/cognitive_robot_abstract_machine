@@ -5,7 +5,7 @@ import os
 from dataclasses import field, dataclass
 from pathlib import Path
 from typing import Optional, List
-from giskardpy.executor import Executor
+from cramph.executor import StatechartExecutor
 from semantic_digital_twin.adapters.package_resolver import FileUriResolver
 from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
@@ -21,21 +21,24 @@ from .episode_player import EpisodePlayer
 
 logger = logging.getLogger(__name__)
 
-@dataclass
-class EpisodeSegmenterExecutor(Executor):
-    """
-    Handles the segmentation of episodes by controlling the execution of a
-    detector statechart and maintaining interactive control cycles.
 
-    This class orchestrates interaction between the detector statechart,
-    the simulation player, and the context, enabling episode segmentation
-    and tick-based interactions. It allows for spawning scenes, managing
-    holes, and ensuring state model updates during execution.
+@dataclass
+class EpisodeSegmenterExecutor(StatechartExecutor):
+    """
+    Handles the segmentation of episodes by controlling the execution of a detector
+    statechart and ticking it interactively.
+
+    This class orchestrates interaction between the detector statechart, the simulation
+    player, and the context, enabling episode segmentation and tick-based interactions.
+    It allows for spawning scenes, managing holes, and ensuring state model updates
+    during execution.
     """
 
     player: EpisodePlayer | None = None
     """
-    The episode player responsible for stepping the world. This can be None if no player is used.
+    The episode player responsible for stepping the world.
+
+    This can be None if no player is used.
     """
 
     statechart: DetectorStateChart = field(init=False)
@@ -53,14 +56,12 @@ class EpisodeSegmenterExecutor(Executor):
     A list of objects that should be fixed during the episode.
     """
 
-
     def __post_init__(self):
         """
         Adds the SegmindContext extension to the context.
         """
         super().__post_init__()
         self.context.add_extension(SegmindContext())
-
 
     def start(self):
         """
@@ -69,21 +70,20 @@ class EpisodeSegmenterExecutor(Executor):
         if self.player:
             self.player.start()
 
-
-    def compile(self, motion_statechart: DetectorStateChart):
+    def compile(self, statechart: DetectorStateChart):
         """
-        Compiles the provided statechart and initializes the episode segmenter for execution.
+        Compiles the provided statechart and initializes the episode segmenter for
+        execution.
         """
-        super().compile(motion_statechart)
+        super().compile(statechart)
         self.detect_holes()
         if self.player:
             self.player.start()
 
-
     def detect_holes(self):
         """
-        Iterates through objects in the world's context and appends objects with
-        "hole" in their name to the list of holes.
+        Iterates through objects in the world's context and appends objects with "hole"
+        in their name to the list of holes.
         """
         segmind_context = self.context.require_extension(SegmindContext)
         segmind_context.holes.clear()
@@ -126,7 +126,9 @@ class EpisodeSegmenterExecutor(Executor):
             else None
         )
         with self.context.world.modify_world():
-            self.context.world.merge_world(obj_world, *([connection] if connection else []))
+            self.context.world.merge_world(
+                obj_world, *([connection] if connection else [])
+            )
 
     def _load_stl(self, file: Path):
         """

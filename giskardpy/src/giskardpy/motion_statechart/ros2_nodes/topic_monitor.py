@@ -11,11 +11,9 @@ from typing_extensions import Generic, Type
 
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import (
-    ObservationStateValues,
-    SuccessDecider,
-)
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode, NodeArtifacts
+from cramph.data_types import ObservationStateValues, SuccessDecider
+from giskardpy.motion_statechart.graph_node import MotionStatechartNode
+from cramph.node import NodeArtifacts
 from giskardpy.motion_statechart.ros_context import RosContextExtension
 
 

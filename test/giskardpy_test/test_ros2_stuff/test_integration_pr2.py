@@ -26,31 +26,25 @@ from giskardpy.middleware.ros2.utils.utils_for_tests import (
     GiskardTester,
     compare_points,
 )
-from giskardpy.motion_statechart.data_types import (
-    DefaultWeights,
-    ObservationStateValues,
-)
-from giskardpy.motion_statechart.exceptions import (
-    EmptyMotionStatechartError,
-    CollisionViolatedError,
-)
+from giskardpy.motion_statechart.data_types import DefaultWeights
+from cramph.data_types import ObservationStateValues
+from cramph.exceptions import EmptyStatechartError
+from giskardpy.motion_statechart.exceptions import CollisionViolatedError
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
     UpdateTemporaryCollisionRules,
 )
-from giskardpy.motion_statechart.goals.templates import Parallel, Sequence
+from cramph.composites import Parallel, Sequence
 from giskardpy.motion_statechart.goals.tracebot import InsertCylinder
-from giskardpy.motion_statechart.graph_node import EndMotion, CancelMotion
+from giskardpy.motion_statechart.graph_node import EndMotion
+from cramph.node import CancelStatechart
 from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetOdometry,
     SetSeedConfiguration,
 )
-from giskardpy.motion_statechart.monitors.payload_monitors import (
-    CountSeconds,
-    CountSimulationTimeSeconds,
-)
+from cramph.monitors import CountSeconds, CountSimulationTimeSeconds
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.tasks.align_planes import AlignPlanes
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
@@ -717,7 +711,7 @@ class TestCartGoals:
             )
         )
         msc.add_node(local_min := LocalMinimumReached())
-        msc.add_node(CancelMotion.when_true(cart_goal))
+        msc.add_node(CancelStatechart.when_true(cart_goal))
         msc.add_node(EndMotion.when_true(local_min))
         giskard.api.execute(msc)
 
@@ -915,7 +909,7 @@ class TestSelfCollisionAvoidance:
         )
         msc.add_node(EndMotion.when_true(cart_goal))
         msc.add_node(timeout := CountSimulationTimeSeconds(seconds=10))
-        msc.add_node(CancelMotion.when_true(timeout))
+        msc.add_node(CancelStatechart.when_true(timeout))
         giskard_better_pose.api.execute(msc)
 
     def test_avoid_self_collision_with_l_arm(self, giskard: PR2Tester):
@@ -1875,7 +1869,7 @@ class TestActionServerEvents:
             await giskard.api.get_result()
 
     def test_empty_goal(self, giskard: PR2Tester):
-        with pytest.raises(EmptyMotionStatechartError):
+        with pytest.raises(EmptyStatechartError):
             giskard.api.execute(MotionStatechart())
 
     @pytest.mark.asyncio

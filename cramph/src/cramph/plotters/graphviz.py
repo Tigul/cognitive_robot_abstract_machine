@@ -13,19 +13,10 @@ from typing_extensions import (
     TYPE_CHECKING,
 )
 
-from giskardpy.motion_statechart.data_types import (
-    ObservationStateValues,
-    TransitionKind,
-)
-from giskardpy.motion_statechart.graph_node import (
-    MotionStatechartNode,
-    TerminalNode,
-)
-from giskardpy.motion_statechart.graph_node import (
-    CompositeStatechartNode,
-    TransitionCondition,
-)
-from giskardpy.motion_statechart.plotters.styles import (
+from cramph.data_types import ObservationStateValues, TransitionKind
+from cramph.node import StatechartNode, TerminalNode
+from cramph.node import CompositeNode, TransitionCondition
+from cramph.plotters.styles import (
     DISABLED_CONDITION_COLOR,
     DRAWING_METRICS,
     Font,
@@ -35,7 +26,7 @@ from giskardpy.motion_statechart.plotters.styles import (
 )
 
 if TYPE_CHECKING:
-    from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+    from cramph.statechart import Statechart
 
 
 @dataclass
@@ -47,12 +38,12 @@ class ConditionDependency:
     no longer says which condition it feeds.
     """
 
-    condition_owner: MotionStatechartNode
+    condition_owner: StatechartNode
     """
     The node whose conditions read :attr:`observed_node`.
     """
 
-    observed_node: MotionStatechartNode
+    observed_node: StatechartNode
     """
     The node those conditions read.
     """
@@ -103,19 +94,19 @@ def format_condition_text(text: str, color_constants: bool = False) -> str:
 
 
 @dataclass
-class MotionStatechartGraphviz:
+class StatechartGraphviz:
     """
-    Draws a motion statechart as a graphviz graph.
+    Draws a statechart as a graphviz graph.
 
     Every node becomes a labelled box showing its current observation and life cycle
-    state, every :class:`~giskardpy.motion_statechart.graph_node.CompositeStatechartNode`
+    state, every :class:`~cramph.node.CompositeNode`
     becomes a cluster around its children, and every dependency between two nodes becomes an arrow colored
     by what the node it leaves observes.
 
     ..note:: The drawing reflects the state the statechart is in when it is drawn.
     """
 
-    motion_statechart: MotionStatechart
+    statechart: Statechart
     """
     The statechart to draw, including the state it is currently in.
     """
@@ -130,7 +121,7 @@ class MotionStatechartGraphviz:
     Whether nodes are drawn without their conditions and with tighter spacing.
     """
 
-    _cluster_map: Dict[MotionStatechartNode, pydot.Cluster] = field(
+    _cluster_map: Dict[StatechartNode, pydot.Cluster] = field(
         init=False, default_factory=dict
     )
     """
@@ -161,17 +152,17 @@ class MotionStatechartGraphviz:
             ratio="compress",
         )
 
-    def _format_motion_graph_node(
+    def _format_graph_node(
         self,
-        node: MotionStatechartNode,
+        node: StatechartNode,
     ) -> str:
         """
         :param node: The node to label.
         :return: The HTML label showing the node's name, its observation and life cycle
             state and, outside of compact mode, its conditions.
         """
-        obs_state = self.motion_statechart.observation_state[node]
-        life_cycle_state = self.motion_statechart.life_cycle_state[node]
+        obs_state = self.statechart.observation_state[node]
+        life_cycle_state = self.statechart.life_cycle_state[node]
         obs_color = obs_state.color.to_hex()
         obs_badge = obs_state.badge
         life_color = life_cycle_state.color.to_hex()
@@ -209,7 +200,7 @@ class MotionStatechartGraphviz:
         label += f"</TABLE>>"
         return label
 
-    def _build_hidden_node_count_block(self, node: MotionStatechartNode) -> str:
+    def _build_hidden_node_count_block(self, node: StatechartNode) -> str:
         """
         :param node: The node whose descendants are left out of the drawing.
         :return: The label row stating how many of them are hidden.
@@ -224,18 +215,16 @@ class MotionStatechartGraphviz:
             f"</TR>"
         )
 
-    def _count_descendants(self, node: MotionStatechartNode) -> int:
+    def _count_descendants(self, node: StatechartNode) -> int:
         """
         :param node: The node to count below.
-        :return: The number of nodes below it, nested composite statechart nodes included.
+        :return: The number of nodes below it, nested composite nodes included.
         """
-        if not isinstance(node, CompositeStatechartNode):
+        if not isinstance(node, CompositeNode):
             return 0
         return sum(1 + self._count_descendants(child_node) for child_node in node.nodes)
 
-    def _build_condition_block(
-        self, node: MotionStatechartNode, line_color="black"
-    ) -> str:
+    def _build_condition_block(self, node: StatechartNode, line_color="black") -> str:
         """
         Builds the label rows listing the transition conditions of a node.
 
@@ -246,7 +235,7 @@ class MotionStatechartGraphviz:
         :param line_color: The color of the lines separating the rows.
         :return: The condition rows of the label.
         """
-        life_cycle_state = self.motion_statechart.life_cycle_state[node]
+        life_cycle_state = self.statechart.life_cycle_state[node]
         return "".join(
             self._build_condition_row(
                 prefix=self.condition_prefix(condition.kind),
@@ -368,7 +357,7 @@ class MotionStatechartGraphviz:
     def _add_node(
         self,
         graph: pydot.Graph,
-        node: MotionStatechartNode,
+        node: StatechartNode,
     ) -> pydot.Node:
         """
         Adds a node to a graph, wrapping it into one nested cluster per extra border
@@ -399,13 +388,13 @@ class MotionStatechartGraphviz:
             graph.add_subgraph(c)
         return pydot_node
 
-    def _create_pydot_node(self, node: MotionStatechartNode) -> pydot.Node:
+    def _create_pydot_node(self, node: StatechartNode) -> pydot.Node:
         """
         :param node: The node to draw.
         :return: A labelled pydot node shaped and styled by the node's plot
             specification.
         """
-        label = self._format_motion_graph_node(node=node)
+        label = self._format_graph_node(node=node)
         pydot_node = pydot.Node(
             str(node.unique_name),
             label=label,
@@ -428,7 +417,7 @@ class MotionStatechartGraphviz:
         """
         self._cluster_map[None] = self.graph
         top_level_nodes = [
-            node for node in self.motion_statechart.nodes if not node.parent_node
+            node for node in self.statechart.nodes if not node.parent_node
         ]
         self._add_nodes(self.graph, top_level_nodes)
         self._add_edges()
@@ -446,7 +435,7 @@ class MotionStatechartGraphviz:
         self.graph.write_pdf(file_name)
         print(f"Saved task graph at {file_name}.")
 
-    def _is_drawn(self, node: MotionStatechartNode) -> bool:
+    def _is_drawn(self, node: StatechartNode) -> bool:
         """
         :param node: The node to check.
         :return: Whether the node appears in the drawing, which it does not if it or one
@@ -468,7 +457,7 @@ class MotionStatechartGraphviz:
     def _add_nodes(
         self,
         parent_cluster: Union[pydot.Graph, pydot.Cluster],
-        nodes: List[MotionStatechartNode],
+        nodes: List[StatechartNode],
     ):
         """
         Draws the given nodes, recursing into the children of every goal that does not
@@ -479,12 +468,12 @@ class MotionStatechartGraphviz:
         """
         for i, node in enumerate(nodes):
             # Skip invisible nodes entirely, as well as the children of a
-            # CompositeStatechartNode that is invisible or collapses them.
+            # CompositeNode that is invisible or collapses them.
             if not self._is_drawn(node):
                 continue
 
             if (
-                isinstance(node, CompositeStatechartNode)
+                isinstance(node, CompositeNode)
                 and not node.plot_specifications.collapse_children
             ):
                 goal_cluster = self._add_cluster(node, parent_cluster)
@@ -502,7 +491,7 @@ class MotionStatechartGraphviz:
 
     def _add_cluster(
         self,
-        node: MotionStatechartNode,
+        node: StatechartNode,
         parent_cluster: Union[pydot.Graph, pydot.Cluster],
     ):
         """
@@ -540,18 +529,16 @@ class MotionStatechartGraphviz:
             not drawn or that sits in another cluster.
         """
         dependencies: Dict[
-            Tuple[MotionStatechartNode, MotionStatechartNode], ConditionDependency
+            Tuple[StatechartNode, StatechartNode], ConditionDependency
         ] = {}
         condition: TransitionCondition
         for (
             owner_index,
             observed_index,
             condition,
-        ) in self.motion_statechart.rx_graph.edge_index_map().values():
-            condition_owner = self.motion_statechart.rx_graph.get_node_data(owner_index)
-            observed_node = self.motion_statechart.rx_graph.get_node_data(
-                observed_index
-            )
+        ) in self.statechart.rx_graph.edge_index_map().values():
+            condition_owner = self.statechart.rx_graph.get_node_data(owner_index)
+            observed_node = self.statechart.rx_graph.get_node_data(observed_index)
             if not self._is_drawn(condition_owner) or not self._is_drawn(observed_node):
                 continue
             if not self._are_nodes_in_same_cluster(condition_owner, observed_node):
@@ -564,7 +551,7 @@ class MotionStatechartGraphviz:
         return list(dependencies.values())
 
     def _are_nodes_in_same_cluster(
-        self, condition_owner: MotionStatechartNode, observed_node: MotionStatechartNode
+        self, condition_owner: StatechartNode, observed_node: StatechartNode
     ) -> bool:
         """
         :param condition_owner: The node whose condition reads the other.
@@ -643,9 +630,7 @@ class MotionStatechartGraphviz:
         :return: Whether at least one of the conditions this dependency bundles can
             currently trigger from its owner's life cycle state.
         """
-        life_cycle_state = self.motion_statechart.life_cycle_state[
-            dependency.condition_owner
-        ]
+        life_cycle_state = self.statechart.life_cycle_state[dependency.condition_owner]
         return any(
             condition.kind.can_trigger_from(life_cycle_state)
             for condition in dependency.conditions

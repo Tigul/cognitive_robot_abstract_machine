@@ -15,12 +15,8 @@ from giskardpy.middleware.ros2.feedback_publisher import MotionStatechartPayload
 from giskardpy.middleware.ros2.motion_goal import MotionGoal
 from giskardpy.middleware.ros2.ros2_interface import MyActionClient
 from giskardpy.middleware.ros2.world_updates import ClientWorldUpdates
-from giskardpy.motion_statechart.motion_statechart import (
-    MotionStatechart,
-    LastObservationState,
-    LifeCycleState,
-    ObservationState,
-)
+from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import LastObservationState, LifeCycleState, ObservationState
 from rclpy import Context, Parameter, Future
 from rclpy.action.client import ClientGoalHandle
 from rclpy.executors import MultiThreadedExecutor
@@ -56,9 +52,7 @@ class GiskardWrapper:
     Keeps this world in step with the world Giskard controls around a goal.
     """
 
-    _motion_statechart: MotionStatechart | None = field(
-        init=False, default=None, repr=False
-    )
+    _statechart: MotionStatechart | None = field(init=False, default=None, repr=False)
 
     def __post_init__(self):
         if self.world is None:
@@ -84,7 +78,7 @@ class GiskardWrapper:
         return self.world.get_semantic_annotations_by_type(AbstractRobot)[0]
 
     def execute_async(self, motion_statechart: MotionStatechart) -> Future:
-        self._motion_statechart = motion_statechart
+        self._statechart = motion_statechart
         motion_statechart.sanity_check()
         return self._send_action_goal_async(motion_statechart)
 
@@ -133,7 +127,7 @@ class GiskardWrapper:
         motion_statechart.last_observation_state.data = (
             parsed_last_observation_state.data
         )
-        assert motion_statechart.is_end_motion()
+        assert motion_statechart.is_ended()
 
     def _create_goal_message(
         self, motion_statechart: MotionStatechart
@@ -184,7 +178,7 @@ class GiskardWrapper:
         world model while the motion was running.
         """
         result = await self._client.get_result()
-        self._take_over_result(result, self._motion_statechart)
+        self._take_over_result(result, self._statechart)
 
     def get_end_motion_reason(
         self, move_result: JsonAction_Result | None = None, show_all: bool = False

@@ -10,7 +10,8 @@ import rclpy
 from json_msgs.action import JsonAction
 
 from giskardpy.data_types.exceptions import DontPrintStackTrace
-from giskardpy.executor import Executor, RealTimePacer
+from giskardpy.executor import Executor
+from cramph.executor import RealTimePacer
 from giskardpy.middleware.ros2 import rospy
 from giskardpy.middleware.ros2.action_server import ActionServerHandler
 from giskardpy.middleware.ros2.control_loop import ControlLoop
@@ -228,10 +229,8 @@ class MotionServer:
         """
         try:
             self.control_loop.stop()
-            if self.executor.motion_statechart is not None:
-                self.executor.motion_statechart.cleanup_nodes(
-                    context=self.executor.context
-                )
+            if self.executor.statechart is not None:
+                self.executor.statechart.cleanup_nodes(context=self.executor.context)
             self.feedback_publisher.publish()
             self.write_debug_plots()
         finally:
@@ -307,7 +306,7 @@ class MotionServer:
 
         A goal whose statechart could not be compiled has no states to report.
         """
-        if self.executor.motion_statechart is None:
+        if self.executor.statechart is None:
             return {}
         return self.feedback_publisher.create_states()
 
@@ -319,7 +318,7 @@ class MotionServer:
         it raise would end the loop that serves goals, leaving every later client
         waiting for a result that no one is going to produce.
         """
-        if self.executor.motion_statechart is None:
+        if self.executor.statechart is None:
             return
         for plotter in self.post_goal_plotters:
             try:

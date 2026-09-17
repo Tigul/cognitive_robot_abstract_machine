@@ -38,7 +38,7 @@ def test_joint_goal_inside_limits_reached(pr2_world_state_reset):
     end.start_condition = joint_goal.observes_true
 
     kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
     assert np.isclose(connection.position, goal, atol=0.01)
@@ -61,7 +61,7 @@ def test_joint_goal_clamped_to_upper_limit(pr2_world_state_reset):
     end.start_condition = joint_goal.observes_true
 
     kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
     assert np.isclose(connection.position, upper, atol=0.01)
@@ -83,7 +83,7 @@ def test_joint_goal_clamped_to_lower_limit(pr2_world_state_reset):
     end.start_condition = joint_goal.observes_true
 
     kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
     assert np.isclose(connection.position, lower, atol=0.01)
@@ -108,7 +108,7 @@ def test_joint_above_upper_limit_recovers(pr2_world_state_reset):
     end.start_condition = joint_goal.observes_true
 
     kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
     assert np.isclose(connection.position, goal, atol=0.01)
@@ -134,7 +134,7 @@ def test_joint_below_lower_limit_recovers(pr2_world_state_reset):
     end.start_condition = joint_goal.observes_true
 
     kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
     assert np.isclose(connection.position, goal, atol=0.01)
@@ -166,7 +166,7 @@ def test_multiple_joints_outside_limits_recover(pr2_world_state_reset):
     end.start_condition = joint_goal.observes_true
 
     kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
     for conn, goal in goals.items():

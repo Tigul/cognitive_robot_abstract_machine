@@ -43,12 +43,14 @@ def build_align_planes_task(world: World) -> AlignPlanes:
         name="align",
     )
     artifacts = task.build(MotionStatechartContext(world=world))
-    task._debug_expressions = artifacts.debug_expressions
+    task._artifacts = artifacts
     return task
 
 
 def test_ros_executor_importable_without_rclpy(monkeypatch):
-    """giskardpy.ros_executor must stay importable when rclpy is not installed."""
+    """
+    giskardpy.ros_executor must stay importable when rclpy is not installed.
+    """
     modules_to_evict = [
         name
         for name in sys.modules

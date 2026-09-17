@@ -87,10 +87,10 @@ class GoalGanttChartPlotter(PostGoalPlotter):
     """
 
     def plot(self, goal_id: int) -> None:
-        if not self.executor.motion_statechart.history:
+        if not self.executor.statechart.history:
             return
         file_name = self.create_file_name("gantt_charts", goal_id)
-        self.executor.motion_statechart.plot_gantt_chart(
+        self.executor.statechart.plot_gantt_chart(
             file_name,
             context=self.executor.context,
             second_length_in_cm=self.second_length_in_cm,
@@ -106,5 +106,5 @@ class MotionStatechartPlotter(PostGoalPlotter):
 
     def plot(self, goal_id: int) -> None:
         file_name = self.create_file_name("motion_statecharts", goal_id)
-        self.executor.motion_statechart.draw(file_name)
+        self.executor.statechart.draw(file_name)
         rospy.get_node().get_logger().info(f"saved {file_name}")

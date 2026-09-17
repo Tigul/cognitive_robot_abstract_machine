@@ -13,7 +13,7 @@ from giskardpy.middleware.ros2.utils.utils import load_xacro
 from giskardpy.middleware.ros2.utils.utils_for_tests import compare_poses, GiskardTester
 from giskardpy.motion_statechart.goals.collision_avoidance import SelfCollisionAvoidance
 from giskardpy.motion_statechart.goals.open_close import Open, Close
-from giskardpy.motion_statechart.goals.templates import Sequence
+from cramph.composites import Sequence
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetOdometry,

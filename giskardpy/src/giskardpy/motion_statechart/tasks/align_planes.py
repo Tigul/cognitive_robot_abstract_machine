@@ -5,7 +5,7 @@ from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.error_signals import SymbolicErrorSignal
 from giskardpy.motion_statechart.graph_node import (
     ConvergingTask,
-    NodeArtifacts,
+    MotionNodeArtifacts,
     DebugExpression,
 )
 from semantic_digital_twin.spatial_types import Vector3
@@ -60,7 +60,7 @@ class AlignPlanes(ConvergingTask):
     Priority weight relative to other tasks.
     """
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
         """
         Build motion constraints that rotate the tip plane onto the goal plane.
 
@@ -68,7 +68,7 @@ class AlignPlanes(ConvergingTask):
         :return: The artifacts of this task, whose error is the angle between the two
             plane normals.
         """
-        artifacts = NodeArtifacts()
+        artifacts = MotionNodeArtifacts()
         tip_V_tip_normal = context.world.transform(
             target_frame=self.tip_link, spatial_object=self.tip_normal
         )

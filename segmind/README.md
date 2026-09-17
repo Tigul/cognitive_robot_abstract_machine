@@ -41,30 +41,27 @@ The `SegmindStatechart` orchestrates multiple detectors. It acts as a container 
 The following example demonstrates how to set up a `SegmindStatechart` to detect events in a simulation world.
 
 ```python
+from cramph.context import StatechartContext
 from segmind.detectors.base import SegmindContext
-from segmind.event_logger import EventLogger
 from segmind.statecharts.segmind_statechart import SegmindStatechart
 from segmind.episode_segmenter import EpisodeSegmenterExecutor
 
-# 1. Setup Context and Logger
-logger = EventLogger()
-context = SegmindContext(world=your_simulation_world, logger=logger)
-
-# 2. Build Statechart
-statechart_factory = SegmindStatechart()
-statechart = statechart_factory.build_statechart(context)
-
-# 3. Initialize Executor
+# 1. Setup Context and Executor, which adds the SegmindContext with its event logger
+context = StatechartContext(world=your_simulation_world)
 executor = EpisodeSegmenterExecutor(context=context)
+logger = context.require_extension(SegmindContext).logger
+
+# 2. Build and compile the Statechart
+statechart = SegmindStatechart().build_statechart()
 executor.compile(statechart)
 
-# 4. Simulation Loop
+# 3. Simulation Loop
 while simulation_running:
     # Update your world state here
     # ...
     executor.tick()
 
-# 5. Retrieve detected events
+# 4. Retrieve detected events
 for event in logger.get_events():
     print(f"Detected {type(event).__name__} at {event.timestamp}")
 ```

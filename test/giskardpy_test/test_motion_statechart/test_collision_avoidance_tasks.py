@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 import numpy as np
 import pytest
 
-from giskardpy.executor import Executor, SimulationPacer
+from giskardpy.executor import Executor
+from cramph.executor import SimulationPacer
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.data_types import (
     DefaultWeights,
@@ -20,19 +21,15 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     SelfCollisionDistanceMonitor,
     UpdateTemporaryCollisionRules,
 )
-from giskardpy.motion_statechart.goals.templates import Sequence, Parallel
-from giskardpy.motion_statechart.graph_node import (
-    EndMotion,
-    CancelMotion,
-)
+from cramph.composites import Sequence, Parallel
+from giskardpy.motion_statechart.graph_node import EndMotion
+from cramph.node import CancelStatechart
 from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetSeedConfiguration,
     SetOdometry,
 )
-from giskardpy.motion_statechart.monitors.payload_monitors import (
-    CountControlCycles,
-)
+from cramph.monitors import CountTicks
 from giskardpy.motion_statechart.motion_statechart import (
     MotionStatechart,
 )
@@ -126,7 +123,7 @@ def test_external_collision_avoidance(cylinder_bot_world: World):
         ]
     )
     msc.add_node(EndMotion.when_true(local_min))
-    msc.add_node(CancelMotion.when_true(distance_violated))
+    msc.add_node(CancelStatechart.when_true(distance_violated))
 
     json_data = msc.to_json()
     json_str = json.dumps(json_data)
@@ -140,7 +137,7 @@ def test_external_collision_avoidance(cylinder_bot_world: World):
         MotionStatechartContext(world=cylinder_bot_world),
         pacer=SimulationPacer(real_time_factor=2),
     )
-    kin_sim.compile(motion_statechart=msc_copy)
+    kin_sim.compile(statechart=msc_copy)
 
     kin_sim.tick_until_end(500)
     collisions = kin_sim.context.world.collision_manager.compute_collisions()
@@ -276,13 +273,13 @@ def test_external_collision_avoidance_battle():
         ]
     )
     msc.add_node(EndMotion.when_true(local_min))
-    # msc.add_node(CancelMotion.when_true(distance_violated))
+    # msc.add_node(CancelStatechart.when_true(distance_violated))
 
     kin_sim = Executor(
         MotionStatechartContext(world=world),
         pacer=SimulationPacer(real_time_factor=1),
     )
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
 
     kin_sim.tick_until_end(500)
 
@@ -337,7 +334,7 @@ def test_external_collision_avoidance_with_weight_above_ca(cylinder_bot_world: W
         ]
     )
     msc.add_node(EndMotion.when_true(local_min))
-    msc.add_node(CancelMotion.when_true(distance_violated))
+    msc.add_node(CancelStatechart.when_true(distance_violated))
 
     json_data = msc.to_json()
     json_str = json.dumps(json_data)
@@ -351,7 +348,7 @@ def test_external_collision_avoidance_with_weight_above_ca(cylinder_bot_world: W
         MotionStatechartContext(world=cylinder_bot_world),
         pacer=SimulationPacer(real_time_factor=1),
     )
-    kin_sim.compile(motion_statechart=msc_copy)
+    kin_sim.compile(statechart=msc_copy)
 
     kin_sim.tick_until_end(500)
     collisions = kin_sim.context.world.collision_manager.compute_collisions()
@@ -403,7 +400,7 @@ def test_update_collision_matrix_later(cylinder_bot_world: World):
     kin_sim = Executor(
         MotionStatechartContext(world=cylinder_bot_world),
     )
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
 
     kin_sim.tick_until_end(500)
     msc.draw("muh.pdf")
@@ -449,15 +446,15 @@ def test_consumer_cleanup_after_cancel(cylinder_bot_world: World):
     msc.add_node(
         Sequence(
             [
-                CountControlCycles(control_cycles=5),
-                CancelMotion(exception=Exception("muh")),
+                CountTicks(ticks=5),
+                CancelStatechart(exception=Exception("muh")),
             ]
         )
     )
     msc.add_node(EndMotion.when_true(local_min))
 
     kin_sim = Executor(MotionStatechartContext(world=cylinder_bot_world))
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
 
     with pytest.raises(Exception, match="muh"):
         kin_sim.tick_until_end(500)
@@ -497,7 +494,7 @@ def test_multiple_external_collision_avoidance_motions(cylinder_bot_world: World
         msc.add_node(EndMotion.when_true(local_min))
 
         kin_sim = Executor(MotionStatechartContext(world=cylinder_bot_world))
-        kin_sim.compile(motion_statechart=msc)
+        kin_sim.compile(statechart=msc)
         kin_sim.tick_until_end(500)
         return kin_sim
 
@@ -533,11 +530,9 @@ def test_self_collision_avoidance_without_checked_body_combinations(
     )
     msc.add_node(EndMotion.when_true(local_min))
 
-    Executor(MotionStatechartContext(world=cylinder_bot_world)).compile(
-        motion_statechart=msc
-    )
+    Executor(MotionStatechartContext(world=cylinder_bot_world)).compile(statechart=msc)
 
-    assert goal.nodes == msc.get_nodes_by_type(CancelMotion)
+    assert goal.nodes == msc.get_nodes_by_type(CancelStatechart)
 
 
 def test_self_collision_avoidance(self_collision_bot_world: World):
@@ -576,9 +571,9 @@ def test_self_collision_avoidance(self_collision_bot_world: World):
     msc_copy = MotionStatechart.from_json(new_json_data, **kwargs)
 
     kin_sim = Executor(MotionStatechartContext(world=self_collision_bot_world))
-    kin_sim.compile(motion_statechart=msc_copy)
+    kin_sim.compile(statechart=msc_copy)
 
-    # 4 because of the base nodes + 20 that are added by self collision avoidance + 1 for CancelMotion
+    # 4 because of the base nodes + 20 that are added by self collision avoidance + 1 for CancelStatechart
     assert len(msc_copy.nodes) == 4 + 20 + 1
 
     kin_sim.tick_until_end(500)
@@ -663,10 +658,10 @@ def test_avoid_collision_go_around_corner(pr2_with_box):
     )
     msc.add_node(local_min := LocalMinimumReached())
     msc.add_node(EndMotion.when_true(local_min))
-    msc.add_node(CancelMotion.when_true(distance_violated))
+    msc.add_node(CancelStatechart.when_true(distance_violated))
 
     kin_sim = Executor(MotionStatechartContext(world=pr2_with_box))
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
 
     kin_sim.tick_until_end(500)
 
@@ -735,7 +730,7 @@ def test_avoid_self_collision_with_l_arm(pr2_with_box, rclpy_node):
     )
     msc.add_node(local_min := LocalMinimumReached())
     msc.add_node(EndMotion.when_true(local_min))
-    msc.add_node(CancelMotion.when_true(contact))
+    msc.add_node(CancelStatechart.when_true(contact))
 
     kin_sim = Executor(
         MotionStatechartContext(
@@ -746,7 +741,7 @@ def test_avoid_self_collision_with_l_arm(pr2_with_box, rclpy_node):
             ),
         )
     )
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
 
     assert len(msc.nodes) == 79
 
@@ -851,7 +846,7 @@ def _run_and_count_collision_checks(
             ),
         )
     )
-    executor.compile(motion_statechart=msc)
+    executor.compile(statechart=msc)
     executor.tick_until_end(500)
     world.collision_manager.remove_collision_consumer(observer)
     return observer
@@ -991,7 +986,7 @@ def test_hard_constraints_violated(cylinder_bot_world: World):
     kin_sim = Executor(
         context=MotionStatechartContext(world=cylinder_bot_world),
     )
-    kin_sim.compile(motion_statechart=msc_copy)
+    kin_sim.compile(statechart=msc_copy)
 
     with pytest.raises(CollisionViolatedError) as exc_info:
         kin_sim.tick_until_end()
@@ -1045,16 +1040,16 @@ def test_collision_for_robot_with_static_base(
         )
     )
     msc.add_node(local_min := LocalMinimumReached())
-    msc.add_node(CancelMotion.when_true(local_min))
+    msc.add_node(CancelStatechart.when_true(local_min))
     msc.add_node(EndMotion.when_true(goal))
 
     kin_sim = Executor(
         MotionStatechartContext(world=world),
         pacer=SimulationPacer(real_time_factor=2),
     )
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     with pytest.raises(Exception):
-        # Either Timeout or CancelMotion Execption
+        # Either Timeout or CancelStatechart Execption
         kin_sim.tick_until_end(500)
 
     # Verify no contact between the gripper and the obstacle
@@ -1118,7 +1113,7 @@ def test_repeated_collision_pr2_apartment_does_not_increase_execution_time(
         kin_sim = Executor(
             MotionStatechartContext(world=world),
         )
-        kin_sim.compile(motion_statechart=msc)
+        kin_sim.compile(statechart=msc)
         with world.reset_state_context():
             start_time = time.time()
             kin_sim.tick_until_end(500)

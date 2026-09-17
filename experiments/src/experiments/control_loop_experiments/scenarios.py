@@ -27,7 +27,7 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     SelfCollisionAvoidance,
     UpdateTemporaryCollisionRules,
 )
-from giskardpy.motion_statechart.goals.templates import Parallel, Sequence
+from cramph.composites import Parallel, Sequence
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (

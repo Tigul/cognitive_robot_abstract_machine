@@ -8,7 +8,7 @@ from krrood.entity_query_language.backends import (
     ProbabilisticBackend,
 )
 from krrood.entity_query_language.factories import a, an, variable_from
-from giskardpy.motion_statechart.data_types import LifeCycleValues
+from cramph.data_types import LifeCycleValues
 
 from coraplex.datastructures.enums import (
     Arms,

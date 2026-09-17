@@ -53,7 +53,7 @@ from coraplex.robot_plans import MoveToolCenterPointMotion
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.motions.misc import DetectingMotion, PerceptionTask
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import ObservationStateValues
+from cramph.data_types import ObservationStateValues
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.ros_context import RosContextExtension
@@ -835,7 +835,7 @@ def test_perception_task_reports_a_failed_query_as_itself(
     a motion that merely did not finish, so failure handling can tell the reasons apart.
 
     The source raises on the tick, which is the same way a
-    :class:`~giskardpy.motion_statechart.graph_node.CancelMotion` aborts a chart.
+    :class:`~cramph.node.CancelStatechart` aborts a chart.
     """
     world, view, context = immutable_model_world
     query = PerceptionQuery(Milk, whole_scene_region, view, world)

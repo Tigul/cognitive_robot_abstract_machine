@@ -4,13 +4,10 @@ import numpy as np
 
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import (
-    DefaultWeights,
-    LifeCycleValues,
-    ObservationStateValues,
-)
+from giskardpy.motion_statechart.data_types import DefaultWeights
+from cramph.data_types import LifeCycleValues, ObservationStateValues
 from giskardpy.motion_statechart.goals.open_close import Open, Close
-from giskardpy.motion_statechart.goals.templates import Sequence, Parallel
+from cramph.composites import Sequence, Parallel
 from giskardpy.motion_statechart.graph_node import (
     EndMotion,
 )
@@ -89,7 +86,7 @@ class TestFeatureFunctions:
         msc.add_node(EndMotion.when_true(height_goal))
 
         kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        kin_sim.compile(motion_statechart=msc)
+        kin_sim.compile(statechart=msc)
         kin_sim.tick_until_end()
 
         assert height_goal.observation_state == ObservationStateValues.TRUE
@@ -137,7 +134,7 @@ class TestFeatureFunctions:
         msc.add_node(EndMotion.when_true(height_goal))
 
         kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        kin_sim.compile(motion_statechart=msc)
+        kin_sim.compile(statechart=msc)
         kin_sim.tick_until_end()
 
         assert height_goal.observation_state == ObservationStateValues.TRUE
@@ -186,7 +183,7 @@ class TestFeatureFunctions:
         msc.add_node(EndMotion.when_true(distance_goal))
 
         kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        kin_sim.compile(motion_statechart=msc)
+        kin_sim.compile(statechart=msc)
         kin_sim.tick_until_end()
 
         assert distance_goal.observation_state == ObservationStateValues.TRUE
@@ -238,7 +235,7 @@ class TestFeatureFunctions:
         msc.add_node(EndMotion.when_true(distance_goal))
 
         kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        kin_sim.compile(motion_statechart=msc)
+        kin_sim.compile(statechart=msc)
         kin_sim.tick_until_end()
 
         assert distance_goal.observation_state == ObservationStateValues.TRUE
@@ -290,7 +287,7 @@ class TestFeatureFunctions:
         msc.add_node(EndMotion.when_true(distance_goal))
 
         kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        kin_sim.compile(motion_statechart=msc)
+        kin_sim.compile(statechart=msc)
         kin_sim.tick_until_end()
 
         assert distance_goal.observation_state == ObservationStateValues.TRUE
@@ -356,7 +353,7 @@ class TestFeatureFunctions:
         msc.add_node(EndMotion.when_true(combined_goal))
 
         kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        kin_sim.compile(motion_statechart=msc)
+        kin_sim.compile(statechart=msc)
         kin_sim.tick_until_end()
 
         assert combined_goal.observation_state == ObservationStateValues.TRUE
@@ -439,7 +436,7 @@ class TestFeatureFunctions:
         msc.add_node(EndMotion.when_true(combined_goal))
 
         kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-        kin_sim.compile(motion_statechart=msc)
+        kin_sim.compile(statechart=msc)
         kin_sim.tick_until_end()
 
         assert combined_goal.observation_state == ObservationStateValues.TRUE
@@ -517,7 +514,7 @@ def test_pointing(pr2_world_state_reset: World):
             world=pr2_world_state_reset,
         )
     )
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
 
@@ -549,7 +546,7 @@ def test_pointing_cone(pr2_world_state_reset: World):
             world=pr2_world_state_reset,
         )
     )
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
     # Check if angle between pointing axis and tip->goal vector is within the cone
@@ -605,7 +602,7 @@ def test_align_planes(pr2_world_state_reset: World):
             world=pr2_world_state_reset,
         )
     )
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
     # Check if the angle between normal vectors is below the threshold
@@ -655,7 +652,7 @@ def test_align_perpendicular(pr2_world_state_reset: World):
     end.start_condition = align_perp.observes_true
 
     kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
     # Check if the angle between normals is (approximately) 90 degrees
@@ -715,7 +712,7 @@ def test_angle_goal(pr2_world_state_reset: World):
     msc.add_node(EndMotion.when_true(angle_goal))
 
     kin_sim = Executor(MotionStatechartContext(world=pr2_world_state_reset))
-    kin_sim.compile(motion_statechart=msc)
+    kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
     root_V_tip = pr2_world_state_reset.transform(
@@ -757,7 +754,7 @@ class TestOpenClose:
             )
         )
         Executor(MotionStatechartContext(world=prismatic_bot2)).compile(
-            motion_statechart=motion_statechart
+            statechart=motion_statechart
         )
 
         assert set(open_goal._observation_expression.free_variables()) == {
@@ -873,7 +870,7 @@ class TestOpenClose:
                 world=pr2_world_copy,
             )
         )
-        kin_sim.compile(motion_statechart=msc)
+        kin_sim.compile(statechart=msc)
         kin_sim.tick_until_end()
         msc.draw(str(tmp_path / "muh.pdf"))
 
@@ -968,7 +965,7 @@ class TestOpenClose:
                 world=pr2_world_copy,
             )
         )
-        kin_sim.compile(motion_statechart=unscrew_statechart)
+        kin_sim.compile(statechart=unscrew_statechart)
         kin_sim.tick_until_end()
 
         # A step's outcome belongs to the attempt the sequence wrapped it in.
@@ -1007,7 +1004,7 @@ class TestOpenClose:
                 world=pr2_world_copy,
             )
         )
-        kin_sim.compile(motion_statechart=tighten_statechart)
+        kin_sim.compile(statechart=tighten_statechart)
         kin_sim.tick_until_end()
 
         assert close.observation_state == ObservationStateValues.TRUE

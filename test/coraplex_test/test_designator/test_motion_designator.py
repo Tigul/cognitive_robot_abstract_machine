@@ -37,7 +37,7 @@ from giskardpy.motion_statechart.goals.cartesian_goals import DifferentialDriveB
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     UpdateTemporaryCollisionRules,
 )
-from giskardpy.motion_statechart.goals.templates import Parallel
+from cramph.composites import Parallel
 from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianOrientation,

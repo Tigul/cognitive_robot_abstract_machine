@@ -11,11 +11,9 @@ from semantic_digital_twin.world_description.connections import (
 from semantic_digital_twin.world_description.world_entity import Connection
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.exceptions import UnexpectedWorldEntityCountError
-from giskardpy.motion_statechart.data_types import SuccessDecider
-from giskardpy.motion_statechart.graph_node import (
-    MotionStatechartNode,
-    NodeArtifacts,
-)
+from cramph.data_types import SuccessDecider
+from giskardpy.motion_statechart.graph_node import MotionStatechartNode
+from cramph.node import NodeArtifacts
 from giskardpy.motion_statechart.tasks.joint_tasks import JointState
 
 

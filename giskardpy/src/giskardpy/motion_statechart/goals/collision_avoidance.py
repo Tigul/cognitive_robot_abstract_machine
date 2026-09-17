@@ -3,26 +3,19 @@ from itertools import combinations
 
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import (
-    SuccessDecider,
-    DefaultWeights,
-    ObservationStateValues,
-)
+from cramph.data_types import SuccessDecider, ObservationStateValues
+from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.exceptions import (
     UnexpectedWorldEntityCountError,
     CollisionViolatedError,
 )
 from giskardpy.motion_statechart.graph_node import (
     MotionStatechartNode,
-    CompositeStatechartNode,
-    NodeArtifacts,
-    CancelMotion,
+    MotionNodeArtifacts,
 )
+from cramph.node import CompositeNode, NodeArtifacts, CancelStatechart
 from giskardpy.motion_statechart.graph_node import Task
-from giskardpy.motion_statechart.plotters.plot_specs import (
-    NodePlotSpec,
-    plot_specification_field,
-)
+from cramph.plotters.plot_specs import NodePlotSpec, plot_specification_field
 from krrood.symbolic_math.symbolic_math import Scalar, FloatVariable
 from semantic_digital_twin.collision_checking.collision_groups import CollisionGroup
 from semantic_digital_twin.collision_checking.collision_matrix import (
@@ -53,7 +46,7 @@ class _CollisionAvoidanceTask(Task):
 
 
 @dataclass(eq=False, repr=False)
-class _CancelBecauseCollisionViolated(CancelMotion):
+class _CancelBecauseCollisionViolated(CancelStatechart):
     """
     Cancels the motion when one of the collision avoidance tasks it watches is violated.
     """
@@ -160,8 +153,8 @@ class _ExternalCollisionHasData(_ExternalCollisionAvoidanceNode):
     Monitors whether data was computed for the external collision avoidance task.
     """
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        artifacts = NodeArtifacts()
+    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+        artifacts = MotionNodeArtifacts()
 
         artifacts.observation = self.has_collision_data
 
@@ -224,8 +217,8 @@ class _ExternalCollisionAvoidanceTask(_ExternalCollisionAvoidanceNode):
             ]
         )
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        artifacts = NodeArtifacts()
+    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+        artifacts = MotionNodeArtifacts()
 
         root_T_group_a = context.world.compose_forward_kinematics_expression(
             context.world.root, self.tip
@@ -306,8 +299,8 @@ class UpdateTemporaryCollisionRules(MotionStatechartNode):
     temporary_rules: list[CollisionRule] = field(kw_only=True)
     collision_matrix: CollisionMatrix = field(init=False)
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        artifacts = NodeArtifacts()
+    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+        artifacts = MotionNodeArtifacts()
         # safe old rules
         old_temporary_rules = context.collision_manager.temporary_rules
 
@@ -345,8 +338,8 @@ class SetInitialTemporaryCollisionRules(MotionStatechartNode):
     Whether to set the collision matrix on build.
     """
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        artifacts = NodeArtifacts()
+    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+        artifacts = MotionNodeArtifacts()
         # safe old rules
         old_temporary_rules = context.collision_manager.temporary_rules
 
@@ -370,7 +363,7 @@ class SetInitialTemporaryCollisionRules(MotionStatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class ExternalCollisionAvoidance(CompositeStatechartNode):
+class ExternalCollisionAvoidance(CompositeNode):
     """
     A goal combining an ExternalCollisionDistanceMonitor and an
     ExternalCollisionAvoidanceTask. One pair will be added for all collision groups of
@@ -384,7 +377,7 @@ class ExternalCollisionAvoidance(CompositeStatechartNode):
     success_decided_by = SuccessDecider.OWNER
 
     plot_specifications: NodePlotSpec = plot_specification_field(
-        NodePlotSpec.create_collapsed_composite_statechart_node_style
+        NodePlotSpec.create_collapsed_composite_node_style
     )
 
     robot: AbstractRobot = field(kw_only=True, default=None)
@@ -440,7 +433,7 @@ class ExternalCollisionAvoidance(CompositeStatechartNode):
                     collision_index=index,
                     external_collision_manager=self.external_collision_manager,
                 )
-                self._add_child_to_motion_statechart(distance_monitor)
+                self._add_child_to_statechart(distance_monitor)
 
                 task = _ExternalCollisionAvoidanceTask(
                     name=f"{self.name}/task({group.root.name.name, index})",
@@ -449,12 +442,12 @@ class ExternalCollisionAvoidance(CompositeStatechartNode):
                     collision_index=index,
                     external_collision_manager=self.external_collision_manager,
                 )
-                self._add_child_to_motion_statechart(task)
+                self._add_child_to_statechart(task)
                 task.pause_condition = distance_monitor.observes_true
                 tasks.append(task)
 
         if self.cancel_if_collision_violated:
-            self._add_child_to_motion_statechart(
+            self._add_child_to_statechart(
                 _CancelBecauseExternalCollisionViolated(
                     tasks=tasks,
                     name="External Collision Violated",
@@ -486,7 +479,7 @@ class ExternalCollisionDistanceMonitor(MotionStatechartNode):
     collision_index: int = field(default=0, kw_only=True)
     """Index of the closest collision (0 = closest, 1 = second closest, etc.)."""
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
         # 1. Access the shared external collision manager
         # This automatically registers the manager with the CollisionManager
         manager = context.external_collision_manager
@@ -502,7 +495,7 @@ class ExternalCollisionDistanceMonitor(MotionStatechartNode):
 
         # 4. Return an observation artifact
         # The node's observation_variable will be True when distance < threshold
-        return NodeArtifacts(observation=distance_symbol < self.threshold)
+        return MotionNodeArtifacts(observation=distance_symbol < self.threshold)
 
 
 @dataclass(eq=False, repr=False)
@@ -585,8 +578,8 @@ class _SelfCollisionHasData(_SelfCollisionAvoidanceNode):
     Monitors whether data was computed for the self collision avoidance task.
     """
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        artifacts = NodeArtifacts()
+    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+        artifacts = MotionNodeArtifacts()
 
         artifacts.observation = self.has_collision_data
 
@@ -612,8 +605,8 @@ class _SelfCollisionAvoidanceTask(_SelfCollisionAvoidanceNode):
     def is_collision_not_violated(self) -> Scalar:
         return self.contact_distance >= self.violated_distance
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
-        artifacts = NodeArtifacts()
+    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
+        artifacts = MotionNodeArtifacts()
 
         group_b_T_group_a = context.world.compose_forward_kinematics_expression(
             self.collision_group_b.root, self.collision_group_a.root
@@ -688,7 +681,7 @@ class _CancelBecauseSelfCollisionViolated(_CancelBecauseCollisionViolated):
 
 
 @dataclass(eq=False, repr=False)
-class SelfCollisionAvoidance(CompositeStatechartNode):
+class SelfCollisionAvoidance(CompositeNode):
     """
     A goal combining a SelfCollisionDistanceMonitor and a SelfCollisionAvoidanceTask.
     One pair will be added for all collision groups of the robot. The task will only be
@@ -702,7 +695,7 @@ class SelfCollisionAvoidance(CompositeStatechartNode):
     success_decided_by = SuccessDecider.OWNER
 
     plot_specifications: NodePlotSpec = plot_specification_field(
-        NodePlotSpec.create_collapsed_composite_statechart_node_style
+        NodePlotSpec.create_collapsed_composite_node_style
     )
 
     robot: AbstractRobot = field(kw_only=True, default=None)
@@ -790,7 +783,7 @@ class SelfCollisionAvoidance(CompositeStatechartNode):
                 collision_group_b=group_b,
                 self_collision_manager=self.self_collision_manager,
             )
-            self._add_child_to_motion_statechart(distance_monitor)
+            self._add_child_to_statechart(distance_monitor)
 
             task = _SelfCollisionAvoidanceTask(
                 name=f"{self.name}/{group_a.root.name.name, group_b.root.name.name}/task",
@@ -799,12 +792,12 @@ class SelfCollisionAvoidance(CompositeStatechartNode):
                 max_velocity=self.max_velocity,
                 self_collision_manager=self.self_collision_manager,
             )
-            self._add_child_to_motion_statechart(task)
+            self._add_child_to_statechart(task)
             task.pause_condition = distance_monitor.observes_true
             tasks.append(task)
 
         if self.cancel_if_collision_violated:
-            self._add_child_to_motion_statechart(
+            self._add_child_to_statechart(
                 _CancelBecauseSelfCollisionViolated(
                     name="self collision violated", tasks=tasks
                 )
@@ -837,7 +830,7 @@ class SelfCollisionDistanceMonitor(MotionStatechartNode):
     Distance threshold in meters.
     """
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
         manager = context.self_collision_manager
 
         manager.register_groups_of_body_combination(self.body_a, self.body_b)
@@ -845,4 +838,4 @@ class SelfCollisionDistanceMonitor(MotionStatechartNode):
 
         distance_symbol = manager.get_contact_distance_symbol(group_a, group_b)
 
-        return NodeArtifacts(observation=distance_symbol < self.threshold)
+        return MotionNodeArtifacts(observation=distance_symbol < self.threshold)

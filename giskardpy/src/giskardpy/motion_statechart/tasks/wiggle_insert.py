@@ -8,15 +8,13 @@ from typing_extensions import Optional, Tuple
 
 import krrood.symbolic_math.symbolic_math as symbolic_math
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.data_types import (
-    DefaultWeights,
-    ObservationStateValues,
-)
+from giskardpy.motion_statechart.data_types import DefaultWeights
+from cramph.data_types import ObservationStateValues
 from giskardpy.motion_statechart.error_signals import SymbolicErrorSignal
 from giskardpy.motion_statechart.graph_node import (
     ConvergingTask,
     DebugExpression,
-    NodeArtifacts,
+    MotionNodeArtifacts,
 )
 from semantic_digital_twin.spatial_types import Point3, Vector3, RotationMatrix
 from semantic_digital_twin.world_description.world_entity import Body
@@ -161,7 +159,7 @@ class WiggleInsert(ConvergingTask):
     Auxiliary variable holding the current angular noise.
     """
 
-    def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
+    def build_artifacts(self, context: MotionStatechartContext) -> MotionNodeArtifacts:
         """
         Build motion constraints that press the tip into the hole while wiggling.
 
@@ -169,7 +167,7 @@ class WiggleInsert(ConvergingTask):
         :return: The artifacts of this task, whose error is the distance between the tip
             and the hole.
         """
-        artifacts = NodeArtifacts()
+        artifacts = MotionNodeArtifacts()
         # The previous default was a zero vector, which has no well-defined perpendicular plane;
         # the root z-axis is used instead so the default is usable.
         hole_normal = context.world.transform(

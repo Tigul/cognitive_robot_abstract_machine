@@ -5,7 +5,7 @@ from functools import partial
 import numpy as np
 import pytest
 
-from giskardpy.motion_statechart.data_types import LifeCycleValues
+from cramph.data_types import LifeCycleValues
 
 from coraplex.datastructures.enums import DetectionTechnique
 
@@ -33,10 +33,7 @@ from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.motions.gripper import MoveToolCenterPointMotion
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
 from giskardpy.motion_statechart.goals.templates import RepeatOnStall
-from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
-    ConstFalseNode,
-    ConstTrueNode,
-)
+from cramph.nodes_for_testing import ConstFalseNode, ConstTrueNode
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.spatial_types import Pose
 from semantic_digital_twin.robots.pr2 import PR2Joint

@@ -303,7 +303,7 @@ simulation time. Since cancelling gives up on the plan, performing it raises {cl
 from coraplex.plans.factories import cancel_when, repeat
 from coraplex.plans.failures import PlanCancelled
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
-from giskardpy.motion_statechart.monitors.payload_monitors import CountSimulationTimeSeconds
+from cramph.monitors import CountSimulationTimeSeconds
 from semantic_digital_twin.datastructures.definitions import TorsoState
 
 move_torso_up = MoveTorsoAction(TorsoState.HIGH)
@@ -328,7 +328,7 @@ only released once the monitor's condition is fulfilled.
 ```python
 from coraplex.plans.factories import pause_until, repeat
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
-from giskardpy.motion_statechart.monitors.payload_monitors import CountSimulationTimeSeconds
+from cramph.monitors import CountSimulationTimeSeconds
 from semantic_digital_twin.datastructures.definitions import TorsoState
 
 move_torso_up = MoveTorsoAction(TorsoState.HIGH)

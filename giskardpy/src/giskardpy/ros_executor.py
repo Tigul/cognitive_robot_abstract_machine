@@ -49,8 +49,8 @@ class Ros2Executor(Executor):
         super().__post_init__()
         self.context.add_extension(RosContextExtension(self.ros_node))
 
-    def compile(self, motion_statechart: MotionStatechart):
-        super().compile(motion_statechart)
+    def compile(self, statechart: MotionStatechart):
+        super().compile(statechart)
         if self._debug_expression_publisher is not None:
             self._debug_expression_publisher.stop()
             self._debug_expression_publisher = None
@@ -65,4 +65,4 @@ class Ros2Executor(Executor):
         self._debug_expression_publisher = DebugExpressionPublisher(
             world=self.context.world, node=self.ros_node
         )
-        self._debug_expression_publisher.attach(motion_statechart)
+        self._debug_expression_publisher.attach(statechart)

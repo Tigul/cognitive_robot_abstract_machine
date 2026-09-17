@@ -56,9 +56,10 @@ print("PCC Robot Ready. Set fixed frame to 'piecewise_constant_curvature/base' i
 We use Giskardpy's constraint-based task planner to move the soft tip through a sequence of 3D Cartesian coordinates.
 
 ```{code-cell} ipython3
-from giskardpy.executor import Executor, SimulationPacer
+from giskardpy.executor import Executor
+from cramph.executor import SimulationPacer
 from giskardpy.motion_statechart.context import MotionStatechartContext
-from giskardpy.motion_statechart.goals.templates import Sequence
+from cramph.composites import Sequence
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPosition
