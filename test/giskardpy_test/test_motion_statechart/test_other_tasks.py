@@ -12,8 +12,8 @@ from giskardpy.motion_statechart.graph_node import (
     EndMotion,
 )
 from giskardpy.motion_statechart.monitors.joint_monitors import JointPositionReached
-from giskardpy.motion_statechart.motion_statechart import (
-    MotionStatechart,
+from cramph.statechart import (
+    Statechart,
 )
 from giskardpy.motion_statechart.tasks.align_planes import AlignPlanes
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
@@ -73,7 +73,7 @@ class TestFeatureFunctions:
         lower_limit = 0.3
         upper_limit = 0.5
 
-        msc = MotionStatechart()
+        msc = Statechart()
         height_goal = HeightGoal(
             root_link=root,
             tip_link=tip,
@@ -121,7 +121,7 @@ class TestFeatureFunctions:
         lower_limit = -0.5
         upper_limit = -0.2
 
-        msc = MotionStatechart()
+        msc = Statechart()
         height_goal = HeightGoal(
             root_link=root,
             tip_link=tip,
@@ -170,7 +170,7 @@ class TestFeatureFunctions:
         lower_limit = 0.5
         upper_limit = 0.7
 
-        msc = MotionStatechart()
+        msc = Statechart()
         distance_goal = DistanceGoal(
             root_link=root,
             tip_link=tip,
@@ -222,7 +222,7 @@ class TestFeatureFunctions:
         lower_limit = 0.0
         upper_limit = 0.1
 
-        msc = MotionStatechart()
+        msc = Statechart()
         distance_goal = DistanceGoal(
             root_link=root,
             tip_link=tip,
@@ -274,7 +274,7 @@ class TestFeatureFunctions:
         lower_limit = 0.45
         upper_limit = 0.55
 
-        msc = MotionStatechart()
+        msc = Statechart()
         distance_goal = DistanceGoal(
             root_link=root,
             tip_link=tip,
@@ -328,7 +328,7 @@ class TestFeatureFunctions:
         distance_lower = 0.4
         distance_upper = 0.6
 
-        msc = MotionStatechart()
+        msc = Statechart()
         combined_goal = Parallel(
             [
                 HeightGoal(
@@ -406,7 +406,7 @@ class TestFeatureFunctions:
 
         perpendicular_threshold = 0.01
 
-        msc = MotionStatechart()
+        msc = Statechart()
         height_goal = HeightGoal(
             root_link=root,
             tip_link=tip,
@@ -493,7 +493,7 @@ def test_pointing(pr2_world_state_reset: World):
     )
     root = pr2_world_state_reset.get_kinematic_structure_entity_by_name("odom_combined")
 
-    msc = MotionStatechart()
+    msc = Statechart()
 
     goal_point = Point3(2, 0, 0, reference_frame=root)
     pointing_axis = Vector3.X(reference_frame=tip)
@@ -524,7 +524,7 @@ def test_pointing_cone(pr2_world_state_reset: World):
     )
     root = pr2_world_state_reset.get_kinematic_structure_entity_by_name("odom_combined")
 
-    msc = MotionStatechart()
+    msc = Statechart()
 
     goal_point = Point3(-1, 0, 5, reference_frame=root)
     pointing_axis = Vector3.X(tip)
@@ -583,7 +583,7 @@ def test_align_planes(pr2_world_state_reset: World):
     )
     root = pr2_world_state_reset.get_kinematic_structure_entity_by_name("odom_combined")
 
-    msc = MotionStatechart()
+    msc = Statechart()
 
     goal_normal = Vector3.X(reference_frame=root)
     tip_normal = Vector3.Y(reference_frame=tip)
@@ -634,7 +634,7 @@ def test_align_perpendicular(pr2_world_state_reset: World):
     )
     root = pr2_world_state_reset.get_kinematic_structure_entity_by_name("odom_combined")
 
-    msc = MotionStatechart()
+    msc = Statechart()
 
     goal_normal = Vector3.X(reference_frame=root)
     tip_normal = Vector3.X(reference_frame=tip)
@@ -691,7 +691,7 @@ def test_angle_goal(pr2_world_state_reset: World):
     )
     root = pr2_world_state_reset.get_kinematic_structure_entity_by_name("odom_combined")
 
-    msc = MotionStatechart()
+    msc = Statechart()
 
     tip_vector = Vector3.Y(reference_frame=tip)
     reference_vector = Vector3.X(reference_frame=root)
@@ -746,7 +746,7 @@ class TestOpenClose:
         Both parts are created by the goal and end only when it ends, so it reads what
         they observe now.
         """
-        motion_statechart = MotionStatechart()
+        motion_statechart = Statechart()
         motion_statechart.add_node(
             open_goal := Open(
                 environment_link=prismatic_bot2.get_body_by_name("robot"),
@@ -819,7 +819,7 @@ class TestOpenClose:
         open_goal = 1
         close_goal = -1
 
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_nodes(
             [
                 Sequence(
@@ -935,7 +935,7 @@ class TestOpenClose:
             pr2_world_copy.root, cap_body
         )
 
-        unscrew_statechart = MotionStatechart()
+        unscrew_statechart = Statechart()
         unscrew_statechart.add_nodes(
             [
                 sequence := Sequence(
@@ -987,7 +987,7 @@ class TestOpenClose:
             - root_C_screw.rotation_angle_for_travel_distance(unscrew_travel_distance)
         )
 
-        tighten_statechart = MotionStatechart()
+        tighten_statechart = Statechart()
         tighten_statechart.add_nodes(
             [
                 close := Close(
@@ -1021,7 +1021,7 @@ class TestOpenClose:
         """
         Expands a goal on a statechart of its own and returns the children it built.
         """
-        statechart = MotionStatechart()
+        statechart = Statechart()
         statechart.add_node(goal)
         goal.expand(MotionStatechartContext(world=world))
         return goal.nodes

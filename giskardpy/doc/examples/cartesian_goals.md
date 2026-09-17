@@ -21,7 +21,7 @@ from cramph.executor import SimulationPacer
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from semantic_digital_twin.world import World
@@ -64,7 +64,7 @@ with world.modify_world():
     c_root_bf.has_hardware_interface = True
 
 # 2. Create a Motion Statechart
-msc = MotionStatechart()
+msc = Statechart()
 
 # 3. Define a Cartesian Pose Goal
 # We want to move the left gripper to a specific pose relative to the world root

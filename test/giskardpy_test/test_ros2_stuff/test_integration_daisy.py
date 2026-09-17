@@ -18,8 +18,8 @@ from cramph.composites import Parallel
 from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
 from cramph.monitors import CountTicks
-from giskardpy.motion_statechart.motion_statechart import (
-    MotionStatechart,
+from cramph.statechart import (
+    Statechart,
 )
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
@@ -147,7 +147,7 @@ class TestJointGoals:
         ["left", "right"],
     )
     def test_joints1(self, giskard: DAiSyTester, arm: str):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             joint_goal := JointPositionList(
                 goal_state=JointState.from_str_dict(
@@ -193,7 +193,7 @@ class TestJointGoals:
         tip = giskard.api.world.get_kinematic_structure_entity_by_name(
             f"{arm}_gripper_left_finger_tip_link"
         )
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             node := CartesianPose(
                 root_link=base,
@@ -241,7 +241,7 @@ class TestJointGoals:
         else:
             assert False
 
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(node := JointPositionList(goal_state=park_state))
         msc.add_node(EndMotion.when_true(node))
 
@@ -260,7 +260,7 @@ class TestJointGoals:
 
 class TestCollisionAvoidanceGoals:
     def test_self_collision_avoidance(self, giskard_better_pose: DAiSyTester):
-        msc = MotionStatechart()
+        msc = Statechart()
 
         offset_x = 0.8
         offset_y = -0.1
@@ -302,7 +302,7 @@ class TestCollisionAvoidanceGoals:
         assert parallel.observation_state == ObservationStateValues.FALSE
 
     def test_self_collision_avoidance2(self, giskard_better_pose: DAiSyTester):
-        msc = MotionStatechart()
+        msc = Statechart()
         goal = Pose.from_xyz_axis_angle(
             x=0.3, y=0.6, z=1.0, reference_frame=giskard_better_pose.map
         )

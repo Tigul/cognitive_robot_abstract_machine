@@ -55,7 +55,7 @@ from coraplex.robot_plans.motions.misc import DetectingMotion, PerceptionTask
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.data_types import ObservationStateValues
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.ros_context import RosContextExtension
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPosition
 from krrood.adapters.json_serializer import from_json, to_json
@@ -954,13 +954,13 @@ def test_perception_task_survives_a_chart_round_trip(
     world, view, context = immutable_model_world
     receiving_world = deepcopy(world)
     query = PerceptionQuery(Milk, whole_scene_region, view, world)
-    chart = MotionStatechart()
+    chart = Statechart()
     chart.add_node(
         task := PerceptionTask(query=query, execution_type=ExecutionType.REAL)
     )
     chart.add_node(EndMotion.when_true(task))
 
-    restored_chart = MotionStatechart.from_json(
+    restored_chart = Statechart.from_json(
         json.loads(json.dumps(chart.to_json())),
         **receiving_world_kwargs(receiving_world),
     )

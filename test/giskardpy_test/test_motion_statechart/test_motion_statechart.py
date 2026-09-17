@@ -31,8 +31,8 @@ from cramph.monitors import (
     CountTicks,
     CheckTickCount,
 )
-from giskardpy.motion_statechart.motion_statechart import (
-    MotionStatechart,
+from cramph.statechart import (
+    Statechart,
 )
 from giskardpy.motion_statechart.tasks.align_planes import AlignPlanes
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
@@ -64,7 +64,7 @@ from ...semantic_digital_twin_test.test_orm.test_orm import hsr_world_state_rese
 # %% motion nodes in a statechart
 
 
-def _compile_msc(msc: MotionStatechart) -> Executor:
+def _compile_msc(msc: Statechart) -> Executor:
     executor = Executor(MotionStatechartContext(world=World()))
     executor.compile(statechart=msc)
     return executor
@@ -81,7 +81,7 @@ class _ConvergingTaskWithoutErrorSignal(ConvergingTask):
 
 
 def test_converging_task_without_error_signal_is_rejected():
-    msc = MotionStatechart()
+    msc = Statechart()
     task = _ConvergingTaskWithoutErrorSignal()
     msc.add_node(task)
     msc.add_node(EndMotion.when_true(task))
@@ -95,7 +95,7 @@ def test_two_goals(pr2_world_state_reset: World):
     r_wrist_roll_joint = pr2_world_state_reset.get_connection_by_name(
         PR2Joint.RIGHT_WRIST_ROLL
     )
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_nodes(
         [
             JointPositionList(goal_state=JointState.from_mapping({torso_joint: 0.1})),
@@ -114,7 +114,7 @@ def test_two_goals(pr2_world_state_reset: World):
     kin_sim.tick_until_end()
     assert np.isclose(torso_joint.position, 0.1, atol=1e-4)
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(
         joint_goal := JointPositionList(
             goal_state=JointState.from_mapping({r_wrist_roll_joint: 1})
@@ -155,7 +155,7 @@ def test_parallel_local_minimum_reached_tolerates_stall(pr2_world_state_reset: W
     torso_joint.raw_dof.limits.lower.velocity = -1e-3
     torso_joint.raw_dof.limits.upper.velocity = 1e-3
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(
         combined := Parallel(
             [
@@ -201,7 +201,7 @@ def test_joint_position_list_alone_times_out_on_stall(
     torso_joint.raw_dof.limits.lower.velocity = -1e-3
     torso_joint.raw_dof.limits.upper.velocity = 1e-3
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(
         joint_goal := JointPositionList(
             goal_state=JointState.from_mapping({torso_joint: 1.0}),
@@ -230,7 +230,7 @@ def test_local_minimum_reached_only_depends_on_given_degrees_of_freedom(
         PR2Joint.RIGHT_WRIST_ROLL
     )
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_nodes(
         [
             JointPositionList(goal_state=JointState.from_mapping({moving_joint: 2.0})),
@@ -288,7 +288,7 @@ def test_local_minimum_reached_raises_on_explicitly_empty_degrees_of_freedom(
 
 
 def test_long_goal(pr2_world_state_reset: World):
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_nodes(
         [
             cart_goal := CartesianPose(
@@ -405,7 +405,7 @@ class TestTemplates:
             reference_frame=map_link,
         )
 
-        msc = MotionStatechart()
+        msc = Statechart()
         position_knife = CartesianPose(
             name="Position Knife",
             root_link=map_link,
@@ -485,7 +485,7 @@ class TestTemplates:
         r_tip = pr2_world_state_reset.get_kinematic_structure_entity_by_name(
             "r_gripper_tool_frame"
         )
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             parallel := Parallel(
                 [
@@ -617,7 +617,7 @@ class TestMaxManipulability:
         goal_pose = Pose.from_xyz_rpy(
             x=0.8, y=-0.3, z=1.0, reference_frame=pr2_world_state_reset.root
         )
-        msc = MotionStatechart()
+        msc = Statechart()
         cart_goal = CartesianPose(
             root_link=pr2_world_state_reset.root,
             tip_link=tip,

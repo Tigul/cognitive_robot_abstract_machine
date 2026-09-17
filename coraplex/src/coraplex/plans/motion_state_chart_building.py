@@ -9,7 +9,7 @@ from typing_extensions import TYPE_CHECKING, List
 from coraplex.plans.executables import Executable, GiskardExecutable
 from cramph.composites import NodeListCompositeNode, Sequence
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 
 if TYPE_CHECKING:
     from coraplex.datastructures.dataclasses import Context
@@ -127,7 +127,7 @@ class BuildsMotionStateChart:
 
         :param nodes: The nodes whose motions form one motion state chart.
         """
-        motion_state_chart = MotionStatechart()
+        motion_state_chart = Statechart()
         root_goal = self.create_goal()
         motion_state_chart.add_node(root_goal)
         executable = GiskardExecutable(

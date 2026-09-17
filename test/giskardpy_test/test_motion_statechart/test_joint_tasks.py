@@ -11,8 +11,8 @@ from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetSeedConfiguration,
     SetOdometry,
 )
-from giskardpy.motion_statechart.motion_statechart import (
-    MotionStatechart,
+from cramph.statechart import (
+    Statechart,
 )
 from giskardpy.motion_statechart.tasks.joint_tasks import (
     JointPositionList,
@@ -47,7 +47,7 @@ from semantic_digital_twin.robots.pr2 import PR2Joint
 
 
 def test_set_seed_configuration(pr2_world_state_reset):
-    msc = MotionStatechart()
+    msc = Statechart()
     goal = 0.1
 
     connection: ActiveConnection1DOF = pr2_world_state_reset.get_connection_by_name(
@@ -75,7 +75,7 @@ def test_set_seed_configuration(pr2_world_state_reset):
 
 
 def test_set_seed_odometry(pr2_world_state_reset):
-    msc = MotionStatechart()
+    msc = Statechart()
 
     goal = HomogeneousTransformationMatrix.from_xyz_rpy(
         x=1,
@@ -145,7 +145,7 @@ def test_joint_goal(tmp_path):
         )
         world.add_connection(root_C_tip2)
 
-    msc = MotionStatechart()
+    msc = Statechart()
 
     task1 = JointPositionList(goal_state=JointState.from_mapping({root_C_tip: 1}))
     always_true = ConstTrueNode()
@@ -201,7 +201,7 @@ def test_continuous_joint(pr2_world_state_reset):
     l_wrist_roll_joint = pr2_world_state_reset.get_connection_by_name(
         PR2Joint.LEFT_WRIST_ROLL
     )
-    msc = MotionStatechart()
+    msc = Statechart()
     joint_goal = JointPositionList(
         goal_state=JointState.from_mapping(
             {
@@ -237,7 +237,7 @@ def test_continuous_joint(pr2_world_state_reset):
 def test_revolute_joint(pr2_world_state_reset):
     head_pan_joint = pr2_world_state_reset.get_connection_by_name(PR2Joint.HEAD_PAN)
     head_tilt_joint = pr2_world_state_reset.get_connection_by_name(PR2Joint.HEAD_TILT)
-    msc = MotionStatechart()
+    msc = Statechart()
     joint_goal = JointPositionList(
         goal_state=JointState.from_mapping(
             {
@@ -272,7 +272,7 @@ def test_joint_velocity_limit_caps_a_fast_goal(pr2_world_state_reset):
     head_pan_joint = pr2_world_state_reset.get_connection_by_name(PR2Joint.HEAD_PAN)
     max_velocity = 0.05
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_nodes(
         [
             joint_goal := JointPositionList(
@@ -303,7 +303,7 @@ def test_joint_velocity_limit_caps_a_fast_goal(pr2_world_state_reset):
 
 
 def test_joint_sequence(pr2_world_state_reset):
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(
         sequence := Sequence(
             [

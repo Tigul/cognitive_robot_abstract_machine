@@ -9,17 +9,17 @@ from giskardpy.motion_statechart.debug_expression_publisher import (
     DebugExpressionPublisher,
 )
 from giskardpy.motion_statechart.graph_node import DebugExpression
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.align_planes import AlignPlanes
 from giskardpy.ros_executor import Ros2Executor
 from semantic_digital_twin.spatial_types import Vector3
 from semantic_digital_twin.world import World
 
 
-def align_planes_statechart(world: World) -> MotionStatechart:
+def align_planes_statechart(world: World) -> Statechart:
     root = world.root
     tip = world.get_body_by_name("bot")
-    motion_statechart = MotionStatechart()
+    motion_statechart = Statechart()
     motion_statechart.add_node(
         AlignPlanes(
             root_link=root,
@@ -95,7 +95,7 @@ def test_attach_visualizes_spatial_debug_expressions_only(
     task.debug_expressions.append(
         DebugExpression(name="scalar_only", expression=sm.Scalar(1.0))
     )
-    motion_statechart = MotionStatechart()
+    motion_statechart = Statechart()
     motion_statechart.add_node(task)
 
     publisher = DebugExpressionPublisher(world=cylinder_bot_world, node=rclpy_node)
@@ -120,7 +120,7 @@ def test_vector_with_reference_frame_is_transformed_to_visualisation_frame(
 
 def test_stop_clears_previously_published_markers(rclpy_node, cylinder_bot_world):
     task = build_align_planes_task(cylinder_bot_world)
-    motion_statechart = MotionStatechart()
+    motion_statechart = Statechart()
     motion_statechart.add_node(task)
 
     publisher = DebugExpressionPublisher(world=cylinder_bot_world, node=rclpy_node)
@@ -134,7 +134,7 @@ def test_stop_clears_previously_published_markers(rclpy_node, cylinder_bot_world
 
 def test_attach_publisher_tracks_state_changes(rclpy_node, cylinder_bot_world):
     task = build_align_planes_task(cylinder_bot_world)
-    motion_statechart = MotionStatechart()
+    motion_statechart = Statechart()
     motion_statechart.add_node(task)
 
     publisher = DebugExpressionPublisher(world=cylinder_bot_world, node=rclpy_node)

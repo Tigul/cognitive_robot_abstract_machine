@@ -6,7 +6,7 @@ from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.data_types import ObservationStateValues
 from cramph.composites import Sequence, Parallel
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.ros2_nodes.force_torque_monitor import (
     ForceImpactMonitor,
 )
@@ -26,7 +26,7 @@ def test_force_impact_node(rclpy_node):
     msg_above = WrenchStamped()
     msg_above.wrench.force.x = 20.0
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(
         parallel := Parallel(
             [
@@ -46,7 +46,7 @@ def test_force_impact_node(rclpy_node):
     json_data = msc.to_json()
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
-    msc_copy = MotionStatechart.from_json(new_json_data)
+    msc_copy = Statechart.from_json(new_json_data)
 
     kin_sim = Ros2Executor(
         context=MotionStatechartContext(world=World()), ros_node=rclpy_node

@@ -13,7 +13,7 @@ kernelspec:
 
 # Basic Motion Statechart Example
 
-This example shows how to set up a basic `MotionStatechart` that runs for a specified amount of time using a `CountSeconds` monitor.
+This example shows how to set up a basic `Statechart` that runs for a specified amount of time using a `CountSeconds` monitor.
 
 ```{code-cell} ipython3
 from cramph.executor import SimulationPacer
@@ -21,12 +21,12 @@ from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import EndMotion
 from cramph.monitors import CountSeconds
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from semantic_digital_twin.world import World
 
 # 1. Create a Motion Statechart
-msc = MotionStatechart()
+msc = Statechart()
 
 # 2. Add a monitor that counts for 1 second
 msc.add_node(counter := CountSeconds(seconds=1.0))

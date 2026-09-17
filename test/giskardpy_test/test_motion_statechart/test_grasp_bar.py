@@ -4,7 +4,7 @@ from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.data_types import ObservationStateValues
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.grasp_bar import GraspBar
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
     VizMarkerPublisher,
@@ -24,7 +24,7 @@ def test_grasp_bar(pr2_world_state_reset: World, rclpy_node):
     bar_axis = Vector3.Z(reference_frame=root)
     tip_grasp_axis = Vector3.X(reference_frame=tip)
 
-    msc = MotionStatechart()
+    msc = Statechart()
     grasp = GraspBar(
         root_link=root,
         tip_link=tip,

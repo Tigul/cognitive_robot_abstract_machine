@@ -31,8 +31,7 @@ from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.exceptions import SelfInStartConditionError
 from giskardpy.motion_statechart.graph_node import EndMotion
 from cramph.monitors import CountSimulationTimeSeconds
-from cramph.statechart import LastObservationState
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import LastObservationState, Statechart
 from cramph.nodes_for_testing import ConstTrueNode
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from krrood.adapters.json_serializer import from_json
@@ -333,7 +332,7 @@ def create_error_holding_a_variable() -> SelfInStartConditionError:
     :return: The error of a node that waits for itself, which holds the observation
         variable of that node and therefore cannot be serialized.
     """
-    motion_statechart = MotionStatechart()
+    motion_statechart = Statechart()
     motion_statechart.add_node(node := ConstTrueNode(name="waits for itself"))
     with pytest.raises(SelfInStartConditionError) as error:
         node.start_condition = node.observes_true
@@ -523,7 +522,7 @@ def create_goal_json(
     """
     Build the json of a goal whose motion ends after the given simulated time.
     """
-    motion_statechart = MotionStatechart()
+    motion_statechart = Statechart()
     motion_statechart.add_node(counter := CountSimulationTimeSeconds(seconds=seconds))
     motion_statechart.add_node(EndMotion.when_true(counter))
     goal = MotionGoal.for_motion_statechart(

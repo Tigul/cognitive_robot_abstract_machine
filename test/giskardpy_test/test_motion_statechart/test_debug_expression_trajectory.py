@@ -9,7 +9,7 @@ from giskardpy.motion_statechart.debug_expression_trajectory import (
 from giskardpy.motion_statechart.exceptions import EmptyDebugExpressionTrajectoryError
 from cramph.exceptions import PlotterNotConfiguredError
 from giskardpy.motion_statechart.graph_node import DebugExpression, EndMotion
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.plotters.debug_expression_trajectory_plotter import (
     DebugExpressionTrajectoryPlotter,
 )
@@ -20,13 +20,13 @@ from semantic_digital_twin.spatial_types import Point3
 from semantic_digital_twin.world import World
 
 
-def _build_motion_statechart(cylinder_bot_world: World) -> MotionStatechart:
+def _build_motion_statechart(cylinder_bot_world: World) -> Statechart:
     """
     Build a motion statechart that moves the bot to a Cartesian point.
     """
     root = cylinder_bot_world.root
     tip = cylinder_bot_world.get_kinematic_structure_entity_by_name("bot")
-    motion_statechart = MotionStatechart()
+    motion_statechart = Statechart()
     goal = CartesianPosition(
         root_link=root,
         tip_link=tip,

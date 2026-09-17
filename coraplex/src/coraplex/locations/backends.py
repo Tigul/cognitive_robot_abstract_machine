@@ -11,7 +11,7 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
 )
 from cramph.composites import Sequence
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.qp.exceptions import InfeasibleException
 from giskardpy.qp.qp_controller_config import QPControllerConfig
@@ -141,7 +141,7 @@ class GiskardLocationBackend(PoseGeneratorBackend):
                     robot=robot, buffer_zone_distance=0.1, violated_distance=0.0
                 )
             )
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_nodes(
             [
                 pose_seq,

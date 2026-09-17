@@ -27,7 +27,7 @@ from giskardpy.motion_statechart.monitors.progress_monitors import (
     NotApproachingGoal,
     StillProgressing,
 )
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from cramph.nodes_for_testing import ConstFalseNode
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPosition,
@@ -70,7 +70,7 @@ def unreachable_arm_goal(world: World) -> CartesianPosition:
 
 def tick_until_end_recording(
     executor: Executor,
-    motion_statechart: MotionStatechart,
+    motion_statechart: Statechart,
     nodes: List[MotionStatechartNode],
     maximum_cycles: int = 2000,
 ) -> dict[MotionStatechartNode, list[float]]:
@@ -131,7 +131,7 @@ class TestStallDetection:
         An arm that has extended as far as it can stops closing on its goal, so the
         motion is cancelled instead of running forever.
         """
-        motion_statechart = MotionStatechart()
+        motion_statechart = Statechart()
         goal = unreachable_arm_goal(pr2_world_state_reset)
         motion_statechart.add_node(goal)
         motion_statechart.add_node(EndMotion.when_true(goal))
@@ -159,7 +159,7 @@ class TestStallDetection:
         is still getting somewhere has to be judged, and an undecided monitor could only
         interrupt it.
         """
-        motion_statechart = MotionStatechart()
+        motion_statechart = Statechart()
         goal = CartesianPosition(
             root_link=cylinder_bot_world.root,
             tip_link=cylinder_bot_world.get_kinematic_structure_entity_by_name("bot"),
@@ -188,7 +188,7 @@ class TestStallDetection:
         The timeout is what stops that from being mistaken for a stall, so the monitor
         must have fired and still not cancelled the motion.
         """
-        motion_statechart = MotionStatechart()
+        motion_statechart = Statechart()
         goal = DifferentialDriveBaseGoal(
             goal_pose=Pose.from_xyz_rpy(
                 x=1, y=1, reference_frame=cylinder_bot_diff_world.root
@@ -242,7 +242,7 @@ class TestStallDetection:
             tip_link=tip,
             goal_point=Point3(5, 0, 0, reference_frame=base_footprint),
         )
-        motion_statechart = MotionStatechart()
+        motion_statechart = Statechart()
         sequence = Sequence(nodes=[reachable, unreachable])
         motion_statechart.add_node(sequence)
         motion_statechart.add_node(EndMotion.when_true(sequence))
@@ -271,7 +271,7 @@ class TestStallDetection:
         Nothing is converging before the watched task starts, which must not be mistaken
         for a stall.
         """
-        motion_statechart = MotionStatechart()
+        motion_statechart = Statechart()
         goal = CartesianPosition(
             root_link=cylinder_bot_world.root,
             tip_link=cylinder_bot_world.get_kinematic_structure_entity_by_name("bot"),
@@ -308,7 +308,7 @@ class TestStallDetection:
             goal_point=Point3(1, 0, 0, reference_frame=cylinder_bot_world.root),
         )
         progressing = StillProgressing(monitored_node=goal, timeout=timeout)
-        motion_statechart = MotionStatechart()
+        motion_statechart = Statechart()
         motion_statechart.add_nodes([goal, progressing])
 
         executor = Executor(MotionStatechartContext(world=cylinder_bot_world))
@@ -337,7 +337,7 @@ class TestStallDetection:
             goal_point=Point3(0, 0, 0, reference_frame=bot),
         )
         monitor = NotApproachingGoal(monitored_task=arrived)
-        motion_statechart = MotionStatechart()
+        motion_statechart = Statechart()
         motion_statechart.add_node(arrived)
         motion_statechart.add_node(monitor)
         motion_statechart.add_node(EndMotion())
@@ -472,7 +472,7 @@ class TestErrorDrivesObservation:
             tip_link=bot,
             goal_point=Point3(1, 0, 0, reference_frame=cylinder_bot_world.root),
         )
-        motion_statechart = MotionStatechart()
+        motion_statechart = Statechart()
         motion_statechart.add_node(goal)
         motion_statechart.add_node(EndMotion.when_true(goal))
         executor = Executor(MotionStatechartContext(world=cylinder_bot_world))
@@ -501,7 +501,7 @@ class TestNothingToConverge:
             root_link=cylinder_bot_world.root, tip_link=bot
         )
         progressing = StillProgressing(monitored_node=limit, timeout=STALL_TIMEOUT)
-        motion_statechart = MotionStatechart()
+        motion_statechart = Statechart()
         motion_statechart.add_node(limit)
         motion_statechart.add_node(progressing)
         motion_statechart.add_node(EndMotion())
@@ -543,7 +543,7 @@ class TestNodeDependencies:
         dependent = NodeWithDeclaredDependencies(
             name="dependent", dependencies=[dependency], built_after=built_after
         )
-        motion_statechart = MotionStatechart()
+        motion_statechart = Statechart()
         motion_statechart.add_node(dependent)
         motion_statechart.add_node(dependency)
         motion_statechart.add_node(EndMotion())
@@ -569,7 +569,7 @@ class TestNodeDependencies:
             monitored_node=sequence, timeout=timedelta(seconds=1)
         )
 
-        motion_statechart = MotionStatechart()
+        motion_statechart = Statechart()
         motion_statechart.add_node(progressing)
         motion_statechart.add_node(sequence)
         motion_statechart.add_node(EndMotion.when_true(sequence))
@@ -587,7 +587,7 @@ class TestNodeDependencies:
         first = NodeWithDeclaredDependencies(name="first")
         second = NodeWithDeclaredDependencies(name="second", dependencies=[first])
         first.dependencies.append(second)
-        motion_statechart = MotionStatechart()
+        motion_statechart = Statechart()
         motion_statechart.add_nodes([first, second])
         motion_statechart.add_node(EndMotion())
 
@@ -617,7 +617,7 @@ class TestSampledError:
                 for x in range(100)
             ],
         )
-        motion_statechart = MotionStatechart()
+        motion_statechart = Statechart()
         motion_statechart.add_node(trajectory)
         motion_statechart.add_node(EndMotion.when_true(trajectory))
         progressing = StillProgressing(

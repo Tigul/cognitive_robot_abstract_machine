@@ -11,7 +11,7 @@ except ImportError:
     Node = MockedNodeClass
 
 from giskardpy.executor import Executor
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.ros_context import RosContextExtension
 
 if TYPE_CHECKING:
@@ -49,7 +49,7 @@ class Ros2Executor(Executor):
         super().__post_init__()
         self.context.add_extension(RosContextExtension(self.ros_node))
 
-    def compile(self, statechart: MotionStatechart):
+    def compile(self, statechart: Statechart):
         super().compile(statechart)
         if self._debug_expression_publisher is not None:
             self._debug_expression_publisher.stop()

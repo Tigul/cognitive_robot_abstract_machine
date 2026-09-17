@@ -140,7 +140,7 @@ class MaxTrajectoryLengthException(PlanningException):
         return "Trajectory exceeded the maximum allowed length."
 
     def suggest_correction(self) -> str:
-        return "Look at the final state of the MotionStatechart to see which nodes are still running. Use the debugger or the MotionStatechart.draw() method to visualize the MotionStatechart."
+        return "Look at the final state of the Statechart to see which nodes are still running. Use the debugger or the Statechart.draw() method to visualize the Statechart."
 
 
 @dataclass

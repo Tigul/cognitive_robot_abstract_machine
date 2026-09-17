@@ -17,7 +17,7 @@ from giskardpy.motion_statechart.exceptions import NoProgressError
 from cramph.composites import Sequence
 from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from coraplex.plans.plan_node import ActionNode, MotionNode
@@ -204,7 +204,7 @@ class AreReachableBy(PoseValidator):
             )
         ]
 
-    def create_msc(self) -> MotionStatechart:
+    def create_msc(self) -> Statechart:
         """
         Creates the Motion state chart to reach the given pose sequence with the given
         tip link.
@@ -275,7 +275,7 @@ class AreReachableBy(PoseValidator):
                 for pose in sequence
             ]
 
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(sequence_node := Sequence(sequence))
         if GiskardExecutable.collision_avoidance:
             msc.add_node(ExternalCollisionAvoidance(cancel_if_collision_violated=False))
@@ -289,7 +289,7 @@ class AreReachableBy(PoseValidator):
 
         return msc
 
-    def create_executor(self, msc: MotionStatechart) -> Executor:
+    def create_executor(self, msc: Statechart) -> Executor:
         """
         Creates the executor that runs a probe of this validator.
 

@@ -15,8 +15,12 @@ from giskardpy.middleware.ros2.feedback_publisher import MotionStatechartPayload
 from giskardpy.middleware.ros2.motion_goal import MotionGoal
 from giskardpy.middleware.ros2.ros2_interface import MyActionClient
 from giskardpy.middleware.ros2.world_updates import ClientWorldUpdates
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
-from cramph.statechart import LastObservationState, LifeCycleState, ObservationState
+from cramph.statechart import (
+    LastObservationState,
+    LifeCycleState,
+    ObservationState,
+    Statechart,
+)
 from rclpy import Context, Parameter, Future
 from rclpy.action.client import ClientGoalHandle
 from rclpy.executors import MultiThreadedExecutor
@@ -52,7 +56,7 @@ class GiskardWrapper:
     Keeps this world in step with the world Giskard controls around a goal.
     """
 
-    _statechart: MotionStatechart | None = field(init=False, default=None, repr=False)
+    _statechart: Statechart | None = field(init=False, default=None, repr=False)
 
     def __post_init__(self):
         if self.world is None:
@@ -77,14 +81,14 @@ class GiskardWrapper:
     def robot(self) -> AbstractRobot:
         return self.world.get_semantic_annotations_by_type(AbstractRobot)[0]
 
-    def execute_async(self, motion_statechart: MotionStatechart) -> Future:
+    def execute_async(self, motion_statechart: Statechart) -> Future:
         self._statechart = motion_statechart
         motion_statechart.sanity_check()
         return self._send_action_goal_async(motion_statechart)
 
-    def execute(self, motion_statechart: MotionStatechart):
+    def execute(self, motion_statechart: Statechart):
         """
-        Executes a MotionStatechart and syncs its state with the result of Giskard.
+        Executes a Statechart and syncs its state with the result of Giskard.
 
         A goal that fails raises the exception that made Giskard abort it, for example
         :class:`WorldModelModifiedDuringMotionError` when another process modified the
@@ -97,7 +101,7 @@ class GiskardWrapper:
         self._take_over_result(result, motion_statechart)
 
     def _take_over_result(
-        self, result: JsonAction_Result, motion_statechart: MotionStatechart
+        self, result: JsonAction_Result, motion_statechart: Statechart
     ) -> None:
         """
         Copy the final states of a finished goal into the given motion statechart.
@@ -129,9 +133,7 @@ class GiskardWrapper:
         )
         assert motion_statechart.is_ended()
 
-    def _create_goal_message(
-        self, motion_statechart: MotionStatechart
-    ) -> JsonAction.Goal:
+    def _create_goal_message(self, motion_statechart: Statechart) -> JsonAction.Goal:
         """
         Wrap the motion statechart into a goal that names the change of this world it
         was built on.
@@ -147,14 +149,12 @@ class GiskardWrapper:
         goal_msg.goal = json.dumps(goal.to_json())
         return goal_msg
 
-    def _send_action_goal_async(self, motion_statechart: MotionStatechart) -> Future:
+    def _send_action_goal_async(self, motion_statechart: Statechart) -> Future:
         return self._client.send_goal_async(
             self._create_goal_message(motion_statechart)
         )
 
-    def _send_action_goal(
-        self, motion_statechart: MotionStatechart
-    ) -> JsonAction_Result:
+    def _send_action_goal(self, motion_statechart: Statechart) -> JsonAction_Result:
         return self._client.send_goal(self._create_goal_message(motion_statechart))
 
     def cancel_goal_async(self) -> Future:

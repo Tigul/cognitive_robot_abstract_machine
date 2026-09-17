@@ -13,7 +13,7 @@ from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetSeedConfiguration,
 )
 from cramph.monitors import CountSimulationTimeSeconds
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPosition
 from giskardpy.motion_statechart.tasks.wiggle_insert import WiggleInsert
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
@@ -42,7 +42,7 @@ def test_wiggle_insert_reaches_hole(pr2_world_state_reset: World, rclpy_node):
     root = pr2_world_state_reset.get_kinematic_structure_entity_by_name("odom_combined")
     hole_point = _hole_at_current_tip(pr2_world_state_reset, tip, root)
 
-    msc = MotionStatechart()
+    msc = Statechart()
     wiggle = WiggleInsert(
         root_link=root,
         tip_link=tip,
@@ -109,7 +109,7 @@ def test_wiggle_insert_on_tick_updates_noise(pr2_world_state_reset: World):
     root = pr2_world_state_reset.get_kinematic_structure_entity_by_name("odom_combined")
     hole_point = _hole_at_current_tip(pr2_world_state_reset, tip, root)
 
-    msc = MotionStatechart()
+    msc = Statechart()
     wiggle = WiggleInsert(
         root_link=root,
         tip_link=tip,
@@ -151,7 +151,7 @@ def test_wiggle_insert(hsr_world_state_reset):
 
     hole_point = Point3(x=0.5, z=0.3, reference_frame=root_link)
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(
         motion := Sequence(
             [

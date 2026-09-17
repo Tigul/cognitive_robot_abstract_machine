@@ -2,7 +2,7 @@
 Tests for the motion statechart templates that try alternatives, ``TryAll`` and
 ``TryInOrder``, and for the goals that run a node under a monitor.
 
-The templates are exercised by compiling them into a real :class:`MotionStatechart` and
+The templates are exercised by compiling them into a real :class:`Statechart` and
 ticking the executor, asserting the resulting observation and life cycle states.
 ``ConstTrueNode`` / ``ConstFalseNode`` are used as deterministic children that always
 succeed / fail.
@@ -21,7 +21,7 @@ from cramph.exceptions import (
 )
 from cramph.composites import Attempt, Sequence, TryAll, TryInOrder
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from cramph.monitors import CountTicks, Pulse
 from giskardpy.motion_statechart.monitors.progress_monitors import Stalled
 from cramph.nodes_for_testing import (
@@ -57,7 +57,7 @@ def _compile_and_tick(
         using the control rate the executor actually runs at.
     :return: The executor, so a caller can keep ticking and inspect intermediate states.
     """
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(goal)
     context = MotionStatechartContext(world=World())
     executor = Executor(context)
@@ -251,7 +251,7 @@ def test_the_next_alternative_starts_on_the_cycle_the_previous_one_fails():
     second = _alternative(ConstTrueNode(name="second"))
     goal = TryInOrder(nodes=[first, second])
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(goal)
     context = MotionStatechartContext(world=World())
     executor = Executor(context)
@@ -330,7 +330,7 @@ def test_the_goal_fails_once_every_alternative_was_abandoned():
 
 
 def test_a_try_all_without_nodes_is_rejected():
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(TryAll(nodes=[]))
 
     executor = Executor(MotionStatechartContext(world=World()))
@@ -339,7 +339,7 @@ def test_a_try_all_without_nodes_is_rejected():
 
 
 def test_a_try_in_order_without_nodes_is_rejected():
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(TryInOrder(nodes=[]))
 
     executor = Executor(MotionStatechartContext(world=World()))

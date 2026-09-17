@@ -3,7 +3,7 @@ import pytest
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
@@ -12,7 +12,7 @@ from semantic_digital_twin.world import World
 def test_end_motion_abruptness(cylinder_bot_world: World):
     tip = cylinder_bot_world.get_kinematic_structure_entity_by_name("bot")
 
-    motion_statechart = MotionStatechart()
+    motion_statechart = Statechart()
     goal = CartesianPose(
         root_link=cylinder_bot_world.root,
         tip_link=tip,

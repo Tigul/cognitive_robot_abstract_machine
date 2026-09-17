@@ -10,7 +10,7 @@ from giskardpy.motion_statechart.monitors.feature_monitors import (
     DistanceMonitor,
     AngleMonitor,
 )
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.feature_functions import (
     HeightGoal,
     DistanceGoal,
@@ -21,7 +21,7 @@ from semantic_digital_twin.spatial_types import Point3, Vector3
 from semantic_digital_twin.world import World
 
 
-def _run(msc: MotionStatechart, world: World) -> None:
+def _run(msc: Statechart, world: World) -> None:
     kin_sim = Executor(MotionStatechartContext(world=world))
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
@@ -38,7 +38,7 @@ def test_height_monitor(pr2_world_state_reset: World):
     reference_point = Point3(0, 0, 0, reference_frame=root)
     lower_limit, upper_limit = 0.3, 0.5
 
-    msc = MotionStatechart()
+    msc = Statechart()
     drive = HeightGoal(
         root_link=root,
         tip_link=tip,
@@ -74,7 +74,7 @@ def test_distance_monitor(pr2_world_state_reset: World):
     reference_point = Point3(0, 0, 0, reference_frame=root)
     lower_limit, upper_limit = 0.4, 0.6
 
-    msc = MotionStatechart()
+    msc = Statechart()
     drive = DistanceGoal(
         root_link=root,
         tip_link=tip,
@@ -108,7 +108,7 @@ def test_angle_monitor(pr2_world_state_reset: World):
     reference_vector = Vector3.X(reference_frame=root)
     lower_angle, upper_angle = radians(30), radians(32)
 
-    msc = MotionStatechart()
+    msc = Statechart()
     drive = AngleGoal(
         root_link=root,
         tip_link=tip,
@@ -141,7 +141,7 @@ def test_perpendicular_monitor(pr2_world_state_reset: World):
     tip_normal = Vector3.X(reference_frame=tip)
     reference_normal = Vector3.X(reference_frame=root)
 
-    msc = MotionStatechart()
+    msc = Statechart()
     drive = AlignPerpendicular(
         root_link=root,
         tip_link=tip,

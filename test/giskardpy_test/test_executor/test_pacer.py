@@ -3,13 +3,13 @@ from cramph.executor import SimulationPacer
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import EndMotion
 from cramph.monitors import CountSeconds
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from semantic_digital_twin.world import World
 
 
 def test_with_executor():
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(counter := CountSeconds(seconds=1.0))
     msc.add_node(EndMotion.when_true(counter))
 

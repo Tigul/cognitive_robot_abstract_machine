@@ -23,7 +23,7 @@ from giskardpy.middleware.ros2.world_updates import (
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import EndMotion
 from cramph.monitors import CountSimulationTimeSeconds
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from krrood.adapters.json_serializer import to_json
 from semantic_digital_twin.adapters.ros.messages import MetaData, StreamPosition
@@ -434,11 +434,11 @@ def control_loop(init_rospy) -> ControlLoopFixture:
         ),
         pacer=NoPacing(),
     )
-    motion_statechart = MotionStatechart()
+    motion_statechart = Statechart()
     motion_statechart.add_node(counter := CountSimulationTimeSeconds(seconds=1000.0))
     motion_statechart.add_node(EndMotion.when_true(counter))
     executor.compile(
-        MotionStatechart.from_json(
+        Statechart.from_json(
             json.loads(json.dumps(motion_statechart.to_json())),
             world=controlled_world,
         )

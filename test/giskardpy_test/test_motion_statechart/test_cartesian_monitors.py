@@ -13,7 +13,7 @@ from giskardpy.motion_statechart.monitors.cartesian_monitors import (
     VectorsAligned,
     DistanceToLine,
 )
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.align_planes import AlignPlanes
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPose,
@@ -30,7 +30,7 @@ from semantic_digital_twin.spatial_types import (
 from semantic_digital_twin.world import World
 
 
-def _run(msc: MotionStatechart, world: World) -> None:
+def _run(msc: Statechart, world: World) -> None:
     kin_sim = Executor(MotionStatechartContext(world=world))
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
@@ -43,7 +43,7 @@ def test_position_reached(pr2_world_state_reset: World):
     root = pr2_world_state_reset.get_kinematic_structure_entity_by_name("odom_combined")
     goal_point = Point3(0.6, -0.3, 1.0, reference_frame=root)
 
-    msc = MotionStatechart()
+    msc = Statechart()
     drive = CartesianPosition(root_link=root, tip_link=tip, goal_point=goal_point)
     monitor = PositionReached(
         root_link=root,
@@ -76,7 +76,7 @@ def test_position_reached_binding_policies(
     root = pr2_world_state_reset.get_kinematic_structure_entity_by_name("odom_combined")
     goal_point = Point3(0.2, 0, 0, reference_frame=tip)
 
-    msc = MotionStatechart()
+    msc = Statechart()
     drive = CartesianPosition(
         root_link=root,
         tip_link=tip,
@@ -107,7 +107,7 @@ def test_orientation_reached(pr2_world_state_reset: World):
     )
     goal_orientation.reference_frame = root
 
-    msc = MotionStatechart()
+    msc = Statechart()
     drive = CartesianOrientation(
         root_link=root, tip_link=tip, goal_orientation=goal_orientation
     )
@@ -134,7 +134,7 @@ def test_pose_reached(pr2_world_state_reset: World):
         x=0.6, y=-0.3, z=1.0, reference_frame=root
     )
 
-    msc = MotionStatechart()
+    msc = Statechart()
     drive = CartesianPose(root_link=root, tip_link=tip, goal_pose=goal_pose)
     monitor = PoseReached(
         root_link=root,
@@ -158,7 +158,7 @@ def test_pointing_at(pr2_world_state_reset: World):
     goal_point = Point3(2, 0, 0, reference_frame=root)
     pointing_axis = Vector3.X(reference_frame=tip)
 
-    msc = MotionStatechart()
+    msc = Statechart()
     drive = Pointing(
         root_link=root, tip_link=tip, goal_point=goal_point, pointing_axis=pointing_axis
     )
@@ -181,7 +181,7 @@ def test_vectors_aligned(pr2_world_state_reset: World):
     goal_normal = Vector3.X(reference_frame=root)
     tip_normal = Vector3.X(reference_frame=tip)
 
-    msc = MotionStatechart()
+    msc = Statechart()
     drive = AlignPlanes(
         root_link=root, tip_link=tip, goal_normal=goal_normal, tip_normal=tip_normal
     )
@@ -204,7 +204,7 @@ def test_distance_to_line(pr2_world_state_reset: World):
     center_point = Point3(0.6, -0.3, 1.0, reference_frame=root)
     line_axis = Vector3.Y(reference_frame=root)
 
-    msc = MotionStatechart()
+    msc = Statechart()
     drive = CartesianPosition(root_link=root, tip_link=tip, goal_point=center_point)
     monitor = DistanceToLine(
         root_link=root,

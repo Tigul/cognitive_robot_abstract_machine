@@ -15,7 +15,7 @@ from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.goals.templates import RepeatOnStall
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from cramph.monitors import CountNodeResets, CountTicks
 from giskardpy.motion_statechart.monitors.progress_monitors import Stalled
 from cramph.nodes_for_testing import ConstFalseNode
@@ -65,7 +65,7 @@ def test_repeat_on_stall_retries_when_a_failure_monitor_of_its_attempt_fires():
         repeat_template=partial(
             RepeatOnStall, timeout=STALL_TIMEOUT_OUTLASTING_THE_TEST
         ),
-        statechart_type=MotionStatechart,
+        statechart_type=Statechart,
     )
 
     for _ in range(SETTLE_TICKS):
@@ -132,7 +132,7 @@ def test_repeat_on_stall_retries_a_motion_that_stops_converging(
         stop_retry_monitor=CountNodeResets(name="counter", node=task, target=2),
         timeout=timedelta(seconds=1),
     )
-    motion_statechart = MotionStatechart()
+    motion_statechart = Statechart()
     motion_statechart.add_node(loop)
     motion_statechart.add_node(EndMotion.when_true(loop))
 
@@ -163,7 +163,7 @@ def test_repeat_on_stall_leaves_a_reachable_motion_alone(cylinder_bot_world: Wor
         stop_retry_monitor=CountNodeResets(name="counter", node=task, target=1),
         timeout=timedelta(seconds=0.5),
     )
-    motion_statechart = MotionStatechart()
+    motion_statechart = Statechart()
     motion_statechart.add_node(loop)
     motion_statechart.add_node(EndMotion.when_true(loop))
 

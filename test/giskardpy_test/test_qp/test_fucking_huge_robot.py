@@ -7,7 +7,7 @@ from giskardpy.motion_statechart.graph_node import EndMotion
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetSeedConfiguration,
 )
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPosition,
 )
@@ -165,7 +165,7 @@ def execute(link_length: float, vel_limit: float):
     fucking_huge_robot = robot_factory(
         fucking_huge_link_length=link_length, vel_limit=vel_limit
     )
-    msc = MotionStatechart()
+    msc = Statechart()
     goal = 1
     eef = fucking_huge_robot.get_kinematic_structure_entity_by_name("eef")
 

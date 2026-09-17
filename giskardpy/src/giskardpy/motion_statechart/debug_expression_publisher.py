@@ -13,10 +13,11 @@ from semantic_digital_twin.adapters.ros.visualization.spatial_type_publisher imp
 )
 from semantic_digital_twin.spatial_types.spatial_types import SpatialType, Vector3
 from semantic_digital_twin.world import World
+from giskardpy.motion_statechart.graph_node import DebugExpression
 
 if TYPE_CHECKING:
-    from giskardpy.motion_statechart.graph_node import DebugExpression
-    from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+
+    from cramph.statechart import Statechart
 
 
 @dataclass
@@ -41,13 +42,13 @@ class DebugExpressionPublisher:
     The underlying publisher that renders and republishes the debug expressions.
     """
 
-    def attach(self, motion_statechart: MotionStatechart) -> None:
+    def attach(self, statechart: Statechart) -> None:
         """
         Register the spatial debug expressions of every node for live visualization.
         """
         requests = [
             self._to_request(debug_expression)
-            for debug_expression in motion_statechart.collect_debug_expressions()
+            for debug_expression in DebugExpression.collect_from(statechart)
             if isinstance(debug_expression.expression, SpatialType)
         ]
         if self._publisher is None:

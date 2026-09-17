@@ -22,7 +22,7 @@ Concrete motions live in {mod}`coraplex.robot_plans.motions` (for example
 
 The motions of a plan are collected into a {class}`~coraplex.plans.executables.GiskardExecutable`. The executable holds
 a mapping from the plan's motion nodes to their giskard tasks and assembles them into a single
-{class}`~giskardpy.motion_statechart.motion_statechart.MotionStatechart`. While building the chart it also:
+{class}`~cramph.statechart.Statechart`. While building the chart it also:
 
 - wires the tasks into an interruptible, pausable sequence,
 - adds optional pre- and post-condition monitors that gate the start and successful end of the motion,

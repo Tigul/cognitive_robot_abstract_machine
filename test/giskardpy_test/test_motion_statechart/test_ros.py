@@ -11,7 +11,7 @@ from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetSeedConfiguration,
 )
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from semantic_digital_twin.adapters.ros.world_fetcher import (
     FetchWorldServer,
@@ -26,14 +26,14 @@ from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world import World
 
 
-def to_and_from_json(motion_statechart: MotionStatechart, target_world: World):
+def to_and_from_json(motion_statechart: Statechart, target_world: World):
     json_data = motion_statechart.to_json()
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
 
     tracker = WorldEntityWithIDKwargsTracker.from_world(target_world)
     kwargs = tracker.create_kwargs()
-    return MotionStatechart.from_json(new_json_data, **kwargs)
+    return Statechart.from_json(new_json_data, **kwargs)
 
 
 def test_execute_collision_goal_in_fetched_world(rclpy_node, pr2_world_state_reset):
@@ -55,7 +55,7 @@ def test_execute_collision_goal_in_fetched_world(rclpy_node, pr2_world_state_res
         "base_footprint"
     )
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(
         Sequence(
             [

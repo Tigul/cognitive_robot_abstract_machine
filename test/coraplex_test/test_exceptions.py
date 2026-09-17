@@ -5,7 +5,7 @@ Tests for the failures a plan raises about the motions it ran.
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from cramph.nodes_for_testing import ConstFalseNode
 from semantic_digital_twin.world import World
 
@@ -18,7 +18,7 @@ def _running_motion() -> MotionStatechartNode:
         cycle state a failure can report.
     """
     motion = ConstFalseNode(name="motion")
-    motion_statechart = MotionStatechart()
+    motion_statechart = Statechart()
     motion_statechart.add_node(motion)
     executor = Executor(MotionStatechartContext(world=World()))
     executor.compile(statechart=motion_statechart)

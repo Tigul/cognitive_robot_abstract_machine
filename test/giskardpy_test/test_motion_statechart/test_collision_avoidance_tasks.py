@@ -30,8 +30,8 @@ from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetOdometry,
 )
 from cramph.monitors import CountTicks
-from giskardpy.motion_statechart.motion_statechart import (
-    MotionStatechart,
+from cramph.statechart import (
+    Statechart,
 )
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPose,
@@ -95,7 +95,7 @@ def test_external_collision_avoidance(cylinder_bot_world: World):
     env1 = cylinder_bot_world.get_kinematic_structure_entity_by_name("environment")
     env2 = cylinder_bot_world.get_kinematic_structure_entity_by_name("environment2")
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_nodes(
         [
             UpdateTemporaryCollisionRules(
@@ -131,7 +131,7 @@ def test_external_collision_avoidance(cylinder_bot_world: World):
 
     tracker = WorldEntityWithIDKwargsTracker.from_world(cylinder_bot_world)
     kwargs = tracker.create_kwargs()
-    msc_copy = MotionStatechart.from_json(new_json_data, **kwargs)
+    msc_copy = Statechart.from_json(new_json_data, **kwargs)
 
     kin_sim = Executor(
         MotionStatechartContext(world=cylinder_bot_world),
@@ -232,7 +232,7 @@ def test_external_collision_avoidance_battle():
         omni1.has_hardware_interface = True
         omni2.has_hardware_interface = True
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_nodes(
         [
             UpdateTemporaryCollisionRules(
@@ -305,7 +305,7 @@ def test_external_collision_avoidance_with_weight_above_ca(cylinder_bot_world: W
     env1 = cylinder_bot_world.get_kinematic_structure_entity_by_name("environment")
     env2 = cylinder_bot_world.get_kinematic_structure_entity_by_name("environment2")
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_nodes(
         [
             UpdateTemporaryCollisionRules(
@@ -342,7 +342,7 @@ def test_external_collision_avoidance_with_weight_above_ca(cylinder_bot_world: W
 
     tracker = WorldEntityWithIDKwargsTracker.from_world(cylinder_bot_world)
     kwargs = tracker.create_kwargs()
-    msc_copy = MotionStatechart.from_json(new_json_data, **kwargs)
+    msc_copy = Statechart.from_json(new_json_data, **kwargs)
 
     kin_sim = Executor(
         MotionStatechartContext(world=cylinder_bot_world),
@@ -364,7 +364,7 @@ def test_update_collision_matrix_later(cylinder_bot_world: World):
     env1 = cylinder_bot_world.get_kinematic_structure_entity_by_name("environment")
     env2 = cylinder_bot_world.get_kinematic_structure_entity_by_name("environment2")
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_nodes(
         [
             UpdateTemporaryCollisionRules(
@@ -419,7 +419,7 @@ def test_consumer_cleanup_after_cancel(cylinder_bot_world: World):
     env1 = cylinder_bot_world.get_kinematic_structure_entity_by_name("environment")
     env2 = cylinder_bot_world.get_kinematic_structure_entity_by_name("environment2")
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_nodes(
         [
             UpdateTemporaryCollisionRules(
@@ -467,7 +467,7 @@ def test_multiple_external_collision_avoidance_motions(cylinder_bot_world: World
     env1 = cylinder_bot_world.get_kinematic_structure_entity_by_name("environment")
 
     def run_motion(goal_x):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_nodes(
             [
                 UpdateTemporaryCollisionRules(
@@ -508,7 +508,7 @@ def test_multiple_external_collision_avoidance_motions(cylinder_bot_world: World
 
 
 def test_cancel_node_without_tasks_never_starts():
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(cancel := _CancelBecauseSelfCollisionViolated(name="cancel", tasks=[]))
 
     cancel.build(MotionStatechartContext.empty())
@@ -521,7 +521,7 @@ def test_self_collision_avoidance_without_checked_body_combinations(
 ):
     robot = cylinder_bot_world.get_semantic_annotations_by_type(AbstractRobot)[0]
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_nodes(
         [
             goal := SelfCollisionAvoidance(robot=robot),
@@ -543,7 +543,7 @@ def test_self_collision_avoidance(self_collision_bot_world: World):
     l_thumb = self_collision_bot_world.get_kinematic_structure_entity_by_name("l_thumb")
     r_thumb = self_collision_bot_world.get_kinematic_structure_entity_by_name("r_thumb")
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_nodes(
         [
             UpdateTemporaryCollisionRules(
@@ -568,7 +568,7 @@ def test_self_collision_avoidance(self_collision_bot_world: World):
 
     tracker = WorldEntityWithIDKwargsTracker.from_world(self_collision_bot_world)
     kwargs = tracker.create_kwargs()
-    msc_copy = MotionStatechart.from_json(new_json_data, **kwargs)
+    msc_copy = Statechart.from_json(new_json_data, **kwargs)
 
     kin_sim = Executor(MotionStatechartContext(world=self_collision_bot_world))
     kin_sim.compile(statechart=msc_copy)
@@ -588,7 +588,7 @@ def test_avoid_collision_go_around_corner(pr2_with_box):
     r_tip = pr2_with_box.get_kinematic_structure_entity_by_name("r_gripper_tool_frame")
     robot = pr2_with_box.get_semantic_annotations_by_type(AbstractRobot)[0]
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(
         UpdateTemporaryCollisionRules(
             temporary_rules=[
@@ -682,7 +682,7 @@ def test_avoid_self_collision_with_l_arm(pr2_with_box, rclpy_node):
     )
     robot = pr2_with_box.get_semantic_annotations_by_type(AbstractRobot)[0]
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(
         Sequence(
             [
@@ -777,7 +777,7 @@ class CollisionCheckCountingObserver(CollisionConsumer):
 
 def _build_arms_crossing_statechart(
     world: World, collision_avoidance: bool
-) -> MotionStatechart:
+) -> Statechart:
     """
     Builds a statechart that drives the right gripper into the left arm.
 
@@ -788,7 +788,7 @@ def _build_arms_crossing_statechart(
     r_tip = world.get_kinematic_structure_entity_by_name("r_gripper_tool_frame")
     base_footprint = world.get_kinematic_structure_entity_by_name("base_footprint")
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(
         goal := Sequence(
             [
@@ -830,7 +830,7 @@ def _build_arms_crossing_statechart(
 
 
 def _run_and_count_collision_checks(
-    world: World, msc: MotionStatechart
+    world: World, msc: Statechart
 ) -> CollisionCheckCountingObserver:
     """
     Executes the statechart and returns the observer that counted the collision checks.
@@ -940,7 +940,7 @@ def test_hard_constraints_violated(cylinder_bot_world: World):
 
     tip = cylinder_bot_world.get_kinematic_structure_entity_by_name("bot")
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(
         Sequence(
             [
@@ -981,7 +981,7 @@ def test_hard_constraints_violated(cylinder_bot_world: World):
 
     tracker = WorldEntityWithIDKwargsTracker.from_world(cylinder_bot_world)
     kwargs = tracker.create_kwargs()
-    msc_copy = MotionStatechart.from_json(new_json_data, **kwargs)
+    msc_copy = Statechart.from_json(new_json_data, **kwargs)
 
     kin_sim = Executor(
         context=MotionStatechartContext(world=cylinder_bot_world),
@@ -1024,7 +1024,7 @@ def test_collision_for_robot_with_static_base(
             )
         )
 
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(
         goal := Parallel(
             [
@@ -1079,7 +1079,7 @@ def test_repeated_collision_pr2_apartment_does_not_increase_execution_time(
 
     execution_times = []
     for i in range(10):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_nodes(
             [
                 UpdateTemporaryCollisionRules(

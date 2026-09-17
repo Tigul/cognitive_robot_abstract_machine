@@ -18,7 +18,7 @@ from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetSeedConfiguration,
     SetOdometry,
 )
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from krrood.symbolic_math.symbolic_math import logic_and
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
@@ -107,7 +107,7 @@ def giskard_factory(init_rospy, robot: GiskardTester):
             robot.api.world.get_connection_by_name(name): target
             for name, target in seed_joint_state.items()
         }
-        msc = MotionStatechart()
+        msc = Statechart()
 
         initial_config = SetSeedConfiguration(
             name="initial configuration",

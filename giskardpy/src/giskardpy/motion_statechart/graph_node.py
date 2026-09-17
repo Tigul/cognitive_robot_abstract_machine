@@ -6,6 +6,7 @@ from functools import cached_property
 
 import numpy as np
 from typing_extensions import (
+    TYPE_CHECKING,
     Self,
     Optional,
     List,
@@ -38,6 +39,9 @@ from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFr
 from semantic_digital_twin.world_description.geometry import Color
 
 from cramph.node import NodeArtifacts, StatechartNode, EndStatechart
+
+if TYPE_CHECKING:
+    from cramph.statechart import Statechart
 
 
 @dataclass
@@ -80,6 +84,19 @@ class DebugExpression:
         :return: The current value of the tracked expression.
         """
         return self.expression.evaluate()
+
+    @classmethod
+    def collect_from(cls, statechart: Statechart) -> List[DebugExpression]:
+        """
+        :param statechart: The statechart whose nodes registered debug expressions.
+        :return: The debug expressions of every motion node of `statechart`, in node
+            order.
+        """
+        return [
+            debug_expression
+            for node in statechart.get_nodes_by_type(MotionStatechartNode)
+            for debug_expression in node.debug_expressions
+        ]
 
 
 @dataclass

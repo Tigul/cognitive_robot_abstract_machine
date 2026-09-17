@@ -46,8 +46,8 @@ helper, `CartesianTask.add_goal_and_current_debug_expressions(artifacts, goal, c
 (`tasks/cartesian_tasks.py`), which registers `<task name>/goal` (green) and
 `<task name>/current` (red) so the two can be told apart in RViz.
 
-The statechart gathers every node's debug expressions through
-`MotionStatechart.collect_debug_expressions()`; the visualizer and plotter below consume that
+Every node's debug expressions are gathered through
+`DebugExpression.collect_from(statechart)`; the visualizer and plotter below consume that
 list, so you only have to register the expression once.
 
 ```{note}
@@ -135,7 +135,7 @@ executor.plot_debug_expressions("./debug_expressions.pdf")
 The lifecycle is:
 
 - `compile()` calls the plotter's `reset(...)`, which builds a fresh trajectory from
-  `collect_debug_expressions()` and discards any previous recording.
+  `DebugExpression.collect_from(statechart)` and discards any previous recording.
 - Every `tick()` appends the current value of each expression at the current time.
 - `plot_debug_expressions(file_name)` writes the PDF. It raises `PlotterNotConfiguredError` if
   no plotter was passed to the executor.
@@ -158,7 +158,7 @@ For a runnable end-to-end example, see
 
 ## Inspecting the QP with `QuadraticProgramDebugger`
 
-When implementing new MotionStatechart nodes, the controller may produce an unintended command, runs into limits, or the solve fails.
+When implementing new motion statechart nodes, the controller may produce an unintended command, runs into limits, or the solve fails.
 To debug this, it may help to look directly into the quadratic program (QP) itself. 
 The QP is just large, anonymous numeric arrays;
 the `QuadraticProgramDebugger` (`giskardpy.qp.qp_debugger`) re-labels those arrays with the corresponding

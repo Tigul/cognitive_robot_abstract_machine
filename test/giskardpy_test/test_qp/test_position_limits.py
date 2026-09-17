@@ -4,7 +4,7 @@ import pytest
 from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
 from giskardpy.qp.dof_limits import QuadraticProgramDegreeOfFreedomLimits
 from giskardpy.qp.qp_controller_config import QPControllerConfig
@@ -28,7 +28,7 @@ def test_joint_goal_inside_limits_reached(pr2_world_state_reset):
     upper = dof.limits.upper.position
     goal = 1.0
 
-    msc = MotionStatechart()
+    msc = Statechart()
     joint_goal = JointPositionList(
         goal_state=JointState.from_mapping({connection: goal})
     )
@@ -51,7 +51,7 @@ def test_joint_goal_clamped_to_upper_limit(pr2_world_state_reset):
     upper = dof.limits.upper.position
     goal_beyond_limit = upper + 2.0
 
-    msc = MotionStatechart()
+    msc = Statechart()
     joint_goal = JointPositionList(
         goal_state=JointState.from_mapping({connection: goal_beyond_limit})
     )
@@ -73,7 +73,7 @@ def test_joint_goal_clamped_to_lower_limit(pr2_world_state_reset):
     lower = dof.limits.lower.position
     goal_beyond_limit = lower - 2.0
 
-    msc = MotionStatechart()
+    msc = Statechart()
     joint_goal = JointPositionList(
         goal_state=JointState.from_mapping({connection: goal_beyond_limit})
     )
@@ -98,7 +98,7 @@ def test_joint_above_upper_limit_recovers(pr2_world_state_reset):
     connection.position = upper + 0.5
     goal = 1.0
 
-    msc = MotionStatechart()
+    msc = Statechart()
     joint_goal = JointPositionList(
         goal_state=JointState.from_mapping({connection: goal})
     )
@@ -124,7 +124,7 @@ def test_joint_below_lower_limit_recovers(pr2_world_state_reset):
     connection.position = lower - 0.5
     goal = -1.0
 
-    msc = MotionStatechart()
+    msc = Statechart()
     joint_goal = JointPositionList(
         goal_state=JointState.from_mapping({connection: goal})
     )
@@ -158,7 +158,7 @@ def test_multiple_joints_outside_limits_recover(pr2_world_state_reset):
         upper_arm_roll: 0.0,
     }
 
-    msc = MotionStatechart()
+    msc = Statechart()
     joint_goal = JointPositionList(goal_state=JointState.from_mapping(goals))
     msc.add_node(joint_goal)
     end = EndMotion()

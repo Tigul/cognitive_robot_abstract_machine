@@ -1,8 +1,8 @@
 # Motion Statecharts
 
 Motion Statecharts are a core concept in Giskard for composing complex robot motions. A
-`MotionStatechart` is a
-[cramph statechart](https://cram2.github.io/cognitive_robot_abstract_machine/cramph/statecharts.html)
+motion statechart is a plain `Statechart` from
+[cramph](https://cram2.github.io/cognitive_robot_abstract_machine/cramph/statecharts.html)
 whose nodes can add constraints to the motion problem. Life cycles, transition conditions,
 ticking, the composite templates (`Sequence`, `Parallel`, `TryInOrder`, `TryAll`,
 `RepeatUntil`, …), generic monitors and plotting are documented in
@@ -69,11 +69,11 @@ A plan that moves to a joint goal and then ends once the robot has come to rest:
 ```python
 from cramph.composites import Sequence
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 
 # goal_state is a JointState of the robot's joints
-motion_statechart = MotionStatechart()
+motion_statechart = Statechart()
 plan = Sequence(nodes=[JointPositionList(goal_state=goal_state)])
 motion_statechart.add_node(plan)
 motion_statechart.add_node(EndMotion.when_true(plan))

@@ -22,8 +22,12 @@ from PyQt5.QtWidgets import (
 )
 from giskardpy.middleware.ros2 import rospy
 from giskardpy.middleware.ros2.feedback_publisher import MotionStatechartPayloadKey
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
-from cramph.statechart import LastObservationState, LifeCycleState, ObservationState
+from cramph.statechart import (
+    LastObservationState,
+    LifeCycleState,
+    ObservationState,
+    Statechart,
+)
 from cramph.plotters.graphviz import StatechartGraphviz
 from json_msgs.action import JsonAction
 from json_msgs.action._json_action import JsonAction_FeedbackMessage
@@ -78,7 +82,7 @@ class DotGraphViewer(QWidget):
     new_message_signal: pyqtSignal = pyqtSignal(object)
     last_goal_id: Optional[int]
     graphs_by_goal: Dict[int, List[Any]]
-    motion_statechart: Optional[MotionStatechart]
+    motion_statechart: Optional[Statechart]
 
     def __init__(self):
         super().__init__()
@@ -293,7 +297,7 @@ class DotGraphViewer(QWidget):
             MotionStatechartPayloadKey.MOTION_STATECHART
         )
         if motion_statechart_data is not None:
-            self.motion_statechart = MotionStatechart.from_json(motion_statechart_data)
+            self.motion_statechart = Statechart.from_json(motion_statechart_data)
             self.motion_statechart._add_transitions()
 
     def parse_state(self, json_data: Dict[str, Any]):

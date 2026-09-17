@@ -61,11 +61,11 @@ from cramph.executor import SimulationPacer
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.composites import Sequence
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPosition
 from semantic_digital_twin.spatial_types import Point3
 
-msc_pcc = MotionStatechart()
+msc_pcc = Statechart()
 msc_pcc.add_node(
     goal_pcc := Sequence(
         [
@@ -121,7 +121,7 @@ print("Cosserat Robot Ready. Set fixed frame to 'cosserat/base' in RViz.")
 We run the same Giskardpy sequence on the Cosserat model. We include a distal target to trigger stretching.
 
 ```{code-cell} ipython3
-msc_cos = MotionStatechart()
+msc_cos = Statechart()
 msc_cos.add_node(
     goal_cos := Sequence(
         [

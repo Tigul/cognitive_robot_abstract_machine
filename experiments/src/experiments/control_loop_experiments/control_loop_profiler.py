@@ -13,7 +13,7 @@ from giskardpy.executor import Executor
 from giskardpy.middleware.ros2.control_loop import ControlLoop
 from giskardpy.middleware.ros2.feedback_publisher import ActionFeedbackPublisher
 from giskardpy.middleware.ros2.input_synchronization import WorldStateInputs
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.qp.qp_controller import QPController
 from krrood.adapters.json_serializer import SubclassJSONSerializer
 from krrood.exceptions import DataclassException
@@ -65,7 +65,7 @@ CONTROL_CYCLE_PHASES: Tuple[PhaseDefinition, ...] = (
     PhaseDefinition(ControlLoop, "raise_if_canceled", "check_cancel"),
     PhaseDefinition(Executor, "tick", "executor_tick"),
     PhaseDefinition(CollisionManager, "compute_collisions", "compute_collisions"),
-    PhaseDefinition(MotionStatechart, "tick", "statechart_tick"),
+    PhaseDefinition(Statechart, "tick", "statechart_tick"),
     PhaseDefinition(QPController, "compute_command", "qp_solve"),
     PhaseDefinition(World, "apply_control_commands", "apply_control_commands"),
     PhaseDefinition(World, "notify_state_change", "notify_state_change"),

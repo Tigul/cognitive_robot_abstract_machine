@@ -8,7 +8,7 @@ from typing_extensions import Self
 from krrood.adapters.json_serializer import SubclassJSONSerializer, from_json, to_json
 from semantic_digital_twin.adapters.ros.messages import StreamPosition
 
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 
 # %% the payload of a motion goal
 
@@ -41,7 +41,7 @@ class MotionGoal(SubclassJSONSerializer):
     @classmethod
     def for_motion_statechart(
         cls,
-        motion_statechart: MotionStatechart,
+        motion_statechart: Statechart,
         required_position: Optional[StreamPosition] = None,
     ) -> MotionGoal:
         """
@@ -76,8 +76,8 @@ class MotionGoal(SubclassJSONSerializer):
             ),
         )
 
-    def parse_motion_statechart(self, **kwargs) -> MotionStatechart:
+    def parse_motion_statechart(self, **kwargs) -> Statechart:
         """
         Resolve the motion statechart against the world described by the given kwargs.
         """
-        return MotionStatechart.from_json(self.motion_statechart_json_data, **kwargs)
+        return Statechart.from_json(self.motion_statechart_json_data, **kwargs)

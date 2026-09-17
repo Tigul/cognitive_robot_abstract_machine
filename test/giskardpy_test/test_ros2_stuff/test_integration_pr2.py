@@ -45,7 +45,7 @@ from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetSeedConfiguration,
 )
 from cramph.monitors import CountSeconds, CountSimulationTimeSeconds
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.align_planes import AlignPlanes
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPose,
@@ -340,7 +340,7 @@ class TestJointGoals:
             PR2Joint.LEFT_WRIST_FLEX: -0.1,
             PR2Joint.LEFT_WRIST_ROLL: -6.062015047706399,
         }
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             joint_goal := JointPositionList(
                 goal_state=JointState.from_str_dict(js, giskard.api.world),
@@ -377,7 +377,7 @@ class TestJointGoals:
         head_pan_joint: ActiveConnection1DOF = giskard.api.world.get_connection_by_name(
             PR2Joint.HEAD_PAN
         )
-        msc = MotionStatechart()
+        msc = Statechart()
 
         min_joint_goal = JointPositionList(
             goal_state=JointState.from_mapping(
@@ -421,7 +421,7 @@ class TestJointGoals:
 class TestConstraints:
 
     def test_drive_into_apartment(self, apartment_setup: PR2Tester):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             cart_goal := CartesianPose(
                 root_link=apartment_setup.map,
@@ -506,7 +506,7 @@ class TestConstraints:
             ),
         ).to_position()
 
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             sequence := Sequence(
                 [
@@ -547,7 +547,7 @@ class TestConstraints:
         msc.add_node(EndMotion.when_true(sequence))
         kitchen_setup.api.execute(msc)
 
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             parallel := Parallel(
                 [
@@ -650,7 +650,7 @@ class TestConstraints:
         kitchen_setup.set_env_state({"sink_area_dish_washer_door_joint": 0})
 
     def test_align_planes1(self, giskard: PR2Tester):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             parallel := Parallel(
                 [
@@ -687,7 +687,7 @@ class TestCartGoals:
             pos_x=-0.2, reference_frame=tip
         )
 
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             cart_goal := CartesianPose(
                 root_link=root,
@@ -699,7 +699,7 @@ class TestCartGoals:
         giskard.api.execute(msc)
 
     def test_cart_goal_unreachable(self, giskard: PR2Tester):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             cart_goal := CartesianPose(
                 root_link=giskard.map,
@@ -716,7 +716,7 @@ class TestCartGoals:
         giskard.api.execute(msc)
 
     def test_cart_goal_orientation_singularity(self, giskard: PR2Tester):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             parallel := Parallel(
                 [
@@ -743,7 +743,7 @@ class TestCartGoals:
         giskard.api.execute(msc)
 
     def test_cart_goal_left_right_chain(self, giskard: PR2Tester):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             cart_goal := CartesianPose(
                 root_link=giskard.left_tip,
@@ -766,7 +766,7 @@ class TestCartGoals:
         giskard.api.execute(msc)
 
     def test_root_link_not_equal_chain_root(self, giskard: PR2Tester):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             cart_goal := CartesianPose(
                 root_link=giskard.torso_lift_link,
@@ -786,7 +786,7 @@ class TestCartGoals:
 class TestSelfCollisionAvoidance:
 
     def test_cable_guide_collision(self, giskard: PR2Tester):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_nodes(
             [
                 joint_goal := JointPositionList(
@@ -815,7 +815,7 @@ class TestSelfCollisionAvoidance:
             PR2Joint.TORSO_LIFT: 0.2,
         }
 
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_nodes(
             [
                 joint_goal := JointPositionList(
@@ -839,7 +839,7 @@ class TestSelfCollisionAvoidance:
             ),
         )
 
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_nodes(
             [
                 JointPositionList(
@@ -894,7 +894,7 @@ class TestSelfCollisionAvoidance:
             box_name
         )
 
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_nodes(
             [
                 cart_goal := CartesianPose(
@@ -913,7 +913,7 @@ class TestSelfCollisionAvoidance:
         giskard_better_pose.api.execute(msc)
 
     def test_avoid_self_collision_with_l_arm(self, giskard: PR2Tester):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_nodes(
             [
                 sequence := Sequence(
@@ -951,7 +951,7 @@ class TestSelfCollisionAvoidance:
         giskard.check_cpi_geq(giskard.get_r_gripper_links(), 0.048)
 
     def test_avoid_self_collision_specific_link(self, giskard: PR2Tester):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_nodes(
             [
                 sequence := Sequence(
@@ -1002,7 +1002,7 @@ class TestSelfCollisionAvoidance:
         giskard.check_cpi_geq(giskard.get_r_gripper_links(), 0.048)
 
     def test_get_out_of_self_collision(self, giskard: PR2Tester):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             sequence := Sequence(
                 [
@@ -1033,7 +1033,7 @@ class TestSelfCollisionAvoidance:
         msc.add_node(EndMotion.when_true(sequence))
         giskard.api.execute(msc)
 
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_nodes(
             [
                 SelfCollisionAvoidance(robot=giskard.api.robot),
@@ -1048,7 +1048,7 @@ class TestSelfCollisionAvoidance:
 class TestCollisionAvoidanceGoals:
 
     def test_hard_constraints_violated(self, kitchen_setup: PR2Tester):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             Sequence(
                 [
@@ -1065,7 +1065,7 @@ class TestCollisionAvoidanceGoals:
             kitchen_setup.api.execute(msc)
 
     def test_avoid_collision_go_around_corner(self, fake_table_setup: PR2Tester):
-        msc = MotionStatechart()
+        msc = Statechart()
 
         cart_goal = CartesianPose(
             root_link=fake_table_setup.default_root,
@@ -1166,7 +1166,7 @@ class TestCollisionAvoidanceGoals:
 
         box = pocky_pose_setup.api.world.get_kinematic_structure_entity_by_name("box")
 
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_nodes(
             [
                 AlignPlanes(
@@ -1194,7 +1194,7 @@ class TestCollisionAvoidanceGoals:
         box1_name = "box1"
         box2_name = "box2"
 
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             node := Sequence(
                 [
@@ -1250,7 +1250,7 @@ class TestCollisionAvoidanceGoals:
                 x=0.1, reference_frame=giskard.left_tip
             ),
         )
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_nodes(
             [
                 SelfCollisionAvoidance(robot=giskard.api.robot),
@@ -1293,7 +1293,7 @@ class TestCollisionAvoidanceGoals:
             pose=milk_pose,
         )
 
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             Sequence(
                 [
@@ -1790,7 +1790,7 @@ class TestWeightScaling:
 
 class TestActionServerEvents:
     def test_wrong_params1(self, giskard: PR2Tester):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             joint_goal := JointPositionList(
                 goal_state=HomogeneousTransformationMatrix(),
@@ -1800,7 +1800,7 @@ class TestActionServerEvents:
         with pytest.raises(AttributeError):
             giskard.api.execute(msc)
 
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             joint_goal := JointPositionList(
                 goal_state=JointState.from_str_dict(
@@ -1813,7 +1813,7 @@ class TestActionServerEvents:
 
     @pytest.mark.asyncio
     async def test_cancel_with_new_goal(self, giskard: PR2Tester):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             CartesianPose(
                 root_link=giskard.map,
@@ -1829,7 +1829,7 @@ class TestActionServerEvents:
 
         await asyncio.sleep(2)
 
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             cart_goal := CartesianPose(
                 root_link=giskard.map,
@@ -1848,7 +1848,7 @@ class TestActionServerEvents:
 
     @pytest.mark.asyncio
     async def test_interrupt(self, giskard: PR2Tester):
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             CartesianPose(
                 root_link=giskard.map,
@@ -1870,7 +1870,7 @@ class TestActionServerEvents:
 
     def test_empty_goal(self, giskard: PR2Tester):
         with pytest.raises(EmptyStatechartError):
-            giskard.api.execute(MotionStatechart())
+            giskard.api.execute(Statechart())
 
     @pytest.mark.asyncio
     async def test_world_model_modification_terminates_the_motion(
@@ -1880,7 +1880,7 @@ class TestActionServerEvents:
         The running motion was compiled against the structure of the world, so a body
         added by another process ends it instead of being applied underneath it.
         """
-        msc = MotionStatechart()
+        msc = Statechart()
         msc.add_node(
             CartesianPose(
                 root_link=giskard.map,

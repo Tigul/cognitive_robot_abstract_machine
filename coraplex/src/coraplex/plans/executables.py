@@ -20,7 +20,7 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
 from cramph.node import CancelStatechart
 from giskardpy.motion_statechart.graph_node import EndMotion, Task
 from cramph.node import CompositeNode
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from giskardpy.ros_executor import Ros2Executor
 from krrood.entity_query_language.factories import evaluate_condition
@@ -85,14 +85,12 @@ class GiskardExecutable(Executable):
     The goal below which every motion of this executable lives.
     """
 
-    motion_state_chart: MotionStatechart = field(
-        default_factory=MotionStatechart, kw_only=True
-    )
+    motion_state_chart: Statechart = field(default_factory=Statechart, kw_only=True)
     """
     Giskard's motion state chart for this executable.
 
     It is created once and only ever extended, because a compiled chart can no longer
-    grow: :meth:`~giskardpy.motion_statechart.motion_statechart.MotionStatechart.compile`
+    grow: :meth:`~cramph.statechart.Statechart.compile`
     binds its updaters to the state arrays that adding a node would replace.
     """
 

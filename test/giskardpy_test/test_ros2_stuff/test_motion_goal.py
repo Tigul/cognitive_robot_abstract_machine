@@ -3,17 +3,17 @@ import json
 from giskardpy.middleware.ros2.motion_goal import MotionGoal
 from giskardpy.motion_statechart.graph_node import EndMotion
 from cramph.monitors import CountSimulationTimeSeconds
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from semantic_digital_twin.adapters.ros.messages import MetaData, StreamPosition
 
 # %% the payload a client sends
 
 
-def create_motion_statechart() -> MotionStatechart:
+def create_motion_statechart() -> Statechart:
     """
     Build a motion statechart that ends after some simulated time.
     """
-    motion_statechart = MotionStatechart()
+    motion_statechart = Statechart()
     motion_statechart.add_node(counter := CountSimulationTimeSeconds(seconds=0.5))
     motion_statechart.add_node(EndMotion.when_true(counter))
     return motion_statechart

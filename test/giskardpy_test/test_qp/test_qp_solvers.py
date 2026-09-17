@@ -6,7 +6,7 @@ from giskardpy.executor import Executor
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.composites import Sequence
 from giskardpy.motion_statechart.graph_node import EndMotion
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from giskardpy.qp.solvers.qp_solver import QPSolver
@@ -48,7 +48,7 @@ except Exception as e:
 
 @pytest.mark.parametrize("solver", installed_qp_solvers)
 def test_joint_goal(solver, pr2_world_state_reset):
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(
         sequence := Sequence(
             [

@@ -5,7 +5,9 @@ import numpy as np
 from giskardpy.motion_statechart.context import MotionStatechartContext
 from cramph.exceptions import PlotterNotConfiguredError
 from giskardpy.motion_statechart.exceptions import WorldStateArrayReplacedError
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
+from giskardpy.motion_statechart.graph_node import DebugExpression, MotionStatechartNode
+from giskardpy.qp.constraint_collection import ConstraintCollection
+from cramph.statechart import Statechart
 from giskardpy.motion_statechart.plotters.debug_expression_trajectory_plotter import (
     DebugExpressionTrajectoryPlotter,
 )
@@ -40,7 +42,7 @@ class Executor(StatechartExecutor):
     """
 
     # %% init False
-    statechart: MotionStatechart | None = field(init=False, default=None)
+    statechart: Statechart | None = field(init=False, default=None)
     """
     The motion statechart describing the robot's motion logic, set by :meth:`compile`.
     """
@@ -65,7 +67,7 @@ class Executor(StatechartExecutor):
             self.trajectory_plotter.reset(self.context.world.state, self.time)
         if self.debug_expression_plotter is not None:
             self.debug_expression_plotter.reset(
-                self.statechart.collect_debug_expressions()
+                DebugExpression.collect_from(self.statechart)
             )
             self.debug_expression_plotter.debug_expression_trajectory.append(self.time)
         self.context.collision_manager.update_collision_matrix()
@@ -128,9 +130,7 @@ class Executor(StatechartExecutor):
             self.context.world.active_degrees_of_freedom,
             key=lambda dof: self.context.world.state._index[dof.id],
         )
-        constraint_collection = (
-            self.statechart.combine_constraint_collections_of_nodes()
-        )
+        constraint_collection = self._combine_constraint_collections_of_nodes()
         if len(constraint_collection._constraints) == 0:
             self.qp_controller = None
             # to not build controller, if there are no constraints
@@ -145,6 +145,19 @@ class Executor(StatechartExecutor):
         )
         if self.qp_controller.has_not_free_variables():
             raise EmptyProblemException()
+
+    def _combine_constraint_collections_of_nodes(self) -> ConstraintCollection:
+        """
+        :return: The constraint collections of all motion nodes, merged into one, with
+            each node's constraints prefixed by its
+            :attr:`~cramph.node.StatechartNode.unique_name`.
+        """
+        combined_constraint_collection = ConstraintCollection()
+        for node in self.statechart.get_nodes_by_type(MotionStatechartNode):
+            combined_constraint_collection.merge(
+                name_prefix=node.unique_name, other=node.constraint_collection
+            )
+        return combined_constraint_collection
 
     def plot_debug_expressions(self, file_name: str = "./debug_expressions.pdf"):
         """

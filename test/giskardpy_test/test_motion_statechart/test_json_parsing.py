@@ -18,7 +18,6 @@ from giskardpy.motion_statechart.graph_node import (
 from giskardpy.motion_statechart.monitors.joint_monitors import JointPositionReached
 from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
 from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
-from giskardpy.motion_statechart.motion_statechart import MotionStatechart
 from cramph.statechart import LifeCycleState, ObservationState, Statechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
@@ -74,7 +73,7 @@ def test_a_motion_statechart_refers_to_world_entities_by_reference(mini_world):
     """
     root = mini_world.get_kinematic_structure_entity_by_name("root")
     tip = mini_world.get_kinematic_structure_entity_by_name("tip")
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(
         node := CartesianPose(
             root_link=root,
@@ -92,7 +91,7 @@ def test_a_motion_statechart_refers_to_world_entities_by_reference(mini_world):
     ] == WorldEntityReferenceWriter().write_reference(root)
 
     tracker = WorldEntityWithIDKwargsTracker.from_world(mini_world)
-    msc_copy = MotionStatechart.from_json(json_data, **tracker.create_kwargs())
+    msc_copy = Statechart.from_json(json_data, **tracker.create_kwargs())
     node_copy = msc_copy.get_node_by_index(node.index)
     assert node_copy.root_link is root
     assert node_copy.tip_link is tip
@@ -104,7 +103,7 @@ def test_a_motion_statechart_refers_to_connections_by_reference(mini_world):
     connection of the reader's world.
     """
     connection = mini_world.get_connection_by_name("root_T_tip")
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(node := JointPositionReached(connection=connection, position=0.5))
 
     json_data = json.loads(json.dumps(msc.to_json()))
@@ -114,12 +113,12 @@ def test_a_motion_statechart_refers_to_connections_by_reference(mini_world):
     ] == WorldEntityReferenceWriter().write_reference(connection)
 
     tracker = WorldEntityWithIDKwargsTracker.from_world(mini_world)
-    msc_copy = MotionStatechart.from_json(json_data, **tracker.create_kwargs())
+    msc_copy = Statechart.from_json(json_data, **tracker.create_kwargs())
     assert msc_copy.get_node_by_index(node.index).connection is connection
 
 
 def test_start_condition(mini_world):
-    msc = MotionStatechart()
+    msc = Statechart()
     node1 = ConstTrueNode()
     msc.add_node(node1)
     node2 = ConstTrueNode()
@@ -137,7 +136,7 @@ def test_start_condition(mini_world):
     json_data = msc.to_json()
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
-    msc_copy = MotionStatechart.from_json(new_json_data, world=mini_world)
+    msc_copy = Statechart.from_json(new_json_data, world=mini_world)
 
     Executor(context=MotionStatechartContext(world=mini_world)).compile(statechart=msc)
     kin_sim = Executor(context=MotionStatechartContext(world=mini_world))
@@ -179,7 +178,7 @@ def test_executing_json_parsed_statechart(tmp_path):
         )
         world.add_connection(root_C_tip2)
 
-    msc = MotionStatechart()
+    msc = Statechart()
 
     task1 = JointPositionList(goal_state=JointState.from_mapping({root_C_tip: 0.5}))
     always_true = ConstTrueNode()
@@ -195,7 +194,7 @@ def test_executing_json_parsed_statechart(tmp_path):
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
     tracker = WorldEntityWithIDKwargsTracker.from_world(world)
-    msc_copy = MotionStatechart.from_json(
+    msc_copy = Statechart.from_json(
         new_json_data, world=world, **tracker.create_kwargs()
     )
 
@@ -245,7 +244,7 @@ def test_cart_goal_simple(pr2_world_state_reset: World):
         pos_x=-0.2, reference_frame=tip
     )
 
-    msc = MotionStatechart()
+    msc = Statechart()
     cart_goal = CartesianPose(
         root_link=root,
         tip_link=tip,
@@ -262,7 +261,7 @@ def test_cart_goal_simple(pr2_world_state_reset: World):
 
     tracker = WorldEntityWithIDKwargsTracker.from_world(pr2_world_state_reset)
     kwargs = tracker.create_kwargs()
-    msc_copy = MotionStatechart.from_json(new_json_data, **kwargs)
+    msc_copy = Statechart.from_json(new_json_data, **kwargs)
 
     kin_sim = Executor(
         context=MotionStatechartContext(
@@ -307,7 +306,7 @@ def test_compressed_copy_can_be_plotted(pr2_world_state_reset: World, tmp_path):
         pos_x=-0.2, reference_frame=tip
     )
 
-    msc = MotionStatechart()
+    msc = Statechart()
     cart_goal = CartesianPose(
         root_link=root,
         tip_link=tip,
@@ -324,7 +323,7 @@ def test_compressed_copy_can_be_plotted(pr2_world_state_reset: World, tmp_path):
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
 
-    msc_copy = MotionStatechart.from_json(new_json_data)
+    msc_copy = Statechart.from_json(new_json_data)
     msc_copy._add_transitions()
     assert len(msc_copy.get_nodes_by_type(EndMotion)) == 1
     assert len(msc_copy.get_nodes_by_type(CancelStatechart)) == 1
@@ -334,7 +333,7 @@ def test_compressed_copy_can_be_plotted(pr2_world_state_reset: World, tmp_path):
 def test_unreachable_cart_goal(pr2_world_state_reset):
     root = pr2_world_state_reset.root
     tip = pr2_world_state_reset.get_kinematic_structure_entity_by_name("base_footprint")
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(
         cart_goal := CartesianPose(
             root_link=root,
@@ -355,7 +354,7 @@ def test_unreachable_cart_goal(pr2_world_state_reset):
 
     tracker = WorldEntityWithIDKwargsTracker.from_world(pr2_world_state_reset)
     kwargs = tracker.create_kwargs()
-    msc_copy = MotionStatechart.from_json(new_json_data, **kwargs)
+    msc_copy = Statechart.from_json(new_json_data, **kwargs)
 
     kin_sim = Executor(
         context=MotionStatechartContext(
@@ -374,14 +373,14 @@ def test_node_referenced_by_another_node_is_one_instance_after_json_round_trip()
     A node that another node refers to is deserialized as the node of the motion
     statechart, not as a detached copy.
     """
-    msc = MotionStatechart()
+    msc = Statechart()
     msc.add_node(watched := ConstTrueNode())
     msc.add_node(still_progressing := StillProgressing(monitored_node=watched))
     msc.add_node(EndMotion.when_true(watched))
 
     new_json_data = json.loads(json.dumps(msc.to_json()))
 
-    msc_copy = MotionStatechart.from_json(new_json_data)
+    msc_copy = Statechart.from_json(new_json_data)
     still_progressing_copy = msc_copy.get_node_by_index(still_progressing.index)
     assert still_progressing_copy.monitored_node is msc_copy.get_node_by_index(
         watched.index
@@ -393,7 +392,7 @@ def test_nested_sequence_goal_json_round_trip_compilation():
     A statechart with nested goals watched by a progress monitor can be deserialized and
     compiled.
     """
-    msc = MotionStatechart()
+    msc = Statechart()
     leaf_node = ConstTrueNode(name="ConstTrue")
     child_sequence = Sequence(nodes=[leaf_node], name="SequentialNode")
     root = Sequence(nodes=[child_sequence], name="ActionNode")
@@ -406,7 +405,7 @@ def test_nested_sequence_goal_json_round_trip_compilation():
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
 
-    msc_copy = MotionStatechart.from_json(new_json_data)
+    msc_copy = Statechart.from_json(new_json_data)
     executor = Executor(
         context=MotionStatechartContext(
             world=World(),
