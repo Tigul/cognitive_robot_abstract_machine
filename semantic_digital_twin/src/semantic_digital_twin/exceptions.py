@@ -32,6 +32,7 @@ if TYPE_CHECKING:
     from semantic_digital_twin.world_description.geometry import Scale
     from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
     from semantic_digital_twin.world_description.world_entity import (
+        Connection,
         SemanticAnnotation,
         WorldEntity,
         KinematicStructureEntity,
@@ -1173,6 +1174,82 @@ class NoLaserScanReceived(UsageError):
 
     def suggest_correction(self) -> str:
         return f"check that something publishes on '{self.topic_name}' and that the node has been spun since."
+
+
+@dataclass
+class AlreadyTrackedByTfFrameError(UsageError):
+    """
+    Raised when a connection is registered for tf tracking a second time.
+    """
+
+    connection_name: str
+    """
+    The name of the connection that is already tracked.
+    """
+
+    tf_parent_frame: str
+    """
+    The tf parent frame the connection is already tracked with.
+    """
+
+    tf_child_frame: str
+    """
+    The tf child frame the connection is already tracked with.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"Connection '{self.connection_name}' is already tracked with a tf frame: "
+            f"'{self.tf_parent_frame}'<-'{self.tf_child_frame}'"
+        )
+
+    def suggest_correction(self) -> str:
+        return ""
+
+
+@dataclass
+class UnboundMessageTypeError(UsageError):
+    """
+    Raised when a topic subscriber does not name the type of its messages.
+    """
+
+    subscriber_type: Type
+    """
+    The subscriber whose message type is unknown.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"'{self.subscriber_type.__name__}' does not name the type of the "
+            f"messages it reads."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            f"Declare it in the bases of '{self.subscriber_type.__name__}', as in "
+            f"'LatestMessageSubscriber[Odometry]'."
+        )
+
+
+@dataclass
+class ConnectionCannotBeTrackedByTfFrameError(UsageError):
+    """
+    Raised when a connection without 6 degrees of freedom is registered for tf tracking.
+    """
+
+    connection: Connection
+    """
+    The connection that cannot be tracked.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"Can only sync Connection6DoF with tf, but '{str(self.connection.name)}' is of "
+            f"type '{type(self.connection).__name__}'."
+        )
+
+    def suggest_correction(self) -> str:
+        return ""
 
 
 @dataclass

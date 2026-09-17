@@ -167,7 +167,7 @@ def test_subscribed_source_reports_the_reading_of_its_latest_scan(
 ):
     scan = laser_scan()
     lidar = subscribed_lidar(rclpy_node, world_with_laser_body)
-    lidar.source.store_scan(scan)
+    lidar.source.buffer_message(scan)
 
     expected = LaserScanToSemDTConverter.convert(scan, world_with_laser_body)
     reading = lidar.get_lidar_reading()
@@ -182,7 +182,7 @@ def test_reading_a_subscribed_source_adopts_the_pattern_of_its_latest_scan(
 ):
     scan = laser_scan()
     lidar = subscribed_lidar(rclpy_node, world_with_laser_body)
-    lidar.source.store_scan(scan)
+    lidar.source.buffer_message(scan)
 
     lidar.get_lidar_reading()
 
@@ -193,6 +193,21 @@ def test_reading_a_subscribed_source_adopts_the_pattern_of_its_latest_scan(
         minimum_range=scan.range_min,
         maximum_range=scan.range_max,
     )
+
+
+def test_subscribed_lidar_source_reads_laser_scan_messages():
+    assert SubscribedLidarSource.message_type() is LaserScan
+
+
+def test_closing_a_subscribed_source_destroys_its_subscription(
+    rclpy_node, world_with_laser_body
+):
+    lidar = subscribed_lidar(rclpy_node, world_with_laser_body)
+    subscription = lidar.source.subscription
+
+    lidar.source.close()
+
+    assert subscription not in rclpy_node.subscriptions
 
 
 def test_a_lidar_sweeps_its_declared_pattern_until_a_scan_arrives(
