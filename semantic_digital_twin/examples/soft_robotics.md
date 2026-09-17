@@ -56,9 +56,9 @@ print("PCC Robot Ready. Set fixed frame to 'piecewise_constant_curvature/base' i
 We use Giskardpy's constraint-based task planner to move the soft tip through a sequence of 3D Cartesian coordinates.
 
 ```{code-cell} ipython3
-from giskardpy.executor import Executor
-from cramph.executor import SimulationPacer
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
+from cramph.executor import SimulationPacer, StatechartExecutor
+from giskardpy.motion_control import MotionControl
 from cramph.composites import Sequence
 from giskardpy.motion_statechart.graph_node import EndMotion
 from cramph.statechart import Statechart
@@ -90,9 +90,10 @@ msc_pcc.add_node(
 msc_pcc.add_node(EndMotion.when_true(goal_pcc))
 
 # Execute the motion statechart
-executor_pcc = Executor(
-    context=MotionStatechartContext(world=world_pcc),
+executor_pcc = StatechartExecutor(
+    context=StatechartContext(world=world_pcc),
     pacer=SimulationPacer(real_time_factor=1),
+    extensions=[MotionControl()],
 )
 executor_pcc.compile(msc_pcc)
 executor_pcc.tick_until_end()
@@ -146,9 +147,10 @@ msc_cos.add_node(
 )
 msc_cos.add_node(EndMotion.when_true(goal_cos))
 
-executor_cos = Executor(
-    context=MotionStatechartContext(world=world_cosserat),
+executor_cos = StatechartExecutor(
+    context=StatechartContext(world=world_cosserat),
     pacer=SimulationPacer(real_time_factor=1),
+    extensions=[MotionControl()],
 )
 executor_cos.compile(msc_cos)
 executor_cos.tick_until_end()

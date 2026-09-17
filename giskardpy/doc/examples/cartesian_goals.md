@@ -17,9 +17,9 @@ This example demonstrates how to use `CartesianPose` goals to move a robot to a 
 
 ```{code-cell} ipython3
 import os
-from cramph.executor import SimulationPacer
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
+from cramph.executor import SimulationPacer, StatechartExecutor
+from giskardpy.motion_control import MotionControl
 from giskardpy.motion_statechart.graph_node import EndMotion
 from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
@@ -86,13 +86,15 @@ goal = CartesianPose(
 msc.add_node(goal)
 msc.add_node(EndMotion.when_true(goal))
 
-# 4. Set up the Executor
-kin_sim = Executor(
-    context=MotionStatechartContext(
-        world=world,
-        qp_controller_config=QPControllerConfig.create_with_simulation_defaults(),
-    ),
+# 4. Set up the executor with motion control
+kin_sim = StatechartExecutor(
+    context=StatechartContext(world=world),
     pacer=SimulationPacer(real_time_factor=None), # None for fastest execution in docs
+    extensions=[
+        MotionControl(
+            qp_controller_config=QPControllerConfig.create_with_simulation_defaults()
+        )
+    ],
 )
 
 kin_sim.compile(msc)

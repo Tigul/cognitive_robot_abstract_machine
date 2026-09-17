@@ -79,6 +79,33 @@ motion_statechart.add_node(plan)
 motion_statechart.add_node(EndMotion.when_true(plan))
 ```
 
+## Running a motion statechart
+
+giskardpy does not have its own statechart or executor. Motion control is an extension of
+cramph's `StatechartExecutor`, so the same statechart can also hold nodes of other modules,
+and their executor extensions can run alongside it:
+
+```python
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
+from giskardpy.motion_control import MotionControl
+
+executor = StatechartExecutor(
+    context=StatechartContext(world=world),
+    extensions=[MotionControl()],
+)
+executor.compile(motion_statechart)
+executor.tick_until_end()
+```
+
+`MotionControl` gives the nodes a `MotionControlContext` with the QP controller configuration
+and the collision variable managers, sets the tick duration to the control time step, and
+applies the commands of the QP controller after every tick. Further extensions add what a
+run needs on top: `WorldStateTrajectoryRecording` and `DebugExpressionRecording` record the
+motion, `RosNodeAccess` gives nodes a ROS2 node, and `DebugExpressionPublishing` shows debug
+expressions in RViz. Extensions are called in the order they are listed, so list the
+recordings after `MotionControl`.
+
 ## Benefits
 
 - **Constraint-Based**: The constraints of all currently active tasks influence the motion, ensuring the robot satisfies all requirements simultaneously (e.g., "reach for the cup while keeping the arm away from the table").

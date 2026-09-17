@@ -16,9 +16,9 @@ kernelspec:
 This example shows how to set up a basic `Statechart` that runs for a specified amount of time using a `CountSeconds` monitor.
 
 ```{code-cell} ipython3
-from cramph.executor import SimulationPacer
-from giskardpy.executor import Executor
-from giskardpy.motion_statechart.context import MotionStatechartContext
+from cramph.context import StatechartContext
+from cramph.executor import SimulationPacer, StatechartExecutor
+from giskardpy.motion_control import MotionControl
 from giskardpy.motion_statechart.graph_node import EndMotion
 from cramph.monitors import CountSeconds
 from cramph.statechart import Statechart
@@ -34,13 +34,15 @@ msc.add_node(counter := CountSeconds(seconds=1.0))
 # 3. Transition to EndMotion when the counter is finished
 msc.add_node(EndMotion.when_true(counter))
 
-# 4. Set up the Executor with a Simulation Pacer
-kin_sim = Executor(
-    context=MotionStatechartContext(
-        world=World(),
-        qp_controller_config=QPControllerConfig.create_with_simulation_defaults(),
-    ),
+# 4. Set up the executor with motion control and a simulation pacer
+kin_sim = StatechartExecutor(
+    context=StatechartContext(world=World()),
     pacer=SimulationPacer(real_time_factor=2.0),
+    extensions=[
+        MotionControl(
+            qp_controller_config=QPControllerConfig.create_with_simulation_defaults()
+        )
+    ],
 )
 
 # 5. Compile and run the statechart
