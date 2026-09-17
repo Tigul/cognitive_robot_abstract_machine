@@ -4,8 +4,9 @@ from unittest import TestCase
 
 import pytest
 from segmind.detectors.base import SegmindContext
-from segmind.episode_segmenter import EpisodeSegmenterExecutor
-from segmind.event_logger import EventLogger
+from cramph.executor import StatechartExecutor
+from segmind.episode_segmenter import EpisodeSceneLoader, EpisodeSegmentation
+from cramph.context import StatechartContext
 from segmind.players.csv_player import CSVEpisodePlayer
 from semantic_digital_twin.adapters.package_resolver import FileUriResolver
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
@@ -22,8 +23,7 @@ def test_context():
     with world.modify_world():
         world.add_kinematic_structure_entity(root)
 
-    logger = EventLogger()
-    context = SegmindContext(world=world, logger=logger)
+    context = StatechartContext(world=world)
     multiverse_episodes_dir = f"{dirname(__file__)}/../resources/multiverse_episodes"
     file_player = CSVEpisodePlayer(
         file_path=f"{multiverse_episodes_dir}/icub_montessori_no_hands/data.csv",
@@ -31,19 +31,18 @@ def test_context():
         time_between_frames=datetime.timedelta(milliseconds=0.1),
         position_shift=Vector3(0, 0, 0),
     )
-    episode_executor = EpisodeSegmenterExecutor(
-        context=context,
-        player=file_player,
-        ignored_objects=["iCub"],
-        fixed_objects=["scene"],
+    episode_executor = StatechartExecutor(
+        context=context, extensions=[EpisodeSegmentation(player=file_player)]
     )
-    episode_executor.spawn_scene(
+    EpisodeSceneLoader(
+        world=world, ignored_objects=["iCub"], fixed_objects=["scene"]
+    ).spawn_scene(
         models_dir=f"{multiverse_episodes_dir}/icub_montessori_no_hands/models/",
         file_resolver=FileUriResolver(),
     )
     return {
         "world": world,
-        "logger": logger,
+        "logger": context.require_extension(SegmindContext).logger,
         "context": context,
         "file_player": file_player,
         "episode_executor": episode_executor,
@@ -56,10 +55,10 @@ def test_replay_episode(test_context):
     logger = test_context["logger"]
     executor = test_context["episode_executor"]
     executor.compile(DetectorStatechartBuilder().build())
-    assert executor.player.is_alive()
+    assert executor.require_extension(EpisodeSegmentation).player.is_alive()
     executor.tick_until_end()
     try:
-        while executor.player.is_alive():
+        while executor.require_extension(EpisodeSegmentation).player.is_alive():
             pass
     finally:
         assert len(logger.get_events()) > 0

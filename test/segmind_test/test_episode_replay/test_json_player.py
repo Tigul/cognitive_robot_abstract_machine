@@ -4,7 +4,7 @@ from pathlib import Path
 import pytest
 import segmind
 from cramph.context import StatechartContext
-from segmind.episode_segmenter import EpisodeSegmenterExecutor
+from segmind.episode_segmenter import EpisodeSceneLoader
 from segmind.players.json_player import JSONPlayer
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.world import World
@@ -35,13 +35,10 @@ def test_json_player_context():
     print("Constructed type:", type(json_file_player))
     print("MRO:", type(json_file_player).mro())
     context = StatechartContext(world=world)
-    episode_segmenter = EpisodeSegmenterExecutor(
-        player=json_file_player, context=context
-    )
     json_file_player.transform_to_stl(
         f"{Path(segmind.__file__).parent.parent.parent}/resources/fame_episodes/alessandro_sliding_bueno/models"
     )
-    episode_segmenter.spawn_scene(
+    EpisodeSceneLoader(world=world).spawn_scene(
         models_dir=f"{Path(segmind.__file__).parent.parent.parent}/resources/fame_episodes/alessandro_sliding_bueno/models/"
     )
 
@@ -49,7 +46,6 @@ def test_json_player_context():
         "world": world,
         "json_file_player": json_file_player,
         "context": context,
-        "episode_segmenter": episode_segmenter,
     }
 
 

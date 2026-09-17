@@ -44,11 +44,12 @@ The following example demonstrates how to set up a statechart of detectors to de
 from cramph.context import StatechartContext
 from segmind.detectors.base import SegmindContext
 from segmind.statecharts.segmind_statechart import DetectorStatechartBuilder
-from segmind.episode_segmenter import EpisodeSegmenterExecutor
+from cramph.executor import StatechartExecutor
+from segmind.episode_segmenter import EpisodeSegmentation
 
-# 1. Setup Context and Executor, which adds the SegmindContext with its event logger
+# 1. Setup Context and Executor; EpisodeSegmentation adds the SegmindContext with its event logger
 context = StatechartContext(world=your_simulation_world)
-executor = EpisodeSegmenterExecutor(context=context)
+executor = StatechartExecutor(context=context, extensions=[EpisodeSegmentation()])
 logger = context.require_extension(SegmindContext).logger
 
 # 2. Build and compile the Statechart

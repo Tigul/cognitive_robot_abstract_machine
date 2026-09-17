@@ -35,7 +35,8 @@ from segmind.detectors.spatial_relation_detector_nodes import (
     LossOfContainmentDetector,
     InsertionDetector,
 )
-from segmind.episode_segmenter import EpisodeSegmenterExecutor
+from cramph.executor import StatechartExecutor
+from segmind.episode_segmenter import EpisodeSegmentation
 from segmind.statecharts.segmind_statechart import DetectorStatechartBuilder
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
@@ -54,7 +55,9 @@ def _build_executor(world):
     milk = world.get_body_by_name("milk.stl")
     box1 = world.get_body_by_name("box")
     box2 = world.get_body_by_name("box_2")
-    segmind_executor = EpisodeSegmenterExecutor(context=context)
+    segmind_executor = StatechartExecutor(
+        context=context, extensions=[EpisodeSegmentation()]
+    )
     segmind_context = segmind_executor.context.require_extension(SegmindContext)
     return segmind_executor, segmind_context, milk, box1, box2
 
