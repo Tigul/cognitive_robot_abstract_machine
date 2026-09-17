@@ -1234,6 +1234,13 @@ class StatechartNode(SubclassJSONSerializer):
         """
         self._statechart = statechart
 
+    def create_structure_copy(self) -> StatechartNode:
+        """
+        :return: A node of the base class of this node's kind, with the same name, see
+            :meth:`~cramph.statechart.Statechart.create_structure_copy`.
+        """
+        return StatechartNode(name=self.name)
+
     def build(self, context: StatechartContext) -> NodeArtifacts:
         """
         Called exactly once during statechart compilation.
@@ -1759,6 +1766,9 @@ class CompositeNode(StatechartNode):
         NodePlotSpec.create_composite_node_style
     )
 
+    def create_structure_copy(self) -> CompositeNode:
+        return CompositeNode(name=self.name)
+
     def expand(self, context: StatechartContext) -> None:
         """
         Instantiate child nodes, add them to this node, and wire their life cycle transition conditions.
@@ -1972,6 +1982,9 @@ class EndStatechart(TerminalNode):
         NodePlotSpec.create_end_style
     )
 
+    def create_structure_copy(self) -> EndStatechart:
+        return EndStatechart(name=self.name)
+
     def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=Scalar.const_true())
 
@@ -2074,6 +2087,9 @@ class CancelStatechart(TerminalNode):
     plot_specifications: NodePlotSpec = plot_specification_field(
         NodePlotSpec.create_cancel_style
     )
+
+    def create_structure_copy(self) -> CancelStatechart:
+        return CancelStatechart(name=self.name, exception=self.exception)
 
     def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=Scalar.const_true())

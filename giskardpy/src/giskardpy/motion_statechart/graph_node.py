@@ -137,6 +137,9 @@ class MotionStatechartNode(StatechartNode):
     debug expressions to motion control.
     """
 
+    def create_structure_copy(self) -> MotionStatechartNode:
+        return MotionStatechartNode(name=self.name)
+
     @property
     def artifacts(self) -> MotionNodeArtifacts:
         return super().artifacts
@@ -268,6 +271,9 @@ class Task(MotionStatechartNode):
         NodePlotSpec.create_task_style
     )
 
+    def create_structure_copy(self) -> Task:
+        return Task(name=self.name)
+
 
 @dataclass(eq=False, repr=False)
 class ConvergingTask(ABC, Task):
@@ -362,6 +368,9 @@ class EndMotion(EndStatechart):
     """
     Upper bound for the per-degree-of-freedom velocity threshold.
     """
+
+    def create_structure_copy(self) -> EndMotion:
+        return EndMotion(name=self.name)
 
     def build_artifacts(self, context: MotionStatechartContext) -> NodeArtifacts:
         """

@@ -1116,20 +1116,21 @@ class Statechart(SubclassJSONSerializer):
         self.observation_state = ObservationState(self)
         self.last_observation_state = LastObservationState(self)
 
-    def create_structure_copy(self) -> Self:
+    def create_structure_copy(self) -> Statechart:
         """
         Creates a copy of the statechart, where every node is an instance of the base
-        class of its kind, see :meth:`_create_structure_node_copy`.
+        class of its kind, see
+        :meth:`~cramph.node.StatechartNode.create_structure_copy`.
 
         This is useful if only the structure of the statechart is needed, for
         example, for visualization.
 
         :return: The structural copy.
         """
-        statechart_copy = type(self)()
+        statechart_copy = Statechart()
         # copy nodes in order to make sure index is correct
         for node in self.nodes:
-            statechart_copy.add_node(self._create_structure_node_copy(node))
+            statechart_copy.add_node(node.create_structure_copy())
         # link parent/child
         for node in self.get_nodes_by_type(CompositeNode):
             goal_copy: CompositeNode = statechart_copy.get_node_by_index(node.index)
@@ -1149,22 +1150,6 @@ class Statechart(SubclassJSONSerializer):
                     ),
                 )
         return statechart_copy
-
-    @staticmethod
-    def _create_structure_node_copy(node: StatechartNode) -> StatechartNode:
-        """
-        :param node: The node to copy.
-        :return: A node of the base class of `node`'s kind, with the same name.
-        """
-        match node:
-            case CompositeNode():
-                return CompositeNode(name=node.name)
-            case EndStatechart():
-                return EndStatechart(name=node.name)
-            case CancelStatechart():
-                return CancelStatechart(name=node.name, exception=node.exception)
-            case _:
-                return StatechartNode(name=node.name)
 
     def _copy_condition(self, condition: sm.Scalar) -> sm.Scalar:
         """

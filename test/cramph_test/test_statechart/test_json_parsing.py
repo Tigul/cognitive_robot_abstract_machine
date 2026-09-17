@@ -19,12 +19,20 @@ from cramph.exceptions import (
     UnsupportedConditionSyntaxError,
 )
 from cramph.composites import Parallel, Sequence
-from cramph.node import DeserializedNodeTracker, TransitionCondition, CancelStatechart
+from cramph.node import (
+    CancelStatechart,
+    CompositeNode,
+    DeserializedNodeTracker,
+    StatechartNode,
+    TransitionCondition,
+)
 from cramph.node import EndStatechart
 from cramph.statechart import Statechart
 from cramph.nodes_for_testing import (
     ConstTrueNode,
     CompositeNodeWithNestedCompositeChild,
+    NodeKind,
+    SpecializedNodeOfAKind,
 )
 from krrood.adapters.json_serializer import to_json, from_json
 from krrood.symbolic_math.symbolic_math import (
@@ -158,6 +166,43 @@ def test_structure_copy_keeps_every_condition():
     assert [str(condition) for condition in node_copy.conditions] == [
         str(condition) for condition in node.conditions
     ]
+
+
+def test_structure_copy_uses_the_kind_a_node_declares():
+    """
+    Node kinds declared outside the statechart's own node classes decide their structure
+    copy themselves, so a plain statechart copies them without knowing them.
+    """
+    msc = Statechart()
+    msc.add_node(node := SpecializedNodeOfAKind(name="specialized", detail=3))
+
+    node_copy = msc.create_structure_copy().get_node_by_index(node.index)
+
+    assert type(node_copy) is NodeKind
+    assert node_copy.name == node.name
+
+
+def test_structure_copy_keeps_the_base_kinds_of_the_statechart_nodes():
+    msc = Statechart()
+    msc.add_nodes(
+        [
+            trigger := ConstTrueNode(),
+            goal := CompositeNodeWithNestedCompositeChild(),
+            end := EndStatechart.when_true(trigger),
+            cancel := CancelStatechart.when_true(
+                trigger, exception=NodeNotFoundError(name="muh")
+            ),
+        ]
+    )
+
+    msc_copy = msc.create_structure_copy()
+
+    assert type(msc_copy.get_node_by_index(trigger.index)) is StatechartNode
+    assert type(msc_copy.get_node_by_index(goal.index)) is CompositeNode
+    assert type(msc_copy.get_node_by_index(end.index)) is EndStatechart
+    cancel_copy = msc_copy.get_node_by_index(cancel.index)
+    assert type(cancel_copy) is CancelStatechart
+    assert cancel_copy.exception is cancel.exception
 
 
 def test_structure_copy_conditions_read_the_copied_nodes():

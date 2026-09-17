@@ -6,14 +6,9 @@ from typing_extensions import (
     List,
 )
 
-from cramph.node import (
-    StatechartNode,
-)
 from giskardpy.motion_statechart.graph_node import (
     DebugExpression,
-    EndMotion,
     MotionStatechartNode,
-    Task,
 )
 from giskardpy.qp.constraint_collection import ConstraintCollection
 from cramph.statechart import Statechart
@@ -25,18 +20,6 @@ class MotionStatechart(Statechart):
     A statechart whose nodes may contribute constraints and debug expressions to motion
     control.
     """
-
-    @staticmethod
-    def _create_structure_node_copy(node: StatechartNode) -> StatechartNode:
-        match node:
-            case Task():
-                return Task(name=node.name)
-            case EndMotion():
-                return EndMotion(name=node.name)
-            case MotionStatechartNode():
-                return MotionStatechartNode(name=node.name)
-            case _:
-                return Statechart._create_structure_node_copy(node)
 
     def collect_debug_expressions(self) -> List[DebugExpression]:
         """

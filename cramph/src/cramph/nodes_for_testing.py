@@ -62,6 +62,31 @@ class ConstFalseNode(StatechartNode):
         return NodeArtifacts(observation=sm.Scalar.const_false())
 
 
+@dataclass(eq=False, repr=False)
+class NodeKind(StatechartNode):
+    """
+    A kind of node declared outside of the statechart's own node classes, whose structure
+    copy is an instance of this kind.
+    """
+
+    success_decided_by = SuccessDecider.OWNER
+
+    def create_structure_copy(self) -> NodeKind:
+        return NodeKind(name=self.name)
+
+
+@dataclass(eq=False, repr=False)
+class SpecializedNodeOfAKind(NodeKind):
+    """
+    A specialization of :class:`NodeKind` whose structure copy falls back to that kind.
+    """
+
+    detail: int = field(default=0, kw_only=True)
+    """
+    A value only the specialization has, and its structure copy does not.
+    """
+
+
 @dataclass(repr=False, eq=False)
 class ChangeStateOnEvents(StatechartNode):
     success_decided_by = SuccessDecider.OWNER

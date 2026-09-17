@@ -10,12 +10,16 @@ from cramph.data_types import (
 )
 from cramph.composites import Sequence
 from cramph.node import CancelStatechart
-from giskardpy.motion_statechart.graph_node import EndMotion
+from giskardpy.motion_statechart.graph_node import (
+    EndMotion,
+    MotionStatechartNode,
+    Task,
+)
 from giskardpy.motion_statechart.monitors.joint_monitors import JointPositionReached
 from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
 from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
 from giskardpy.motion_statechart.motion_statechart import MotionStatechart
-from cramph.statechart import LifeCycleState, ObservationState
+from cramph.statechart import LifeCycleState, ObservationState, Statechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from cramph.nodes_for_testing import ConstTrueNode
@@ -272,6 +276,28 @@ def test_cart_goal_simple(pr2_world_state_reset: World):
 
     fk = pr2_world_state_reset.compute_forward_kinematics_np(root, tip)
     assert np.allclose(fk, tip_goal, atol=cart_goal.translation_threshold)
+
+
+def test_structure_copy_of_a_plain_statechart_keeps_the_motion_node_kinds(mini_world):
+    connection = mini_world.connections[0]
+    statechart = Statechart()
+    statechart.add_nodes(
+        [
+            task := JointPositionList(
+                goal_state=JointState.from_mapping({connection: 0.5})
+            ),
+            monitor := LocalMinimumReached(),
+            end := EndMotion.when_true(task),
+        ]
+    )
+
+    statechart_copy = statechart.create_structure_copy()
+
+    assert type(statechart_copy.get_node_by_index(task.index)) is Task
+    assert type(statechart_copy.get_node_by_index(monitor.index)) is (
+        MotionStatechartNode
+    )
+    assert type(statechart_copy.get_node_by_index(end.index)) is EndMotion
 
 
 def test_compressed_copy_can_be_plotted(pr2_world_state_reset: World, tmp_path):
