@@ -10,6 +10,7 @@ from cramph.exceptions import (
     MissingContextExtensionError,
     DuplicateContextExtensionError,
     TickDurationUnknownError,
+    ConflictingTickDurationError,
 )
 
 from semantic_digital_twin.world import World
@@ -22,6 +23,11 @@ class ContextExtension:
 
     Used together with require_extension to augment BuildContext with custom data.
     """
+
+    def cleanup(self):
+        """
+        Releases what the extension acquired while the statechart was running.
+        """
 
 
 GenericContextExtension = TypeVar("GenericContextExtension", bound=ContextExtension)
@@ -64,6 +70,21 @@ class StatechartContext:
     Ros2Executor.
     """
 
+    def set_tick_duration(self, tick_duration: float):
+        """
+        Sets how many seconds one tick stands for.
+
+        :param tick_duration: How many seconds one tick stands for.
+        :raises ConflictingTickDurationError: If the context already knows a different
+            tick duration.
+        """
+        if self.tick_duration is not None and self.tick_duration != tick_duration:
+            raise ConflictingTickDurationError(
+                tick_duration=self.tick_duration,
+                requested_tick_duration=tick_duration,
+            )
+        self.tick_duration = tick_duration
+
     def require_tick_duration(self) -> float:
         """
         :return: How many seconds one tick stands for.
@@ -103,5 +124,8 @@ class StatechartContext:
 
     def cleanup(self):
         """
-        Releases what the context acquired while the statechart was running.
+        Releases what the context and its extensions acquired while the statechart was
+        running.
         """
+        for extension in self.extensions.values():
+            extension.cleanup()

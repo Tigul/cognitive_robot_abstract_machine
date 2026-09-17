@@ -566,3 +566,29 @@ class TickDurationUnknownError(StatechartError):
 
     def suggest_correction(self) -> str:
         return "Pass a tick_duration to the StatechartContext."
+
+
+@dataclass
+class ConflictingTickDurationError(StatechartError):
+    """
+    Raised when a context is told a tick lasts a different time than it already knows.
+    """
+
+    tick_duration: float
+    """
+    How many seconds one tick lasts according to the context.
+    """
+
+    requested_tick_duration: float
+    """
+    How many seconds one tick was requested to last.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"One tick already lasts {self.tick_duration} seconds, it cannot also last "
+            f"{self.requested_tick_duration} seconds."
+        )
+
+    def suggest_correction(self) -> str:
+        return "Configure everything that sets the tick duration with the same value."
