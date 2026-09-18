@@ -46,6 +46,7 @@ from cramph.exceptions import (
     TerminalNodeInConditionError,
     UnknownConditionVariableError,
     UnsupportedConditionSyntaxError,
+    NodeStateVariableNotSerializableError,
 )
 from cramph.plotters.plot_specs import NodePlotSpec, plot_specification_field
 from krrood.adapters.deserialized_object_tracker import DeserializedObjectTracker
@@ -398,6 +399,13 @@ class NodeStateVariable(FloatVariable):
     def __init__(self, name: str, statechart_node: StatechartNode):
         super().__init__(name)
         self.statechart_node = statechart_node
+
+    def _value_to_json(self, **kwargs) -> Dict[str, Any]:
+        """
+        :raises NodeStateVariableNotSerializableError: Always, since JSON cannot refer to
+            the node this variable belongs to.
+        """
+        raise NodeStateVariableNotSerializableError(variable=self)
 
     @property
     def display_name(self) -> str:

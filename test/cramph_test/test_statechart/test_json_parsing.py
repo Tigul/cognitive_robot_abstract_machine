@@ -15,6 +15,7 @@ from cramph.data_types import (
 )
 from cramph.exceptions import (
     NodeNotFoundError,
+    NodeStateVariableNotSerializableError,
     UnknownConditionVariableError,
     UnsupportedConditionSyntaxError,
 )
@@ -474,3 +475,15 @@ def test_condition_using_unsupported_syntax_is_rejected(
 
     with pytest.raises(UnsupportedConditionSyntaxError):
         Statechart.from_json(json.loads(json.dumps(document)))
+
+
+# %% node state variables
+
+
+def test_node_state_variable_is_not_json_serializable():
+    variable = ConstTrueNode().observation_variable
+
+    with pytest.raises(NodeStateVariableNotSerializableError) as error:
+        to_json(variable)
+
+    assert error.value.variable is variable

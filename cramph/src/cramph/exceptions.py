@@ -5,13 +5,14 @@ from dataclasses import dataclass
 
 from typing_extensions import TYPE_CHECKING, Type
 
+from krrood.adapters.exceptions import JSONSerializationError
 from krrood.exceptions import DataclassException
 from krrood.symbolic_math.symbolic_math import FloatVariable, Scalar
 
 if TYPE_CHECKING:
     from cramph.data_types import TransitionKind
     from cramph.composites import Attempt
-    from cramph.node import StatechartNode, TransitionCondition
+    from cramph.node import NodeStateVariable, StatechartNode, TransitionCondition
 
 
 @dataclass
@@ -590,3 +591,25 @@ class MissingExecutorExtensionError(StatechartError):
 
     def suggest_correction(self) -> str:
         return "Pass an instance of it in the extensions of the StatechartExecutor."
+
+
+@dataclass
+class NodeStateVariableNotSerializableError(JSONSerializationError):
+    """
+    Raised when a node state variable is serialized to JSON, which has no way to refer
+    to the node the variable belongs to.
+    """
+
+    variable: NodeStateVariable
+    """
+    The variable that was serialized.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"Cannot serialize {self.variable}, since JSON cannot refer to the node it "
+            f"belongs to."
+        )
+
+    def suggest_correction(self) -> str:
+        return ""
