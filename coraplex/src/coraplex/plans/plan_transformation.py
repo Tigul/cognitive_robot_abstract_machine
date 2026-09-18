@@ -6,147 +6,83 @@ from dataclasses import dataclass
 from typing_extensions import (
     Generic,
     List,
-    Protocol,
     Type,
     TypeVar,
-    runtime_checkable,
 )
 
 from coraplex.datastructures.enums import InsertionPosition
+from coraplex.exceptions import CannotMatchOnType
 from coraplex.plans.designator import Designator
 from coraplex.plans.factories import make_node
 from coraplex.plans.plan_node import ActionLike, DesignatorNode, PlanNode
 from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
 
-NodeType = TypeVar("NodeType", bound=PlanNode)
-DesignatorType = TypeVar("DesignatorType", bound=Designator)
+MatchedType = TypeVar("MatchedType", bound=PlanNode | Designator)
 
 
 # %% transformations
 
 
-@runtime_checkable
-class PlanTransformation(Protocol):
+@dataclass
+class PlanTransformation(Generic[MatchedType], SubClassSafeGeneric, ABC):
     """
     Rewrites the part of a plan that a node expanded into.
 
-    A transformation is one matching part, which selects the nodes it applies to, and
-    one rewriting part, which changes the plan around them. It is applied to every node
-    it applies to, right after that node has been expanded and before the nodes below it
-    are expanded in turn.
+    The bound type says which nodes it rewrites: a node type selects the nodes of that
+    type, a designator type the nodes carrying such a designator. A transformation is
+    applied to every node it matches, right after that node has been expanded and before
+    the nodes below it are expanded in turn.
     """
+
+    @property
+    def matched_type(self) -> Type[MatchedType]:
+        """
+        :return: The type this selects its nodes by.
+        """
+        return type(self).get_type_of_generic_parameter(MatchedType)
 
     def matches_node(self, plan_node: PlanNode) -> bool:
         """
         :param plan_node: The node that was just expanded
-        :return: Whether the given node is one this transformation rewrites.
+        :return: Whether the given node is one this rewrites.
+        :raises CannotMatchOnType: If the bound type is neither a node nor a designator
         """
-
-    def is_applicable(self, plan_node: PlanNode) -> bool:
-        """
-        :param plan_node: A node this transformation applies to
-        :return: Whether the case the node describes needs this transformation.
-        """
-
-    def apply(self, plan_node: PlanNode) -> None:
-        """
-        Rewrites the plan around the given node.
-
-        :param plan_node: The node this transformation applies to
-        """
-
-
-# %% matching
-
-
-@dataclass
-class NodeSelection(ABC):
-    """
-    Selects the nodes a transformation rewrites the plan around.
-    """
-
-    @abstractmethod
-    def matches_node(self, plan_node: PlanNode) -> bool:
-        """
-        :param plan_node: The node that was just expanded
-        :return: Whether this selects the given node.
-        """
+        if issubclass(self.matched_type, PlanNode):
+            return isinstance(plan_node, self.matched_type)
+        if issubclass(self.matched_type, Designator):
+            return isinstance(plan_node, DesignatorNode) and isinstance(
+                plan_node.designator, self.matched_type
+            )
+        raise CannotMatchOnType(type(self), self.matched_type)
 
     @abstractmethod
     def is_applicable(self, plan_node: PlanNode) -> bool:
         """
-        Reports whether the case the node describes needs the transformation, which
-        every case does unless a transformation says otherwise.
+        Reports whether the case the node describes needs this transformation.
 
-        It is asked only about nodes :meth:`matches_node` selected.
+        It is asked only about nodes :meth:`matches_node` selected, so the node can be
+        read as the type this is bound to.
 
-        :param plan_node: A node this selects
+        :param plan_node: A node this matches
         :return: Whether the transformation is needed here.
         """
 
-
-@dataclass
-class PlanMatch(NodeSelection, Generic[NodeType], SubClassSafeGeneric, ABC):
-    """
-    Selects the nodes of the bound type.
-    """
-
-    @property
-    def node_type(self) -> Type[NodeType]:
-        """
-        :return: The type of node this selects.
-        """
-        return type(self).get_type_of_generic_parameter(NodeType)
-
-    @abstractmethod
-    def is_applicable(self, plan_node: PlanNode) -> bool: ...
-
-    def matches_node(self, plan_node: PlanNode) -> bool:
-        return isinstance(plan_node, self.node_type)
-
-
-@dataclass
-class DesignatorMatch(NodeSelection, Generic[DesignatorType], SubClassSafeGeneric, ABC):
-    """
-    Selects the nodes carrying a designator of the bound type.
-    """
-
-    @property
-    def designator_type(self) -> Type[DesignatorType]:
-        """
-        :return: The type of designator this selects the nodes of.
-        """
-        return type(self).get_type_of_generic_parameter(DesignatorType)
-
-    @abstractmethod
-    def is_applicable(self, plan_node: PlanNode) -> bool: ...
-
-    def matches_node(self, plan_node: PlanNode) -> bool:
-        return isinstance(plan_node, DesignatorNode) and isinstance(
-            plan_node.designator, self.designator_type
-        )
-
-
-# %% rewriting
-
-
-@dataclass
-class PlanRewrite(ABC):
-    """
-    Changes the plan around a node.
-    """
-
     @abstractmethod
     def apply(self, plan_node: PlanNode) -> None:
         """
         Rewrites the plan around the given node.
 
-        :param plan_node: The node this rewrite is applied to
+        :param plan_node: The node this transformation is applied to
         """
 
 
+# %% inserting
+
+
 @dataclass
-class InsertionRewrite(PlanRewrite):
+class InsertionTransformation(
+    PlanTransformation[MatchedType], Generic[MatchedType], SubClassSafeGeneric, ABC
+):
     """
     Rewrites a plan by inserting freshly built nodes next to an anchor node.
 
@@ -164,14 +100,14 @@ class InsertionRewrite(PlanRewrite):
     @abstractmethod
     def anchor(self, plan_node: PlanNode) -> PlanNode:
         """
-        :param plan_node: The node this rewrite is applied to
+        :param plan_node: The node this transformation is applied to
         :return: The node the new nodes are inserted next to.
         """
 
     @abstractmethod
     def nodes_to_insert(self, plan_node: PlanNode) -> List[ActionLike]:
         """
-        :param plan_node: The node this rewrite is applied to
+        :param plan_node: The node this transformation is applied to
         :return: The actions, motions or nodes to insert, in the order they take.
         """
 

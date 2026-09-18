@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 
-from typing_extensions import TYPE_CHECKING, List, cast
+from typing_extensions import TYPE_CHECKING, Generic, List, cast
 
 from coraplex.datastructures.enums import Arms, DetectionTechnique, InsertionPosition
 from coraplex.exceptions import PerceptionTargetMissing
@@ -10,9 +11,8 @@ from coraplex.locations.base import DeferredLocation
 from coraplex.locations.factories import reachability_location
 from coraplex.plans.plan_node import ActionLike, ActionNode, MotionNode, PlanNode
 from coraplex.plans.plan_transformation import (
-    DesignatorMatch,
-    InsertionRewrite,
-    PlanMatch,
+    InsertionTransformation,
+    MatchedType,
 )
 from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.robot_plans.actions.core.misc import DetectAction
@@ -21,6 +21,7 @@ from coraplex.robot_plans.actions.core.pick_up import PickUpAction, ReachAction
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from krrood.entity_query_language.factories import a, variable
+from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
 from semantic_digital_twin.reasoning.predicates import InsideOf
 from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Drawer
@@ -35,7 +36,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class DetectBeforeGrasp(InsertionRewrite, DesignatorMatch[ReachAction]):
+class DetectBeforeGrasp(InsertionTransformation[ReachAction]):
     """
     Looks at the object and detects it before a reach makes its final approach, so that
     the approach acts on a freshly perceived pose instead of the one the world holds.
@@ -80,7 +81,9 @@ class DetectBeforeGrasp(InsertionRewrite, DesignatorMatch[ReachAction]):
 
 
 @dataclass
-class DrawerOpening(InsertionRewrite):
+class DrawerOpening(
+    InsertionTransformation[MatchedType], Generic[MatchedType], SubClassSafeGeneric, ABC
+):
     """
     The shared part of the rewrites that open the drawers an object lies in.
     """
@@ -142,7 +145,7 @@ class DrawerOpening(InsertionRewrite):
 
 
 @dataclass
-class OpenDrawerBeforePickUp(DrawerOpening, DesignatorMatch[PickUpAction]):
+class OpenDrawerBeforePickUp(DrawerOpening[PickUpAction]):
     """
     Opens the drawers an object lies in before the robot picks it up, so that it reaches
     into an open drawer instead of a closed one.
@@ -191,7 +194,7 @@ class OpenDrawerBeforePickUp(DrawerOpening, DesignatorMatch[PickUpAction]):
 
 
 @dataclass
-class OpenDrawerBeforeTransport(DrawerOpening, DesignatorMatch[TransportAction]):
+class OpenDrawerBeforeTransport(DrawerOpening[TransportAction]):
     """
     Opens the drawers the transported object lies in before the transport starts.
 
@@ -224,7 +227,7 @@ class OpenDrawerBeforeTransport(DrawerOpening, DesignatorMatch[TransportAction])
 
 
 @dataclass
-class ParkArmsBeforeFirstAction(InsertionRewrite, PlanMatch[ActionNode]):
+class ParkArmsBeforeFirstAction(InsertionTransformation[ActionNode]):
     """
     Parks the arms in front of the first action of a plan.
 

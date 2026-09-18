@@ -46,6 +46,33 @@ class ContextIsUnavailable(DataclassException):
 
 
 @dataclass
+class CannotMatchOnType(DataclassException):
+    """
+    Raised when a plan transformation is bound to a type that is neither a plan node nor
+    a designator, leaving no rule by which it could select the nodes it rewrites.
+    """
+
+    transformation: Type
+    """
+    The transformation class that carries the binding.
+    """
+
+    matched_type: Type
+    """
+    The type it is bound to.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.transformation.__name__} is bound to {self.matched_type}, which is "
+            f"neither a plan node nor a designator."
+        )
+
+    def suggest_correction(self) -> str:
+        return "bind the transformation to a plan node type or a designator type"
+
+
+@dataclass
 class CannotInsertBesideRoot(DataclassException):
     """
     Raised when a node is to be inserted before or after the root node, which has no
