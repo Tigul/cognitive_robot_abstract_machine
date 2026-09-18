@@ -9,7 +9,7 @@ serializer; the package this module lives in no longer does it on anyone's behal
 
 from geometry_msgs.msg import Point
 
-from krrood.adapters.exceptions import JSON_TYPE_NAME
+from krrood.adapters.json_field import JSONField
 from krrood.adapters.json_serializer import to_json
 
 import semantic_digital_twin.adapters.ros.ros_msg_serializer  # noqa: F401
@@ -19,7 +19,7 @@ def main() -> None:
     """
     Prints the type name of a serialized ROS2 message.
     """
-    print(to_json(Point(x=1.0))[JSON_TYPE_NAME])
+    print(to_json(Point(x=1.0))[JSONField.TYPE])
 
 
 if __name__ == "__main__":

@@ -123,7 +123,7 @@ class RobotInterfaceConfig(ABC):
         assert isinstance(joint, (OmniDrive, DifferentialDrive))
         synchronizer = OdometrySynchronizer(
             world=self.world,
-            node=rospy.node,
+            node=rospy.get_node(),
             topic_name=odometry_topic,
             connection=joint,
         )
@@ -139,7 +139,7 @@ class RobotInterfaceConfig(ABC):
         """
         if self.tf_frame_synchronizer is None:
             self.tf_frame_synchronizer = TfFrameSynchronizer(
-                world=self.world, node=rospy.node
+                world=self.world, node=rospy.get_node()
             )
             self.motion_server.inputs.synchronizers.insert(
                 0, self.tf_frame_synchronizer
@@ -158,14 +158,14 @@ class RobotInterfaceConfig(ABC):
             group_name = self.robot.name
         self.motion_server.inputs.synchronizers.append(
             PendingJointStateSynchronizer(
-                world=self.world, node=rospy.node, topic_name=topic_name
+                world=self.world, node=rospy.get_node(), topic_name=topic_name
             )
         )
         if not self.server_config.is_closed_loop or group_name != self.robot.name:
             return
         self.control_loop.inputs.synchronizers.append(
             LatestJointStateSynchronizer(
-                world=self.world, node=rospy.node, topic_name=topic_name
+                world=self.world, node=rospy.get_node(), topic_name=topic_name
             )
         )
 
