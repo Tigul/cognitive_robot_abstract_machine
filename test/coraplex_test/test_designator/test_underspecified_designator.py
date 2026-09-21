@@ -195,7 +195,7 @@ def test_underspecified_action(apartment_world_pr2_copy_with_context):
     candidate = plan.root.children[0]
     assert isinstance(candidate.designator, NavigateAction)
     assert plan.root.parse() is not None
-    assert plan.root._action_iterator is None, (
+    assert plan.root._proposals is None, (
         "the action iterator must be released once grounding succeeds, so any resources a "
         "candidate generator only holds to validate against (for example a location's "
         "deep-copied test world) are not retained for the node's whole lifetime"
