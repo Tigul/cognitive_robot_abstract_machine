@@ -1282,7 +1282,7 @@ class Statechart(SubclassJSONSerializer):
             raise StatechartAlreadyCompiledError()
         if node._statechart is not self:
             raise NotInStatechartError(name=node.name)
-        removed_nodes = self._with_descendants(node)
+        removed_nodes = [node, *node.descendants]
         kept_nodes = [kept for kept in self._nodes if kept not in removed_nodes]
         self._check_not_referenced(removed_nodes, kept_nodes)
         parent_node = node.parent_node
@@ -1293,18 +1293,6 @@ class Statechart(SubclassJSONSerializer):
             removed_node._statechart = None
             removed_node.index = None
             removed_node.parent_node_index = None
-
-    def _with_descendants(self, node: StatechartNode) -> List[StatechartNode]:
-        """
-        :return: `node` and every node below it, in index order.
-        """
-        removed_indices = {node.index}
-        result = [node]
-        for candidate in self._nodes[node.index + 1 :]:
-            if candidate.parent_node_index in removed_indices:
-                removed_indices.add(candidate.index)
-                result.append(candidate)
-        return result
 
     @staticmethod
     def _check_not_referenced(
@@ -1412,9 +1400,9 @@ class Statechart(SubclassJSONSerializer):
             dependency = variable.statechart_node
             if dependency is owner:
                 continue
-            if dependency.parent_node_index == owner.parent_node_index:
+            if dependency.parent_node is owner.parent_node:
                 continue
-            if dependency.parent_node_index == owner.index:
+            if dependency.parent_node is owner:
                 continue
             raise ConditionScopeError(
                 condition=condition,
