@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from dataclasses import field, dataclass
 
 from typing_extensions import Optional
@@ -25,12 +27,15 @@ from semantic_digital_twin.collision_checking.collision_matrix import (
     CollisionRule,
     CollisionMatrix,
 )
-from semantic_digital_twin.collision_checking.collision_rules import AvoidSelfCollisions
+from semantic_digital_twin.collision_checking.collision_rules import (
+    AllowCollisionForEndEffector,
+    AvoidSelfCollisions,
+)
 from semantic_digital_twin.collision_checking.collision_variable_managers import (
     SelfCollisionVariableManager,
     ExternalCollisionVariableManager,
 )
-from semantic_digital_twin.robots.robot_parts import AbstractRobot
+from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
 from semantic_digital_twin.spatial_types import (
     Vector3,
     Point3,
@@ -325,6 +330,19 @@ class UpdateTemporaryCollisionRules(MotionStatechartNode):
 
     temporary_rules: list[CollisionRule] = field(kw_only=True)
     collision_matrix: CollisionMatrix = field(init=False)
+
+    @classmethod
+    def for_end_effector(
+        cls, end_effector: EndEffector
+    ) -> UpdateTemporaryCollisionRules:
+        """
+        :param end_effector: The end effector that may touch its surroundings.
+        :return: A node that lets only this end effector, together with whatever it
+            holds, collide with the environment.
+        """
+        return cls(
+            temporary_rules=[AllowCollisionForEndEffector(end_effector=end_effector)]
+        )
 
     def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
         artifacts = MotionNodeArtifacts()

@@ -34,13 +34,13 @@ from coraplex.plans.plan_node import (
     MotionNode,
     PlanNode,
 )
-from coraplex.robot_plans import MoveToolCenterPointMotion
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.pick_up import ReachAction, PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
-from coraplex.robot_plans.motions.misc import DetectingMotion, PerceptionTask
+from coraplex.perception import PerceptionTask
+from ..conftest import motion_goals_of, motion_nodes_of, tool_center_point_goal
 from coraplex.language import (
     ParallelNode,
     SequentialNode,
@@ -79,8 +79,8 @@ def test_parse_simple_action(immutable_model_world):
     assert type(executable) == GiskardExecutable
     assert executable.pre_condition_node
     assert executable.post_condition_node
-    assert len(executable.motion_mappings) == 1
-    assert type(list(executable.motion_mappings.values())[0]) == JointPositionList
+    assert executable.motion_count == 1
+    assert [type(goal) for goal in motion_goals_of(plan)] == [JointPositionList]
 
 
 # %% the chart mirrors the plan tree
@@ -120,7 +120,7 @@ def test_sequential_plan_nests_a_goal_per_plan_node(immutable_model_world):
     assert [type(goal) for goal in action_goals] == [Sequence, Sequence]
     assert [goal.name for goal in action_goals] == ["ActionNode", "ActionNode"]
 
-    tasks = list(executable.motion_mappings.values())
+    tasks = motion_goals_of(plan)
     # Each task is run by the attempt its goal wrapped it in.
     assert [[child.task for child in goal.nodes] for goal in action_goals] == [
         [tasks[0]],
@@ -352,7 +352,7 @@ def test_merge_motions(immutable_model_world, rclpy_node):
     executable = plan.parse()
 
     assert type(executable) == GiskardExecutable
-    assert len(executable.motion_mappings) == 2
+    assert executable.motion_count == 2
     assert executable.pre_condition_node
     assert executable.post_condition_node
 
@@ -414,8 +414,8 @@ def test_parse_pick_up_merges_motions_around_model_change(immutable_model_world)
 
     # The four motions before the attach (open gripper, reach pre-pose, reach pose,
     # close gripper) merge into one executable; the lift after it into another.
-    assert len(executable.execution_list[0].motion_mappings) == 4
-    assert len(executable.execution_list[2].motion_mappings) == 1
+    assert executable.execution_list[0].motion_count == 4
+    assert executable.execution_list[2].motion_count == 1
 
 
 def test_parse_complex_plan(immutable_model_world):
@@ -443,7 +443,7 @@ def test_parse_complex_plan(immutable_model_world):
     plan.notify()
     exec = plan.parse()
     assert type(exec) == GiskardExecutable
-    assert len(exec.motion_mappings) == 3
+    assert exec.motion_count == 3
 
 
 def test_parsing_two_actions_into_one_exec(immutable_model_world):
@@ -472,7 +472,7 @@ def test_parsing_two_actions_into_one_exec(immutable_model_world):
     exec = plan.parse()
 
     assert type(exec) == GiskardExecutable
-    assert len(exec.motion_mappings) == 3
+    assert exec.motion_count == 3
 
 
 def test_parse_pick_place(immutable_model_world):
@@ -560,10 +560,10 @@ def test_execution_boundary_splits_the_merged_motion_chart(immutable_model_world
 
     plan = sequential(
         [
-            MoveToolCenterPointMotion(Pose(reference_frame=world.root), Arms.LEFT),
-            MoveToolCenterPointMotion(Pose(reference_frame=world.root), Arms.RIGHT),
+            tool_center_point_goal(context, Arms.LEFT),
+            tool_center_point_goal(context, Arms.RIGHT),
             BoundaryNode(),
-            MoveToolCenterPointMotion(Pose(reference_frame=world.root), Arms.LEFT),
+            tool_center_point_goal(context, Arms.LEFT),
         ],
         context=context,
     )
@@ -576,8 +576,8 @@ def test_execution_boundary_splits_the_merged_motion_chart(immutable_model_world
         Executable,
         GiskardExecutable,
     ]
-    assert len(executable.execution_list[0].motion_mappings) == 2
-    assert len(executable.execution_list[2].motion_mappings) == 1
+    assert executable.execution_list[0].motion_count == 2
+    assert executable.execution_list[2].motion_count == 1
 
 
 # %% perception inside the merged chart
@@ -606,9 +606,9 @@ def test_detecting_motion_merges_with_the_motions_around_it(immutable_model_worl
 
     plan = sequential(
         [
-            MoveToolCenterPointMotion(Pose(reference_frame=world.root), Arms.LEFT),
-            DetectingMotion(query=query),
-            MoveToolCenterPointMotion(Pose(reference_frame=world.root), Arms.RIGHT),
+            tool_center_point_goal(context, Arms.LEFT),
+            PerceptionTask(query=query, execution_type=None),
+            tool_center_point_goal(context, Arms.RIGHT),
         ],
         context=context,
     )
@@ -616,8 +616,8 @@ def test_detecting_motion_merges_with_the_motions_around_it(immutable_model_worl
     executable = plan.parse()
 
     assert type(executable) == GiskardExecutable
-    assert len(executable.motion_mappings) == 3
-    assert [type(task) for task in executable.motion_mappings.values()] == [
+    assert executable.motion_count == 3
+    assert [type(task) for task in motion_goals_of(plan)] == [
         CartesianPose,
         PerceptionTask,
         CartesianPose,
@@ -639,9 +639,7 @@ def test_detect_action_parses_to_a_single_motion_chart(immutable_model_world):
     executable = plan.parse()
 
     assert type(executable) == GiskardExecutable
-    assert [type(task) for task in executable.motion_mappings.values()] == [
-        PerceptionTask
-    ]
+    assert [type(task) for task in motion_goals_of(plan)] == [PerceptionTask]
     assert executable.pre_condition_node
     assert executable.post_condition_node
 
@@ -792,10 +790,9 @@ def test_pick_up_motions_follow_the_object_moved_after_expansion(immutable_model
     )
     plan.notify()
     targets = [
-        node.designator.target
-        for node in plan.descendants
-        if isinstance(node, MotionNode)
-        and isinstance(node.designator, MoveToolCenterPointMotion)
+        node.goal_pose
+        for node in motion_nodes_of(plan)
+        if isinstance(node, CartesianPose)
     ]
     positions_before = [
         world.transform(target, world.root).to_position().to_np().flatten()[:3]
@@ -825,9 +822,9 @@ def test_split_by_type(immutable_model_world):
     world, view, context = immutable_model_world
 
     split_list = [
-        MoveToolCenterPointMotion(Pose(), Arms.LEFT),
+        tool_center_point_goal(context, Arms.LEFT),
         ReAttachNode(body=world.get_body_by_name("milk.stl"), new_parent=world.root),
-        MoveToolCenterPointMotion(Pose(), Arms.RIGHT),
+        tool_center_point_goal(context, Arms.RIGHT),
     ]
 
     splitted_list = split_list_by_type(split_list, ReAttachNode)
@@ -842,10 +839,11 @@ def test_split_by_type_empty_list():
     assert split_list_by_type([], ReAttachNode) == []
 
 
-def test_split_by_type_without_match_stays_one_group():
+def test_split_by_type_without_match_stays_one_group(immutable_model_world):
+    world, view, context = immutable_model_world
     no_model_change = [
-        MoveToolCenterPointMotion(Pose(), Arms.LEFT),
-        MoveToolCenterPointMotion(Pose(), Arms.RIGHT),
+        tool_center_point_goal(context, Arms.LEFT),
+        tool_center_point_goal(context, Arms.RIGHT),
     ]
 
     splitted_list = split_list_by_type(no_model_change, ReAttachNode)
@@ -861,10 +859,10 @@ def test_split_by_type_groups_consecutive_elements(immutable_model_world):
     )
 
     split_list = [
-        MoveToolCenterPointMotion(Pose(), Arms.LEFT),
-        MoveToolCenterPointMotion(Pose(), Arms.RIGHT),
+        tool_center_point_goal(context, Arms.LEFT),
+        tool_center_point_goal(context, Arms.RIGHT),
         model_change,
-        MoveToolCenterPointMotion(Pose(), Arms.LEFT),
+        tool_center_point_goal(context, Arms.LEFT),
     ]
 
     splitted_list = split_list_by_type(split_list, ReAttachNode)
@@ -885,7 +883,7 @@ def test_split_by_type_leading_and_trailing_match(immutable_model_world):
 
     split_list = [
         first_model_change,
-        MoveToolCenterPointMotion(Pose(), Arms.LEFT),
+        tool_center_point_goal(context, Arms.LEFT),
         last_model_change,
     ]
 
