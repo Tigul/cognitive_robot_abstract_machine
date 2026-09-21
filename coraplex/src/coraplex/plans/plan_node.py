@@ -11,6 +11,7 @@ from typing_extensions import Union
 
 from coraplex.datastructures.enums import NodeDetail
 from coraplex.plans.designator import Designator
+from giskardpy.motion_statechart.goals.templates import NodeListGoal
 from giskardpy.motion_statechart.graph_node import Goal
 from krrood.entity_query_language.query.match import Match
 from giskardpy.motion_statechart.data_types import LifeCycleValues
@@ -569,7 +570,7 @@ class ActionNode(DesignatorNode, BuildsMotionStateChart):
         return self.children[1:-1]
 
     def add_to_motion_state_chart(
-        self, parent_goal: Goal, executable: GiskardExecutable
+        self, parent_goal: NodeListGoal, executable: GiskardExecutable
     ) -> Goal:
         """
         Add this action's body as its own goal below `parent_goal`.
@@ -652,7 +653,7 @@ class MotionNode(DesignatorNode, BuildsMotionStateChart):
         return True
 
     def add_to_motion_state_chart(
-        self, parent_goal: Goal, executable: GiskardExecutable
+        self, parent_goal: NodeListGoal, executable: GiskardExecutable
     ) -> Task:
         """
         Add this motion's giskard task below `parent_goal` and record it on
