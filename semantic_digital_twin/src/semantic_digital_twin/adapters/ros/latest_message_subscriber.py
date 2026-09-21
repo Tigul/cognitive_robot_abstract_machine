@@ -3,28 +3,23 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass, field
 
-from rclpy.node import Node
 from rclpy.subscription import Subscription
 from typing_extensions import Generic, Type, TypeVar
 
 from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
+from semantic_digital_twin.adapters.ros.ros2_node import Ros2Node
 from semantic_digital_twin.exceptions import UnboundMessageTypeError
 
 MessageType = TypeVar("MessageType")
 
 
 @dataclass
-class LatestMessageSubscriber(Generic[MessageType], SubClassSafeGeneric, ABC):
+class LatestMessageSubscriber(Generic[MessageType], SubClassSafeGeneric, Ros2Node, ABC):
     """
     Subscribes to a topic and keeps the most recently received message.
 
     Subclasses name the type of their messages by binding the generic parameter, as in
     ``LatestMessageSubscriber[Odometry]``.
-    """
-
-    node: Node = field(kw_only=True)
-    """
-    The node the messages are received on.
     """
 
     topic_name: str = field(kw_only=True)

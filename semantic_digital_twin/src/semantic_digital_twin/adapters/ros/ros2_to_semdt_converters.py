@@ -9,8 +9,8 @@ from sensor_msgs.msg import LaserScan
 from std_msgs.msg import ColorRGBA
 from visualization_msgs.msg import Marker
 
+from semantic_digital_twin.adapters.ros.exceptions import LaserScanBeamCountMismatch
 from semantic_digital_twin.adapters.ros.msg_converter import (
-    LaserScanBeamCountMismatch,
     Ros2ToSemDTConverter,
     InputType,
     OutputType,

@@ -8,9 +8,11 @@ from importlib.resources import files
 from pathlib import Path
 
 from krrood.utils import get_full_class_name
-from semantic_digital_twin.adapters.ros.msg_converter import (
+from semantic_digital_twin.adapters.ros.exceptions import (
     CannotConvertRos2ToSemDTError,
     CannotConvertSemDTToRos2Error,
+)
+from semantic_digital_twin.adapters.ros.msg_converter import (
     Ros2ToSemDTConverter,
     SemDTToRos2Converter,
 )

@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 from nav_msgs.msg import Odometry
-from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from typing_extensions import Dict, List, Tuple, Union
 
@@ -13,6 +12,7 @@ from semantic_digital_twin.adapters.ros.latest_message_subscriber import (
     MessageType,
 )
 from semantic_digital_twin.adapters.ros.tfwrapper import TFWrapper
+from semantic_digital_twin.adapters.ros.ros2_node import Ros2Node
 from semantic_digital_twin.exceptions import (
     AlreadyTrackedByTfFrameError,
     ConnectionCannotBeTrackedByTfFrameError,
@@ -227,7 +227,7 @@ class OdometrySynchronizer(TopicInputSynchronizer[Odometry]):
 
 
 @dataclass
-class TfFrameSynchronizer(InputSynchronizer):
+class TfFrameSynchronizer(InputSynchronizer, Ros2Node):
     """
     Writes tf transforms into 6 degree of freedom connections.
     """
@@ -237,11 +237,6 @@ class TfFrameSynchronizer(InputSynchronizer):
     )
     """
     Maps each tracked connection to its tf parent and child frame.
-    """
-
-    node: Node = field(kw_only=True)
-    """
-    The node the tf lookups are made with.
     """
 
     tf_wrapper: TFWrapper = field(init=False)

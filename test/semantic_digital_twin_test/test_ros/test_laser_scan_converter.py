@@ -8,10 +8,8 @@ from sensor_msgs.msg import LaserScan
 from typing_extensions import Self
 
 from semantic_digital_twin.adapters.ros.lidar import SubscribedLidarSource
-from semantic_digital_twin.adapters.ros.msg_converter import (
-    LaserScanBeamCountMismatch,
-    Ros2ToSemDTConverter,
-)
+from semantic_digital_twin.adapters.ros.exceptions import LaserScanBeamCountMismatch
+from semantic_digital_twin.adapters.ros.msg_converter import Ros2ToSemDTConverter
 from semantic_digital_twin.adapters.ros.ros2_to_semdt_converters import (
     LaserScanToSemDTConverter,
 )
