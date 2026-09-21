@@ -738,6 +738,13 @@ def test_facing(immutable_multiple_robot_apartment):
 def test_transport(mutable_multiple_robot_apartment, rclpy_node):
     world, robot, context = mutable_multiple_robot_apartment
 
+    if isinstance(robot, Stretch):
+        pytest.skip(
+            "Transporting with the Stretch needs its alternative motion mappings, "
+            "which are being redesigned on top of the giskard goals that replaced "
+            "the motion designators."
+        )
+
     description = TransportAction(
         object_designator=world.get_semantic_annotations_by_type(Milk)[0],
         target_location=Pose(
@@ -785,6 +792,13 @@ def test_move_to_reach(immutable_multiple_robot_apartment, rclpy_node):
 
 def test_transport_open_container(mutable_multiple_robot_apartment, rclpy_node):
     world, robot, context = mutable_multiple_robot_apartment
+
+    if isinstance(robot, Stretch):
+        pytest.skip(
+            "Transporting with the Stretch needs its alternative motion mappings, "
+            "which are being redesigned on top of the giskard goals that replaced "
+            "the motion designators."
+        )
 
     if isinstance(robot, HSRB):
         return

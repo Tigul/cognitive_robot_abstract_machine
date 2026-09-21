@@ -271,13 +271,13 @@ def test_gripper_reaches_the_commanded_state(pr2_world_state_reset):
     goal_state = end_effector.get_joint_state_by_type(GripperState.OPEN)
     goal = MoveGripper(end_effector=end_effector, state=GripperState.OPEN)
 
-    statechart = Statechart()
-    statechart.add_node(goal)
-    statechart.add_node(EndMotion.when_true(goal))
-
     executor = StatechartExecutor(
         context=StatechartContext(world=world), extensions=[MotionControl()]
     )
+    statechart = Statechart(context=executor.context)
+    statechart.add_node(goal)
+    statechart.add_node(EndMotion.when_true(goal))
+
     executor.compile(statechart)
     executor.tick_until_end(timeout=500)
 
