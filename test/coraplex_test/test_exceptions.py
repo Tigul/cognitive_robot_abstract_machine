@@ -2,7 +2,7 @@
 Tests for the failures a plan raises about the motions it ran.
 """
 
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode
+from giskardpy.motion_statechart.graph_node import StatechartNode
 from cramph.statechart import Statechart
 from cramph.nodes_for_testing import ConstFalseNode
 from semantic_digital_twin.world import World
@@ -13,7 +13,7 @@ from cramph.context import StatechartContext
 from cramph.executor import StatechartExecutor
 
 
-def _running_motion() -> MotionStatechartNode:
+def _running_motion() -> StatechartNode:
     """
     :return: A node of a compiled statechart that has been ticked, so it is in a life
         cycle state a failure can report.

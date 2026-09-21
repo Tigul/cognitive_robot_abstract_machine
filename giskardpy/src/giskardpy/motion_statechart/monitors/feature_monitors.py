@@ -5,14 +5,14 @@ from dataclasses import field, dataclass
 import krrood.symbolic_math.symbolic_math as sm
 from cramph.context import StatechartContext
 from cramph.data_types import SuccessDecider
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode
+from giskardpy.motion_statechart.graph_node import StatechartNode
 from cramph.node import NodeArtifacts
 from semantic_digital_twin.spatial_types import Point3, Vector3
 from semantic_digital_twin.world_description.world_entity import Body
 
 
 @dataclass(eq=False, repr=False)
-class FeatureFunctionMonitor(MotionStatechartNode):
+class FeatureFunctionMonitor(StatechartNode):
     """
     Base for monitors that compare a controlled feature (attached to ``tip_link``) with a
     reference feature (attached to ``root_link``) expressed in the root link frame.

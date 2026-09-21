@@ -7,7 +7,7 @@ from cramph.context import StatechartContext
 from cramph.data_types import SuccessDecider
 from giskardpy.motion_statechart.exceptions import EmptyDegreesOfFreedomError
 from giskardpy.motion_statechart.graph_node import (
-    MotionStatechartNode,
+    StatechartNode,
     velocity_convergence_expression,
 )
 from cramph.node import NodeArtifacts
@@ -17,7 +17,7 @@ from semantic_digital_twin.world_description.degree_of_freedom import DegreeOfFr
 
 
 @dataclass(repr=False, eq=False)
-class LocalMinimumReached(MotionStatechartNode):
+class LocalMinimumReached(StatechartNode):
     """
     Checks if the robot has reached a local minimum in the trajectory, by checking if
     all velocities are below a degree of freedoms' max velocity

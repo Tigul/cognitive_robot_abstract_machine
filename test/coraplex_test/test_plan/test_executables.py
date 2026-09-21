@@ -20,7 +20,7 @@ from cramph.composites import Sequence
 from cramph.node import CancelStatechart, CompositeNode
 from giskardpy.motion_statechart.graph_node import (
     EndMotion,
-    MotionStatechartNode,
+    StatechartNode,
     Task,
 )
 from cramph.monitors import ThreadedPredicateMonitor
@@ -102,7 +102,7 @@ def test_motion_state_chart_is_created_once(reach_action_executable):
     )
 
 
-def _nodes_below(goal: CompositeNode) -> List[MotionStatechartNode]:
+def _nodes_below(goal: CompositeNode) -> List[StatechartNode]:
     """
     :return: Every node held by `goal` or by a goal below it.
     """

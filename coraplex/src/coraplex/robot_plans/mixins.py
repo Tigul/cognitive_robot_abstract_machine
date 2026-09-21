@@ -1,11 +1,11 @@
 from dataclasses import dataclass, field
 
 from cramph.composites import Parallel
+from cramph.node import StatechartNode
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     UpdateTemporaryCollisionRules,
 )
 from giskardpy.motion_statechart.goals.gripper import MoveGripper
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPose,
     CartesianPosition,
@@ -321,7 +321,7 @@ class MovesToolCenterPoint:
         movement_type: MovementType = MovementType.CARTESIAN,
         max_linear_velocity: Optional[float] = None,
         max_angular_velocity: Optional[float] = None,
-    ) -> MotionStatechartNode:
+    ) -> StatechartNode:
         """
         :param target: Where the tool center point should end up.
         :param arm: The arm whose tool center point is moved.
@@ -338,7 +338,7 @@ class MovesToolCenterPoint:
         end_effector = ViewManager.get_end_effector_view(arm, self.robot)
         root = self.context.controlled_root
         tip = end_effector.tool_frame
-        accompanying: List[MotionStatechartNode] = self._velocity_limits(
+        accompanying: List[StatechartNode] = self._velocity_limits(
             root, tip, movement_type, max_linear_velocity, max_angular_velocity
         )
         if allow_gripper_collision:
@@ -356,7 +356,7 @@ class MovesToolCenterPoint:
         root: KinematicStructureEntity,
         tip: KinematicStructureEntity,
         movement_type: MovementType,
-    ) -> MotionStatechartNode:
+    ) -> StatechartNode:
         """
         :return: The task that brings `tip` to `target`, commanding its orientation
             unless only a translation was asked for.
@@ -383,12 +383,12 @@ class MovesToolCenterPoint:
         movement_type: MovementType,
         max_linear_velocity: Optional[float],
         max_angular_velocity: Optional[float],
-    ) -> List[MotionStatechartNode]:
+    ) -> List[StatechartNode]:
         """
         :return: The speed caps that were asked for, if any. A turning cap is left out
             when the orientation is not commanded, because there is nothing to cap.
         """
-        limits: List[MotionStatechartNode] = []
+        limits: List[StatechartNode] = []
         if max_linear_velocity is not None:
             limits.append(
                 CartesianPositionVelocityLimit(

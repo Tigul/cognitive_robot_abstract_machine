@@ -15,7 +15,7 @@ from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.datastructures.enums import ExecutionType
 from coraplex.plans.executables import GiskardExecutable
 from cramph.composites import Parallel
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode
+from cramph.node import StatechartNode
 from giskardpy.motion_statechart.monitors.joint_monitors import (
     JointPositionReached,
 )
@@ -49,7 +49,7 @@ class DrivesBase(ActionDescription, ABC):
     Base class for the actions that move the robot's base to a pose.
     """
 
-    def _drive_to(self, target: Pose) -> MotionStatechartNode:
+    def _drive_to(self, target: Pose) -> StatechartNode:
         """
         :param target: Where the base should end up.
         :return: The node that puts the base there. A simulated run writes the odometry

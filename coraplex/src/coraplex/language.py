@@ -26,7 +26,7 @@ from cramph.composites import (
 )
 from giskardpy.motion_statechart.goals.templates import RepeatOnStall
 from cramph.node import CompositeNode
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode
+from giskardpy.motion_statechart.graph_node import StatechartNode
 from cramph.monitors import CountNodeResets
 from cramph.composites import (
     MonitoredCompositeNode,
@@ -195,7 +195,7 @@ class RepeatNode(ExecutesSequentially):
     instance ``partial(RepeatOnStall, timeout=timedelta(seconds=1))``.
     """
 
-    failure_monitor: Optional[MotionStatechartNode] = field(default=None, kw_only=True)
+    failure_monitor: Optional[StatechartNode] = field(default=None, kw_only=True)
     """
     Node whose True observation means an attempt failed.
 
@@ -307,7 +307,7 @@ class MonitorNode(LanguageNode, ABC):
     on them while they are running.
     """
 
-    monitor: MotionStatechartNode = field(kw_only=True)
+    monitor: StatechartNode = field(kw_only=True)
     """
     The node whose observation controls this node's children.
     """

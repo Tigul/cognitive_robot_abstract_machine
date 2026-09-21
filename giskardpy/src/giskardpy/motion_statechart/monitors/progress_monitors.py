@@ -13,14 +13,14 @@ from cramph.data_types import SuccessDecider, LifeCycleValues, ObservationStateV
 from giskardpy.motion_statechart.exceptions import NoProgressError
 from giskardpy.motion_statechart.error_signals import ErrorSignal
 from cramph.node import CancelStatechart, CompositeNode, NodeArtifacts
-from giskardpy.motion_statechart.graph_node import ConvergingTask, MotionStatechartNode
+from giskardpy.motion_statechart.graph_node import ConvergingTask, StatechartNode
 from cramph.monitors import CountSimulationTimeSeconds
 
 # %% watching a single task
 
 
 @dataclass(eq=False, repr=False)
-class NotApproachingGoal(MotionStatechartNode):
+class NotApproachingGoal(StatechartNode):
     """
     Turns ``True`` while :attr:`monitored_task` is not closing on its goal fast enough.
 
@@ -65,7 +65,7 @@ class NotApproachingGoal(MotionStatechartNode):
     """
 
     @property
-    def prerequisite_nodes(self) -> List[MotionStatechartNode]:
+    def prerequisite_nodes(self) -> List[StatechartNode]:
         return [self.monitored_task]
 
     def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
@@ -151,7 +151,7 @@ class NotApproachingGoal(MotionStatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class AnyMonitoredTaskRunning(MotionStatechartNode):
+class AnyMonitoredTaskRunning(StatechartNode):
     """
     Turns ``True`` while at least one of :attr:`monitored_tasks` is running.
 
@@ -206,7 +206,7 @@ class StillProgressing(CompositeNode):
 
     success_decided_by = SuccessDecider.OWNER
 
-    monitored_node: MotionStatechartNode = field(kw_only=True)
+    monitored_node: StatechartNode = field(kw_only=True)
     """
     The task or goal whose progress is watched.
     """
@@ -223,7 +223,7 @@ class StillProgressing(CompositeNode):
     """
 
     @property
-    def prerequisite_nodes(self) -> List[MotionStatechartNode]:
+    def prerequisite_nodes(self) -> List[StatechartNode]:
         return [self.monitored_node]
 
     @property
@@ -289,7 +289,7 @@ class StillProgressing(CompositeNode):
 
     def _expand_stall_detection(
         self, monitored_tasks: List[ConvergingTask]
-    ) -> List[MotionStatechartNode]:
+    ) -> List[StatechartNode]:
         """
         Adds one monitor per converging task, next to one observing whether any of them
         runs.
@@ -332,7 +332,7 @@ class StillProgressing(CompositeNode):
         return NodeArtifacts(observation=sm.logic_not(self._timer.observes_true))
 
     def _find_converging_tasks(
-        self, node: MotionStatechartNode
+        self, node: StatechartNode
     ) -> List[ConvergingTask]:
         """
         Collect every converging task at or below ``node``.

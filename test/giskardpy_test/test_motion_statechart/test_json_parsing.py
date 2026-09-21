@@ -10,7 +10,7 @@ from cramph.composites import Sequence
 from cramph.node import CancelStatechart
 from giskardpy.motion_statechart.graph_node import (
     EndMotion,
-    MotionStatechartNode,
+    StatechartNode,
     Task,
 )
 from giskardpy.motion_statechart.monitors.joint_monitors import JointPositionReached
@@ -309,7 +309,7 @@ def test_structure_copy_of_a_plain_statechart_keeps_the_motion_node_kinds(mini_w
 
     assert type(statechart_copy.get_node_by_index(task.index)) is Task
     assert type(statechart_copy.get_node_by_index(monitor.index)) is (
-        MotionStatechartNode
+        StatechartNode
     )
     assert type(statechart_copy.get_node_by_index(end.index)) is EndMotion
 

@@ -12,7 +12,7 @@ from giskardpy.motion_statechart.binding_policy import (
 )
 from cramph.context import StatechartContext
 from cramph.data_types import SuccessDecider
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode
+from giskardpy.motion_statechart.graph_node import StatechartNode
 from cramph.node import NodeArtifacts
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import (
@@ -26,7 +26,7 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 
 @dataclass(eq=False, repr=False)
-class RootRelativeGoalMonitor(MotionStatechartNode, ABC):
+class RootRelativeGoalMonitor(StatechartNode, ABC):
     """
     Base for monitors whose goal is captured relative to the kinematic chain via a forward
     kinematics binding. The :class:`GoalBindingPolicy` decides whether the goal is frozen once at
@@ -170,7 +170,7 @@ class OrientationReached(RootRelativeGoalMonitor):
 
 
 @dataclass(eq=False, repr=False)
-class PointingAt(MotionStatechartNode):
+class PointingAt(StatechartNode):
     """
     Observes ``True`` once the pointing axis of the tip link is aimed at the goal point within
     ``threshold``.
@@ -211,7 +211,7 @@ class PointingAt(MotionStatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class VectorsAligned(MotionStatechartNode):
+class VectorsAligned(StatechartNode):
     """
     Observes ``True`` once the tip normal is aligned with the goal normal within ``threshold``.
     """
@@ -249,7 +249,7 @@ class VectorsAligned(MotionStatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class DistanceToLine(MotionStatechartNode):
+class DistanceToLine(StatechartNode):
     """
     Observes ``True`` once the tip link is within ``threshold`` of the line segment centered at
     ``center_point`` along ``line_axis``.

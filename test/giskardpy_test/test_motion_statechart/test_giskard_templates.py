@@ -18,7 +18,7 @@ from cramph.exceptions import (
     CompositeNodeWithoutChildrenError,
 )
 from cramph.composites import Attempt, Sequence, TryAll, TryInOrder
-from giskardpy.motion_statechart.graph_node import MotionStatechartNode
+from giskardpy.motion_statechart.graph_node import StatechartNode
 from cramph.statechart import Statechart
 from cramph.monitors import CountTicks, Pulse
 from giskardpy.motion_statechart.monitors.progress_monitors import Stalled
@@ -44,7 +44,7 @@ GIVE_UP_AFTER = timedelta(seconds=0.2)
 
 
 def _compile_and_tick(
-    goal: MotionStatechartNode,
+    goal: StatechartNode,
     ticks: int = SETTLE_TICKS,
     alternatives_to_abandon: int = 0,
 ) -> StatechartExecutor:
@@ -73,7 +73,7 @@ def _compile_and_tick(
     return executor
 
 
-def _alternative(node: MotionStatechartNode) -> Attempt:
+def _alternative(node: StatechartNode) -> Attempt:
     """
     Wrap a node the way a caller of the try-templates has to: an attempt that reaches a
     outcome on its own, giving up once the node stops making progress.
@@ -95,7 +95,7 @@ def _alternative(node: MotionStatechartNode) -> Attempt:
 
 
 def _ticks_until_observed_true(
-    goal: MotionStatechartNode, node: MotionStatechartNode, max_ticks: int
+    goal: StatechartNode, node: StatechartNode, max_ticks: int
 ) -> int:
     """
     Compile `goal` and tick until `node` observes True.
