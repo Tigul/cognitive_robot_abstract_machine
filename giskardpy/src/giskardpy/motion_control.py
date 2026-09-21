@@ -10,7 +10,7 @@ from giskardpy.motion_statechart.context import MotionControlContext
 from giskardpy.motion_statechart.exceptions import WorldStateArrayReplacedError
 from giskardpy.motion_statechart.graph_node import (
     DebugExpression,
-    StatechartNode,
+    MotionStatechartNode,
 )
 from giskardpy.motion_statechart.plotters.debug_expression_trajectory_plotter import (
     DebugExpressionTrajectoryPlotter,
@@ -166,7 +166,7 @@ class MotionControl(ExecutorExtension):
             :attr:`~cramph.node.StatechartNode.unique_name`.
         """
         combined_constraint_collection = ConstraintCollection()
-        for node in executor.statechart.get_nodes_by_type(StatechartNode):
+        for node in executor.statechart.get_nodes_by_type(MotionStatechartNode):
             combined_constraint_collection.merge(
                 name_prefix=node.unique_name, other=node.constraint_collection
             )

@@ -7,7 +7,7 @@ from typing_extensions import List, assert_never, Optional, TYPE_CHECKING, TypeV
 from coraplex.datastructures.dataclasses import Context
 from coraplex.plans.plan import Plan
 from cramph.node import StatechartNode
-from giskardpy.motion_statechart.graph_node import StatechartNode
+from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from krrood.entity_query_language.query.match import Match
 
 if TYPE_CHECKING:
@@ -116,7 +116,7 @@ def try_all(
 
 def pause_while(
     children: List[ActionLike],
-    monitor: StatechartNode,
+    monitor: MotionStatechartNode,
     context: Optional[Context] = None,
 ) -> PauseMonitor:
     """
@@ -136,7 +136,7 @@ def pause_while(
 
 def pause_until(
     children: List[ActionLike],
-    monitor: StatechartNode,
+    monitor: MotionStatechartNode,
     context: Optional[Context] = None,
 ) -> PauseUntilMonitor:
     """
@@ -156,7 +156,7 @@ def pause_until(
 
 def cancel_when(
     children: List[ActionLike],
-    monitor: StatechartNode,
+    monitor: MotionStatechartNode,
     context: Optional[Context] = None,
 ) -> CancelMonitor:
     """

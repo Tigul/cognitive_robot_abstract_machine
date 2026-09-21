@@ -7,12 +7,12 @@ from semantic_digital_twin.world_description.connections import (
 )
 from cramph.context import StatechartContext
 from cramph.data_types import SuccessDecider
-from giskardpy.motion_statechart.graph_node import StatechartNode
+from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from cramph.node import NodeArtifacts
 
 
 @dataclass(eq=False, repr=False)
-class JointPositionReached(StatechartNode):
+class JointPositionReached(MotionStatechartNode):
     """
     Monitors if a joint position is reached within a certain threshold.
     """

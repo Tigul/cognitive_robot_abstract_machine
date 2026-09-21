@@ -4,7 +4,7 @@ from abc import ABC
 from dataclasses import dataclass
 from typing_extensions import TYPE_CHECKING, Type, List
 
-from giskardpy.motion_statechart.graph_node import StatechartNode
+from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from krrood.entity_query_language.factories import ConditionType, get_false_statements
 from krrood.exceptions import DataclassException
 from coraplex.datastructures.enums import Arms, ExecutionType
@@ -166,7 +166,7 @@ class ConditionNotSatisfied(PlanFailure):
 @dataclass
 class MotionDidNotFinish(PlanFailure):
 
-    unfinished_motions: List[StatechartNode]
+    unfinished_motions: List[MotionStatechartNode]
     """
     The nodes that did not succeed, whether they failed, were interrupted or never
     ended.

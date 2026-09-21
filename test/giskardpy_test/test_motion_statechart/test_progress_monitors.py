@@ -18,7 +18,7 @@ from cramph.exceptions import CyclicNodeDependencyError, PrerequisiteNotExpanded
 from giskardpy.motion_statechart.exceptions import NoProgressError
 from giskardpy.motion_statechart.goals.cartesian_goals import DifferentialDriveBaseGoal
 from cramph.composites import Sequence
-from giskardpy.motion_statechart.graph_node import EndMotion, StatechartNode
+from giskardpy.motion_statechart.graph_node import EndMotion, MotionStatechartNode
 from cramph.node import NodeArtifacts
 from cramph.monitors import CountSimulationTimeSeconds
 from giskardpy.motion_statechart.monitors.progress_monitors import (
@@ -73,9 +73,9 @@ def unreachable_arm_goal(world: World) -> CartesianPosition:
 def tick_until_end_recording(
     executor: StatechartExecutor,
     motion_statechart: Statechart,
-    nodes: List[StatechartNode],
+    nodes: List[MotionStatechartNode],
     maximum_cycles: int = 2000,
-) -> dict[StatechartNode, list[float]]:
+) -> dict[MotionStatechartNode, list[float]]:
     """
     Tick until the motion ends, recording the observation state of `nodes` each cycle.
 
@@ -96,7 +96,7 @@ def tick_until_end_recording(
 
 
 @dataclass(eq=False, repr=False)
-class NodeWithDeclaredDependencies(StatechartNode):
+class NodeWithDeclaredDependencies(MotionStatechartNode):
     """
     Node that declares whichever build dependencies a test needs, so dependency ordering
     and cycle detection can be exercised without a real task.
@@ -104,7 +104,7 @@ class NodeWithDeclaredDependencies(StatechartNode):
 
     success_decided_by = SuccessDecider.OWNER
 
-    dependencies: List[StatechartNode] = field(default_factory=list, kw_only=True)
+    dependencies: List[MotionStatechartNode] = field(default_factory=list, kw_only=True)
     """
     The nodes this node claims to depend on.
     """
@@ -115,7 +115,7 @@ class NodeWithDeclaredDependencies(StatechartNode):
     """
 
     @property
-    def prerequisite_nodes(self) -> List[StatechartNode]:
+    def prerequisite_nodes(self) -> List[MotionStatechartNode]:
         return self.dependencies
 
     def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:

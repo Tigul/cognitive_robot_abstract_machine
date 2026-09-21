@@ -95,7 +95,7 @@ class DebugExpression:
         """
         return [
             debug_expression
-            for node in statechart.get_nodes_by_type(StatechartNode)
+            for node in statechart.get_nodes_by_type(MotionStatechartNode)
             for debug_expression in node.debug_expressions
         ]
 
@@ -149,14 +149,14 @@ class MotionNodeArtifacts(NodeArtifacts):
 
 
 @dataclass(repr=False, eq=False)
-class StatechartNode(StatechartNode):
+class MotionStatechartNode(StatechartNode):
     """
     A node of a motion statechart, which may contribute constraints, an error signal and
     debug expressions to motion control.
     """
 
-    def create_structure_copy(self) -> StatechartNode:
-        return StatechartNode(name=self.name)
+    def create_structure_copy(self) -> MotionStatechartNode:
+        return MotionStatechartNode(name=self.name)
 
     @property
     def artifacts(self) -> MotionNodeArtifacts:
@@ -270,7 +270,7 @@ def velocity_convergence_expression(
 
 
 @dataclass(eq=False, repr=False)
-class Task(StatechartNode):
+class Task(MotionStatechartNode):
     """
     Tasks are MotionStatechartNodes that add motion constraints.
 

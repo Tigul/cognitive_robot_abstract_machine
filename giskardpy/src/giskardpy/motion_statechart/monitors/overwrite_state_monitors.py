@@ -12,13 +12,13 @@ from semantic_digital_twin.world_description.world_entity import Connection
 from cramph.context import StatechartContext
 from giskardpy.motion_statechart.exceptions import UnexpectedWorldEntityCountError
 from cramph.data_types import SuccessDecider
-from giskardpy.motion_statechart.graph_node import StatechartNode
+from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from cramph.node import NodeArtifacts
 from giskardpy.motion_statechart.tasks.joint_tasks import JointState
 
 
 @dataclass(eq=False, repr=False)
-class SetSeedConfiguration(StatechartNode):
+class SetSeedConfiguration(MotionStatechartNode):
     """
     Overwrite the configuration of the world to allow starting the planning from a
     different state.
@@ -45,7 +45,7 @@ class SetSeedConfiguration(StatechartNode):
 
 
 @dataclass(eq=False, repr=False)
-class SetOdometry(StatechartNode):
+class SetOdometry(MotionStatechartNode):
     """
     Sets the odometry of the robot to the given pose.
     """

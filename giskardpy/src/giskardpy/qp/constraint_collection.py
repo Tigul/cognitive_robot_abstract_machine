@@ -26,7 +26,7 @@ from giskardpy.qp.enforcement_strategy import (
 )
 
 if TYPE_CHECKING:
-    from giskardpy.motion_statechart.graph_node import StatechartNode
+    from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 
 
 @dataclass
@@ -127,7 +127,7 @@ class ConstraintCollection:
             v.name for c in self._constraints for v in c.expression.free_variables()
         }
 
-    def link_to_motion_statechart_node(self, node: StatechartNode) -> None:
+    def link_to_motion_statechart_node(self, node: MotionStatechartNode) -> None:
         """
         Scales every constraint weight so it is only active while the given node is
         running.

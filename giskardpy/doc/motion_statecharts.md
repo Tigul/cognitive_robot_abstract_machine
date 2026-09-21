@@ -28,7 +28,7 @@ the statechart once per control cycle, before the QP controller computes the nex
   threshold. Only running tasks influence the motion.
 - **Monitor**: A node that observes a condition of the world without adding constraints to the
   motion, for example `PoseReached`, `JointPositionReached` or `Stalled`. A monitor is a plain
-  `StatechartNode`.
+  `MotionStatechartNode`.
 - **Goal**: A composite node that combines tasks and monitors into a reusable motion, for
   example a Cartesian goal or opening a door.
 - **EndMotion**: An `EndStatechart` that additionally waits for the robot to come to rest (see

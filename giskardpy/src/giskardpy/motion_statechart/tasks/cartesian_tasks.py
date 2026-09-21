@@ -26,7 +26,7 @@ from giskardpy.motion_statechart.error_signals import (
 )
 from giskardpy.motion_statechart.graph_node import (
     MotionNodeArtifacts,
-    StatechartNode,
+    MotionStatechartNode,
     DebugExpression,
 )
 from giskardpy.motion_statechart.graph_node import Task, ConvergingTask
@@ -713,7 +713,7 @@ class CartesianPose(CompositeNode):
             self.fail_condition, self.parallel.is_failed_or_interrupted
         )
 
-    def _create_tasks(self) -> List[StatechartNode]:
+    def _create_tasks(self) -> List[MotionStatechartNode]:
         """
         :return: The position and the orientation task.
         """

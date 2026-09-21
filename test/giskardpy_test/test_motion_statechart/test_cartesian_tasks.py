@@ -13,7 +13,7 @@ from giskardpy.motion_statechart.goals.cartesian_goals import (
     CartesianPoseStraight,
 )
 from cramph.composites import Sequence, Parallel
-from giskardpy.motion_statechart.graph_node import EndMotion, StatechartNode
+from giskardpy.motion_statechart.graph_node import EndMotion, MotionStatechartNode
 from cramph.node import CancelStatechart
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import (
     SetSeedConfiguration,
@@ -113,7 +113,7 @@ class StraightLine:
 
 def record_tip_path(
     executor: StatechartExecutor,
-    task: StatechartNode,
+    task: MotionStatechartNode,
     root_link: KinematicStructureEntity,
     tip_link: KinematicStructureEntity,
     maximum_ticks: int = 2000,
