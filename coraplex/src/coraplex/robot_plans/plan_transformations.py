@@ -53,11 +53,14 @@ class DetectBeforeGrasp(InsertionTransformation[ReachAction]):
     def final_approach(self, plan_node: ActionNode) -> MotionNode:
         """
         :param plan_node: The node of the reach
-        :return: The reach's last motion, which brings the tool center point onto the
-            object.
+        :return: The reach's last tool center point motion, which brings the gripper
+            onto the object.
         """
         motions = [
-            node for node in plan_node.descendants if isinstance(node, MotionNode) and isinstance(node.motion, MoveToolCenterPointMotion) and node.motion.target == plan_node.designator.target_pose
+            node
+            for node in plan_node.descendants
+            if isinstance(node, MotionNode)
+            and isinstance(node.motion, MoveToolCenterPointMotion)
         ]
         return motions[-1]
 

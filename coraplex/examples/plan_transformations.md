@@ -210,19 +210,17 @@ show(milk_pick_up)
 
 ## Writing a Transformation
 
-A transformation is one matching part, which says which nodes it applies to, and one rewriting part,
-which says how their plan changes. A class that brings the two together is a transformation; either
-part on its own is not.
+A transformation says which nodes it applies to and how their plan changes. Which nodes it applies
+to is the type it is bound to: `PlanTransformation[NavigateAction]` matches the node of every
+navigation, since a navigation is a designator, and a node type in that place matches every node of
+that type instead. `matches_node` does that selection, and `is_applicable` says whether the case a
+matched node describes needs the transformation at all, so one that is always worth applying
+answers `True`.
 
-The matching part comes from a `PlanMatch` and the type it is bound to. `ActionMatch[NavigateAction]`
-matches the node of every navigation; `PlanMatch[SomeNode]` matches every node of that type. It
-answers two questions: `matches_node` says which nodes the transformation rewrites, and
-`is_applicable` says whether the case a matched node describes needs it at all.
-
-The rewriting part comes from a `PlanRewrite`. `InsertionRewrite` inserts nodes and asks for the
-`position` they are placed at, the `anchor` they are placed next to, and the `nodes_to_insert`,
-which are built anew on every application, since a node belongs to the one plan it was inserted
-into.
+How the plan changes is what the subclass brings. `InsertionTransformation` inserts nodes and asks
+for the `position` they are placed at, the `anchor` they are placed next to, and the
+`nodes_to_insert`, which are built anew on every application, since a node belongs to the one plan
+it was inserted into.
 
 ```python
 from dataclasses import dataclass
@@ -231,13 +229,13 @@ from typing_extensions import List
 
 from coraplex.datastructures.enums import InsertionPosition
 from coraplex.plans.plan_node import ActionLike, ActionNode, MotionNode, PlanNode
-from coraplex.plans.plan_transformation import ActionMatch, InsertionRewrite
+from coraplex.plans.plan_transformation import InsertionTransformation
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 
 
 @dataclass
-class ParkArmsBeforeNavigating(InsertionRewrite, ActionMatch[NavigateAction]):
+class ParkArmsBeforeNavigating(InsertionTransformation[NavigateAction]):
     """
     Parks the arms before the robot drives off, so it does not carry them into the
     furniture it passes.
@@ -246,6 +244,9 @@ class ParkArmsBeforeNavigating(InsertionRewrite, ActionMatch[NavigateAction]):
     @property
     def position(self) -> InsertionPosition:
         return InsertionPosition.BEFORE
+
+    def is_applicable(self, plan_node: PlanNode) -> bool:
+        return True
 
     def anchor(self, plan_node: ActionNode) -> PlanNode:
         [drive] = [
@@ -308,9 +309,9 @@ navigate.notify()
 show(navigate)
 ```
 
-A transformation that is not needed in every case overrides `is_applicable`, which is asked about
-the nodes the matching part selected. Here the arms are only parked before drives that actually
-take the robot somewhere:
+A transformation that is not needed in every case answers `is_applicable` with the question its
+case asks, and is only asked about the nodes it matches. Here the arms are only parked before
+drives that actually take the robot somewhere:
 
 ```python
 @dataclass
