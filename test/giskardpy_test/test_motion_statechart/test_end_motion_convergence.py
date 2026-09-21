@@ -13,7 +13,11 @@ from cramph.executor import StatechartExecutor
 def test_end_motion_abruptness(cylinder_bot_world: World):
     tip = cylinder_bot_world.get_kinematic_structure_entity_by_name("bot")
 
-    motion_statechart = Statechart()
+    executor = StatechartExecutor(
+        context=StatechartContext(world=cylinder_bot_world),
+        extensions=[MotionControl()],
+    )
+    motion_statechart = Statechart(context=executor.context)
     goal = CartesianPose(
         root_link=cylinder_bot_world.root,
         tip_link=tip,
@@ -24,10 +28,6 @@ def test_end_motion_abruptness(cylinder_bot_world: World):
     end = EndMotion.when_true(goal)
     motion_statechart.add_node(end)
 
-    executor = StatechartExecutor(
-        context=StatechartContext(world=cylinder_bot_world),
-        extensions=[MotionControl()],
-    )
     executor.compile(statechart=motion_statechart)
 
     # We want to check the velocity in the last tick BEFORE cleanup

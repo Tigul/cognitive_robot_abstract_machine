@@ -87,9 +87,16 @@ class GiskardExecutable(Executable):
     The goal below which every motion of this executable lives.
     """
 
-    motion_state_chart: Statechart = field(default_factory=Statechart, kw_only=True)
+    executor: StatechartExecutor = field(kw_only=True)
     """
-    Giskard's motion state chart for this executable.
+    The executor that runs :attr:`motion_state_chart` in simulation, in whose context
+    the chart is built.
+    """
+
+    motion_state_chart: Statechart = field(kw_only=True)
+    """
+    Giskard's motion state chart for this executable, built in the context of
+    :attr:`executor`.
 
     It is created once and only ever extended, because a compiled chart can no longer
     grow: :meth:`~cramph.statechart.Statechart.compile`
@@ -135,6 +142,24 @@ class GiskardExecutable(Executable):
     :class:`~giskardpy.motion_statechart.goals.collision_avoidance.SelfCollisionAvoidance`
     to the motion state chart.
     """
+
+    @staticmethod
+    def create_executor(context: Context) -> StatechartExecutor:
+        """
+        :param context: The plan context whose world and ROS node the executor uses.
+        :return: An executor that runs a motion state chart in simulation.
+        """
+        return StatechartExecutor(
+            context=StatechartContext(world=context.world),
+            extensions=[
+                RosNodeAccess(context.ros_node),
+                MotionControl(
+                    qp_controller_config=QPControllerConfig(
+                        target_frequency=50, prediction_horizon=4, verbose=False
+                    )
+                ),
+            ],
+        )
 
     @property
     def giskard_executables(self) -> List[GiskardExecutable]:
@@ -242,17 +267,7 @@ class GiskardExecutable(Executable):
         Compiles the motion state chart and ticks it in the world of the context until
         it is done.
         """
-        executor = StatechartExecutor(
-            context=StatechartContext(world=self.context.world),
-            extensions=[
-                RosNodeAccess(self.context.ros_node),
-                MotionControl(
-                    qp_controller_config=QPControllerConfig(
-                        target_frequency=50, prediction_horizon=4, verbose=False
-                    )
-                ),
-            ],
-        )
+        executor = self.executor
         motion_state_chart = self.motion_state_chart
         executor.compile(motion_state_chart)
 
@@ -264,7 +279,7 @@ class GiskardExecutable(Executable):
                 break
 
         MotionControl.set_velocity_acceleration_jerk_to_zero(executor.context.world)
-        executor.statechart.cleanup_nodes(context=executor.context)
+        executor.statechart.cleanup_nodes()
         executor.context.cleanup()
 
         if not executor.statechart.is_ended():

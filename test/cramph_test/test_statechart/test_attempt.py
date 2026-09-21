@@ -40,9 +40,9 @@ def _compile(
     :param node: The template under test.
     :return: The chart, so a caller can read its recorded history, and the executor.
     """
-    statechart = Statechart()
-    statechart.add_node(node)
     executor = StatechartExecutor(StatechartContext(world=World()))
+    statechart = Statechart(context=executor.context)
+    statechart.add_node(node)
     executor.compile(statechart=statechart)
     return statechart, executor
 

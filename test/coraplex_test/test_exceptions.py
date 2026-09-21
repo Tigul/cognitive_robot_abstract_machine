@@ -19,11 +19,11 @@ def _running_motion() -> MotionStatechartNode:
         cycle state a failure can report.
     """
     motion = ConstFalseNode(name="motion")
-    motion_statechart = Statechart()
-    motion_statechart.add_node(motion)
     executor = StatechartExecutor(
         context=StatechartContext(world=World()), extensions=[MotionControl()]
     )
+    motion_statechart = Statechart(context=executor.context)
+    motion_statechart.add_node(motion)
     executor.compile(statechart=motion_statechart)
     executor.tick()
     return motion

@@ -39,12 +39,11 @@ def test_long_sequence_scale(node_count: int):
     Builds a single long Sequence of cheap ConstTrueNode instances, where exactly one
     node is RUNNING at any time, and measures compile/tick time as the graph grows.
     """
-    msc = Statechart()
+    executor = StatechartExecutor(StatechartContext(world=World()))
+    msc = Statechart(context=executor.context)
     sequence = Sequence(nodes=[ConstTrueNode() for _ in range(node_count)])
     msc.add_node(sequence)
     msc.add_node(EndStatechart.when_true(sequence))
-
-    executor = StatechartExecutor(StatechartContext(world=World()))
 
     t0 = time.perf_counter()
     executor.compile(statechart=msc)
@@ -74,7 +73,8 @@ def test_many_alternative_branches_scale(branch_length: int):
     Measures compile/tick time as the total, mostly dormant, graph grows.
     """
     branch_count = 10
-    msc = Statechart()
+    executor = StatechartExecutor(StatechartContext(world=World()))
+    msc = Statechart(context=executor.context)
 
     gate = ConstFalseNode()
     msc.add_node(gate)
@@ -87,7 +87,6 @@ def test_many_alternative_branches_scale(branch_length: int):
 
     msc.add_node(EndStatechart.when_true(active_branch[-1]))
 
-    executor = StatechartExecutor(StatechartContext(world=World()))
     total_nodes = branch_count * branch_length + 2  # + gate + EndStatechart
 
     t0 = time.perf_counter()

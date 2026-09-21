@@ -65,7 +65,12 @@ from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPosition
 from semantic_digital_twin.spatial_types import Point3
 
-msc_pcc = Statechart()
+executor_pcc = StatechartExecutor(
+    context=StatechartContext(world=world_pcc),
+    pacer=SimulationPacer(real_time_factor=1),
+    extensions=[MotionControl()],
+)
+msc_pcc = Statechart(context=executor_pcc.context)
 msc_pcc.add_node(
     goal_pcc := Sequence(
         [
@@ -90,11 +95,6 @@ msc_pcc.add_node(
 msc_pcc.add_node(EndMotion.when_true(goal_pcc))
 
 # Execute the motion statechart
-executor_pcc = StatechartExecutor(
-    context=StatechartContext(world=world_pcc),
-    pacer=SimulationPacer(real_time_factor=1),
-    extensions=[MotionControl()],
-)
 executor_pcc.compile(msc_pcc)
 executor_pcc.tick_until_end()
 ```
@@ -122,7 +122,12 @@ print("Cosserat Robot Ready. Set fixed frame to 'cosserat/base' in RViz.")
 We run the same Giskardpy sequence on the Cosserat model. We include a distal target to trigger stretching.
 
 ```{code-cell} ipython3
-msc_cos = Statechart()
+executor_cos = StatechartExecutor(
+    context=StatechartContext(world=world_cosserat),
+    pacer=SimulationPacer(real_time_factor=1),
+    extensions=[MotionControl()],
+)
+msc_cos = Statechart(context=executor_cos.context)
 msc_cos.add_node(
     goal_cos := Sequence(
         [
@@ -147,11 +152,6 @@ msc_cos.add_node(
 )
 msc_cos.add_node(EndMotion.when_true(goal_cos))
 
-executor_cos = StatechartExecutor(
-    context=StatechartContext(world=world_cosserat),
-    pacer=SimulationPacer(real_time_factor=1),
-    extensions=[MotionControl()],
-)
 executor_cos.compile(msc_cos)
 executor_cos.tick_until_end()
 ```

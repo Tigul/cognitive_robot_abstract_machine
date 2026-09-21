@@ -44,7 +44,11 @@ def test_wiggle_insert_reaches_hole(pr2_world_state_reset: World, rclpy_node):
     root = pr2_world_state_reset.get_kinematic_structure_entity_by_name("odom_combined")
     hole_point = _hole_at_current_tip(pr2_world_state_reset, tip, root)
 
-    msc = Statechart()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
+    msc = Statechart(context=kin_sim.context)
     wiggle = WiggleInsert(
         root_link=root,
         tip_link=tip,
@@ -58,10 +62,6 @@ def test_wiggle_insert_reaches_hole(pr2_world_state_reset: World, rclpy_node):
     msc.add_node(wiggle)
     msc.add_node(EndMotion.when_true(wiggle))
 
-    kin_sim = StatechartExecutor(
-        context=StatechartContext(world=pr2_world_state_reset),
-        extensions=[MotionControl()],
-    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 
@@ -114,7 +114,12 @@ def test_wiggle_insert_on_tick_updates_noise(pr2_world_state_reset: World):
     root = pr2_world_state_reset.get_kinematic_structure_entity_by_name("odom_combined")
     hole_point = _hole_at_current_tip(pr2_world_state_reset, tip, root)
 
-    msc = Statechart()
+    motion_control = MotionControl()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[motion_control],
+    )
+    msc = Statechart(context=kin_sim.context)
     wiggle = WiggleInsert(
         root_link=root,
         tip_link=tip,
@@ -127,11 +132,6 @@ def test_wiggle_insert_on_tick_updates_noise(pr2_world_state_reset: World):
     msc.add_node(wiggle)
     msc.add_node(EndMotion.when_true(wiggle))
 
-    motion_control = MotionControl()
-    kin_sim = StatechartExecutor(
-        context=StatechartContext(world=pr2_world_state_reset),
-        extensions=[motion_control],
-    )
     kin_sim.compile(statechart=msc)
 
     kin_sim.tick()
@@ -159,7 +159,12 @@ def test_wiggle_insert(hsr_world_state_reset):
 
     hole_point = Point3(x=0.5, z=0.3, reference_frame=root_link)
 
-    msc = Statechart()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=hsr_world_state_reset),
+        pacer=SimulationPacer(real_time_factor=1),
+        extensions=[MotionControl()],
+    )
+    msc = Statechart(context=kin_sim.context)
     msc.add_node(
         motion := Sequence(
             [
@@ -198,11 +203,6 @@ def test_wiggle_insert(hsr_world_state_reset):
     barrier.success_condition = barrier.observes_true
     msc.add_node(EndMotion.when_true(motion))
 
-    kin_sim = StatechartExecutor(
-        context=StatechartContext(world=hsr_world_state_reset),
-        pacer=SimulationPacer(real_time_factor=1),
-        extensions=[MotionControl()],
-    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
 

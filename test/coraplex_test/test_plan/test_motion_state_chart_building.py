@@ -24,7 +24,7 @@ from coraplex.plans.plan_node import (
     PlanNode,
 )
 from coraplex.plans.underspecified import UnderspecifiedNode
-from cramph.composites import NodeListCompositeNode, Sequence
+from cramph.composites import CramLanguageNode, Sequence
 from cramph.node import CompositeNode
 
 # %% a chart builder that is not a plan node
@@ -66,7 +66,7 @@ class ChartBuilderWithoutPlan(BuildsMotionStateChart):
 
     def add_to_motion_state_chart(
         self,
-        parent_goal: NodeListCompositeNode,
+        parent_goal: CramLanguageNode,
         executable: GiskardExecutable,
     ) -> CompositeNode:
         self.added_goal = self.create_goal()
@@ -110,7 +110,10 @@ def test_executable_is_built_without_a_plan(immutable_simple_pr2_world):
     assert executable.context is context
     assert type(executable.root_node) is Sequence
     assert executable.root_node.nodes == [child.added_goal]
-    assert executable.motion_state_chart.nodes == [executable.root_node]
+    assert executable.motion_state_chart.nodes == [
+        executable.root_node,
+        child.added_goal,
+    ]
 
 
 # %% children that contribute nothing

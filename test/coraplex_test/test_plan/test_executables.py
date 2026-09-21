@@ -138,10 +138,11 @@ def test_parsing_mirrors_the_plan_tree_as_nested_goals(reach_action_executable):
     assert root_goal.parent_node is None
     for task in tasks:
         assert task not in root_goal.nodes
+        # A task is run by the attempt its goal wrapped it in.
         [parent_goal] = [
             goal
             for goal in root_goal.nodes
-            if isinstance(goal, CompositeNode) and task in goal.nodes
+            if isinstance(goal, CompositeNode) and task.parent_node in goal.nodes
         ]
 
 

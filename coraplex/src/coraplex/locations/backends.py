@@ -142,7 +142,17 @@ class GiskardLocationBackend(PoseGeneratorBackend):
                     robot=robot, buffer_zone_distance=0.1, violated_distance=0.0
                 )
             )
-        msc = Statechart()
+        executor = StatechartExecutor(
+            context=StatechartContext(world=world),
+            extensions=[
+                MotionControl(
+                    qp_controller_config=QPControllerConfig(
+                        target_frequency=50, prediction_horizon=4, verbose=False
+                    )
+                )
+            ],
+        )
+        msc = Statechart(context=executor.context)
         msc.add_nodes(
             [
                 pose_seq,
@@ -163,16 +173,6 @@ class GiskardLocationBackend(PoseGeneratorBackend):
         )
         msc.add_node(EndMotion.when_true(pose_seq))
 
-        executor = StatechartExecutor(
-            context=StatechartContext(world=world),
-            extensions=[
-                MotionControl(
-                    qp_controller_config=QPControllerConfig(
-                        target_frequency=50, prediction_horizon=4, verbose=False
-                    )
-                )
-            ],
-        )
         executor.compile(msc)
 
         return executor

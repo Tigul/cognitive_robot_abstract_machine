@@ -17,7 +17,7 @@ from cramph.data_types import LifeCycleValues
 from cramph.composites import (
     Attempt,
     CancelledWhenTrue,
-    NodeListCompositeNode,
+    CramLanguageNode,
     Parallel,
     RepeatUntil,
     Sequence,
@@ -58,7 +58,7 @@ class LanguageNode(PlanNode, BuildsMotionStateChart, ABC):
     of their children in a certain way.
     """
 
-    motion_state_chart_template: Type[NodeListCompositeNode] = field(
+    motion_state_chart_template: Type[CramLanguageNode] = field(
         kw_only=True, default=Sequence
     )
     """
@@ -79,7 +79,7 @@ class LanguageNode(PlanNode, BuildsMotionStateChart, ABC):
     def parse(self) -> Executable:
         return self.parse_children(self.children)
 
-    def create_goal(self) -> NodeListCompositeNode:
+    def create_goal(self) -> CramLanguageNode:
         """
         :return: An empty goal of this node's template, describing how its children are
             executed inside a motion state chart.
@@ -88,7 +88,7 @@ class LanguageNode(PlanNode, BuildsMotionStateChart, ABC):
 
     def add_to_motion_state_chart(
         self,
-        parent_goal: NodeListCompositeNode,
+        parent_goal: CramLanguageNode,
         executable: GiskardExecutable,
     ) -> CompositeNode:
         """
@@ -141,7 +141,7 @@ class SequentialNode(ExecutesSequentially):
     Any failure is immediately raised.
     """
 
-    motion_state_chart_template: Type[NodeListCompositeNode] = field(
+    motion_state_chart_template: Type[CramLanguageNode] = field(
         kw_only=True, default=Sequence
     )
 
@@ -155,7 +155,7 @@ class ParallelNode(ExecutesInParallel):
     All exceptions are raised after all children have finished.
     """
 
-    motion_state_chart_template: Type[NodeListCompositeNode] = field(
+    motion_state_chart_template: Type[CramLanguageNode] = field(
         kw_only=True, default=Parallel
     )
 
@@ -209,7 +209,7 @@ class RepeatNode(ExecutesSequentially):
 
     def add_to_motion_state_chart(
         self,
-        parent_goal: NodeListCompositeNode,
+        parent_goal: CramLanguageNode,
         executable: GiskardExecutable,
     ) -> CompositeNode:
         """
@@ -245,10 +245,12 @@ class RepeatNode(ExecutesSequentially):
                 language_node=self, maximum_repetitions=self.maximum_repetitions
             ),
         )
-        parent_goal.add_node(loop)
+        # The children join before the loop does, because a stall monitor looks for
+        # the tasks it watches when it joins.
         self.add_children_to_motion_state_chart(
             children_goal, self.children, executable
         )
+        parent_goal.add_node(loop)
         return loop
 
 
@@ -258,7 +260,7 @@ class TryInOrderNode(ExecutesSequentially):
     Tries all children in order sequentially and fails if all children fail.
     """
 
-    motion_state_chart_template: Type[NodeListCompositeNode] = field(
+    motion_state_chart_template: Type[CramLanguageNode] = field(
         kw_only=True, default=TryInOrder
     )
 
@@ -283,7 +285,7 @@ class TryAllNode(ExecutesInParallel):
     Only raise a failure if all children fail.
     """
 
-    motion_state_chart_template: Type[NodeListCompositeNode] = field(
+    motion_state_chart_template: Type[CramLanguageNode] = field(
         kw_only=True, default=TryAll
     )
 
@@ -315,7 +317,7 @@ class MonitorNode(LanguageNode, ABC):
 
     def add_to_motion_state_chart(
         self,
-        parent_goal: NodeListCompositeNode,
+        parent_goal: CramLanguageNode,
         executable: GiskardExecutable,
     ) -> CompositeNode:
         """
@@ -326,9 +328,9 @@ class MonitorNode(LanguageNode, ABC):
         monitor's observation drive the children's life cycle.
         """
         monitored_goal = self.create_monitored_goal()
-        parent_goal.add_node(monitored_goal)
         children_goal = self.create_goal()
         monitored_goal.monitored_node = children_goal
+        parent_goal.add_node(monitored_goal)
         self.add_children_to_motion_state_chart(
             children_goal, self.children, executable
         )

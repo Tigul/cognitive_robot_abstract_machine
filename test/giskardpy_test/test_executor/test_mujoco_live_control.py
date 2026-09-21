@@ -70,8 +70,6 @@ def test_the_simulated_arm_reaches_the_pose_giskard_commands_live(parked_tracy):
     reach = CartesianPosition(
         name="reach", root_link=world.root, tip_link=tool_frame, goal_point=goal_point
     )
-    motion_statechart = Statechart()
-    motion_statechart.add_nodes([reach, EndMotion.when_true(reach)])
     controller_config = QPControllerConfig(target_frequency=control_frequency)
 
     simulation = MujocoSim(world=world, headless=True)
@@ -82,6 +80,8 @@ def test_the_simulated_arm_reaches_the_pose_giskard_commands_live(parked_tracy):
             pacer=SteppedSimulationPacer(simulation),
             extensions=[MotionControl(qp_controller_config=controller_config)],
         )
+        motion_statechart = Statechart(context=executor.context)
+        motion_statechart.add_nodes([reach, EndMotion.when_true(reach)])
         executor.compile(statechart=motion_statechart)
         executor.tick_until_end(timeout=tick_limit)
         simulation.step_simulation(timedelta(seconds=1))

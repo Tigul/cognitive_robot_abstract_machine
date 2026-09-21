@@ -14,7 +14,11 @@ from cramph.data_types import (
     ObservationStateValues,
     SuccessDecider,
 )
-from cramph.exceptions import AttemptCannotFailError
+from cramph.exceptions import (
+    AttemptCannotFailError,
+    NodeAlreadyAChildError,
+    NodeIsNotAChildError,
+)
 from cramph.node import (
     CancelStatechart,
     CompositeNode,
@@ -153,35 +157,6 @@ class Attempt(CompositeNode):
         )
 
 
-# %% running a list of nodes
-
-
-@dataclass(repr=False, eq=False)
-class NodeListCompositeNode(CompositeNode):
-    """
-    A composite node that runs the list of nodes it is handed.
-
-    The nodes join the statechart when :meth:`expand` adds them during compilation, so a
-    node handed over before that is serialized once, inside this goal.
-    """
-
-    nodes: List[StatechartNode] = field(default_factory=list, init=True)
-    """
-    The nodes this goal runs, in the order they were handed over.
-    """
-
-    def add_node(self, node: StatechartNode) -> None:
-        """
-        Hands this goal one more node to run.
-
-        :param node: The node to run as a child of this goal.
-        """
-        self._add_node_sanity_check(node)
-        if node in self.nodes:
-            return
-        self.nodes.append(node)
-
-
 # %% goals built from nodes that end on their own
 
 
@@ -199,10 +174,11 @@ class CompositeNodeOverSelfDecidingNodes(CompositeNode, ABC):
     success_decided_by = SuccessDecider.ITSELF
     fails_when_observing_false = True
 
-    def _add_self_deciding(self, node: StatechartNode) -> StatechartNode:
+    def _adopt_self_deciding(self, node: StatechartNode) -> StatechartNode:
         """
-        Adds a child that ends on its own, converting the caller's node where it needs
-        converting.
+        Makes a node that ends on its own a child of this goal in the statechart,
+        converting the caller's node where it needs converting, without touching
+        :attr:`nodes`.
 
         A node whose owner decides its success observes whether it reached its goal, so
         one is wrapped in an :class:`Attempt` without failure monitors, which fails only
@@ -214,15 +190,10 @@ class CompositeNodeOverSelfDecidingNodes(CompositeNode, ABC):
         self._check_caller_wired_no_transitions(node)
         self._check_node_doesnt_belong_to_different_parent(node)
         if node.success_decided_by == SuccessDecider.ITSELF:
-            self._add_child_to_statechart(node)
+            self._place_child_in_statechart(node)
             return node
         attempt = Attempt(name=f"{node.name}/attempt", task=node, failure_monitors=[])
-        # The attempt takes the node's place among the children and becomes its parent,
-        # so the children stay in the order the caller wrote them in.
-        if node in self.nodes:
-            self.nodes[self.nodes.index(node)] = attempt
-        self._add_child_to_statechart(attempt)
-        node.parent_node = attempt
+        self._place_child_in_statechart(attempt)
         return attempt
 
     def _check_attempt_can_fail(self, node: StatechartNode) -> None:
@@ -238,8 +209,199 @@ class CompositeNodeOverSelfDecidingNodes(CompositeNode, ABC):
             raise AttemptCannotFailError(node=self, attempt=node)
 
 
+# %% the plan language: running a list of nodes
+
+
 @dataclass(repr=False, eq=False)
-class Sequence(NodeListCompositeNode, CompositeNodeOverSelfDecidingNodes):
+class CramLanguageNode(CompositeNode, ABC):
+    """
+    A construct of the plan language, which runs the list of nodes it is handed.
+
+    Its children can be changed after it joined a statechart, up to the moment the
+    statechart is compiled: :meth:`insert_before`, :meth:`insert_after` and
+    :meth:`replace` rewire the conditions of the current children accordingly.
+    """
+
+    nodes: List[StatechartNode] = field(default_factory=list, init=True)
+    """
+    The nodes this goal runs, in order.
+
+    Once this goal joined a statechart, a node whose owner decides its success is held
+    through the :class:`Attempt` running it.
+    """
+
+    def add_node(self, node: StatechartNode) -> None:
+        """
+        Hands this goal one more node to run, after all the others.
+
+        A node it already runs is not added again.
+
+        :param node: The node to run as a child of this goal.
+        """
+        if self._runs(node):
+            return
+        self._add_node_sanity_check(node)
+        self._insert_at(len(self.nodes), node)
+
+    def insert_before(self, reference: StatechartNode, node: StatechartNode) -> None:
+        """
+        Hands this goal a node to run right before `reference`.
+
+        :param reference: A node this goal runs.
+        :param node: The node to insert.
+        :raises NodeIsNotAChildError: If this goal does not run `reference`.
+        :raises NodeAlreadyAChildError: If this goal already runs `node`.
+        """
+        self._insert_at(self._position_of(reference), node)
+
+    def insert_after(self, reference: StatechartNode, node: StatechartNode) -> None:
+        """
+        Hands this goal a node to run right after `reference`.
+
+        :param reference: A node this goal runs.
+        :param node: The node to insert.
+        :raises NodeIsNotAChildError: If this goal does not run `reference`.
+        :raises NodeAlreadyAChildError: If this goal already runs `node`.
+        """
+        self._insert_at(self._position_of(reference) + 1, node)
+
+    def replace(self, reference: StatechartNode, node: StatechartNode) -> None:
+        """
+        Runs `node` in place of `reference`, which leaves the statechart together with
+        everything below it.
+
+        :param reference: A node this goal runs.
+        :param node: The node to run in its place.
+        :raises NodeIsNotAChildError: If this goal does not run `reference`.
+        :raises NodeAlreadyAChildError: If this goal already runs `node`.
+        """
+        position = self._position_of(reference)
+        self._check_does_not_run(node)
+        if not self.belongs_to_statechart():
+            self.nodes[position] = node
+            return
+        replaced = self.nodes[position]
+        self.nodes[position] = self._adopt(node)
+        self._wire_children()
+        self.statechart.remove_node(replaced)
+
+    def find_child_running(self, node: StatechartNode) -> StatechartNode:
+        """
+        :param node: A node this goal runs.
+        :return: The child running `node`, which is `node` itself or the
+            :class:`Attempt` wrapping it.
+        :raises NodeIsNotAChildError: If this goal does not run `node`.
+        """
+        child = self._child_running(node)
+        if child is None:
+            raise NodeIsNotAChildError(node=self, child=node)
+        return child
+
+    def expand(self, context: StatechartContext) -> None:
+        """
+        Adopt every node this goal was handed and wire them.
+        """
+        self.nodes = [self._adopt(node) for node in list(self.nodes)]
+        self._wire_children()
+
+    def check_children(self) -> None:
+        """
+        Rejects this goal if it was never handed a node to run.
+        """
+        self._check_has_children()
+
+    @abstractmethod
+    def _adopt(self, node: StatechartNode) -> StatechartNode:
+        """
+        Makes `node` a child of this goal in the statechart, without touching
+        :attr:`nodes`.
+
+        :param node: The node the caller handed over.
+        :return: The child running `node`.
+        """
+
+    def _wire_children(self) -> None:
+        """
+        Wires the conditions of the current children to each other.
+        """
+
+    def _child_running(self, node: StatechartNode) -> Optional[StatechartNode]:
+        """
+        :return: The child that is `node` or the :class:`Attempt` wrapping it, or None
+            if this goal does not run `node`.
+        """
+        for child in self.nodes:
+            if child is node or (isinstance(child, Attempt) and child.task is node):
+                return child
+        return None
+
+    def _runs(self, node: StatechartNode) -> bool:
+        """
+        :return: Whether one of the children runs `node`.
+        """
+        return self._child_running(node) is not None
+
+    def _position_of(self, reference: StatechartNode) -> int:
+        """
+        :return: The position of the child running `reference`.
+        """
+        return self.nodes.index(self.find_child_running(reference))
+
+    def _check_does_not_run(self, node: StatechartNode) -> None:
+        """
+        :raises NodeAlreadyAChildError: If this goal already runs `node`.
+        """
+        if self._runs(node):
+            raise NodeAlreadyAChildError(node=self, child=node)
+
+    def _insert_at(self, position: int, node: StatechartNode) -> None:
+        """
+        Runs `node` at `position` among the children.
+        """
+        self._check_does_not_run(node)
+        if not self.belongs_to_statechart():
+            self.nodes.insert(position, node)
+            return
+        self.nodes.insert(position, self._adopt(node))
+        self._wire_children()
+
+
+@dataclass(repr=False, eq=False)
+class CramLanguageNodeRunningItsChildrenInTurn(
+    CramLanguageNode, CompositeNodeOverSelfDecidingNodes, ABC
+):
+    """
+    A plan language construct that starts each child only once the one before it ended
+    in a way it defines.
+    """
+
+    def _adopt(self, node: StatechartNode) -> StatechartNode:
+        return self._adopt_self_deciding(node)
+
+    def _wire_children(self) -> None:
+        """
+        Starts the first child right away, and every other one once the child before it
+        ended the way :meth:`_start_condition_after` asks for.
+        """
+        previous: Optional[StatechartNode] = None
+        for child in self.nodes:
+            child.start_condition = (
+                Scalar.const_true()
+                if previous is None
+                else self._start_condition_after(previous)
+            )
+            previous = child
+
+    @abstractmethod
+    def _start_condition_after(self, previous: StatechartNode) -> Scalar:
+        """
+        :param previous: The child that runs before the next one.
+        :return: The condition that starts the child after `previous`.
+        """
+
+
+@dataclass(repr=False, eq=False)
+class Sequence(CramLanguageNodeRunningItsChildrenInTurn):
     """
     Runs a list of nodes one after another.
 
@@ -250,30 +412,24 @@ class Sequence(NodeListCompositeNode, CompositeNodeOverSelfDecidingNodes):
     .. note:: corresponds to the RPL's SEQ. (McDermott, Drew. A reactive plan language, 1991)
     """
 
-    _steps: List[StatechartNode] = field(default_factory=list, init=False)
-    """
-    The nodes actually run, which is what the caller passed with every plain task
-    wrapped in an attempt.
-    """
+    def _adopt(self, node: StatechartNode) -> StatechartNode:
+        """
+        Each step is a node that ends on its own.
 
-    def expand(self, context: StatechartContext) -> None:
+        A node that ends the statechart decides nothing and has nothing to convert.
         """
-        Each step is a node that ends on its own, and the next one waits for the outcome
-        it earned, because only an outcome outlasts the step that reached it.
+        if isinstance(node, TerminalNode):
+            self._check_caller_wired_no_transitions(node)
+            self._place_child_in_statechart(node)
+            return node
+        return super()._adopt(node)
+
+    def _start_condition_after(self, previous: StatechartNode) -> Scalar:
         """
-        self._check_has_children()
-        previous_step: Optional[StatechartNode] = None
-        for node in list(self.nodes):
-            # A node that ends the statechart decides nothing and has nothing to convert.
-            if isinstance(node, TerminalNode):
-                self._add_child_to_statechart(node)
-                step = node
-            else:
-                step = self._add_self_deciding(node)
-            if previous_step is not None:
-                step.start_condition = previous_step.is_succeeded
-            self._steps.append(step)
-            previous_step = step
+        The next step waits for the outcome the previous one earned, because only an
+        outcome outlasts the step that reached it.
+        """
+        return previous.is_succeeded
 
     def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         """
@@ -287,11 +443,11 @@ class Sequence(NodeListCompositeNode, CompositeNodeOverSelfDecidingNodes):
                 cases=[
                     (
                         trinary_logic_or(
-                            *[step.is_failed_or_interrupted for step in self._steps]
+                            *[step.is_failed_or_interrupted for step in self.nodes]
                         ),
                         Scalar.const_false(),
                     ),
-                    (self._steps[-1].is_succeeded, Scalar.const_true()),
+                    (self.nodes[-1].is_succeeded, Scalar.const_true()),
                 ],
                 else_result=Scalar.const_trinary_unknown(),
             )
@@ -299,7 +455,7 @@ class Sequence(NodeListCompositeNode, CompositeNodeOverSelfDecidingNodes):
 
 
 @dataclass(repr=False, eq=False)
-class Parallel(NodeListCompositeNode):
+class Parallel(CramLanguageNode):
     """
     Holds a list of nodes at once until enough of them are at their goals together.
 
@@ -331,19 +487,22 @@ class Parallel(NodeListCompositeNode):
             return len(self.nodes)
         return self.minimum_success
 
-    def expand(self, context: StatechartContext) -> None:
+    def _adopt(self, node: StatechartNode) -> StatechartNode:
         """
-        Add the nodes, and declare this goal failed once too few of them can still reach
-        their goals.
+        Every node runs as it is, side by side with the others.
+        """
+        self._place_child_in_statechart(node)
+        return node
+
+    def wire_conditions_over_children(self) -> None:
+        """
+        Declare this goal failed once too few of its nodes can still reach their goals.
 
         Observing False means the nodes are not at their goals, which is not a failure
         and is left to the attempt this goal is wrapped in. A node that ended without
         succeeding is different: nothing brings it back, so once too few are left this
         goal can no longer arrive and says so rather than holding its owner open forever.
         """
-        self._check_has_children()
-        for node in self.nodes:
-            self._add_child_to_statechart(node)
         self.fail_condition = logic_or(
             self.fail_condition, self._cannot_arrive_any_more
         )
@@ -441,10 +600,13 @@ class RepeatUntil(CompositeNodeOverSelfDecidingNodes):
     retrying off, or None to only observe False then.
     """
 
-    _attempt: Optional[StatechartNode] = field(default=None, init=False)
-    """
-    The node actually run, which is :attr:`task` wrapped in an attempt if it needed one.
-    """
+    @property
+    def _attempt(self) -> StatechartNode:
+        """
+        The node actually run, which is :attr:`task` wrapped in an attempt if it needed
+        one.
+        """
+        return self.nodes[0]
 
     def expand(self, context: StatechartContext) -> None:
         """
@@ -458,7 +620,7 @@ class RepeatUntil(CompositeNodeOverSelfDecidingNodes):
         monitor that ends itself on reaching what it counts, and which a monitor that has
         not observed anything yet has not reached either.
         """
-        self._attempt = self._add_self_deciding(self.task)
+        self.nodes.append(self._adopt_self_deciding(self.task))
         self._add_child_to_statechart(self.stop_retry_monitor)
 
         retrying_stopped = self._retrying_stopped
@@ -520,7 +682,7 @@ class RepeatUntil(CompositeNodeOverSelfDecidingNodes):
 
 
 @dataclass(repr=False, eq=False)
-class TryAll(NodeListCompositeNode, CompositeNodeOverSelfDecidingNodes):
+class TryAll(CramLanguageNode, CompositeNodeOverSelfDecidingNodes):
     """
     Runs a list of alternatives at once and takes the first one that works.
 
@@ -528,20 +690,11 @@ class TryAll(NodeListCompositeNode, CompositeNodeOverSelfDecidingNodes):
     every one of them ended without doing so.
     """
 
-    _alternatives: List[StatechartNode] = field(default_factory=list, init=False)
-    """
-    The nodes actually run, which is what the caller passed with every plain task
-    wrapped in an attempt.
-    """
-
-    def expand(self, context: StatechartContext) -> None:
+    def _adopt(self, node: StatechartNode) -> StatechartNode:
         """
-        Add every alternative, so they run side by side.
+        Every alternative runs side by side with the others.
         """
-        self._check_has_children()
-        self._alternatives = [
-            self._add_self_deciding(node) for node in list(self.nodes)
-        ]
+        return self._adopt_self_deciding(node)
 
     def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         """
@@ -552,10 +705,7 @@ class TryAll(NodeListCompositeNode, CompositeNodeOverSelfDecidingNodes):
                 cases=[
                     (
                         trinary_logic_or(
-                            *[
-                                alternative.is_succeeded
-                                for alternative in self._alternatives
-                            ]
+                            *[alternative.is_succeeded for alternative in self.nodes]
                         ),
                         Scalar.const_true(),
                     ),
@@ -563,7 +713,7 @@ class TryAll(NodeListCompositeNode, CompositeNodeOverSelfDecidingNodes):
                         trinary_logic_and(
                             *[
                                 alternative.is_failed_or_interrupted
-                                for alternative in self._alternatives
+                                for alternative in self.nodes
                             ]
                         ),
                         Scalar.const_false(),
@@ -575,7 +725,7 @@ class TryAll(NodeListCompositeNode, CompositeNodeOverSelfDecidingNodes):
 
 
 @dataclass(repr=False, eq=False)
-class TryInOrder(NodeListCompositeNode, CompositeNodeOverSelfDecidingNodes):
+class TryInOrder(CramLanguageNodeRunningItsChildrenInTurn):
     """
     Tries a list of alternatives one after another, short-circuiting on the first
     success.
@@ -592,34 +742,20 @@ class TryInOrder(NodeListCompositeNode, CompositeNodeOverSelfDecidingNodes):
     .. note:: corresponds to the RPL's TRY-IN-ORDER. (McDermott, Drew. A reactive plan language, 1991)
     """
 
-    _alternatives: List[StatechartNode] = field(default_factory=list, init=False)
-    """
-    The nodes actually run, which is what the caller passed with every plain task
-    wrapped in an attempt.
-    """
-
-    def expand(self, context: StatechartContext) -> None:
+    def _start_condition_after(self, previous: StatechartNode) -> Scalar:
         """
-        Wire each alternative to start once the previous one ended without succeeding,
+        The next alternative starts once the previous one ended without succeeding,
         which short-circuits on the first success.
         """
-        self._check_has_children()
-        previous_alternative: Optional[StatechartNode] = None
-        for node in list(self.nodes):
-            alternative = self._add_self_deciding(node)
-            if previous_alternative is not None:
-                alternative.start_condition = (
-                    previous_alternative.is_failed_or_interrupted
-                )
-            self._alternatives.append(alternative)
-            previous_alternative = alternative
+        return previous.is_failed_or_interrupted
 
     def check_children(self) -> None:
         """
         Rejects an attempt that cannot fail before the last alternative, since the
         alternatives after it could never start.
         """
-        for alternative in self._alternatives[:-1]:
+        super().check_children()
+        for alternative in self.nodes[:-1]:
             self._check_attempt_can_fail(alternative)
 
     def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
@@ -631,10 +767,7 @@ class TryInOrder(NodeListCompositeNode, CompositeNodeOverSelfDecidingNodes):
                 cases=[
                     (
                         trinary_logic_or(
-                            *[
-                                alternative.is_succeeded
-                                for alternative in self._alternatives
-                            ]
+                            *[alternative.is_succeeded for alternative in self.nodes]
                         ),
                         Scalar.const_true(),
                     ),
@@ -642,7 +775,7 @@ class TryInOrder(NodeListCompositeNode, CompositeNodeOverSelfDecidingNodes):
                         trinary_logic_and(
                             *[
                                 alternative.is_failed_or_interrupted
-                                for alternative in self._alternatives
+                                for alternative in self.nodes
                             ]
                         ),
                         Scalar.const_false(),
@@ -684,13 +817,17 @@ class MonitoredCompositeNode(CompositeNode, ABC):
 
     def expand(self, context: StatechartContext) -> None:
         """
-        Add the monitor and the monitored node, wire the monitor, and declare this goal
-        failed once the monitored node ended without succeeding, because it can no
-        longer arrive.
+        Add the monitor and the monitored node, and wire the monitor.
         """
         self._add_child_to_statechart(self.monitor)
         self._add_child_to_statechart(self.monitored_node)
         self.wire_monitor()
+
+    def wire_conditions_over_children(self) -> None:
+        """
+        Declare this goal failed once the monitored node ended without succeeding,
+        because it can no longer arrive.
+        """
         self.fail_condition = logic_or(
             self.fail_condition, self.monitored_node.is_failed_or_interrupted
         )

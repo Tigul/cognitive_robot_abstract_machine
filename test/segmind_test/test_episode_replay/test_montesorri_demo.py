@@ -54,7 +54,7 @@ def test_replay_episode(test_context):
     context = test_context["context"]
     logger = test_context["logger"]
     executor = test_context["episode_executor"]
-    executor.compile(DetectorStatechartBuilder().build())
+    executor.compile(DetectorStatechartBuilder().build(executor.context))
     assert executor.require_extension(EpisodeSegmentation).player.is_alive()
     executor.tick_until_end()
     try:

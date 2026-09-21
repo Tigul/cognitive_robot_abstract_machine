@@ -594,6 +594,123 @@ class MissingExecutorExtensionError(StatechartError):
 
 
 @dataclass
+class StatechartOfDifferentContextError(StatechartError):
+    """
+    Raised when an executor is handed a statechart that was built in a context other
+    than its own.
+    """
+
+    def error_message(self) -> str:
+        return "The statechart was built in a context other than the executor's."
+
+    def suggest_correction(self) -> str:
+        return "Create the statechart with the context of the executor that runs it."
+
+
+@dataclass
+class StatechartAlreadyCompiledError(StatechartError):
+    """
+    Raised when the structure of a statechart is changed after it was compiled.
+    """
+
+    def error_message(self) -> str:
+        return "The statechart is already compiled, so its nodes can no longer change."
+
+    def suggest_correction(self) -> str:
+        return "Finish adding and removing nodes before compiling the statechart."
+
+
+@dataclass
+class PrerequisiteNotExpandedError(NodeInitializationError):
+    """
+    Raised when a composite node joins a statechart before a composite node it reads
+    while expanding.
+    """
+
+    prerequisite: StatechartNode
+    """
+    The composite node that has not joined the statechart yet.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.node.name} reads {self.prerequisite.name} while it expands, but "
+            f"{self.prerequisite.name} has not joined the statechart yet."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            f"Add {self.prerequisite.name} to the statechart before {self.node.name}."
+        )
+
+
+@dataclass
+class NodeIsNotAChildError(NodeInitializationError):
+    """
+    Raised when a composite node is asked about a node it does not run.
+    """
+
+    child: StatechartNode
+    """
+    The node the composite node does not run.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.node.name} does not run {self.child.name}."
+
+    def suggest_correction(self) -> str:
+        return f"Refer to one of the nodes {self.node.name} runs."
+
+
+@dataclass
+class NodeAlreadyAChildError(NodeInitializationError):
+    """
+    Raised when a composite node is handed a node it already runs.
+    """
+
+    child: StatechartNode
+    """
+    The node the composite node already runs.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.node.name} already runs {self.child.name}."
+
+    def suggest_correction(self) -> str:
+        return "Hand the composite node a node it does not run yet."
+
+
+@dataclass
+class RemovedNodeStillReferencedError(StatechartError):
+    """
+    Raised when a node is removed from a statechart while a node that stays still refers
+    to it.
+    """
+
+    removed_node: StatechartNode
+    """
+    The node that was about to be removed.
+    """
+
+    referencing_node: StatechartNode
+    """
+    The node that stays and still refers to :attr:`removed_node`.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.removed_node.name} cannot be removed, because "
+            f"{self.referencing_node.name} still refers to it."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            f"Rewire {self.referencing_node.name} so it no longer refers to "
+            f"{self.removed_node.name} before removing it."
+        )
+
+
+@dataclass
 class NodeStateVariableNotSerializableError(JSONSerializationError):
     """
     Raised when a node state variable is serialized to JSON, which has no way to refer

@@ -1,4 +1,6 @@
 from dataclasses import field, dataclass
+
+from typing_extensions import Optional
 from itertools import combinations
 
 import krrood.symbolic_math.symbolic_math as sm
@@ -90,9 +92,9 @@ class _ExternalCollisionAvoidanceNode(_CollisionAvoidanceTask):
         violated.
     """
 
-    collision_group: CollisionGroup = field(kw_only=True)
+    body: Body = field(kw_only=True)
     """
-    The collision group avoiding external collisions.
+    The root body of the collision group avoiding external collisions.
     """
 
     max_velocity: float = field(default=0.2, kw_only=True)
@@ -107,11 +109,37 @@ class _ExternalCollisionAvoidanceNode(_CollisionAvoidanceTask):
     e.g. of collision_index=1 it will avoid the 2. closest contact.
     """
 
-    external_collision_manager: ExternalCollisionVariableManager = field(kw_only=True)
+    _external_collision_manager: Optional[ExternalCollisionVariableManager] = field(
+        default=None, init=False, repr=False
+    )
     """
-    Reference to the external collision variable manager shared by other external
-    collision avoidance nodes.
+    The external collision variable manager of the context this node is built in.
     """
+
+    def build(self, context: StatechartContext) -> NodeArtifacts:
+        """
+        Registers the collision group of :attr:`body` with the external collision
+        variable manager of `context`, which this node reads from then on.
+        """
+        self._external_collision_manager = context.require_extension(
+            MotionControlContext
+        ).external_collision_manager
+        self._external_collision_manager.register_group_of_body(self.body)
+        return super().build(context)
+
+    @property
+    def external_collision_manager(self) -> ExternalCollisionVariableManager:
+        """
+        :return: The external collision variable manager this node was built with.
+        """
+        return self._external_collision_manager
+
+    @property
+    def collision_group(self) -> CollisionGroup:
+        """
+        :return: The collision group avoiding external collisions.
+        """
+        return self.external_collision_manager.get_collision_group(self.body)
 
     @property
     def root_V_contact_normal(self) -> Vector3:
@@ -389,18 +417,19 @@ class ExternalCollisionAvoidance(CompositeNode):
     The maximum velocity for the collision avoidance task.
     """
 
-    external_collision_manager: ExternalCollisionVariableManager = field(init=False)
-    """
-    Reference to the external collision variable manager shared by other external
-    collision avoidance nodes.
-    """
-
     cancel_if_collision_violated: bool = field(default=True, kw_only=True)
     """
     If True, the motion will be canceled if a collision is violated.
     """
 
     def expand(self, context: StatechartContext) -> None:
+        """
+        Add one monitor and task pair per collision group of :attr:`robot` and closest
+        object it avoids.
+
+        Only the structure is decided here; the children register their collision groups
+        when they are built, in the context that runs them.
+        """
         if self.robot is None:
             robots = context.world.get_semantic_annotations_by_type(AbstractRobot)
             if len(robots) != 1:
@@ -411,19 +440,22 @@ class ExternalCollisionAvoidance(CompositeNode):
                     entity_type=AbstractRobot,
                 )
             self.robot = robots[0]
-        self.external_collision_manager = context.require_extension(
+        external_collision_manager = context.require_extension(
             MotionControlContext
         ).external_collision_manager
-
+        groups = []
         for body in self.robot.bodies_with_collision:
-            if context.world.collision_manager.get_max_avoided_bodies(body):
-                self.external_collision_manager.register_group_of_body(body)
+            if not context.world.collision_manager.get_max_avoided_bodies(body):
+                continue
+            group = external_collision_manager.get_collision_group(body)
+            if group not in groups:
+                groups.append(group)
 
         robot_bodies = self.robot.bodies
 
         tasks = []
 
-        for group in self.external_collision_manager.registered_groups:
+        for group in groups:
             if group.root not in robot_bodies:
                 continue
             max_avoided_bodies = group.get_max_avoided_bodies(
@@ -432,18 +464,16 @@ class ExternalCollisionAvoidance(CompositeNode):
             for index in range(max_avoided_bodies):
                 distance_monitor = _ExternalCollisionHasData(
                     name=f"{self.name}/monitor({group.root.name.name, index})",
-                    collision_group=group,
+                    body=group.root,
                     collision_index=index,
-                    external_collision_manager=self.external_collision_manager,
                 )
                 self._add_child_to_statechart(distance_monitor)
 
                 task = _ExternalCollisionAvoidanceTask(
                     name=f"{self.name}/task({group.root.name.name, index})",
-                    collision_group=group,
+                    body=group.root,
                     max_velocity=self.max_velocity,
                     collision_index=index,
-                    external_collision_manager=self.external_collision_manager,
                 )
                 self._add_child_to_statechart(task)
                 task.pause_condition = distance_monitor.observes_true
@@ -514,14 +544,14 @@ class _SelfCollisionAvoidanceNode(_CollisionAvoidanceTask):
     violated_distance.
     """
 
-    collision_group_a: CollisionGroup = field(kw_only=True)
+    body_a: Body = field(kw_only=True)
     """
-    The first collision group to avoid self collisions with.
+    The root body of the first collision group to avoid self collisions with.
     """
 
-    collision_group_b: CollisionGroup = field(kw_only=True)
+    body_b: Body = field(kw_only=True)
     """
-    The second collision group to avoid self collisions with.
+    The root body of the second collision group to avoid self collisions with.
     """
 
     max_velocity: float = field(default=0.2, kw_only=True)
@@ -529,11 +559,51 @@ class _SelfCollisionAvoidanceNode(_CollisionAvoidanceTask):
     The maximum velocity for the collision avoidance task.
     """
 
-    self_collision_manager: SelfCollisionVariableManager = field(kw_only=True)
+    _self_collision_manager: Optional[SelfCollisionVariableManager] = field(
+        default=None, init=False, repr=False
+    )
     """
-    Reference to the self collision variable manager shared by other self collision
-    avoidance nodes.
+    The self collision variable manager of the context this node is built in.
     """
+
+    def build(self, context: StatechartContext) -> NodeArtifacts:
+        """
+        Registers the combination of the collision groups of :attr:`body_a` and
+        :attr:`body_b` with the self collision variable manager of `context`, which this
+        node reads from then on.
+        """
+        self._self_collision_manager = context.require_extension(
+            MotionControlContext
+        ).self_collision_manager
+        self._self_collision_manager.register_groups_of_body_combination(
+            self.body_a, self.body_b
+        )
+        return super().build(context)
+
+    @property
+    def self_collision_manager(self) -> SelfCollisionVariableManager:
+        """
+        :return: The self collision variable manager this node was built with.
+        """
+        return self._self_collision_manager
+
+    @property
+    def collision_group_a(self) -> CollisionGroup:
+        """
+        :return: The first collision group to avoid self collisions with.
+        """
+        return self.self_collision_manager.body_pair_to_group_pair(
+            self.body_a, self.body_b
+        )[0]
+
+    @property
+    def collision_group_b(self) -> CollisionGroup:
+        """
+        :return: The second collision group to avoid self collisions with.
+        """
+        return self.self_collision_manager.body_pair_to_group_pair(
+            self.body_a, self.body_b
+        )[1]
 
     @property
     def group_a_P_point_on_a(self) -> Point3:
@@ -715,12 +785,6 @@ class SelfCollisionAvoidance(CompositeNode):
     The maximum velocity for the collision avoidance task.
     """
 
-    self_collision_manager: SelfCollisionVariableManager = field(init=False)
-    """
-    Reference to the self collision variable manager shared by other self collision
-    avoidance nodes.
-    """
-
     cancel_if_collision_violated: bool = field(default=True, kw_only=True)
     """
     If True, the motion will be canceled if a collision is violated.
@@ -747,6 +811,13 @@ class SelfCollisionAvoidance(CompositeNode):
         return collision_matrix
 
     def expand(self, context: StatechartContext) -> None:
+        """
+        Add one monitor and task pair per checked combination of collision groups of
+        :attr:`robot`.
+
+        Only the structure is decided here; the children register their combination
+        of collision groups when they are built, in the context that runs them.
+        """
         if self.robot is None:
             robots = context.world.get_semantic_annotations_by_type(AbstractRobot)
             if len(robots) != 1:
@@ -758,7 +829,7 @@ class SelfCollisionAvoidance(CompositeNode):
                 )
             self.robot = robots[0]
 
-        self.self_collision_manager = context.require_extension(
+        self_collision_manager = context.require_extension(
             MotionControlContext
         ).self_collision_manager
         collision_matrix = self.create_self_collision_matrix(context)
@@ -768,7 +839,7 @@ class SelfCollisionAvoidance(CompositeNode):
         tasks = []
 
         for group_a, group_b in combinations(
-            self.self_collision_manager.collision_groups, 2
+            self_collision_manager.collision_groups, 2
         ):
             if (
                 group_a.root not in kinematic_structure_entities
@@ -781,27 +852,22 @@ class SelfCollisionAvoidance(CompositeNode):
             ):
                 # skip because this self collision is never checked
                 continue
-            self.self_collision_manager.register_groups_of_body_combination(
-                group_a.root, group_b.root
-            )
-            group_a, group_b = self.self_collision_manager.body_pair_to_group_pair(
+            group_a, group_b = self_collision_manager.body_pair_to_group_pair(
                 group_a.root, group_b.root
             )
 
             distance_monitor = _SelfCollisionHasData(
                 name=f"{self.name}/{group_a.root.name.name, group_b.root.name.name}/monitor",
-                collision_group_a=group_a,
-                collision_group_b=group_b,
-                self_collision_manager=self.self_collision_manager,
+                body_a=group_a.root,
+                body_b=group_b.root,
             )
             self._add_child_to_statechart(distance_monitor)
 
             task = _SelfCollisionAvoidanceTask(
                 name=f"{self.name}/{group_a.root.name.name, group_b.root.name.name}/task",
-                collision_group_a=group_a,
-                collision_group_b=group_b,
+                body_a=group_a.root,
+                body_b=group_b.root,
                 max_velocity=self.max_velocity,
-                self_collision_manager=self.self_collision_manager,
             )
             self._add_child_to_statechart(task)
             task.pause_condition = distance_monitor.observes_true

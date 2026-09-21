@@ -60,7 +60,7 @@ def _repeat_on_timeout(
         task=attempt,
         stop_retry_monitor=CountNodeResets(name="counter", node=attempt, target=target),
     )
-    statechart = Statechart()
+    statechart = Statechart(context=executor.context)
     statechart.add_node(loop)
     statechart.add_node(EndStatechart.when_true(loop))
     executor.compile(statechart=statechart)
@@ -169,9 +169,9 @@ def test_repeat_until_starts_its_task_while_the_stop_monitor_has_not_decided():
         ),
         stop_retry_monitor=NodeObservingNothingYet(name="undecided"),
     )
-    statechart = Statechart()
-    statechart.add_node(loop)
     executor = StatechartExecutor(StatechartContext(world=World()))
+    statechart = Statechart(context=executor.context)
+    statechart.add_node(loop)
     executor.compile(statechart=statechart)
 
     executor.tick()
@@ -189,9 +189,9 @@ def test_repeat_until_rejects_a_task_that_cannot_fail():
         task=task,
         stop_retry_monitor=CountNodeResets(name="counter", node=task, target=1),
     )
-    statechart = Statechart()
-    statechart.add_node(loop)
     executor = StatechartExecutor(StatechartContext(world=World()))
+    statechart = Statechart(context=executor.context)
+    statechart.add_node(loop)
 
     with pytest.raises(AttemptCannotFailError) as error:
         executor.compile(statechart=statechart)

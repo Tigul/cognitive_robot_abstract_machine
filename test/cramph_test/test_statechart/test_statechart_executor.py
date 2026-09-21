@@ -9,7 +9,11 @@ from typing_extensions import List
 from cramph.composites import Sequence
 from cramph.context import ContextExtension, StatechartContext
 from cramph.data_types import LifeCycleValues, ObservationStateValues
-from cramph.exceptions import MissingExecutorExtensionError, TickDurationUnknownError
+from cramph.exceptions import (
+    MissingExecutorExtensionError,
+    StatechartOfDifferentContextError,
+    TickDurationUnknownError,
+)
 from cramph.executor import (
     ExecutorExtension,
     SimulationPacer,
@@ -29,7 +33,7 @@ def test_generic_nodes_tick_until_the_statechart_ends(
     first_step = CountTicks(ticks=2)
     second_step = CountTicks(ticks=3)
     sequence = Sequence(nodes=[first_step, second_step])
-    statechart = Statechart()
+    statechart = Statechart(context=statechart_executor.context)
     statechart.add_node(sequence)
     statechart.add_node(EndStatechart.when_true(sequence))
 
@@ -47,7 +51,7 @@ def test_end_statechart_ends_the_tick_after_it_starts(
 ):
     node = ConstTrueNode()
     end = EndStatechart.when_true(node)
-    statechart = Statechart()
+    statechart = Statechart(context=statechart_executor.context)
     statechart.add_nodes([node, end])
     statechart_executor.compile(statechart)
 
@@ -64,7 +68,7 @@ def test_cancel_statechart_raises_its_exception(
 ):
     node = ConstTrueNode()
     exception = NodeAssertionError(reason="cancelled")
-    statechart = Statechart()
+    statechart = Statechart(context=statechart_executor.context)
     statechart.add_nodes([node, CancelStatechart.when_true(node, exception)])
     statechart_executor.compile(statechart)
 
@@ -78,7 +82,7 @@ def test_generic_nodes_build_plain_node_artifacts(
     statechart_executor: StatechartExecutor,
 ):
     node = ConstTrueNode()
-    statechart = Statechart()
+    statechart = Statechart(context=statechart_executor.context)
     statechart.add_nodes([node, EndStatechart.when_true(node)])
 
     artifacts = node.build(statechart_executor.context)
@@ -95,7 +99,7 @@ def test_simulation_time_is_counted_in_tick_durations(
     ticks = 3
     tick_duration = statechart_executor.context.tick_duration
     counter = CountSimulationTimeSeconds(seconds=ticks * tick_duration)
-    statechart = Statechart()
+    statechart = Statechart(context=statechart_executor.context)
     statechart.add_nodes([counter, EndStatechart.when_true(counter)])
     statechart_executor.compile(statechart)
 
@@ -119,7 +123,7 @@ def test_a_statechart_ticks_without_knowing_its_tick_duration(
 ):
     executor = StatechartExecutor(context=statechart_context_without_tick_duration)
     counter = CountTicks(ticks=2)
-    statechart = Statechart()
+    statechart = Statechart(context=executor.context)
     statechart.add_nodes([counter, EndStatechart.when_true(counter)])
     executor.compile(statechart)
 
@@ -142,7 +146,7 @@ def test_simulation_time_cannot_be_counted_without_a_tick_duration(
 ):
     executor = StatechartExecutor(context=statechart_context_without_tick_duration)
     counter = CountSimulationTimeSeconds(seconds=1.0)
-    statechart = Statechart()
+    statechart = Statechart(context=executor.context)
     statechart.add_nodes([counter, EndStatechart.when_true(counter)])
     executor.compile(statechart)
 
@@ -275,9 +279,13 @@ class ExtensionSettingTheTickDuration(ExecutorExtension):
         context.set_tick_duration(self.tick_duration)
 
 
-def _statechart_ending_after_one_node() -> Statechart:
+def _statechart_ending_after_one_node(executor: StatechartExecutor) -> Statechart:
+    """
+    :return: A statechart in the context of `executor` that ends once its only node
+        observes True.
+    """
     node = ConstTrueNode()
-    statechart = Statechart()
+    statechart = Statechart(context=executor.context)
     statechart.add_nodes([node, EndStatechart.when_true(node)])
     return statechart
 
@@ -292,7 +300,7 @@ def test_an_extension_is_called_at_every_stage_of_a_run(
     )
     assert [record.stage for record in records] == [ExecutorStage.EXTEND_CONTEXT]
 
-    executor.compile(_statechart_ending_after_one_node())
+    executor.compile(_statechart_ending_after_one_node(executor))
     assert [record.stage for record in records[1:]] == [ExecutorStage.AFTER_COMPILE]
 
     executor.tick_until_end()
@@ -315,7 +323,7 @@ def test_extensions_are_called_in_the_order_they_are_listed(
         context=statechart_context, extensions=[first, second]
     )
 
-    executor.compile(_statechart_ending_after_one_node())
+    executor.compile(_statechart_ending_after_one_node(executor))
     executor.tick()
 
     assert [record.extension for record in records] == [first, second] * 4
@@ -327,15 +335,15 @@ def test_nodes_are_built_with_the_context_extensions_of_every_executor_extension
     first = ExtensionInstallingACountingContext()
     records: List[StageRecord] = []
     second = ExtensionRecordingItsStages(records)
-    statechart = Statechart()
+    executor = StatechartExecutor(
+        context=statechart_context, extensions=[first, second]
+    )
+    statechart = Statechart(context=executor.context)
     statechart.add_nodes(
         [
             node := NodeRequiringACountingContext(),
             EndStatechart.when_true(node),
         ]
-    )
-    executor = StatechartExecutor(
-        context=statechart_context, extensions=[first, second]
     )
 
     executor.compile(statechart)
@@ -377,3 +385,29 @@ def test_requiring_an_extension_the_executor_does_not_have_is_rejected(
 ):
     with pytest.raises(MissingExecutorExtensionError):
         statechart_executor.require_extension(ExtensionRecordingItsStages)
+
+
+# %% the context a statechart is built in
+
+
+def test_an_executor_rejects_a_statechart_built_in_a_different_context(
+    statechart_executor: StatechartExecutor,
+    statechart_context_without_tick_duration: StatechartContext,
+):
+    statechart = Statechart(context=statechart_context_without_tick_duration)
+    statechart.add_node(ConstTrueNode())
+
+    with pytest.raises(StatechartOfDifferentContextError):
+        statechart_executor.compile(statechart)
+
+
+def test_a_statechart_ticks_in_the_context_it_was_built_in(
+    statechart_executor: StatechartExecutor,
+):
+    statechart = Statechart(context=statechart_executor.context)
+    statechart.add_node(counter := CountTicks(ticks=2))
+    statechart.add_node(EndStatechart.when_true(counter))
+    statechart_executor.compile(statechart)
+    statechart_executor.tick_until_end()
+
+    assert statechart.is_ended()

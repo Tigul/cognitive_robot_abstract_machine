@@ -18,13 +18,22 @@ with a `StatechartExecutor` and plots what happened.
 
 ## Building the statechart
 
+Every node receives a `StatechartContext`, which holds the world the statechart runs in. The
+`StatechartExecutor` compiles the statechart and ticks it until an `EndStatechart` ends it, so
+the statechart is built in the context of the executor that runs it. The executor's `pacer`
+decides how the ticks are spread over time; the default runs them as fast as possible.
+
 ```{code-cell} ipython3
 from cramph.composites import Attempt, Sequence, TryInOrder
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 from cramph.monitors import CountTicks
 from cramph.node import EndStatechart
 from cramph.statechart import Statechart
+from semantic_digital_twin.world import World
 
-statechart = Statechart()
+executor = StatechartExecutor(context=StatechartContext(world=World()))
+statechart = Statechart(context=executor.context)
 
 slow_approach = Attempt(
     name="slow approach",
@@ -45,17 +54,7 @@ statechart.add_node(EndStatechart.when_true(plan))
 
 ## Ticking it
 
-Every node receives a `StatechartContext`, which holds the world the statechart runs in. The
-`StatechartExecutor` compiles the statechart and ticks it until an `EndStatechart` ends it.
-Its `pacer` decides how the ticks are spread over time; the default runs them as fast as
-possible.
-
 ```{code-cell} ipython3
-from cramph.context import StatechartContext
-from cramph.executor import StatechartExecutor
-from semantic_digital_twin.world import World
-
-executor = StatechartExecutor(context=StatechartContext(world=World()))
 executor.compile(statechart)
 executor.tick_until_end(timeout=100)
 

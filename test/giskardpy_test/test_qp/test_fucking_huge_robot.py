@@ -166,7 +166,18 @@ def execute(link_length: float, vel_limit: float):
     fucking_huge_robot = robot_factory(
         fucking_huge_link_length=link_length, vel_limit=vel_limit
     )
-    msc = Statechart()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=fucking_huge_robot),
+        extensions=[
+            MotionControl(
+                qp_controller_config=QPControllerConfig(
+                    target_frequency=100,
+                    prediction_horizon=50,
+                )
+            )
+        ],
+    )
+    msc = Statechart(context=kin_sim.context)
     goal = 1
     eef = fucking_huge_robot.get_kinematic_structure_entity_by_name("eef")
 
@@ -197,17 +208,6 @@ def execute(link_length: float, vel_limit: float):
     )
     msc.add_node(EndMotion.when_true(node1))
 
-    kin_sim = StatechartExecutor(
-        context=StatechartContext(world=fucking_huge_robot),
-        extensions=[
-            MotionControl(
-                qp_controller_config=QPControllerConfig(
-                    target_frequency=100,
-                    prediction_horizon=50,
-                )
-            )
-        ],
-    )
     kin_sim.compile(statechart=msc)
 
     kin_sim.tick_until_end(10_000)

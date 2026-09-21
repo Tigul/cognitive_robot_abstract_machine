@@ -205,13 +205,15 @@ class AreReachableBy(PoseValidator):
             )
         ]
 
-    def create_msc(self) -> Statechart:
+    def create_msc(self, executor: StatechartExecutor) -> Statechart:
         """
         Creates the Motion state chart to reach the given pose sequence with the given
         tip link.
 
         Also takes into account if there are alternative motion mappings for moving the
         end effector to the given pose.
+
+        :param executor: The executor in whose context the chart is built.
         """
         alternative_motion = AlternativeMotion.check_for_alternative(
             self.alternative_motion_mappings, self.robot, MoveToolCenterPointMotion
@@ -276,7 +278,7 @@ class AreReachableBy(PoseValidator):
                 for pose in sequence
             ]
 
-        msc = Statechart()
+        msc = Statechart(context=executor.context)
         msc.add_node(sequence_node := Sequence(sequence))
         if GiskardExecutable.collision_avoidance:
             msc.add_node(ExternalCollisionAvoidance(cancel_if_collision_violated=False))
@@ -290,11 +292,9 @@ class AreReachableBy(PoseValidator):
 
         return msc
 
-    def create_executor(self, msc: Statechart) -> StatechartExecutor:
+    def create_executor(self) -> StatechartExecutor:
         """
         Creates the executor that runs a probe of this validator.
-
-        :param msc: The motion statechart the executor is compiled against.
         """
         executor = StatechartExecutor(
             context=StatechartContext(world=self.world),
@@ -306,7 +306,6 @@ class AreReachableBy(PoseValidator):
                 )
             ],
         )
-        executor.compile(msc)
         return executor
 
     def __call__(self, *args, **kwargs) -> bool:
@@ -316,7 +315,8 @@ class AreReachableBy(PoseValidator):
 
         with self.world.reset_state_context():
 
-            executor = self.create_executor(self.create_msc())
+            executor = self.create_executor()
+            executor.compile(self.create_msc(executor))
 
             try:
                 executor.tick_until_end()

@@ -27,14 +27,21 @@ from cramph.context import StatechartContext
 from cramph.executor import StatechartExecutor
 
 
-def to_and_from_json(motion_statechart: Statechart, target_world: World):
+def to_and_from_json(
+    motion_statechart: Statechart, target_executor: StatechartExecutor
+) -> Statechart:
+    """
+    :return: `motion_statechart` sent through JSON into the context of `target_executor`.
+    """
     json_data = motion_statechart.to_json()
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
 
-    tracker = WorldEntityWithIDKwargsTracker.from_world(target_world)
+    tracker = WorldEntityWithIDKwargsTracker.from_world(target_executor.context.world)
     kwargs = tracker.create_kwargs()
-    return Statechart.from_json(new_json_data, **kwargs)
+    return Statechart.from_json(
+        new_json_data, context=target_executor.context, **kwargs
+    )
 
 
 def test_execute_collision_goal_in_fetched_world(rclpy_node, pr2_world_state_reset):
@@ -56,7 +63,11 @@ def test_execute_collision_goal_in_fetched_world(rclpy_node, pr2_world_state_res
         "base_footprint"
     )
 
-    msc = Statechart()
+    client_executor = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
+    msc = Statechart(context=client_executor.context)
     msc.add_node(
         Sequence(
             [
@@ -93,11 +104,11 @@ def test_execute_collision_goal_in_fetched_world(rclpy_node, pr2_world_state_res
     msc.add_node(local_min := LocalMinimumReached())
     msc.add_node(EndMotion.when_true(local_min))
 
-    msc_copy = to_and_from_json(msc, pr2_world_copy)
-
     kin_sim = StatechartExecutor(
         context=StatechartContext(world=pr2_world_copy), extensions=[MotionControl()]
     )
+    msc_copy = to_and_from_json(msc, kin_sim)
+
     kin_sim.compile(statechart=msc_copy)
 
     kin_sim.tick_until_end(500)

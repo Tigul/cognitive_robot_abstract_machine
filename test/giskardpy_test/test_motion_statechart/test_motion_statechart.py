@@ -66,12 +66,13 @@ from ..motion_control_context import create_context_with_motion_control
 # %% motion nodes in a statechart
 
 
-def _compile_msc(msc: Statechart) -> StatechartExecutor:
-    executor = StatechartExecutor(
+def _create_executor() -> StatechartExecutor:
+    """
+    :return: An executor with motion control acting in an empty world.
+    """
+    return StatechartExecutor(
         context=StatechartContext(world=World()), extensions=[MotionControl()]
     )
-    executor.compile(statechart=msc)
-    return executor
 
 
 @dataclass(eq=False, repr=False)
@@ -85,13 +86,14 @@ class _ConvergingTaskWithoutErrorSignal(ConvergingTask):
 
 
 def test_converging_task_without_error_signal_is_rejected():
-    msc = Statechart()
+    executor = _create_executor()
+    msc = Statechart(context=executor.context)
     task = _ConvergingTaskWithoutErrorSignal()
     msc.add_node(task)
     msc.add_node(EndMotion.when_true(task))
 
     with pytest.raises(MissingErrorSignalError):
-        _compile_msc(msc)
+        executor.compile(statechart=msc)
 
 
 def test_two_goals(pr2_world_state_reset: World):
@@ -99,7 +101,11 @@ def test_two_goals(pr2_world_state_reset: World):
     r_wrist_roll_joint = pr2_world_state_reset.get_connection_by_name(
         PR2Joint.RIGHT_WRIST_ROLL
     )
-    msc = Statechart()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
+    msc = Statechart(context=kin_sim.context)
     msc.add_nodes(
         [
             JointPositionList(goal_state=JointState.from_mapping({torso_joint: 0.1})),
@@ -108,16 +114,16 @@ def test_two_goals(pr2_world_state_reset: World):
     )
     msc.add_node(EndMotion.when_true(local_min))
 
-    kin_sim = StatechartExecutor(
-        context=StatechartContext(world=pr2_world_state_reset),
-        extensions=[MotionControl()],
-    )
     kin_sim.compile(statechart=msc)
 
     kin_sim.tick_until_end()
     assert np.isclose(torso_joint.position, 0.1, atol=1e-4)
 
-    msc = Statechart()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
+    msc = Statechart(context=kin_sim.context)
     msc.add_node(
         joint_goal := JointPositionList(
             goal_state=JointState.from_mapping({r_wrist_roll_joint: 1})
@@ -125,10 +131,6 @@ def test_two_goals(pr2_world_state_reset: World):
     )
     msc.add_node(EndMotion.when_true(joint_goal))
 
-    kin_sim = StatechartExecutor(
-        context=StatechartContext(world=pr2_world_state_reset),
-        extensions=[MotionControl()],
-    )
     kin_sim.compile(statechart=msc)
 
     kin_sim.tick_until_end()
@@ -157,7 +159,11 @@ def test_parallel_local_minimum_reached_tolerates_stall(pr2_world_state_reset: W
     torso_joint.raw_dof.limits.lower.velocity = -1e-3
     torso_joint.raw_dof.limits.upper.velocity = 1e-3
 
-    msc = Statechart()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
+    msc = Statechart(context=kin_sim.context)
     msc.add_node(
         combined := Parallel(
             [
@@ -175,10 +181,6 @@ def test_parallel_local_minimum_reached_tolerates_stall(pr2_world_state_reset: W
     )
     msc.add_node(EndMotion.when_true(combined))
 
-    kin_sim = StatechartExecutor(
-        context=StatechartContext(world=pr2_world_state_reset),
-        extensions=[MotionControl()],
-    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end(timeout=1000)
 
@@ -206,7 +208,11 @@ def test_joint_position_list_alone_times_out_on_stall(
     torso_joint.raw_dof.limits.lower.velocity = -1e-3
     torso_joint.raw_dof.limits.upper.velocity = 1e-3
 
-    msc = Statechart()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
+    msc = Statechart(context=kin_sim.context)
     msc.add_node(
         joint_goal := JointPositionList(
             goal_state=JointState.from_mapping({torso_joint: 1.0}),
@@ -214,10 +220,6 @@ def test_joint_position_list_alone_times_out_on_stall(
     )
     msc.add_node(EndMotion.when_true(joint_goal))
 
-    kin_sim = StatechartExecutor(
-        context=StatechartContext(world=pr2_world_state_reset),
-        extensions=[MotionControl()],
-    )
     kin_sim.compile(statechart=msc)
 
     with pytest.raises(TimeoutError):
@@ -238,7 +240,11 @@ def test_local_minimum_reached_only_depends_on_given_degrees_of_freedom(
         PR2Joint.RIGHT_WRIST_ROLL
     )
 
-    msc = Statechart()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
+    msc = Statechart(context=kin_sim.context)
     msc.add_nodes(
         [
             JointPositionList(goal_state=JointState.from_mapping({moving_joint: 2.0})),
@@ -249,10 +255,6 @@ def test_local_minimum_reached_only_depends_on_given_degrees_of_freedom(
     )
     msc.add_node(EndMotion.when_true(local_min))
 
-    kin_sim = StatechartExecutor(
-        context=StatechartContext(world=pr2_world_state_reset),
-        extensions=[MotionControl()],
-    )
     kin_sim.compile(statechart=msc)
 
     # Checked directly against local_min's own observation state, not against
@@ -299,7 +301,11 @@ def test_local_minimum_reached_raises_on_explicitly_empty_degrees_of_freedom(
 
 
 def test_long_goal(pr2_world_state_reset: World):
-    msc = Statechart()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
+    msc = Statechart(context=kin_sim.context)
     msc.add_nodes(
         [
             cart_goal := CartesianPose(
@@ -339,10 +345,6 @@ def test_long_goal(pr2_world_state_reset: World):
     )
     msc.add_node(EndMotion.when_true(cart_goal))
 
-    kin_sim = StatechartExecutor(
-        context=StatechartContext(world=pr2_world_state_reset),
-        extensions=[MotionControl()],
-    )
     kin_sim.compile(statechart=msc)
     t = time.perf_counter()
     kin_sim.tick_until_end(1_000_000)
@@ -415,7 +417,11 @@ class TestTemplates:
             reference_frame=map_link,
         )
 
-        msc = Statechart()
+        executor = StatechartExecutor(
+            context=StatechartContext(world=hsr_world_state_reset),
+            extensions=[MotionControl()],
+        )
+        msc = Statechart(context=executor.context)
         position_knife = CartesianPose(
             name="Position Knife",
             root_link=map_link,
@@ -473,10 +479,6 @@ class TestTemplates:
         cut.reset_condition = done.observes_false
         msc.add_node(EndMotion.when_true(done))
 
-        executor = StatechartExecutor(
-            context=StatechartContext(world=hsr_world_state_reset),
-            extensions=[MotionControl()],
-        )
         executor.compile(statechart=msc)
 
         executor.tick_until_end()
@@ -498,7 +500,11 @@ class TestTemplates:
         r_tip = pr2_world_state_reset.get_kinematic_structure_entity_by_name(
             "r_gripper_tool_frame"
         )
-        msc = Statechart()
+        kin_sim = StatechartExecutor(
+            context=StatechartContext(world=pr2_world_state_reset),
+            extensions=[MotionControl()],
+        )
+        msc = Statechart(context=kin_sim.context)
         msc.add_node(
             parallel := Parallel(
                 [
@@ -519,10 +525,6 @@ class TestTemplates:
         )
         msc.add_node(EndMotion.when_true(parallel))
 
-        kin_sim = StatechartExecutor(
-            context=StatechartContext(world=pr2_world_state_reset),
-            extensions=[MotionControl()],
-        )
         kin_sim.compile(statechart=msc)
         kin_sim.tick_until_end()
 
@@ -629,7 +631,11 @@ class TestMaxManipulability:
         goal_pose = Pose.from_xyz_rpy(
             x=0.8, y=-0.3, z=1.0, reference_frame=pr2_world_state_reset.root
         )
-        msc = Statechart()
+        kin_sim = StatechartExecutor(
+            context=StatechartContext(world=pr2_world_state_reset),
+            extensions=[MotionControl()],
+        )
+        msc = Statechart(context=kin_sim.context)
         cart_goal = CartesianPose(
             root_link=pr2_world_state_reset.root,
             tip_link=tip,
@@ -644,10 +650,6 @@ class TestMaxManipulability:
         manipulability.interrupt_condition = cart_goal.observes_true
         msc.add_node(EndMotion.when_true(cart_goal))
 
-        kin_sim = StatechartExecutor(
-            context=StatechartContext(world=pr2_world_state_reset),
-            extensions=[MotionControl()],
-        )
         kin_sim.compile(statechart=msc)
         kin_sim.tick_until_end()
 

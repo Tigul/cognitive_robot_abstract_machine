@@ -10,7 +10,7 @@ from typing import Optional, Any, List, Type, TYPE_CHECKING, Iterable
 from typing_extensions import Union
 
 from coraplex.plans.designator import Designator
-from cramph.composites import NodeListCompositeNode
+from cramph.composites import CramLanguageNode
 from cramph.node import CompositeNode
 from krrood.entity_query_language.query.match import Match
 from cramph.data_types import LifeCycleValues
@@ -533,7 +533,7 @@ class ActionNode(DesignatorNode, BuildsMotionStateChart):
 
     def add_to_motion_state_chart(
         self,
-        parent_goal: NodeListCompositeNode,
+        parent_goal: CramLanguageNode,
         executable: GiskardExecutable,
     ) -> CompositeNode:
         """
@@ -618,7 +618,7 @@ class MotionNode(DesignatorNode, BuildsMotionStateChart):
 
     def add_to_motion_state_chart(
         self,
-        parent_goal: NodeListCompositeNode,
+        parent_goal: CramLanguageNode,
         executable: GiskardExecutable,
     ) -> Task:
         """

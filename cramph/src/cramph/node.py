@@ -1767,6 +1767,17 @@ class DeserializedNodeTracker(DeserializedObjectTracker[str, StatechartNode]):
         return None
 
 
+def expanded_child_field() -> Any:
+    """
+    Declares a field of a composite node that holds a child the node creates in
+    :meth:`~CompositeNode.expand`.
+
+    A statechart is sent through JSON after its composite nodes expanded, and the
+    receiver does not expand them again, so such a field is serialized explicitly.
+    """
+    return field(init=False, metadata=JSONMetadata(serialize=True).as_dict())
+
+
 @dataclass(eq=False, repr=False)
 class CompositeNode(StatechartNode):
     nodes: List[StatechartNode] = field(default_factory=list, init=False)
@@ -1780,29 +1791,48 @@ class CompositeNode(StatechartNode):
     def expand(self, context: StatechartContext) -> None:
         """
         Instantiate child nodes, add them to this node, and wire their life cycle transition conditions.
+
+        Called once, when this node joins a statechart.
+
         ..warning:: Nodes have not been built yet.
         :param context: The context that contains data that can be used to expand this node.
         """
 
     def check_children(self) -> None:
         """
-        Rejects children this node cannot run, once every goal of the statechart
-        has expanded and the children's conditions are complete.
+        Rejects children this node cannot run, once the statechart is compiled and the
+        children's conditions are complete.
+        """
+
+    def wire_conditions_over_children(self) -> None:
+        """
+        Wires the conditions this node derives from its children into its own
+        transitions.
+
+        Called once, when the statechart is compiled, so it sees the final children
+        and is not overwritten by a caller that sets this node's conditions after it
+        joined.
         """
 
     def _add_child_to_statechart(self, node: StatechartNode) -> None:
         """
         Adds a node to this node and to the statechart this node belongs to.
 
-        .. note:: Call this from :meth:`expand`: the children of a composite statechart
-            node join the statechart while it is compiled, so that before that
-            they are serialized only once, inside their parent.
-
         :param node: The node to add as a child of this node.
         """
         self._add_node_sanity_check(node)
         if node not in self.nodes:
             self.nodes.append(node)
+        self._place_child_in_statechart(node)
+
+    def _place_child_in_statechart(self, node: StatechartNode) -> None:
+        """
+        Makes `node` a child of this node in the statechart this node belongs to,
+        without touching :attr:`nodes`.
+
+        :param node: The node that becomes a child of this node.
+        """
+        self._add_node_sanity_check(node)
         if node._statechart is self.statechart:
             return
         node.parent_node = self

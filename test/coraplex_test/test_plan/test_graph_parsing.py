@@ -65,10 +65,6 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Point3
 from semantic_digital_twin.world_description.geometry import VolumetricBoundingBox
-from giskardpy.motion_control import MotionControl
-from giskardpy.motion_statechart.ros_context import RosNodeAccess
-from cramph.context import StatechartContext
-from cramph.executor import StatechartExecutor
 
 
 def test_parse_simple_action(immutable_model_world):
@@ -125,7 +121,11 @@ def test_sequential_plan_nests_a_goal_per_plan_node(immutable_model_world):
     assert [goal.name for goal in action_goals] == ["ActionNode", "ActionNode"]
 
     tasks = list(executable.motion_mappings.values())
-    assert [goal.nodes for goal in action_goals] == [[tasks[0]], [tasks[1]]]
+    # Each task is run by the attempt its goal wrapped it in.
+    assert [[child.task for child in goal.nodes] for goal in action_goals] == [
+        [tasks[0]],
+        [tasks[1]],
+    ]
 
 
 # %% monitored subtrees
@@ -146,18 +146,13 @@ def _parse_and_compile(plan, world, context):
     """
     Parse `plan` and compile its motion state chart.
 
-    Compiling is what expands the goals, so it is required before any condition wired by
-    a template can be observed.
+    The chart is compiled by the executor it was built with.
     """
     plan.notify()
     executable = plan.parse()
     with simulated_robot:
         executable.prepare_for_execution()
-    executor = StatechartExecutor(
-        context=StatechartContext(world=world),
-        extensions=[RosNodeAccess(context.ros_node), MotionControl()],
-    )
-    executor.compile(executable.motion_state_chart)
+    executable.executor.compile(executable.motion_state_chart)
     return executable
 
 

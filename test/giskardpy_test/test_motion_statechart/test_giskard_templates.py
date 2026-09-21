@@ -58,12 +58,12 @@ def _compile_and_tick(
         using the control rate the executor actually runs at.
     :return: The executor, so a caller can keep ticking and inspect intermediate states.
     """
-    msc = Statechart()
-    msc.add_node(goal)
     motion_control = MotionControl()
     executor = StatechartExecutor(
         context=StatechartContext(world=World()), extensions=[motion_control]
     )
+    msc = Statechart(context=executor.context)
+    msc.add_node(goal)
     executor.compile(statechart=msc)
     cycles_per_alternative = ceil(
         GIVE_UP_AFTER.total_seconds() / motion_control.qp_controller_config.control_dt
@@ -254,12 +254,12 @@ def test_the_next_alternative_starts_on_the_cycle_the_previous_one_fails():
     second = _alternative(ConstTrueNode(name="second"))
     goal = TryInOrder(nodes=[first, second])
 
-    msc = Statechart()
-    msc.add_node(goal)
     motion_control = MotionControl()
     executor = StatechartExecutor(
         context=StatechartContext(world=World()), extensions=[motion_control]
     )
+    msc = Statechart(context=executor.context)
+    msc.add_node(goal)
     executor.compile(statechart=msc)
 
     cycles_to_abandon_an_alternative = ceil(
@@ -335,23 +335,23 @@ def test_the_goal_fails_once_every_alternative_was_abandoned():
 
 
 def test_a_try_all_without_nodes_is_rejected():
-    msc = Statechart()
-    msc.add_node(TryAll(nodes=[]))
-
     executor = StatechartExecutor(
         context=StatechartContext(world=World()), extensions=[MotionControl()]
     )
+    msc = Statechart(context=executor.context)
+    msc.add_node(TryAll(nodes=[]))
+
     with pytest.raises(CompositeNodeWithoutChildrenError):
         executor.compile(statechart=msc)
 
 
 def test_a_try_in_order_without_nodes_is_rejected():
-    msc = Statechart()
-    msc.add_node(TryInOrder(nodes=[]))
-
     executor = StatechartExecutor(
         context=StatechartContext(world=World()), extensions=[MotionControl()]
     )
+    msc = Statechart(context=executor.context)
+    msc.add_node(TryInOrder(nodes=[]))
+
     with pytest.raises(CompositeNodeWithoutChildrenError):
         executor.compile(statechart=msc)
 

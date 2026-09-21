@@ -608,11 +608,15 @@ too long. Counters stand in for real work:
 
 ```python
 from cramph.composites import Attempt, Sequence, TryInOrder
+from cramph.context import StatechartContext
+from cramph.executor import StatechartExecutor
 from cramph.monitors import CountTicks
 from cramph.node import EndStatechart
 from cramph.statechart import Statechart
+from semantic_digital_twin.world import World
 
-statechart = Statechart()
+executor = StatechartExecutor(context=StatechartContext(world=World()))
+statechart = Statechart(context=executor.context)
 
 slow_approach = Attempt(
     name="slow approach",

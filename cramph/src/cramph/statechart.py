@@ -36,6 +36,10 @@ from cramph.exceptions import (
     TickDoesNotSettleError,
     CyclicNodeDependencyError,
     SuccessDeciderNotDeclaredError,
+    PrerequisiteNotExpandedError,
+    StatechartAlreadyCompiledError,
+    NotInStatechartError,
+    RemovedNodeStillReferencedError,
 )
 from cramph.node import (
     CancelStatechart,
@@ -1039,7 +1043,7 @@ class Statechart(SubclassJSONSerializer):
         5. its own pause condition, or its parent is paused
         6. its own start condition, while its parent is running
     How to use this class:
-        1. initialized with a world
+        1. initialized with the context of the executor that runs it
         2. add nodes.
         3. set the transition conditions of nodes
         4. compile the statechart.
@@ -1047,6 +1051,11 @@ class Statechart(SubclassJSONSerializer):
             tick() raises the exception of a CancelStatechart that started, once the
             tick is complete.
         6. call is_ended() to check if the statechart is done.
+    """
+
+    context: StatechartContext = field(kw_only=True, repr=False)
+    """
+    The context the nodes of this statechart are expanded, built and ticked in.
     """
 
     rx_graph: rx.PyDiGraph[StatechartNode] = field(
@@ -1079,7 +1088,7 @@ class Statechart(SubclassJSONSerializer):
     The history of how the state of the statechart changed over time.
     """
 
-    _compiled_tick: CompiledTick = field(init=False, repr=False)
+    _compiled_tick: Optional[CompiledTick] = field(default=None, init=False, repr=False)
     """
     Updates every node once per tick, created by :meth:`compile`.
     """
@@ -1127,10 +1136,10 @@ class Statechart(SubclassJSONSerializer):
 
         :return: The structural copy.
         """
-        statechart_copy = Statechart()
+        statechart_copy = Statechart(context=self.context)
         # copy nodes in order to make sure index is correct
         for node in self.nodes:
-            statechart_copy.add_node(node.create_structure_copy())
+            statechart_copy._register_node(node.create_structure_copy())
         # link parent/child
         for node in self.get_nodes_by_type(CompositeNode):
             goal_copy: CompositeNode = statechart_copy.get_node_by_index(node.index)
@@ -1201,10 +1210,47 @@ class Statechart(SubclassJSONSerializer):
         """
         return list(set(self.edges))
 
+    @property
+    def is_compiled(self) -> bool:
+        """
+        :return: Whether :meth:`compile` ran, after which the nodes can no longer change.
+        """
+        return self._compiled_tick is not None
+
     def add_node(self, node: StatechartNode):
         """
-        Adds a node to the statechart and finalizes the initialization of the
-        node.
+        Adds a node to the statechart, and expands it right away if it is a
+        :class:`CompositeNode`, which adds its children in turn.
+
+        :param node: The node to add.
+        :raises StatechartAlreadyCompiledError: If this statechart is compiled.
+        :raises PrerequisiteNotExpandedError: If `node` is a composite node that reads
+            a composite node which has not joined this statechart yet.
+        """
+        if self.is_compiled:
+            raise StatechartAlreadyCompiledError()
+        self._register_node(node)
+        if isinstance(node, CompositeNode):
+            self._expand(node)
+
+    def _expand(self, node: CompositeNode) -> None:
+        """
+        Expands `node` in :attr:`context`, once every composite node it reads while
+        expanding has joined this statechart.
+
+        :param node: The composite node that just joined this statechart.
+        """
+        for prerequisite in node.prerequisite_nodes:
+            if isinstance(prerequisite, CompositeNode) and (
+                prerequisite._statechart is not self
+            ):
+                raise PrerequisiteNotExpandedError(node=node, prerequisite=prerequisite)
+        node.expand(self.context)
+
+    def _register_node(self, node: StatechartNode) -> None:
+        """
+        Adds a node to the statechart without expanding it, and finalizes its
+        initialization.
 
         :param node: The node to add.
         """
@@ -1218,6 +1264,99 @@ class Statechart(SubclassJSONSerializer):
             self._cancel_nodes.append(node)
         if isinstance(node, EndStatechart):
             self._end_nodes.append(node)
+
+    def remove_node(self, node: StatechartNode) -> None:
+        """
+        Removes a node and everything below it from the statechart, and from the node
+        it is a child of.
+
+        The nodes that stay keep their order and are numbered anew without gaps.
+
+        :param node: The node to remove.
+        :raises StatechartAlreadyCompiledError: If this statechart is compiled.
+        :raises NotInStatechartError: If `node` does not belong to this statechart.
+        :raises RemovedNodeStillReferencedError: If a node that stays refers to a
+            removed node through a condition or as a prerequisite.
+        """
+        if self.is_compiled:
+            raise StatechartAlreadyCompiledError()
+        if node._statechart is not self:
+            raise NotInStatechartError(name=node.name)
+        removed_nodes = self._with_descendants(node)
+        kept_nodes = [kept for kept in self._nodes if kept not in removed_nodes]
+        self._check_not_referenced(removed_nodes, kept_nodes)
+        parent_node = node.parent_node
+        if parent_node is not None and node in parent_node.nodes:
+            parent_node.nodes.remove(node)
+        self._renumber(kept_nodes)
+        for removed_node in removed_nodes:
+            removed_node._statechart = None
+            removed_node.index = None
+            removed_node.parent_node_index = None
+
+    def _with_descendants(self, node: StatechartNode) -> List[StatechartNode]:
+        """
+        :return: `node` and every node below it, in index order.
+        """
+        removed_indices = {node.index}
+        result = [node]
+        for candidate in self._nodes[node.index + 1 :]:
+            if candidate.parent_node_index in removed_indices:
+                removed_indices.add(candidate.index)
+                result.append(candidate)
+        return result
+
+    @staticmethod
+    def _check_not_referenced(
+        removed_nodes: List[StatechartNode], kept_nodes: List[StatechartNode]
+    ) -> None:
+        """
+        :raises RemovedNodeStillReferencedError: If a node of `kept_nodes` refers to a
+            node of `removed_nodes` through a condition or as a prerequisite.
+        """
+        for kept_node in kept_nodes:
+            referenced_nodes = list(kept_node.prerequisite_nodes) + [
+                dependency
+                for condition in kept_node.conditions
+                for dependency in condition.node_dependencies
+            ]
+            for referenced_node in referenced_nodes:
+                if referenced_node in removed_nodes:
+                    raise RemovedNodeStillReferencedError(
+                        removed_node=referenced_node, referencing_node=kept_node
+                    )
+
+    def _renumber(self, kept_nodes: List[StatechartNode]) -> None:
+        """
+        Keeps only `kept_nodes`, numbering them anew in their current order.
+
+        Only valid before compilation, while the graph has no edges yet.
+
+        :param kept_nodes: The nodes that stay, in index order.
+        """
+        kept_indices = [kept_node.index for kept_node in kept_nodes]
+        new_index_of = {old: new for new, old in enumerate(kept_indices)}
+        for state in (
+            self.life_cycle_state,
+            self.observation_state,
+            self.last_observation_state,
+        ):
+            state.data = state.data[kept_indices]
+        for kept_node in kept_nodes:
+            if kept_node.parent_node_index is not None:
+                kept_node.parent_node_index = new_index_of[kept_node.parent_node_index]
+        self.rx_graph = rx.PyDAG(multigraph=True)
+        for kept_node in kept_nodes:
+            kept_node.index = self.rx_graph.add_node(kept_node)
+        self._nodes = kept_nodes
+        self._cancel_nodes = [
+            cancel_node
+            for cancel_node in self._cancel_nodes
+            if cancel_node in kept_nodes
+        ]
+        self._end_nodes = [
+            end_node for end_node in self._end_nodes if end_node in kept_nodes
+        ]
 
     def add_nodes(self, nodes: List[StatechartNode]):
         """
@@ -1359,15 +1498,14 @@ class Statechart(SubclassJSONSerializer):
             node=node, cycle=dependency_chain[cycle_start:] + [node]
         )
 
-    def compile(self, context: StatechartContext):
+    def compile(self):
         """
-        Compiles all components of the statechart given the provided context.
+        Compiles all components of the statechart in its :attr:`context`.
         This method must be called before tick().
-
-        :param context: The build context required to execute the compilation process.
         """
+        context = self.context
         self.sanity_check()
-        self._expand_goals(context=context)
+        self._wire_conditions_over_children()
         self._check_children_of_goals()
         self._check_every_node_declares_its_success_decider()
         self._succeed_self_deciding_nodes_observing_true()
@@ -1390,6 +1528,14 @@ class Statechart(SubclassJSONSerializer):
         """
         for goal in self.get_nodes_by_type(CompositeNode):
             goal.check_children()
+
+    def _wire_conditions_over_children(self) -> None:
+        """
+        Lets every goal wire the conditions it derives from its final children into
+        its own transitions.
+        """
+        for goal in self.get_nodes_by_type(CompositeNode):
+            goal.wire_conditions_over_children()
 
     def _check_every_node_declares_its_success_decider(self) -> None:
         """
@@ -1430,65 +1576,20 @@ class Statechart(SubclassJSONSerializer):
                 continue
             node.fail_condition = sm.logic_or(node.fail_condition, node.observes_false)
 
-    def _expand_goals(self, context: StatechartContext):
+    def tick(self):
         """
-        Triggers the expansion of all goals in the statechart and add its
-        children to the statechart.
-
-        :param context: The build context passed to every goal's expansion.
-        """
-        expanded_goal_indices: set[int] = set()
-        for goal in self.get_nodes_by_type(CompositeNode):
-            self._expand_goal(goal, context, expanded_goal_indices, [])
-
-    def _expand_goal(
-        self,
-        goal: CompositeNode,
-        context: StatechartContext,
-        expanded_goal_indices: set[int],
-        dependency_chain: List[StatechartNode],
-    ):
-        """
-        Expands the goals `goal` depends on, then `goal` itself, then recursively every
-        child of `goal` that is itself a :class:`CompositeNode`.
-
-        Already-expanded goals (tracked via `expanded_goal_indices`) are skipped, so a
-        goal that several others depend on is still only expanded once.
-
-        :param goal: The goal to expand.
-        :param context: The build context passed to :meth:`~cramph.node.CompositeNode.expand`.
-        :param expanded_goal_indices: The indices of goals already expanded, updated in place.
-        :param dependency_chain: The goals currently being expanded, used to detect cycles.
-        """
-        if goal.index in expanded_goal_indices:
-            return
-        self._check_no_dependency_cycle(goal, dependency_chain)
-        chain = dependency_chain + [goal]
-        for dependency in goal.prerequisite_nodes:
-            if isinstance(dependency, CompositeNode):
-                self._expand_goal(dependency, context, expanded_goal_indices, chain)
-        expanded_goal_indices.add(goal.index)
-        goal.expand(context)
-        for child_node in goal.nodes:
-            if isinstance(child_node, CompositeNode):
-                self._expand_goal(child_node, context, expanded_goal_indices, chain)
-
-    def tick(self, context: StatechartContext):
-        """
-        Executes a single tick of the statechart.
+        Executes a single tick of the statechart in its :attr:`context`.
 
         Every node is brought to the state it reaches in this tick, see
         :class:`CompiledTick`, then the life cycle callbacks of every change run
         and the tick is recorded. A :class:`CancelStatechart` that started in this
         tick ends the statechart only after that.
-
-        :param context: The context required to execute the tick.
         """
-        for change in self._compiled_tick.settle(context):
-            change.run_callback(context)
+        for change in self._compiled_tick.settle(self.context):
+            change.run_callback(self.context)
         self.history.append(
             next_item=StateHistoryItem(
-                tick_count=context.tick_count,
+                tick_count=self.context.tick_count,
                 life_cycle_state=self.life_cycle_state,
                 observation_state=self.observation_state,
             )
@@ -1522,14 +1623,12 @@ class Statechart(SubclassJSONSerializer):
         for node in self._cancel_nodes:
             node.raise_pending_exception()
 
-    def cleanup_nodes(self, context: StatechartContext):
+    def cleanup_nodes(self):
         """
-        Calls :meth:`~StatechartNode.cleanup` on every node.
-
-        :param context: The context passed to every node's `cleanup`.
+        Calls :meth:`~StatechartNode.cleanup` on every node, in :attr:`context`.
         """
         for node in self.nodes:
-            node.cleanup(context)
+            node.cleanup(self.context)
 
     def draw(self, file_name: str):
         """
@@ -1573,49 +1672,33 @@ class Statechart(SubclassJSONSerializer):
         ]
         result[StatechartJSONKey.CONDITIONS] = [
             condition.to_json(**kwargs)
-            for node in self._with_children_not_added(self.nodes)
+            for node in self.nodes
             for condition in node.conditions
         ]
         return result
 
-    def _with_children_not_added(
-        self, nodes: List[StatechartNode]
-    ) -> List[StatechartNode]:
-        """
-        :param nodes: The nodes to start from.
-        :return: `nodes`, together with the children of every goal among them, recursively,
-            that have not joined this statechart yet.
-        """
-        result = []
-        for node in nodes:
-            result.append(node)
-            if not isinstance(node, CompositeNode):
-                continue
-            result.extend(
-                self._with_children_not_added(
-                    [child for child in node.nodes if child._statechart is not self]
-                )
-            )
-        return result
-
     @classmethod
-    def _from_json(cls, data: dict[str, Any], **kwargs) -> Self:
+    def _from_json(
+        cls, data: dict[str, Any], *, context: StatechartContext, **kwargs
+    ) -> Self:
         """
         Reconstructs a statechart from its JSON representation, as produced by
         :meth:`to_json`: first all nodes, then the transition conditions of every node
         the document holds, then goal/child parent links. A goal that serializes its own nodes already holds
-        them, so it is not handed them a second time.
+        them, so it is not handed them a second time. The goals are not expanded again,
+        because they expanded before they were serialized.
 
         :param data: The JSON dict.
+        :param context: The context the deserialized statechart is built and run in.
         :param kwargs: Forwarded to :func:`~krrood.adapters.json_serializer.from_json`
             for every node.
         :return: The deserialized statechart.
         """
-        statechart = cls()
+        statechart = cls(context=context)
         DeserializedNodeTracker.from_kwargs(kwargs)
         for json_data in data[StatechartJSONKey.NODES]:
             node = from_json(json_data, **kwargs)
-            statechart.add_node(node)
+            statechart._register_node(node)
         for json_data in data[StatechartJSONKey.CONDITIONS]:
             transition = TransitionCondition.from_json(json_data, **kwargs)
             transition.owner._set_transition(transition)

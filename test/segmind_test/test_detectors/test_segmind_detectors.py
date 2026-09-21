@@ -77,7 +77,7 @@ def test_contact_detector(_simple_apartment_setup):
     )
     statechart = DetectorStatechartBuilder(
         [ContactDetector(), LossOfContactDetector()]
-    ).build()
+    ).build(segmind_executor.context)
     segmind_executor.compile(statechart)
     segmind_executor.tick()
 
@@ -125,7 +125,7 @@ def test_support_detector(_simple_apartment_setup):
     )
     statechart = DetectorStatechartBuilder(
         [SupportDetector(), LossOfSupportDetector()]
-    ).build()
+    ).build(segmind_executor.context)
     milk.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         -1.7, 0, 0.93, reference_frame=milk.parent_connection.parent
     )
@@ -175,7 +175,7 @@ def test_containment_detector(_simple_apartment_setup):
     )
     statechart = DetectorStatechartBuilder(
         [ContainmentDetector(), LossOfContainmentDetector()]
-    ).build()
+    ).build(segmind_executor.context)
     segmind_executor.compile(statechart)
     segmind_executor.tick()
 
@@ -221,7 +221,7 @@ def test_pickup(_simple_apartment_setup):
             TranslationDetector(),
             LossOfSupportDetector(),
         ]
-    ).build()
+    ).build(segmind_executor.context)
     milk.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         -1.7, 0, 0.93, reference_frame=milk.parent_connection.parent
     )
@@ -259,7 +259,7 @@ def test_placing(_simple_apartment_setup):
             StopTranslationDetector(),
             PlacingDetector(),
         ]
-    ).build()
+    ).build(segmind_executor.context)
     segmind_executor.compile(statechart)
     segmind_executor.tick()
 
@@ -304,7 +304,7 @@ def test_pickup_then_place_back_on_same_surface(_simple_apartment_setup):
             TranslationDetector(),
             StopTranslationDetector(),
         ]
-    ).build()
+    ).build(segmind_executor.context)
     milk.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         x=box2.global_pose.x,
         y=box2.global_pose.y,
@@ -363,7 +363,9 @@ def test_translation(_simple_apartment_setup):
     segmind_executor, segmind_context, milk, box1, box2 = _build_executor(
         _simple_apartment_setup
     )
-    statechart = DetectorStatechartBuilder([TranslationDetector()]).build()
+    statechart = DetectorStatechartBuilder([TranslationDetector()]).build(
+        segmind_executor.context
+    )
     segmind_executor.compile(statechart)
     segmind_executor.tick()
 
@@ -392,7 +394,7 @@ def test_stop_translation(_simple_apartment_setup):
             StopTranslationDetector(),
             PlacingDetector(),
         ]
-    ).build()
+    ).build(segmind_executor.context)
     segmind_executor.compile(statechart)
     segmind_executor.tick()
 
@@ -424,7 +426,7 @@ def test_insertion(_simple_apartment_setup):
             LossOfContactDetector(),
             ContainmentDetector(),
         ]
-    ).build()
+    ).build(segmind_executor.context)
 
     with segmind_executor.context.world.modify_world():
         hole = Body(
@@ -471,7 +473,9 @@ def test_rotation(_simple_apartment_setup):
     segmind_executor, segmind_context, milk, box1, box2 = _build_executor(
         _simple_apartment_setup
     )
-    statechart = DetectorStatechartBuilder([RotationDetector()]).build()
+    statechart = DetectorStatechartBuilder([RotationDetector()]).build(
+        segmind_executor.context
+    )
     segmind_executor.compile(statechart)
     segmind_executor.tick()
 
@@ -510,7 +514,7 @@ def test_stop_rotation(_simple_apartment_setup):
     )
     statechart = DetectorStatechartBuilder(
         [RotationDetector(), StopRotationDetector()]
-    ).build()
+    ).build(segmind_executor.context)
     segmind_executor.compile(statechart)
     segmind_executor.tick()
 
@@ -576,7 +580,7 @@ def test_slow_motion_with_all_motion_detectors(_simple_apartment_setup):
             RotationDetector(),
             StopRotationDetector(),
         ]
-    ).build()
+    ).build(segmind_executor.context)
     segmind_executor.compile(statechart)
 
     # Move the object to its start pose and let the pose windows settle, so that the events

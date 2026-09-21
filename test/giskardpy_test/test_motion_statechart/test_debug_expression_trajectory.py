@@ -22,13 +22,16 @@ from cramph.context import StatechartContext
 from cramph.executor import StatechartExecutor
 
 
-def _build_motion_statechart(cylinder_bot_world: World) -> Statechart:
+def _build_motion_statechart(
+    cylinder_bot_world: World, executor: StatechartExecutor
+) -> Statechart:
     """
-    Build a motion statechart that moves the bot to a Cartesian point.
+    Build a motion statechart that moves the bot to a Cartesian point, in the context of
+    `executor`.
     """
     root = cylinder_bot_world.root
     tip = cylinder_bot_world.get_kinematic_structure_entity_by_name("bot")
-    motion_statechart = Statechart()
+    motion_statechart = Statechart(context=executor.context)
     goal = CartesianPosition(
         root_link=root,
         tip_link=tip,
@@ -51,7 +54,7 @@ def _build_executor(cylinder_bot_world: World) -> StatechartExecutor:
             DebugExpressionRecording(plotter=DebugExpressionTrajectoryPlotter()),
         ],
     )
-    executor.compile(statechart=_build_motion_statechart(cylinder_bot_world))
+    executor.compile(statechart=_build_motion_statechart(cylinder_bot_world, executor))
     return executor
 
 
@@ -114,7 +117,9 @@ class TestDebugExpressionRecording:
             context=StatechartContext(world=cylinder_bot_world),
             extensions=[MotionControl()],
         )
-        executor.compile(statechart=_build_motion_statechart(cylinder_bot_world))
+        executor.compile(
+            statechart=_build_motion_statechart(cylinder_bot_world, executor)
+        )
 
         output = tmp_path / "debug_expressions.pdf"
         with pytest.raises(MissingExecutorExtensionError):

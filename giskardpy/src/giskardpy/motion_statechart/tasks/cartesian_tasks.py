@@ -14,9 +14,10 @@ from giskardpy.motion_statechart.binding_policy import (
 )
 from cramph.context import StatechartContext
 from giskardpy.motion_statechart.data_types import DefaultWeights
-from cramph.data_types import ObservationStateValues
+from cramph.data_types import ObservationStateValues, SuccessDecider
 from giskardpy.motion_statechart.exceptions import GoalPointsReferenceFrameMismatchError
 from cramph.composites import Parallel
+from cramph.node import CompositeNode, NodeArtifacts
 from giskardpy.motion_statechart.error_signals import (
     SampledErrorSignal,
     SymbolicErrorSignal,
@@ -633,13 +634,17 @@ class CartesianOrientation(CartesianTask):
 
 
 @dataclass(eq=False, repr=False)
-class CartesianPose(Parallel):
+class CartesianPose(CompositeNode):
     """
     This goal will use the kinematic chain between root and tip link to move tip_link into the 6D goal_pose.
 
     Position and orientation are separate tasks, because an error in meters and an error
-    in radians cannot be compared against one threshold.
+    in radians cannot be compared against one threshold. Both run in one
+    :class:`~cramph.composites.Parallel`, and this goal observes what that parallel
+    observes.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     root_link: KinematicStructureEntity | None = field(default=None, kw_only=True)
     """Base link of the kinematic chain. Defaults to the root of the world."""
@@ -683,12 +688,36 @@ class CartesianPose(Parallel):
     )
     """Describes when the goal is computed. See GoalBindingPolicy for more information."""
 
-    nodes: list[MotionStatechartNode] = field(default_factory=list, init=False)
+    @property
+    def parallel(self) -> Parallel:
+        """
+        The parallel running the position and the orientation task.
+        """
+        return self.nodes[0]
 
     def expand(self, context: StatechartContext) -> None:
+        """
+        Add the parallel running the position and the orientation task.
+        """
         if self.root_link is None:
             self.root_link = context.world.root
-        self.nodes = [
+        self._add_child_to_statechart(
+            Parallel(name=f"{self.name}/parallel", nodes=self._create_tasks())
+        )
+
+    def wire_conditions_over_children(self) -> None:
+        """
+        Fail once the parallel can no longer arrive.
+        """
+        self.fail_condition = sm.logic_or(
+            self.fail_condition, self.parallel.is_failed_or_interrupted
+        )
+
+    def _create_tasks(self) -> List[MotionStatechartNode]:
+        """
+        :return: The position and the orientation task.
+        """
+        return [
             CartesianPosition(
                 name=f"{self.name}/position",
                 root_link=self.root_link,
@@ -710,7 +739,12 @@ class CartesianPose(Parallel):
                 binding_policy=self.binding_policy,
             ),
         ]
-        super().expand(context)
+
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
+        """
+        Observe what the parallel observes.
+        """
+        return NodeArtifacts(observation=self.parallel.observation_variable)
 
 
 @dataclass(eq=False, repr=False)
@@ -834,7 +868,7 @@ class CartesianRotationVelocityLimit(Task):
 
 
 @dataclass(eq=False, repr=False)
-class CartesianVelocityLimit(Parallel):
+class CartesianVelocityLimit(CompositeNode):
     """
     Combines both linear and angular velocity limits for a kinematic chain.
 
@@ -848,6 +882,8 @@ class CartesianVelocityLimit(Parallel):
        solve time especially at high control frequencies. If computation time is critical,
        consider using larger limits or reducing the prediction horizon.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     root_link: KinematicStructureEntity = field(kw_only=True)
     """Root link of the kinematic chain. Defines the reference frame from which the tip's motion is measured."""
@@ -867,25 +903,48 @@ class CartesianVelocityLimit(Parallel):
     """Optimization weight determining how strongly both velocity
     limits are enforced. Higher weights give these constraints soft priority
     over lower weighted constraints when conflicts occur."""
-    nodes: List[MotionStatechartNode] = field(default_factory=list, init=False)
-    """List of motion nodes that run in parallel and enforce the velocity limits.
-    Contains a CartesianPositionVelocityLimit and CartesianRotationVelocityLimit node 
-    by default. Populated in __post_init__()."""
 
-    def __post_init__(self):
-        super().__post_init__()
+    @property
+    def parallel(self) -> Parallel:
+        """
+        The parallel running the linear and the angular velocity limit.
+        """
+        return self.nodes[0]
 
-        translational = CartesianPositionVelocityLimit(
-            root_link=self.root_link,
-            tip_link=self.tip_link,
-            max_linear_velocity=self.max_linear_velocity,
-            weight=self.weight,
+    def expand(self, context: StatechartContext) -> None:
+        """
+        Add the parallel running the linear and the angular velocity limit.
+        """
+        self._add_child_to_statechart(
+            Parallel(
+                name=f"{self.name}/parallel",
+                nodes=[
+                    CartesianPositionVelocityLimit(
+                        root_link=self.root_link,
+                        tip_link=self.tip_link,
+                        max_linear_velocity=self.max_linear_velocity,
+                        weight=self.weight,
+                    ),
+                    CartesianRotationVelocityLimit(
+                        root_link=self.root_link,
+                        tip_link=self.tip_link,
+                        max_angular_velocity=self.max_angular_velocity,
+                        weight=self.weight,
+                    ),
+                ],
+            )
         )
-        rotational = CartesianRotationVelocityLimit(
-            root_link=self.root_link,
-            tip_link=self.tip_link,
-            max_angular_velocity=self.max_angular_velocity,
-            weight=self.weight,
+
+    def wire_conditions_over_children(self) -> None:
+        """
+        Fail once the parallel can no longer arrive.
+        """
+        self.fail_condition = sm.logic_or(
+            self.fail_condition, self.parallel.is_failed_or_interrupted
         )
-        self.nodes.append(translational)
-        self.nodes.append(rotational)
+
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
+        """
+        Observe what the parallel observes.
+        """
+        return NodeArtifacts(observation=self.parallel.observation_variable)

@@ -84,14 +84,14 @@ def test_motion_nodes_and_nodes_of_other_modules_run_in_one_statechart(
         goal_point=Point3(x=0.1, reference_frame=root),
     )
     other_node = ConstTrueNode()
-    statechart = Statechart()
-    statechart.add_nodes(
-        [goal, other_node, EndMotion.when_all_true([goal, other_node])]
-    )
     tick_counter = ExtensionCountingTicks()
     executor = StatechartExecutor(
         context=StatechartContext(world=cylinder_bot_world),
         extensions=[MotionControl(), tick_counter],
+    )
+    statechart = Statechart(context=executor.context)
+    statechart.add_nodes(
+        [goal, other_node, EndMotion.when_all_true([goal, other_node])]
     )
 
     executor.compile(statechart)

@@ -33,10 +33,9 @@ from semantic_digital_twin.world import World
 
 def expand(statechart: Statechart) -> Statechart:
     """
-    Expands the goals of `statechart` and rebuilds its transitions, which is as far as a
-    statechart has to be built to be drawn.
+    Rebuilds the transitions of `statechart`, whose goals expanded when they joined it,
+    which is as far as a statechart has to be built to be drawn.
     """
-    statechart._expand_goals(StatechartContext(world=World()))
     statechart._add_transitions()
     return statechart
 
@@ -46,7 +45,7 @@ def build_statechart(goal: CompositeNode) -> Statechart:
     Creates a statechart holding `goal` and an EndStatechart, expanded far enough to be
     drawn.
     """
-    statechart = Statechart()
+    statechart = Statechart(context=StatechartContext(world=World()))
     statechart.add_node(goal)
     statechart.add_node(EndStatechart.when_true(goal))
     return expand(statechart)
@@ -160,7 +159,7 @@ def build_dependency_statechart(
 
     The caller wires those conditions before drawing.
     """
-    statechart = Statechart()
+    statechart = Statechart(context=StatechartContext(world=World()))
     statechart.add_node(observed)
     statechart.add_node(owner)
     return statechart
@@ -443,7 +442,7 @@ def test_condition_without_terms_is_spelled_out():
     when inactive.
     """
     owner = ConstTrueNode(name="Owner")
-    statechart = Statechart()
+    statechart = Statechart(context=StatechartContext(world=World()))
     statechart.add_node(owner)
     expand(statechart)
 
@@ -465,7 +464,7 @@ def test_condition_boolean_constants_coloring_in_running_state():
     start:True is inactive and rendered grayed out.
     """
     owner = ConstTrueNode(name="Owner")
-    statechart = Statechart()
+    statechart = Statechart(context=StatechartContext(world=World()))
     statechart.add_node(owner)
     expand(statechart)
     statechart.life_cycle_state[owner] = LifeCycleValues.RUNNING
@@ -489,7 +488,7 @@ def test_condition_boolean_constants_coloring_in_running_state():
 
 def test_end_statechart_renders_with_rounded_outer_cluster():
     end = EndStatechart()
-    statechart = Statechart()
+    statechart = Statechart(context=StatechartContext(world=World()))
     statechart.add_node(end)
     expand(statechart)
 
@@ -505,7 +504,7 @@ def test_end_statechart_renders_with_rounded_outer_cluster():
 
 def test_cancel_statechart_renders_with_dashed_outer_cluster():
     cancel = CancelStatechart(exception=Exception("fail"))
-    statechart = Statechart()
+    statechart = Statechart(context=StatechartContext(world=World()))
     statechart.add_node(cancel)
     expand(statechart)
 
@@ -523,7 +522,7 @@ def test_edge_targeting_terminal_node_clips_to_outer_cluster():
     observed = ConstTrueNode(name="Observed")
     end = EndStatechart()
     cancel = CancelStatechart(exception=Exception("fail"))
-    statechart = Statechart()
+    statechart = Statechart(context=StatechartContext(world=World()))
     statechart.add_nodes([observed, end, cancel])
     end.start_condition = observed.last_observed_true
     cancel.start_condition = observed.last_observed_true
@@ -630,7 +629,7 @@ def test_terminal_node_condition_graying(
     Terminal nodes render only the start condition, grayed out when not in NOT_STARTED.
     """
     terminal_node = node_factory()
-    statechart = Statechart()
+    statechart = Statechart(context=StatechartContext(world=World()))
     statechart.add_node(terminal_node)
     expand(statechart)
     statechart.life_cycle_state[terminal_node] = life_cycle_state

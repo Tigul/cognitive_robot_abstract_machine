@@ -134,14 +134,14 @@ def test_repeat_on_stall_retries_a_motion_that_stops_converging(
         stop_retry_monitor=CountNodeResets(name="counter", node=task, target=2),
         timeout=timedelta(seconds=1),
     )
-    motion_statechart = Statechart()
-    motion_statechart.add_node(loop)
-    motion_statechart.add_node(EndMotion.when_true(loop))
-
     executor = StatechartExecutor(
         context=StatechartContext(world=pr2_world_state_reset),
         extensions=[MotionControl()],
     )
+    motion_statechart = Statechart(context=executor.context)
+    motion_statechart.add_node(loop)
+    motion_statechart.add_node(EndMotion.when_true(loop))
+
     executor.compile(statechart=motion_statechart)
     for _ in range(2000):
         executor.tick()
@@ -168,14 +168,14 @@ def test_repeat_on_stall_leaves_a_reachable_motion_alone(cylinder_bot_world: Wor
         stop_retry_monitor=CountNodeResets(name="counter", node=task, target=1),
         timeout=timedelta(seconds=0.5),
     )
-    motion_statechart = Statechart()
-    motion_statechart.add_node(loop)
-    motion_statechart.add_node(EndMotion.when_true(loop))
-
     executor = StatechartExecutor(
         context=StatechartContext(world=cylinder_bot_world),
         extensions=[MotionControl()],
     )
+    motion_statechart = Statechart(context=executor.context)
+    motion_statechart.add_node(loop)
+    motion_statechart.add_node(EndMotion.when_true(loop))
+
     executor.compile(statechart=motion_statechart)
     executor.tick_until_end(2000)
 

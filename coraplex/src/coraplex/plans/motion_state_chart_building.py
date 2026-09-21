@@ -7,7 +7,7 @@ from itertools import groupby
 from typing_extensions import TYPE_CHECKING, List
 
 from coraplex.plans.executables import Executable, GiskardExecutable
-from cramph.composites import NodeListCompositeNode, Sequence
+from cramph.composites import CramLanguageNode, Sequence
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from cramph.statechart import Statechart
 
@@ -53,7 +53,7 @@ class BuildsMotionStateChart:
     @abstractmethod
     def add_to_motion_state_chart(
         self,
-        parent_goal: NodeListCompositeNode,
+        parent_goal: CramLanguageNode,
         executable: GiskardExecutable,
     ) -> MotionStatechartNode:
         """
@@ -67,7 +67,7 @@ class BuildsMotionStateChart:
 
     # %% building the chart
 
-    def create_goal(self) -> NodeListCompositeNode:
+    def create_goal(self) -> CramLanguageNode:
         """
         :return: An empty goal describing how the children are executed.
         """
@@ -75,7 +75,7 @@ class BuildsMotionStateChart:
 
     def add_children_to_motion_state_chart(
         self,
-        goal: NodeListCompositeNode,
+        goal: CramLanguageNode,
         children: List[BuildsMotionStateChart],
         executable: GiskardExecutable,
     ) -> None:
@@ -127,10 +127,12 @@ class BuildsMotionStateChart:
 
         :param nodes: The nodes whose motions form one motion state chart.
         """
-        motion_state_chart = Statechart()
+        executor = GiskardExecutable.create_executor(self.context)
+        motion_state_chart = Statechart(context=executor.context)
         root_goal = self.create_goal()
         motion_state_chart.add_node(root_goal)
         executable = GiskardExecutable(
+            executor=executor,
             motion_state_chart=motion_state_chart,
             root_node=root_goal,
             context=self.context,

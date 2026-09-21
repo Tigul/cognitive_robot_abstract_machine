@@ -226,9 +226,9 @@ def compile_chart(nodes: list[StatechartNode]) -> StatechartExecutor:
     :param nodes: The top level nodes of a fresh statechart.
     :return: The executor, after compiling the statechart.
     """
-    statechart = Statechart()
-    statechart.add_nodes(nodes)
     executor = StatechartExecutor(StatechartContext(world=World()))
+    statechart = Statechart(context=executor.context)
+    statechart.add_nodes(nodes)
     executor.compile(statechart=statechart)
     return executor
 

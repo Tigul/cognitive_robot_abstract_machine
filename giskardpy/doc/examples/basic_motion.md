@@ -25,16 +25,7 @@ from cramph.statechart import Statechart
 from giskardpy.qp.qp_controller_config import QPControllerConfig
 from semantic_digital_twin.world import World
 
-# 1. Create a Motion Statechart
-msc = Statechart()
-
-# 2. Add a monitor that counts for 1 second
-msc.add_node(counter := CountSeconds(seconds=1.0))
-
-# 3. Transition to EndMotion when the counter is finished
-msc.add_node(EndMotion.when_true(counter))
-
-# 4. Set up the executor with motion control and a simulation pacer
+# 1. Set up the executor with motion control and a simulation pacer
 kin_sim = StatechartExecutor(
     context=StatechartContext(world=World()),
     pacer=SimulationPacer(real_time_factor=2.0),
@@ -44,6 +35,15 @@ kin_sim = StatechartExecutor(
         )
     ],
 )
+
+# 2. Create a Motion Statechart in the context of the executor
+msc = Statechart(context=kin_sim.context)
+
+# 3. Add a monitor that counts for 1 second
+msc.add_node(counter := CountSeconds(seconds=1.0))
+
+# 4. Transition to EndMotion when the counter is finished
+msc.add_node(EndMotion.when_true(counter))
 
 # 5. Compile and run the statechart
 kin_sim.compile(msc)

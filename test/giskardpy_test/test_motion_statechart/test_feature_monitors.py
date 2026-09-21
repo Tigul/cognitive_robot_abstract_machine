@@ -22,12 +22,21 @@ from cramph.context import StatechartContext
 from cramph.executor import StatechartExecutor
 
 
-def _run(msc: Statechart, world: World) -> None:
-    kin_sim = StatechartExecutor(
+def _create_executor(world: World) -> StatechartExecutor:
+    """
+    :return: An executor with motion control acting in `world`.
+    """
+    return StatechartExecutor(
         context=StatechartContext(world=world), extensions=[MotionControl()]
     )
-    kin_sim.compile(statechart=msc)
-    kin_sim.tick_until_end()
+
+
+def _run(executor: StatechartExecutor, msc: Statechart) -> None:
+    """
+    Compiles `msc` with `executor` and ticks it until it ends.
+    """
+    executor.compile(statechart=msc)
+    executor.tick_until_end()
 
 
 def test_height_monitor(pr2_world_state_reset: World):
@@ -41,7 +50,8 @@ def test_height_monitor(pr2_world_state_reset: World):
     reference_point = Point3(0, 0, 0, reference_frame=root)
     lower_limit, upper_limit = 0.3, 0.5
 
-    msc = Statechart()
+    executor = _create_executor(pr2_world_state_reset)
+    msc = Statechart(context=executor.context)
     drive = HeightGoal(
         root_link=root,
         tip_link=tip,
@@ -61,7 +71,7 @@ def test_height_monitor(pr2_world_state_reset: World):
     msc.add_nodes([drive, monitor])
     msc.add_node(EndMotion.when_true(monitor))
 
-    _run(msc, pr2_world_state_reset)
+    _run(executor, msc)
 
     assert monitor.observation_state == ObservationStateValues.TRUE
 
@@ -77,7 +87,8 @@ def test_distance_monitor(pr2_world_state_reset: World):
     reference_point = Point3(0, 0, 0, reference_frame=root)
     lower_limit, upper_limit = 0.4, 0.6
 
-    msc = Statechart()
+    executor = _create_executor(pr2_world_state_reset)
+    msc = Statechart(context=executor.context)
     drive = DistanceGoal(
         root_link=root,
         tip_link=tip,
@@ -97,7 +108,7 @@ def test_distance_monitor(pr2_world_state_reset: World):
     msc.add_nodes([drive, monitor])
     msc.add_node(EndMotion.when_true(monitor))
 
-    _run(msc, pr2_world_state_reset)
+    _run(executor, msc)
 
     assert monitor.observation_state == ObservationStateValues.TRUE
 
@@ -111,7 +122,8 @@ def test_angle_monitor(pr2_world_state_reset: World):
     reference_vector = Vector3.X(reference_frame=root)
     lower_angle, upper_angle = radians(30), radians(32)
 
-    msc = Statechart()
+    executor = _create_executor(pr2_world_state_reset)
+    msc = Statechart(context=executor.context)
     drive = AngleGoal(
         root_link=root,
         tip_link=tip,
@@ -131,7 +143,7 @@ def test_angle_monitor(pr2_world_state_reset: World):
     msc.add_nodes([drive, monitor])
     msc.add_node(EndMotion.when_true(monitor))
 
-    _run(msc, pr2_world_state_reset)
+    _run(executor, msc)
 
     assert monitor.observation_state == ObservationStateValues.TRUE
 
@@ -144,7 +156,8 @@ def test_perpendicular_monitor(pr2_world_state_reset: World):
     tip_normal = Vector3.X(reference_frame=tip)
     reference_normal = Vector3.X(reference_frame=root)
 
-    msc = Statechart()
+    executor = _create_executor(pr2_world_state_reset)
+    msc = Statechart(context=executor.context)
     drive = AlignPerpendicular(
         root_link=root,
         tip_link=tip,
@@ -160,6 +173,6 @@ def test_perpendicular_monitor(pr2_world_state_reset: World):
     msc.add_nodes([drive, monitor])
     msc.add_node(EndMotion.when_true(monitor))
 
-    _run(msc, pr2_world_state_reset)
+    _run(executor, msc)
 
     assert monitor.observation_state == ObservationStateValues.TRUE

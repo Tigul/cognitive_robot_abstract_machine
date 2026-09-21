@@ -58,12 +58,12 @@ def _render_and_capture_axes(plotter: HistoryGanttChartPlotter, monkeypatch):
 @pytest.mark.parametrize("ticks", [3, 50])
 def test_main_and_final_widths_ticks(monkeypatch, ticks):
     # Build a small statechart that runs for `ticks` ticks
-    msc = Statechart()
+    kin = StatechartExecutor(context=StatechartContext(world=World()))
+    msc = Statechart(context=kin.context)
     counter = CountTicks(ticks=ticks)
     msc.add_node(counter)
     msc.add_node(EndStatechart.when_true(counter))
 
-    kin = StatechartExecutor(context=StatechartContext(world=World()))
     kin.compile(msc)
     kin.tick_until_end(ticks + 5)
 
@@ -93,12 +93,12 @@ def test_main_and_final_widths_ticks(monkeypatch, ticks):
 
 
 def test_final_column_placed_right_of_main_axis(monkeypatch):
-    msc = Statechart()
+    kin = StatechartExecutor(context=StatechartContext(world=World()))
+    msc = Statechart(context=kin.context)
     counter = CountTicks(ticks=4)
     msc.add_node(counter)
     msc.add_node(EndStatechart.when_true(counter))
 
-    kin = StatechartExecutor(context=StatechartContext(world=World()))
     kin.compile(msc)
     kin.tick_until_end()
 
@@ -118,14 +118,14 @@ def test_final_column_placed_right_of_main_axis(monkeypatch):
 
 
 def test_long_labels_not_clipped_on_right(monkeypatch):
-    msc = Statechart()
+    kin = StatechartExecutor(context=StatechartContext(world=World()))
+    msc = Statechart(context=kin.context)
     # Create a few nodes with long names
     n1 = ConstTrueNode(name="NODE_" + ("LONG_" * 10))
     n2 = ConstTrueNode(name="NODE_" + ("VERY_LONG_LABEL_" * 6))
     msc.add_nodes([n1, n2])
     msc.add_node(EndStatechart.when_true(n2))
 
-    kin = StatechartExecutor(context=StatechartContext(world=World()))
     kin.compile(msc)
     kin.tick()
 
@@ -144,7 +144,7 @@ def test_long_labels_not_clipped_on_right(monkeypatch):
 def test_x_axis_units_ticks_vs_seconds(
     monkeypatch, statechart_executor: StatechartExecutor
 ):
-    msc = Statechart()
+    msc = Statechart(context=statechart_executor.context)
     counter = CountTicks(ticks=5)
     msc.add_nodes([counter])
     msc.add_node(EndStatechart.when_true(counter))
@@ -179,10 +179,10 @@ def test_x_axis_units_ticks_vs_seconds(
 def test_seconds_cannot_be_plotted_without_a_tick_duration(
     monkeypatch, statechart_context_without_tick_duration: StatechartContext
 ):
-    msc = Statechart()
+    executor = StatechartExecutor(context=statechart_context_without_tick_duration)
+    msc = Statechart(context=executor.context)
     counter = CountTicks(ticks=2)
     msc.add_nodes([counter, EndStatechart.when_true(counter)])
-    executor = StatechartExecutor(context=statechart_context_without_tick_duration)
     executor.compile(msc)
     executor.tick_until_end()
 
@@ -195,13 +195,13 @@ def test_seconds_cannot_be_plotted_without_a_tick_duration(
 
 
 def test_tree_glyphs_in_labels(monkeypatch):
-    msc = Statechart()
+    kin = StatechartExecutor(context=StatechartContext(world=World()))
+    msc = Statechart(context=kin.context)
     root1 = ConstTrueNode(name="A")
     nested = CompositeNodeWithNestedCompositeChild(name="B")
     msc.add_nodes([root1, nested])
     msc.add_node(EndStatechart.when_true(root1))
 
-    kin = StatechartExecutor(context=StatechartContext(world=World()))
     kin.compile(msc)
     kin.tick()
 

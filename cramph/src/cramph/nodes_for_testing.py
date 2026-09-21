@@ -15,6 +15,7 @@ from cramph.node import (
     CompositeNode,
     NodeArtifacts,
     CancelStatechart,
+    expanded_child_field,
 )
 from cramph.monitors import CountTicks, Pulse
 from krrood.symbolic_math.symbolic_math import FloatVariable
@@ -118,8 +119,8 @@ class CompositeNodeWithChainedChildren(CompositeNode):
 
     success_decided_by = SuccessDecider.OWNER
 
-    sub_node1: ConstTrueNode = field(init=False)
-    sub_node2: ConstTrueNode = field(init=False)
+    sub_node1: ConstTrueNode = expanded_child_field()
+    sub_node2: ConstTrueNode = expanded_child_field()
 
     def expand(self, context: StatechartContext) -> None:
         self.sub_node1 = ConstTrueNode(name="sub muh1")
@@ -141,9 +142,7 @@ class CompositeNodeWithNestedCompositeChild(CompositeNode):
 
     success_decided_by = SuccessDecider.OWNER
 
-    sub_node1: CompositeNodeWithChainedChildren = field(init=False)
-    sub_node2: CompositeNodeWithChainedChildren = field(init=False)
-    inner: CompositeNodeWithChainedChildren = field(init=False)
+    inner: CompositeNodeWithChainedChildren = expanded_child_field()
 
     def expand(self, context: StatechartContext) -> None:
         self.inner = CompositeNodeWithChainedChildren(name="inner")
@@ -165,9 +164,9 @@ class CompositeNodeCancellingIfChildRunsAfterItsEnd(CompositeNode):
 
     success_decided_by = SuccessDecider.ITSELF
 
-    ticking1: CountTicks = field(init=False)
-    ticking2: CountTicks = field(init=False)
-    cancel: CancelStatechart = field(init=False)
+    ticking1: CountTicks = expanded_child_field()
+    ticking2: CountTicks = expanded_child_field()
+    cancel: CancelStatechart = expanded_child_field()
 
     def expand(self, context: StatechartContext) -> None:
         self.ticking1 = CountTicks(name="3ticks", ticks=3)
@@ -203,9 +202,9 @@ class CompositeNodeWithChildSucceedingBeforeItStarts(CompositeNode):
 
     success_decided_by = SuccessDecider.OWNER
 
-    node1: CountTicks = field(init=False)
-    node2: ConstTrueNode = field(init=False)
-    node3: ConstTrueNode = field(init=False)
+    node1: CountTicks = expanded_child_field()
+    node2: ConstTrueNode = expanded_child_field()
+    node3: ConstTrueNode = expanded_child_field()
 
     def expand(self, context: StatechartContext) -> None:
         self.node1 = CountTicks(ticks=1)
@@ -233,11 +232,11 @@ class CompositeNodeCancellingIfPausedChildResumesAfterItsEnd(CompositeNode):
 
     success_decided_by = SuccessDecider.ITSELF
 
-    ticking1: CountTicks = field(init=False)
-    ticking2: CountTicks = field(init=False)
-    ticking3: CountTicks = field(init=False)
-    pulse: Pulse = field(init=False)
-    cancel: CancelStatechart = field(init=False)
+    ticking1: CountTicks = expanded_child_field()
+    ticking2: CountTicks = expanded_child_field()
+    ticking3: CountTicks = expanded_child_field()
+    pulse: Pulse = expanded_child_field()
+    cancel: CancelStatechart = expanded_child_field()
 
     def expand(self, context: StatechartContext) -> None:
         self.ticking1 = CountTicks(name="3ticks", ticks=3)
@@ -269,9 +268,9 @@ class CompositeNodeResumingItsPausedChildren(CompositeNode):
 
     success_decided_by = SuccessDecider.ITSELF
 
-    count_ticks1: CountTicks = field(init=False)
-    count_ticks2: CountTicks = field(init=False)
-    cancel: CancelStatechart = field(init=False)
+    count_ticks1: CountTicks = expanded_child_field()
+    count_ticks2: CountTicks = expanded_child_field()
+    cancel: CancelStatechart = expanded_child_field()
 
     def expand(self, context: StatechartContext) -> None:
         self.count_ticks1 = CountTicks(ticks=2)
@@ -456,7 +455,7 @@ class CompositeNodeCuttingOffItsChildAtItsGoal(CompositeNode):
 
     success_decided_by = SuccessDecider.OWNER
 
-    child: ConstTrueNode = field(init=False)
+    child: ConstTrueNode = expanded_child_field()
     """
     The child that sits at its goal until it is cut off.
     """
@@ -478,7 +477,7 @@ class CompositeNodeCuttingOffItsChild(CompositeNode):
 
     success_decided_by = SuccessDecider.OWNER
 
-    child: ConstFalseNode = field(init=False)
+    child: ConstFalseNode = expanded_child_field()
     """
     The child that keeps running until it is cut off.
     """
@@ -501,12 +500,12 @@ class CompositeNodeWithChildInterruptedBySibling(CompositeNode):
 
     success_decided_by = SuccessDecider.OWNER
 
-    trigger: ConstTrueNode = field(init=False)
+    trigger: ConstTrueNode = expanded_child_field()
     """
     Turns true on the first tick, which is what interrupts the child.
     """
 
-    child: ConstFalseNode = field(init=False)
+    child: ConstFalseNode = expanded_child_field()
     """
     The child that is interrupted while its observation is false.
     """
@@ -531,12 +530,12 @@ class CompositeNodeWithChildFailingOnItsOwn(CompositeNode):
 
     success_decided_by = SuccessDecider.OWNER
 
-    trigger: ConstTrueNode = field(init=False)
+    trigger: ConstTrueNode = expanded_child_field()
     """
     Turns true on the first tick, which is what makes the child declare its failure.
     """
 
-    child: ConstFalseNode = field(init=False)
+    child: ConstFalseNode = expanded_child_field()
     """
     The child that gives up while its observation is false.
     """
@@ -561,12 +560,12 @@ class CompositeNodeWithChildSucceedingOnItsOwn(CompositeNode):
 
     success_decided_by = SuccessDecider.OWNER
 
-    trigger: ConstTrueNode = field(init=False)
+    trigger: ConstTrueNode = expanded_child_field()
     """
     Turns true on the first tick, which is what makes the child declare its success.
     """
 
-    child: ConstFalseNode = field(init=False)
+    child: ConstFalseNode = expanded_child_field()
     """
     The child that declares its success while its observation is false.
     """
@@ -596,7 +595,7 @@ class CompositeNodeWithChildStartingLate(CompositeNode):
     How many ticks pass before the child's start condition turns true.
     """
 
-    child: ConstFalseNode = field(init=False)
+    child: ConstFalseNode = expanded_child_field()
     """
     The child whose start is being observed.
     """
@@ -620,7 +619,7 @@ class CompositeNodeCuttingOffItsUndecidedChild(CompositeNode):
 
     success_decided_by = SuccessDecider.OWNER
 
-    child: NodeObservingNothingYet = field(init=False)
+    child: NodeObservingNothingYet = expanded_child_field()
     """
     The child that observes nothing until it is ended.
     """
@@ -642,7 +641,7 @@ class CompositeNodeCuttingOffItsGrandchild(CompositeNode):
 
     success_decided_by = SuccessDecider.OWNER
 
-    inner_node: CompositeNodeCuttingOffItsChild = field(init=False)
+    inner_node: CompositeNodeCuttingOffItsChild = expanded_child_field()
     """
     The node between this one and the grandchild.
     """
@@ -827,12 +826,12 @@ class CompositeNodeObservingItsSecondChildRun(CompositeNode):
 
     success_decided_by = SuccessDecider.OWNER
 
-    first: ConstTrueNode = field(init=False)
+    first: ConstTrueNode = expanded_child_field()
     """
     The child that succeeds as soon as it observes its goal.
     """
 
-    second: NodeRecordingItsCallbacks = field(init=False)
+    second: NodeRecordingItsCallbacks = expanded_child_field()
     """
     The child that starts once :attr:`first` succeeded and is cut off by this node.
     """
@@ -864,7 +863,7 @@ class CompositeNodeWithARecordingChild(CompositeNode):
 
     success_decided_by = SuccessDecider.OWNER
 
-    child: NodeRecordingItsCallbacks = field(init=False)
+    child: NodeRecordingItsCallbacks = expanded_child_field()
     """
     The child whose callbacks are recorded.
     """
@@ -884,12 +883,12 @@ class CompositeNodeObservingItsCancellingChildRun(CompositeNode):
 
     success_decided_by = SuccessDecider.OWNER
 
-    trigger: ConstTrueNode = field(init=False)
+    trigger: ConstTrueNode = expanded_child_field()
     """
     The child whose observation starts :attr:`cancel`.
     """
 
-    cancel: CancelStatechart = field(init=False)
+    cancel: CancelStatechart = expanded_child_field()
     """
     The child that is cut off right after starting.
     """

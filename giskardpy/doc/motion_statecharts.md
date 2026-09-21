@@ -64,7 +64,9 @@ cycle it starts in.
 
 ## Example
 
-A plan that moves to a joint goal and then ends once the robot has come to rest:
+A plan that moves to a joint goal and then ends once the robot has come to rest. A statechart
+is built in the context of the executor that runs it, see
+[Running a motion statechart](#running-a-motion-statechart):
 
 ```python
 from cramph.composites import Sequence
@@ -73,7 +75,7 @@ from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 
 # goal_state is a JointState of the robot's joints
-motion_statechart = Statechart()
+motion_statechart = Statechart(context=executor.context)
 plan = Sequence(nodes=[JointPositionList(goal_state=goal_state)])
 motion_statechart.add_node(plan)
 motion_statechart.add_node(EndMotion.when_true(plan))
@@ -83,7 +85,8 @@ motion_statechart.add_node(EndMotion.when_true(plan))
 
 giskardpy does not have its own statechart or executor. Motion control is an extension of
 cramph's `StatechartExecutor`, so the same statechart can also hold nodes of other modules,
-and their executor extensions can run alongside it:
+and their executor extensions can run alongside it. The executor is created first, because
+the statechart is built in its context:
 
 ```python
 from cramph.context import StatechartContext
@@ -94,6 +97,7 @@ executor = StatechartExecutor(
     context=StatechartContext(world=world),
     extensions=[MotionControl()],
 )
+# ... build motion_statechart = Statechart(context=executor.context) as above
 executor.compile(motion_statechart)
 executor.tick_until_end()
 ```

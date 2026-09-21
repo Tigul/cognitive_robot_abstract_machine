@@ -48,7 +48,11 @@ from cramph.executor import StatechartExecutor
 
 
 def test_set_seed_configuration(pr2_world_state_reset):
-    msc = Statechart()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
+    msc = Statechart(context=kin_sim.context)
     goal = 0.1
 
     connection: ActiveConnection1DOF = pr2_world_state_reset.get_connection_by_name(
@@ -64,10 +68,6 @@ def test_set_seed_configuration(pr2_world_state_reset):
     node1.success_condition = node1.observes_true
     end.start_condition = node1.observes_true
 
-    kin_sim = StatechartExecutor(
-        context=StatechartContext(world=pr2_world_state_reset),
-        extensions=[MotionControl()],
-    )
     kin_sim.compile(statechart=msc)
 
     kin_sim.tick_until_end()
@@ -79,7 +79,11 @@ def test_set_seed_configuration(pr2_world_state_reset):
 
 
 def test_set_seed_odometry(pr2_world_state_reset):
-    msc = Statechart()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
+    msc = Statechart(context=kin_sim.context)
 
     goal = HomogeneousTransformationMatrix.from_xyz_rpy(
         x=1,
@@ -103,10 +107,6 @@ def test_set_seed_odometry(pr2_world_state_reset):
     node1.success_condition = node1.observes_true
     end.start_condition = node1.observes_true
 
-    kin_sim = StatechartExecutor(
-        context=StatechartContext(world=pr2_world_state_reset),
-        extensions=[MotionControl()],
-    )
     kin_sim.compile(statechart=msc)
 
     kin_sim.tick_until_end()
@@ -152,18 +152,6 @@ def test_joint_goal(tmp_path):
         )
         world.add_connection(root_C_tip2)
 
-    msc = Statechart()
-
-    task1 = JointPositionList(goal_state=JointState.from_mapping({root_C_tip: 1}))
-    always_true = ConstTrueNode()
-    msc.add_node(always_true)
-    msc.add_node(task1)
-    end = EndMotion()
-    msc.add_node(end)
-
-    task1.start_condition = always_true.observes_true
-    end.start_condition = logic_and(task1.observes_true, always_true.observes_true)
-
     kin_sim = StatechartExecutor(
         context=StatechartContext(world=world),
         extensions=[
@@ -175,6 +163,18 @@ def test_joint_goal(tmp_path):
             )
         ],
     )
+    msc = Statechart(context=kin_sim.context)
+
+    task1 = JointPositionList(goal_state=JointState.from_mapping({root_C_tip: 1}))
+    always_true = ConstTrueNode()
+    msc.add_node(always_true)
+    msc.add_node(task1)
+    end = EndMotion()
+    msc.add_node(end)
+
+    task1.start_condition = always_true.observes_true
+    end.start_condition = logic_and(task1.observes_true, always_true.observes_true)
+
     kin_sim.compile(statechart=msc)
 
     assert task1.observation_state == ObservationStateValues.UNKNOWN
@@ -210,7 +210,11 @@ def test_continuous_joint(pr2_world_state_reset):
     l_wrist_roll_joint = pr2_world_state_reset.get_connection_by_name(
         PR2Joint.LEFT_WRIST_ROLL
     )
-    msc = Statechart()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
+    msc = Statechart(context=kin_sim.context)
     joint_goal = JointPositionList(
         goal_state=JointState.from_mapping(
             {
@@ -224,10 +228,6 @@ def test_continuous_joint(pr2_world_state_reset):
     msc.add_node(end)
     end.start_condition = joint_goal.observes_true
 
-    kin_sim = StatechartExecutor(
-        context=StatechartContext(world=pr2_world_state_reset),
-        extensions=[MotionControl()],
-    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
     assert np.isclose(
@@ -245,7 +245,11 @@ def test_continuous_joint(pr2_world_state_reset):
 def test_revolute_joint(pr2_world_state_reset):
     head_pan_joint = pr2_world_state_reset.get_connection_by_name(PR2Joint.HEAD_PAN)
     head_tilt_joint = pr2_world_state_reset.get_connection_by_name(PR2Joint.HEAD_TILT)
-    msc = Statechart()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
+    msc = Statechart(context=kin_sim.context)
     joint_goal = JointPositionList(
         goal_state=JointState.from_mapping(
             {
@@ -259,10 +263,6 @@ def test_revolute_joint(pr2_world_state_reset):
     msc.add_node(end)
     end.start_condition = joint_goal.observes_true
 
-    kin_sim = StatechartExecutor(
-        context=StatechartContext(world=pr2_world_state_reset),
-        extensions=[MotionControl()],
-    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()
     assert np.isclose(head_pan_joint.position, 0.042, atol=1e-3)
@@ -279,7 +279,11 @@ def test_joint_velocity_limit_caps_a_fast_goal(pr2_world_state_reset):
     head_pan_joint = pr2_world_state_reset.get_connection_by_name(PR2Joint.HEAD_PAN)
     max_velocity = 0.05
 
-    msc = Statechart()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
+    msc = Statechart(context=kin_sim.context)
     msc.add_nodes(
         [
             joint_goal := JointPositionList(
@@ -289,10 +293,6 @@ def test_joint_velocity_limit_caps_a_fast_goal(pr2_world_state_reset):
         ]
     )
 
-    kin_sim = StatechartExecutor(
-        context=StatechartContext(world=pr2_world_state_reset),
-        extensions=[MotionControl()],
-    )
     kin_sim.compile(statechart=msc)
 
     for i in range(400):
@@ -313,7 +313,11 @@ def test_joint_velocity_limit_caps_a_fast_goal(pr2_world_state_reset):
 
 
 def test_joint_sequence(pr2_world_state_reset):
-    msc = Statechart()
+    kin_sim = StatechartExecutor(
+        context=StatechartContext(world=pr2_world_state_reset),
+        extensions=[MotionControl()],
+    )
+    msc = Statechart(context=kin_sim.context)
     msc.add_node(
         sequence := Sequence(
             [
@@ -332,9 +336,5 @@ def test_joint_sequence(pr2_world_state_reset):
     )
     msc.add_node(EndMotion.when_true(sequence))
 
-    kin_sim = StatechartExecutor(
-        context=StatechartContext(world=pr2_world_state_reset),
-        extensions=[MotionControl()],
-    )
     kin_sim.compile(statechart=msc)
     kin_sim.tick_until_end()

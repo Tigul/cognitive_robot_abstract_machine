@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
 
+from cramph.context import StatechartContext
 from cramph.statechart import Statechart
 from segmind.detectors.atomic_event_detectors_nodes import (
     ContactDetector,
@@ -51,10 +52,11 @@ class DetectorStatechartBuilder:
     detectors.
     """
 
-    def build(self) -> Statechart:
+    def build(self, context: StatechartContext) -> Statechart:
         """
+        :param context: The context of the executor that runs the statechart.
         :return: A statechart holding :attr:`detectors` as its nodes.
         """
-        statechart = Statechart()
+        statechart = Statechart(context=context)
         statechart.add_nodes(self.detectors)
         return statechart

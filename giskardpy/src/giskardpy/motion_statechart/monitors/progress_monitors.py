@@ -222,25 +222,6 @@ class StillProgressing(CompositeNode):
     task's own threshold per second.
     """
 
-    _monitored_tasks: List[ConvergingTask] = field(
-        default_factory=list, init=False, repr=False
-    )
-    """
-    The converging tasks found under :attr:`monitored_node`.
-    """
-
-    _not_approaching_monitors: List[NotApproachingGoal] = field(
-        default_factory=list, init=False, repr=False
-    )
-    """
-    One monitor per entry of :attr:`_monitored_tasks`.
-    """
-
-    _timer: CountSimulationTimeSeconds = field(init=False, repr=False, default=None)
-    """
-    Counts how long every monitored task has been failing to approach its goal.
-    """
-
     @property
     def prerequisite_nodes(self) -> List[MotionStatechartNode]:
         return [self.monitored_node]
@@ -250,7 +231,22 @@ class StillProgressing(CompositeNode):
         """
         :return: The converging tasks watched by this node, in the order they were found.
         """
-        return self._monitored_tasks
+        return [monitor.monitored_task for monitor in self._not_approaching_monitors]
+
+    @property
+    def _not_approaching_monitors(self) -> List[NotApproachingGoal]:
+        """
+        :return: One monitor per converging task found under :attr:`monitored_node`.
+        """
+        return [node for node in self.nodes if isinstance(node, NotApproachingGoal)]
+
+    @property
+    def _timer(self) -> CountSimulationTimeSeconds:
+        """
+        :return: The child counting how long every monitored task has been failing to
+            approach its goal.
+        """
+        return self.nodes[0]
 
     @property
     def stalled_tasks(self) -> List[ConvergingTask]:
@@ -276,21 +272,24 @@ class StillProgressing(CompositeNode):
         return cancel
 
     def expand(self, context: StatechartContext) -> None:
-        self._monitored_tasks = self._find_converging_tasks(self.monitored_node)
-        self._timer = CountSimulationTimeSeconds(
+        timer = CountSimulationTimeSeconds(
             name=f"{self.name}/timer", seconds=self.timeout.total_seconds()
         )
-        self._add_child_to_statechart(self._timer)
-        stall_monitors = self._expand_stall_detection()
-        self._timer.start_condition = sm.logic_and(
+        self._add_child_to_statechart(timer)
+        stall_monitors = self._expand_stall_detection(
+            self._find_converging_tasks(self.monitored_node)
+        )
+        timer.start_condition = sm.logic_and(
             Scalar.const_true(), *[monitor.observes_true for monitor in stall_monitors]
         )
-        self._timer.reset_condition = sm.logic_or(
+        timer.reset_condition = sm.logic_or(
             Scalar.const_false(),
             *[monitor.observes_false for monitor in stall_monitors],
         )
 
-    def _expand_stall_detection(self) -> List[MotionStatechartNode]:
+    def _expand_stall_detection(
+        self, monitored_tasks: List[ConvergingTask]
+    ) -> List[MotionStatechartNode]:
         """
         Adds one monitor per converging task, next to one observing whether any of them
         runs.
@@ -300,24 +299,25 @@ class StillProgressing(CompositeNode):
         decides when it is given up on. That makes this node safe to point at anything,
         including a node built entirely from monitors.
 
+        :param monitored_tasks: The converging tasks found under :attr:`monitored_node`.
         :return: The monitors that all observe True while nothing beneath the monitored
             node is approaching its goal, none if nothing converges beneath it.
         """
-        if not self._monitored_tasks:
+        if not monitored_tasks:
             return []
-        self._not_approaching_monitors = [
+        not_approaching_monitors = [
             NotApproachingGoal(
                 name=f"{self.name}/{task.name}",
                 monitored_task=task,
                 minimum_convergence_rate=self.minimum_convergence_rate,
             )
-            for task in self._monitored_tasks
+            for task in monitored_tasks
         ]
         any_running = AnyMonitoredTaskRunning(
-            name=f"{self.name}/any_running", monitored_tasks=self._monitored_tasks
+            name=f"{self.name}/any_running", monitored_tasks=monitored_tasks
         )
-        self._add_children_to_statechart(self._not_approaching_monitors + [any_running])
-        return [any_running, *self._not_approaching_monitors]
+        self._add_children_to_statechart(not_approaching_monitors + [any_running])
+        return [any_running, *not_approaching_monitors]
 
     def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         """

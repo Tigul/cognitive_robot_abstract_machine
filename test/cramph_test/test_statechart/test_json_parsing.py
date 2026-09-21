@@ -54,7 +54,7 @@ def test_TrueMonitor():
 
 
 def test_trinary_transition():
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     node1 = ConstTrueNode()
     node2 = ConstTrueNode()
     node3 = ConstTrueNode()
@@ -85,7 +85,7 @@ def test_ending_condition_round_trip(transition_kind: TransitionKind):
     Every condition that ends a node survives serialization, including the predicate it
     reads, and keeps the kind that decides the outcome it yields.
     """
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     msc.add_nodes([first := ConstTrueNode(), second := ConstTrueNode()])
     second.set_condition(
         transition_kind,
@@ -107,7 +107,7 @@ def test_ending_condition_round_trip(transition_kind: TransitionKind):
 
 
 def test_nested_goals(tmp_path):
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     msc.add_node(
         sequence := Sequence(
             [
@@ -117,13 +117,13 @@ def test_nested_goals(tmp_path):
         )
     )
     msc.add_node(EndStatechart.when_true(sequence))
-
-    msc._expand_goals(StatechartContext(world=World()))
     json_data = msc.create_structure_copy().to_json()
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
 
-    msc_copy = Statechart.from_json(new_json_data)
+    msc_copy = Statechart.from_json(
+        new_json_data, context=StatechartContext(world=World())
+    )
     msc_copy._add_transitions()
     msc.draw(str(tmp_path / "muh.pdf"))
 
@@ -137,17 +137,17 @@ def test_nested_goals(tmp_path):
 
 
 def test_collapsed_goal_survives_json_round_trip():
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     msc.add_node(goal := CompositeNodeWithNestedCompositeChild())
     goal.plot_specifications.collapse_children = True
     msc.add_node(EndStatechart.when_true(goal))
-
-    msc._expand_goals(StatechartContext(world=World()))
     json_data = msc.create_structure_copy().to_json()
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
 
-    msc_copy = Statechart.from_json(new_json_data)
+    msc_copy = Statechart.from_json(
+        new_json_data, context=StatechartContext(world=World())
+    )
 
     assert msc_copy.get_node_by_index(goal.index).plot_specifications.collapse_children
 
@@ -157,7 +157,7 @@ def test_structure_copy_keeps_every_condition():
     A structural copy stands in for the chart it was made from, so every transition
     condition of a node comes along with it.
     """
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     msc.add_nodes([trigger := ConstTrueNode(), node := ConstTrueNode()])
     for transition_kind in TransitionKind:
         node.set_condition(transition_kind, trigger.observes_true)
@@ -174,7 +174,7 @@ def test_structure_copy_uses_the_kind_a_node_declares():
     Node kinds declared outside the statechart's own node classes decide their structure
     copy themselves, so a plain statechart copies them without knowing them.
     """
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     msc.add_node(
         node := SpecializedNodeWithOwnStructureCopy(name="specialized", detail=3)
     )
@@ -186,7 +186,7 @@ def test_structure_copy_uses_the_kind_a_node_declares():
 
 
 def test_structure_copy_keeps_the_base_kinds_of_the_statechart_nodes():
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     msc.add_nodes(
         [
             trigger := ConstTrueNode(),
@@ -213,7 +213,7 @@ def test_structure_copy_conditions_read_the_copied_nodes():
     The conditions of a structural copy read the nodes of the copy, not the nodes of the
     chart it was made from.
     """
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     msc.add_nodes([trigger := ConstTrueNode(), node := ConstTrueNode()])
     node.start_condition = logic_and(trigger.observes_true, trigger.is_succeeded)
     node.success_condition = node.observes_true
@@ -234,7 +234,7 @@ def test_structure_copy_conditions_read_the_copied_nodes():
 
 
 def test_cancel_statechart():
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     msc.add_node(node := ConstTrueNode())
     msc.add_node(
         CancelStatechart.when_true(node, exception=NodeNotFoundError(name="muh"))
@@ -243,11 +243,10 @@ def test_cancel_statechart():
     json_data = msc.to_json()
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
-    msc_copy = Statechart.from_json(new_json_data)
-
     kin_sim = StatechartExecutor(
         context=StatechartContext(world=World()),
     )
+    msc_copy = Statechart.from_json(new_json_data, context=kin_sim.context)
 
     kin_sim.compile(statechart=msc_copy)
 
@@ -268,7 +267,7 @@ def test_cancel_statechart_to_json_does_not_mutate_dataclass_field():
 
 
 def test_to_json_does_not_accumulate_edges():
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     node1 = ConstTrueNode()
     node2 = ConstTrueNode()
     msc.add_node(node1)
@@ -288,7 +287,7 @@ def test_duplicate_condition():
     """
     Tests if two condition with the same name and type will be preserved.
     """
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     msc.add_nodes(
         [
             node1 := ConstTrueNode(),
@@ -305,7 +304,9 @@ def test_duplicate_condition():
     json_str = json.dumps(json_data)
     new_json_data = json.loads(json_str)
 
-    msc_copy = Statechart.from_json(new_json_data)
+    msc_copy = Statechart.from_json(
+        new_json_data, context=StatechartContext(world=World())
+    )
     msc_copy._add_transitions()
     assert len(msc_copy.unique_edges) == 3
 
@@ -314,16 +315,20 @@ def test_child_added_to_goal_is_its_child_once_after_json_round_trip():
     """
     A child added to a goal before compilation is a child of the deserialized goal once.
     """
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     msc.add_node(sequence := Sequence())
     sequence.add_node(child := ConstTrueNode())
     msc.add_node(EndStatechart.when_true(sequence))
 
     new_json_data = json.loads(json.dumps(msc.to_json()))
 
-    msc_copy = Statechart.from_json(new_json_data)
+    msc_copy = Statechart.from_json(
+        new_json_data, context=StatechartContext(world=World())
+    )
     sequence_copy = msc_copy.get_node_by_index(sequence.index)
-    assert [node.name for node in sequence_copy.nodes] == [child.name]
+    assert [node.name for node in sequence_copy.nodes] == [
+        sequence.find_child_running(child).name
+    ]
 
 
 def test_children_of_compiled_goal_are_its_children_once_after_json_round_trip(
@@ -333,7 +338,7 @@ def test_children_of_compiled_goal_are_its_children_once_after_json_round_trip(
     Compiling adds the children of a goal to the statechart while the goal keeps them in
     its own node list, and each is still a child of the deserialized goal once.
     """
-    msc = Statechart()
+    msc = Statechart(context=statechart_executor.context)
     msc.add_node(
         sequence := Sequence(nodes=[ConstTrueNode(name="a"), ConstTrueNode(name="b")])
     )
@@ -342,7 +347,9 @@ def test_children_of_compiled_goal_are_its_children_once_after_json_round_trip(
 
     new_json_data = json.loads(json.dumps(msc.to_json()))
 
-    msc_copy = Statechart.from_json(new_json_data)
+    msc_copy = Statechart.from_json(
+        new_json_data, context=StatechartContext(world=World())
+    )
     sequence_copy = msc_copy.get_node_by_index(sequence.index)
     assert sequence_copy.nodes == [
         msc_copy.get_node_by_index(node.index) for node in sequence.nodes
@@ -357,10 +364,12 @@ def assert_conditions_survive_json_round_trip(msc: Statechart) -> None:
     Serializes `msc` before it is compiled, then compiles it and its copy and checks
     that every node of both ends up with the same conditions.
     """
-    msc_copy = Statechart.from_json(json.loads(json.dumps(msc.to_json())))
+    msc_copy = Statechart.from_json(
+        json.loads(json.dumps(msc.to_json())), context=StatechartContext(world=World())
+    )
 
-    msc.compile(StatechartContext(world=World()))
-    msc_copy.compile(StatechartContext(world=World()))
+    msc.compile()
+    msc_copy.compile()
 
     assert [
         [str(condition) for condition in node.conditions] for node in msc_copy.nodes
@@ -372,7 +381,7 @@ def test_conditions_of_goal_children_survive_json_round_trip():
     The children of a goal join the chart only when it is compiled, and the conditions
     set on them before that come along with them.
     """
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     child = ConstTrueNode()
     sibling = ConstTrueNode()
     msc.add_node(Parallel([child, sibling]))
@@ -386,7 +395,7 @@ def test_goal_reading_its_child_survives_json_round_trip():
     """
     A goal may read its child before the child has joined the chart.
     """
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     child = ConstTrueNode()
     msc.add_node(parallel := Parallel([child]))
     parallel.success_condition = child.is_succeeded
@@ -398,7 +407,7 @@ def test_constant_condition_survives_json_round_trip():
     """
     A condition reading no node is serialized like any other.
     """
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     msc.add_node(node := ConstTrueNode())
     node.start_condition = Scalar.const_false()
 
@@ -412,7 +421,7 @@ def test_every_predicate_survives_json_round_trip(
     """
     Every test a condition can read about a node reads back as the same test.
     """
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     msc.add_nodes([watched := ConstTrueNode(), reader := ConstTrueNode()])
     match predicate:
         case LifeCyclePredicate():
@@ -428,7 +437,7 @@ def test_condition_naming_an_unknown_variable_is_rejected():
     A document may name a predicate nodes no longer offer, for example one that was
     removed after the document was written.
     """
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     msc.add_nodes([watched := ConstTrueNode(), reader := ConstTrueNode()])
     reader.start_condition = watched.is_succeeded
     document = json.dumps(msc.to_json()).replace(
@@ -436,7 +445,9 @@ def test_condition_naming_an_unknown_variable_is_rejected():
     )
 
     with pytest.raises(UnknownConditionVariableError):
-        Statechart.from_json(json.loads(document))
+        Statechart.from_json(
+            json.loads(document), context=StatechartContext(world=World())
+        )
 
 
 def _negated_arithmetically(expression: str) -> str:
@@ -459,7 +470,7 @@ def test_condition_using_unsupported_syntax_is_rejected(
     A rendered condition is Python syntax, so a document may hold syntax that has no
     meaning as a condition.
     """
-    msc = Statechart()
+    msc = Statechart(context=StatechartContext(world=World()))
     msc.add_nodes([watched := ConstTrueNode(), reader := ConstTrueNode()])
     reader.start_condition = watched.is_succeeded
     document = msc.to_json()
@@ -474,7 +485,9 @@ def test_condition_using_unsupported_syntax_is_rejected(
     )
 
     with pytest.raises(UnsupportedConditionSyntaxError):
-        Statechart.from_json(json.loads(json.dumps(document)))
+        Statechart.from_json(
+            json.loads(json.dumps(document)), context=StatechartContext(world=World())
+        )
 
 
 # %% node state variables

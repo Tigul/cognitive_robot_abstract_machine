@@ -10,6 +10,7 @@ from typing_extensions import TYPE_CHECKING, List, Type, TypeVar
 from cramph.context import StatechartContext
 from cramph.exceptions import (
     MissingExecutorExtensionError,
+    StatechartOfDifferentContextError,
     NonPositiveRealTimeFactorError,
 )
 from cramph.statechart import Statechart
@@ -277,13 +278,17 @@ class StatechartExecutor:
         constant true start immediately.
 
         :param statechart: The statechart to execute.
+        :raises StatechartOfDifferentContextError: If `statechart` was not built in
+            :attr:`context`.
         """
+        if statechart.context is not self.context:
+            raise StatechartOfDifferentContextError()
         self.statechart = statechart
         self.tick_count = 0
-        self.statechart.compile(self.context)
+        self.statechart.compile()
         for extension in self.extensions:
             extension.after_compile(self)
-        self.statechart.tick(self.context)
+        self.statechart.tick()
 
     def tick(self):
         """
@@ -292,7 +297,7 @@ class StatechartExecutor:
         for extension in self.extensions:
             extension.before_tick(self)
         self.tick_count += 1
-        self.statechart.tick(self.context)
+        self.statechart.tick()
         for extension in self.extensions:
             extension.after_tick(self)
 
@@ -314,5 +319,5 @@ class StatechartExecutor:
         finally:
             for extension in self.extensions:
                 extension.after_run(self)
-            self.statechart.cleanup_nodes(context=self.context)
+            self.statechart.cleanup_nodes()
             self.context.cleanup()

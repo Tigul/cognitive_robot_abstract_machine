@@ -956,7 +956,7 @@ def test_perception_task_survives_a_chart_round_trip(
     world, view, context = immutable_model_world
     receiving_world = deepcopy(world)
     query = PerceptionQuery(Milk, whole_scene_region, view, world)
-    chart = Statechart()
+    chart = Statechart(context=StatechartContext(world=world))
     chart.add_node(
         task := PerceptionTask(query=query, execution_type=ExecutionType.REAL)
     )
@@ -964,6 +964,7 @@ def test_perception_task_survives_a_chart_round_trip(
 
     restored_chart = Statechart.from_json(
         json.loads(json.dumps(chart.to_json())),
+        context=StatechartContext(world=receiving_world),
         **receiving_world_kwargs(receiving_world),
     )
 

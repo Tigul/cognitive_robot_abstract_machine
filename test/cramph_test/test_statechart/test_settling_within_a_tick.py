@@ -47,7 +47,7 @@ def _compile(statechart: Statechart) -> StatechartExecutor:
     :param statechart: The statechart to run.
     :return: An executor that compiled `statechart`, which already ticked once.
     """
-    executor = StatechartExecutor(StatechartContext(world=World()))
+    executor = StatechartExecutor(statechart.context)
     executor.compile(statechart=statechart)
     return executor
 
@@ -90,7 +90,7 @@ def _nested_sequence_chart() -> Statechart:
     :return: A statechart whose only step finishes two composite levels above its task,
         so finishing it takes more than one pass through the statechart.
     """
-    statechart = Statechart()
+    statechart = Statechart(context=StatechartContext(world=World()))
     statechart.add_node(Sequence(nodes=[Sequence(nodes=[ConstTrueNode()])]))
     return statechart
 
@@ -125,7 +125,7 @@ class TestReactionTimeAcrossNesting:
     def test_a_node_waiting_on_a_step_starts_on_the_tick_its_task_reaches_its_goal(
         self, make_step: Callable[[ConstTrueNode], StatechartNode]
     ):
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         task = ConstTrueNode()
         step = make_step(task)
         waiting = ConstFalseNode()
@@ -156,7 +156,7 @@ class TestReactionTimeAcrossNesting:
         The EndStatechart node starts on the tick the step's task reaches its goal and,
         like any node started during a tick, first observes on the next one.
         """
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         task = ConstTrueNode()
         step = make_step(task)
         statechart.add_nodes([step, EndStatechart.when_true(step)])
@@ -174,7 +174,7 @@ class TestReactionTimeAcrossNesting:
         assert end_tick == goal_reached_tick + 1
 
     def test_a_parent_reads_the_outcome_its_child_reaches_on_the_same_tick(self):
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         child = ConstTrueNode()
         parallel = Parallel([child])
         statechart.add_node(parallel)
@@ -189,7 +189,7 @@ class TestReactionTimeAcrossNesting:
         assert parallel.life_cycle_state == LifeCycleValues.SUCCEEDED
 
     def test_a_parent_reads_what_its_child_observes_on_the_same_tick(self):
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         child = ConstTrueNode()
         parallel = Parallel([child])
         statechart.add_node(parallel)
@@ -206,7 +206,7 @@ class TestReactionTimeAcrossNesting:
     def test_an_observation_reads_the_outcome_another_node_reaches_on_the_same_tick(
         self,
     ):
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         watched = ConstTrueNode()
         observer = NodeObservingAPredicate(watched_node=watched)
         statechart.add_nodes([watched, observer])
@@ -252,7 +252,7 @@ class TestOncePerTick:
         assert observations == [ObservationStateValues.TRUE] * TICKS_TO_WATCH
 
     def test_a_node_started_this_tick_first_observes_on_the_next_one(self):
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         statechart.add_nodes(
             [trigger := ConstTrueNode(), started_late := ConstTrueNode()]
         )
@@ -269,7 +269,7 @@ class TestOncePerTick:
         assert statechart.observation_state[started_late] == ObservationStateValues.TRUE
 
     def test_what_a_start_callback_writes_is_observed_from_the_next_tick(self):
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         writer = NodeWritingAVariableOnStart()
         reader = NodeObservingAWrittenVariable(writer=writer)
         statechart.add_nodes([trigger := ConstTrueNode(), writer, reader])
@@ -294,7 +294,7 @@ class TestUnsettledTick:
     """
 
     def test_observations_contradicting_each_other_stop_the_tick(self):
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         first = NodeObservingTheOppositeOfAnObservationPredicate()
         second = NodeObservingTheOppositeOfAnObservationPredicate(watched_node=first)
         first.watched_node = second
@@ -312,7 +312,7 @@ class TestUnsettledTick:
         A tick that returns to a state it already had can never settle, so it is stopped
         right away instead of using up the passes a tick may take.
         """
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         first = NodeObservingTheOppositeOfAnObservationPredicate()
         second = NodeObservingTheOppositeOfAnObservationPredicate(watched_node=first)
         first.watched_node = second
@@ -329,7 +329,7 @@ class TestUnsettledTick:
         Every nesting level may need its own passes to pass an outcome on, which is no
         reason to stop a tick that does settle.
         """
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         plan = ConstTrueNode()
         for _ in range(DEEP_NESTING):
             plan = Sequence(nodes=[plan])
@@ -367,7 +367,7 @@ class TestLifeCycleCallbacks:
     """
 
     def test_a_node_cut_off_right_after_starting_runs_its_start_then_its_end(self):
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         statechart.add_node(composite := CompositeNodeObservingItsSecondChildRun())
         composite.success_condition = composite.observes_true
         executor = _compile(statechart)
@@ -384,7 +384,7 @@ class TestLifeCycleCallbacks:
     def test_a_cancel_statechart_cut_off_right_after_starting_still_cancels_the_statechart(
         self,
     ):
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         statechart.add_node(composite := CompositeNodeObservingItsCancellingChildRun())
         composite.success_condition = composite.observes_true
         executor = _compile(statechart)
@@ -400,7 +400,7 @@ class TestLifeCycleCallbacks:
         Cancelling the statechart ends it after the tick, so every callback of that tick
         still runs and the tick is still recorded.
         """
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         trigger = ConstTrueNode()
         cancel = CancelStatechart(
             exception=NodeAssertionError(reason="cancelled on the first goal")
@@ -428,7 +428,7 @@ class TestLifeCycleCallbacks:
         A node that would be paused right away never runs, not even for the control tick
         it starts in, and still gets both callbacks in order.
         """
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         statechart.add_node(paused := NodeRecordingItsCallbacks())
         paused.pause_condition = Scalar.const_true()
         executor = _compile(statechart)
@@ -445,7 +445,7 @@ class TestLifeCycleCallbacks:
         )
 
     def test_a_node_that_restarts_after_failing_takes_one_step_per_tick(self):
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         statechart.add_nodes(
             [trigger := ConstTrueNode(), restarting := NodeRecordingItsCallbacks()]
         )
@@ -463,7 +463,7 @@ class TestLifeCycleCallbacks:
         assert callbacks == (restart_loop * TICKS_TO_WATCH)[: TICKS_TO_WATCH + 1]
 
     def test_a_child_reset_by_its_parent_starts_again_only_on_the_next_tick(self):
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         statechart.add_nodes(
             [
                 pulse := Pulse(),
@@ -487,7 +487,7 @@ class TestLifeCycleCallbacks:
         the level below it did on the previous pass, so the child is paused, ended and
         reset within one tick and only starts again on the next one.
         """
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         child = NodeRecordingItsCallbacks()
         trigger = ConstTrueNode()
         inner = Parallel([trigger, child])
@@ -517,7 +517,7 @@ class TestLifeCycleCallbacks:
         satisfies, so each node takes one step per tick rather than the chart being
         rejected.
         """
-        statechart = Statechart()
+        statechart = Statechart(context=StatechartContext(world=World()))
         statechart.add_nodes(
             [
                 first := NodeRecordingItsCallbacks(),

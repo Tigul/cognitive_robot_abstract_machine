@@ -230,7 +230,7 @@ class MotionServer:
         try:
             self.control_loop.stop()
             if self.executor.statechart is not None:
-                self.executor.statechart.cleanup_nodes(context=self.executor.context)
+                self.executor.statechart.cleanup_nodes()
             self.feedback_publisher.publish()
             self.write_debug_plots()
         finally:

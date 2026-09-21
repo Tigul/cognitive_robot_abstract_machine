@@ -53,7 +53,7 @@ executor = StatechartExecutor(context=context, extensions=[EpisodeSegmentation()
 logger = context.require_extension(SegmindContext).logger
 
 # 2. Build and compile the Statechart
-statechart = DetectorStatechartBuilder().build()
+statechart = DetectorStatechartBuilder().build(executor.context)
 executor.compile(statechart)
 
 # 3. Simulation Loop
