@@ -309,33 +309,38 @@ show(navigate)
 ```
 
 A transformation that is not needed in every case overrides `is_applicable`, which is asked about
-the nodes the matching part selected. Here the arms are only parked before drives that are free to
-move them:
+the nodes the matching part selected. Here the arms are only parked before drives that actually
+take the robot somewhere:
 
 ```python
 @dataclass
-class ParkArmsBeforeFreeDrives(ParkArmsBeforeNavigating):
+class ParkArmsBeforeLongDrives(ParkArmsBeforeNavigating):
     """
-    Parks the arms only before drives that do not have to hold the joints where they are.
+    Parks the arms only before drives that take the robot somewhere else, not before one
+    that leaves it where it already stands.
+    """
+
+    minimum_distance: float = 0.5
+    """
+    How far a drive has to take the robot for parking the arms to be worth it.
     """
 
     def is_applicable(self, plan_node: PlanNode) -> bool:
-        return not plan_node.designator.keep_joint_states
+        navigate = plan_node.designator
+        target = navigate.world.transform(navigate.target_location, navigate.world.root)
+        distance = navigate.robot.root.global_pose.to_position().euclidean_distance(
+            target.to_position()
+        )
+        return float(distance) > self.minimum_distance
 ```
 
 ```python
-context.plan_transformations = [ParkArmsBeforeFreeDrives()]
+context.plan_transformations = [ParkArmsBeforeLongDrives()]
 
-navigate = execute_single(
-    NavigateAction(
-        Pose.from_xyz_rpy(1.5, 2.4, 0.0, reference_frame=world.root),
-        keep_joint_states=True,
-    ),
-    context=context,
-)
+navigate = execute_single(NavigateAction(pr2.root.global_pose), context=context)
 navigate.notify()
 
 show(navigate)
 ```
 
-This drive has to keep its joint states, so the transformation leaves its plan alone.
+This drive leaves the robot where it already stands, so the transformation leaves its plan alone.

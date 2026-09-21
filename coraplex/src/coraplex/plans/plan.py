@@ -295,7 +295,7 @@ class Plan:
         :return: The transformations of this plan's context; a plan without a context
             has none.
         """
-        if not self.context:
+        if self.context is None:
             raise ContextIsUnavailable
         return self.context.plan_transformations
 

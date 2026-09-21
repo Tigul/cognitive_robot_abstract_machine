@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 
 from typing_extensions import Optional, Any, Dict
 
-from coraplex.config.action_conf import ActionConfig
 from coraplex.datastructures.dataclasses import Context
 from coraplex.exceptions import NotOnASingleLevelException
 from coraplex.plans.attachment_nodes import ReAttachNode
@@ -41,17 +40,11 @@ class NavigateAction(ActionDescription):
     x-axis.
     """
 
-    keep_joint_states: bool = ActionConfig.navigate_keep_joint_states
-    """
-    Keep the joint states of the robot the same during the navigation.
-    """
-
     @property
     def _action_plan(self) -> PlanNode:
         return execute_single(
             MoveMotion(
                 self.robot.mobile_base.pose_facing(self.target_location),
-                self.keep_joint_states,
             )
         )
 
@@ -163,6 +156,7 @@ class ElevatorNavigation(ActionDescription):
     def _current_floor(self) -> Level:
         """
         Finds the floor the robot is currently on, based on its position in the world.
+
         Raises :class:`WrongLevelException` if the robot is not on any floor or on
         multiple floors at once.
         :return: The semantic annotation for the floor
@@ -196,8 +190,7 @@ class ElevatorNavigation(ActionDescription):
         ride and the robot's drive cannot change it anyway.
         """
         return float(
-            self.world.transform(self.robot.root.global_transform, self.elevator.root)
-            .z
+            self.world.transform(self.robot.root.global_transform, self.elevator.root).z
         )
 
     def _elevator_open_at_floor(self, target_floor: Level) -> Parallel:

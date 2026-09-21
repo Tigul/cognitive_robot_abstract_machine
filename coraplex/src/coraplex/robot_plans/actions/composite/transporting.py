@@ -5,7 +5,6 @@ from datetime import timedelta
 from typing_extensions import Optional, Any
 
 from krrood.entity_query_language.factories import a, variable
-from coraplex.config.action_conf import ActionConfig
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.locations.base import DeferredLocation
@@ -74,7 +73,6 @@ class TransportAction(ActionDescription):
                         )
                     ),
                 ),
-                keep_joint_states=True,
             ),
             a(PickUpAction)(
                 object_designator=self.object_designator,
@@ -106,7 +104,6 @@ class TransportAction(ActionDescription):
                     self.target_location, self.context, self.arm, grasp_description
                 ),
             ),
-            keep_joint_states=True,
         )
 
 
@@ -179,17 +176,12 @@ class MoveAndPlaceAction(ActionDescription):
     The arm to use.
     """
 
-    keep_joint_states: bool = ActionConfig.navigate_keep_joint_states
-    """
-    Keep the joint states of the robot the same during the navigation.
-    """
-
     @property
     def _action_plan(self) -> PlanNode:
         return sequential(
             [
-                NavigateAction(self.standing_position, self.keep_joint_states),
-                FaceAtAction(self.target_location, self.keep_joint_states),
+                NavigateAction(self.standing_position),
+                FaceAtAction(self.target_location),
                 PlaceAction(self.object_designator, self.target_location, self.arm),
             ]
         )
@@ -219,19 +211,12 @@ class MoveAndPickUpAction(ActionDescription):
     The grasp to use.
     """
 
-    keep_joint_states: bool = ActionConfig.navigate_keep_joint_states
-    """
-    Keep the joint states of the robot the same during the navigation.
-    """
-
     @property
     def _action_plan(self) -> PlanNode:
         return sequential(
             [
-                NavigateAction(self.standing_position, self.keep_joint_states),
-                FaceAtAction(
-                    self.object_designator.root.global_pose, self.keep_joint_states
-                ),
+                NavigateAction(self.standing_position),
+                FaceAtAction(self.object_designator.root.global_pose),
                 PickUpAction(self.object_designator, self.arm, self.grasp_description),
             ]
         )

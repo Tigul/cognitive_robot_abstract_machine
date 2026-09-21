@@ -14,6 +14,7 @@ from coraplex.plans.plan_transformation import (
     InsertionTransformation,
     MatchedType,
 )
+from coraplex.robot_plans import MoveToolCenterPointMotion
 from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.navigation import LookAtAction, NavigateAction
@@ -56,7 +57,7 @@ class DetectBeforeGrasp(InsertionTransformation[ReachAction]):
             object.
         """
         motions = [
-            node for node in plan_node.descendants if isinstance(node, MotionNode)
+            node for node in plan_node.descendants if isinstance(node, MotionNode) and isinstance(node.motion, MoveToolCenterPointMotion) and node.motion.target == plan_node.designator.target_pose
         ]
         return motions[-1]
 
@@ -135,7 +136,6 @@ class DrawerOpening(
                     Pose,
                     domain=reachability_location(handle.global_pose, context, arm),
                 ),
-                keep_joint_states=True,
             ),
             OpenAction(handle, arm),
         ]
@@ -186,7 +186,6 @@ class OpenDrawerBeforePickUp(DrawerOpening[PickUpAction]):
                             )
                         ),
                     ),
-                    keep_joint_states=True,
                 ),
             ]
         )
