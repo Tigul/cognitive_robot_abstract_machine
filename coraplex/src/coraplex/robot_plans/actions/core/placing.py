@@ -15,7 +15,6 @@ from krrood.entity_query_language.factories import (
     ConditionType,
 )
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.exceptions import BodyIsNotHeld
 from coraplex.plans.factories import sequential
@@ -25,7 +24,9 @@ from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.mixins import (
     HasGraspDetectionThreshold,
     HasTcpGoalThresholds,
+    ObjectManipulationParameters,
     PlaceTuningParameters,
+    TargetLocationMovedTo,
 )
 from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
@@ -36,7 +37,6 @@ from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.reasoning.predicates import allclose
 from semantic_digital_twin.reasoning.robot_predicates import is_body_gripped
 from semantic_digital_twin.spatial_types.spatial_types import Pose
-from semantic_digital_twin.world_description.world_entity import Body
 
 if TYPE_CHECKING:
     from semantic_digital_twin.robots.robot_parts import EndEffector
@@ -45,6 +45,8 @@ if TYPE_CHECKING:
 @dataclass
 class PlaceAction(
     ActionDescription,
+    ObjectManipulationParameters,
+    TargetLocationMovedTo,
     PlaceTuningParameters,
     HasGraspDetectionThreshold,
     HasTcpGoalThresholds,
@@ -53,24 +55,10 @@ class PlaceAction(
     Places an Object at a position using an arm.
     """
 
-    object_designator: Body
-    """
-    Object designator_description describing the object that should be place
-    """
-    target_location: Pose
-    """
-    Pose in the world at which the object should be placed.
-    """
-
-    arm: Arms
-    """
-    Arm that is currently holding the object
-    """
-
     grasp_release_threshold: float = field(default=0.1, kw_only=True)
     """
     Maximum fraction of sampled rays between the gripper's fingers that may still hit
-    :attr:`object_designator` for it to count as released (see
+    :attr:`target_object` for it to count as released (see
     :func:`~semantic_digital_twin.reasoning.robot_predicates.is_body_gripped`).
     """
 
@@ -81,10 +69,12 @@ class PlaceAction(
         """
         return sequential(
             [
-                ReAttachNode(body=self.object_designator, new_parent=self.world.root),
+                ReAttachNode(
+                    body=self.target_object.root, new_parent=self.world.root
+                ),
                 MoveToolCenterPointMotion(
-                    retract_pose,
-                    self.arm,
+                    target_pose=retract_pose,
+                    arm=self.arm,
                     max_linear_velocity=self.retract_linear_velocity,
                     position_threshold=self.position_threshold,
                     orientation_threshold=self.orientation_threshold,
@@ -106,18 +96,18 @@ class PlaceAction(
         :return: The grasp the object is held in.
         """
         if (
-            self.object_designator
+            self.target_object.root
             in end_effector.tool_frame.child_kinematic_structure_entities
         ):
             return GraspDescription.from_attachment(
-                end_effector, self.object_designator
+                end_effector, self.target_object.root
             )
 
         previous_pick = self.plan_node.get_previous_node_by_designator_type(
             PickUpAction
         )
         if previous_pick is None:
-            raise BodyIsNotHeld(self.object_designator, end_effector)
+            raise BodyIsNotHeld(self.target_object.root, end_effector)
         return previous_pick.designator.grasp_description
 
     @property
@@ -125,30 +115,30 @@ class PlaceAction(
         end_effector = ViewManager.get_arm_view(self.arm, self.robot).end_effector
         grasp_description = self._grasp_description(end_effector)
         transport_pose, placing_pose, retract_pose = grasp_description.pose_sequence(
-            self.target_location, self.object_designator, reverse=True
+            self.target_location, self.target_object.root, reverse=True
         )
 
         return sequential(
             [
                 MoveToolCenterPointMotion(
-                    transport_pose,
-                    self.arm,
+                    target_pose=transport_pose,
+                    arm=self.arm,
                     allow_gripper_collision=True,
                     max_linear_velocity=self.transport_linear_velocity,
                     position_threshold=self.position_threshold,
                     orientation_threshold=self.orientation_threshold,
                 ),
                 MoveToolCenterPointMotion(
-                    placing_pose,
-                    self.arm,
+                    target_pose=placing_pose,
+                    arm=self.arm,
                     allow_gripper_collision=True,
                     max_linear_velocity=self.placing_linear_velocity,
                     position_threshold=self.position_threshold,
                     orientation_threshold=self.orientation_threshold,
                 ),
                 MoveGripperMotion(
-                    GripperState.OPEN,
-                    self.arm,
+                    motion=GripperState.OPEN,
+                    arm=self.arm,
                     allow_gripper_collision=True,
                     finger_velocity=self.release_opening_velocity,
                 ),
@@ -170,7 +160,7 @@ class PlaceAction(
         return or_(
             not_(GripperIsFree(end_effector)),
             is_body_gripped(
-                variable_from(kwargs["object_designator"]),
+                variable_from(kwargs["target_object"].root),
                 end_effector,
                 threshold=kwargs["grasp_detection_threshold"],
             ),
@@ -191,13 +181,13 @@ class PlaceAction(
             GripperIsFree(end_effector),
             not_(
                 is_body_gripped(
-                    variable_from(kwargs["object_designator"]),
+                    variable_from(kwargs["target_object"].root),
                     end_effector,
                     threshold=kwargs["grasp_release_threshold"],
                 )
             ),
             allclose(
-                variable_from(kwargs["object_designator"]).global_pose,
+                variable_from(kwargs["target_object"].root).global_pose,
                 kwargs["target_location"],
                 atol=0.03,
             ),

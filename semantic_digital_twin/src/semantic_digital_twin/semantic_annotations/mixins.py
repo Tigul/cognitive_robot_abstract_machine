@@ -28,6 +28,7 @@ from random_events.set import Set as EventSet
 from random_events.variable import Symbolic
 from typing_extensions import (
     TYPE_CHECKING,
+    Generator,
     Generic,
     List,
     Optional,
@@ -62,6 +63,7 @@ from semantic_digital_twin.spatial_types import (
     Point3,
     HomogeneousTransformationMatrix,
     Vector3,
+    Pose,
 )
 from semantic_digital_twin.world_description.connections import (
     FixedConnection,
@@ -413,6 +415,16 @@ class HasRootBody(HasRootKinematicStructureEntity[Body]):
             scale.to_simple_event().as_composite_set(),
             connection_specification=connection_specification,
         )
+
+
+@dataclass(eq=False)
+class IsGraspable(HasRootBody, ABC):
+    """
+    A semantic annotation for objects that can be grasped by a hand or robotic gripper.
+    """
+
+    def grasp_pose(self) -> Generator[HomogeneousTransformationMatrix]:
+        return iter(self.global_transform)
 
 
 @dataclass(eq=False)

@@ -68,14 +68,14 @@ def reach_action_executable(immutable_model_world):
     )
     plan = execute_single(
         ReachAction(
-            Pose.from_xyz_rpy(2, 1.5, 0.7, reference_frame=world.root),
-            Arms.RIGHT,
-            GraspDescription(
+            target_pose=Pose.from_xyz_rpy(2, 1.5, 0.7, reference_frame=world.root),
+            arm=Arms.RIGHT,
+            grasp_description=GraspDescription(
                 ApproachDirection.FRONT,
                 VerticalAlignment.NoAlignment,
                 view.right_arm.end_effector,
             ),
-            world.get_semantic_annotations_by_type(Milk)[0],
+            target_object=world.get_semantic_annotations_by_type(Milk)[0],
         ),
         context=context,
     )

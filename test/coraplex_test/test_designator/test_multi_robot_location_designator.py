@@ -232,7 +232,7 @@ def test_new_reachability_location_pose(
     world, robot, context = immutable_multiple_robot_simple_apartment
 
     plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
+        [ParkArmsAction(arm=Arms.BOTH), MoveTorsoAction(torso_state=TorsoState.HIGH)],
         context,
     )
     with simulated_robot:
@@ -255,7 +255,7 @@ def test_new_reachability_location_body(
     world, robot, context = immutable_multiple_robot_simple_apartment
 
     plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
+        [ParkArmsAction(arm=Arms.BOTH), MoveTorsoAction(torso_state=TorsoState.HIGH)],
         context,
     )
     with simulated_robot:
@@ -276,7 +276,7 @@ def test_merge_reachability_location(immutable_multiple_robot_simple_apartment):
     world, robot, context = immutable_multiple_robot_simple_apartment
 
     plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
+        [ParkArmsAction(arm=Arms.BOTH), MoveTorsoAction(torso_state=TorsoState.HIGH)],
         context,
     )
     with simulated_robot:
@@ -303,7 +303,7 @@ def test_visibility_location_pose(immutable_multiple_robot_simple_apartment):
     world, robot, context = immutable_multiple_robot_simple_apartment
 
     plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
+        [ParkArmsAction(arm=Arms.BOTH), MoveTorsoAction(torso_state=TorsoState.HIGH)],
         context,
     )
     with simulated_robot:
@@ -325,7 +325,7 @@ def test_visibility_location_body(immutable_multiple_robot_simple_apartment):
     world, robot, context = immutable_multiple_robot_simple_apartment
 
     plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
+        [ParkArmsAction(arm=Arms.BOTH), MoveTorsoAction(torso_state=TorsoState.HIGH)],
         context,
     )
     with simulated_robot:
@@ -345,7 +345,7 @@ def test_visibility_reachability_merge(immutable_multiple_robot_simple_apartment
     world, robot, context = immutable_multiple_robot_simple_apartment
 
     plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
+        [ParkArmsAction(arm=Arms.BOTH), MoveTorsoAction(torso_state=TorsoState.HIGH)],
         context,
     )
 
@@ -374,8 +374,8 @@ def test_accessing_location_pose(immutable_model_world):
     world, robot, context = immutable_model_world
     plan = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
-            MoveTorsoAction(TorsoState.HIGH),
+            ParkArmsAction(arm=Arms.BOTH),
+            MoveTorsoAction(torso_state=TorsoState.HIGH),
         ],
         context,
     )
@@ -402,8 +402,8 @@ def test_giskard_location_pose(immutable_multiple_robot_simple_apartment):
     world, robot, context = immutable_multiple_robot_simple_apartment
     plan = sequential(
         [
-            ParkArmsAction(Arms.BOTH),
-            MoveTorsoAction(TorsoState.HIGH),
+            ParkArmsAction(arm=Arms.BOTH),
+            MoveTorsoAction(torso_state=TorsoState.HIGH),
         ],
         context,
     )

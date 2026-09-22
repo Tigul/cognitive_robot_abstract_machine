@@ -13,6 +13,11 @@ from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.motions.navigation import MoveMotion
 from coraplex.robot_plans.motions.robot_body import LookingMotion
+from coraplex.robot_plans.mixins import (
+    CameraTargetParameters,
+    NavigationParameters,
+    TargetLocationMovedTo,
+)
 from giskardpy.motion_statechart.goals.templates import Parallel
 from giskardpy.motion_statechart.monitors.joint_monitors import (
     JointPositionReached,
@@ -39,18 +44,14 @@ from semantic_digital_twin.world_description.geometry import VolumetricBoundingB
 
 
 @dataclass
-class NavigateAction(ActionDescription):
+class NavigateAction(ActionDescription, NavigationParameters):
     """
     Navigates the Robot to a position.
     """
 
-    target_location: Pose
-    """
-    Where the robot should stand, and which way it should face given as the pose's
-    x-axis.
-    """
-
-    keep_joint_states: bool = ActionConfig.navigate_keep_joint_states
+    keep_joint_states: bool = field(
+        default=ActionConfig.navigate_keep_joint_states, kw_only=True
+    )
     """
     Keep the joint states of the robot the same during the navigation.
     """
@@ -59,8 +60,10 @@ class NavigateAction(ActionDescription):
     def _action_plan(self) -> PlanNode:
         return execute_single(
             MoveMotion(
-                self.robot.mobile_base.pose_facing(self.target_location),
-                self.keep_joint_states,
+                target_location=self.robot.mobile_base.pose_facing(
+                    self.target_location
+                ),
+                keep_joint_states=self.keep_joint_states,
             )
         )
 
@@ -93,29 +96,21 @@ class NavigateAction(ActionDescription):
 
 
 @dataclass
-class LookAtAction(ActionDescription):
+class LookAtAction(ActionDescription, CameraTargetParameters):
     """
     Lets the robot look at a position.
-    """
-
-    target: Pose
-    """
-    Position at which the robot should look, given as 6D pose.
-    """
-
-    camera: Optional[Camera] = None
-    """
-    Camera that should be looking at the target.
     """
 
     @property
     def _action_plan(self) -> PlanNode:
         camera = self.camera or self.robot.get_default_camera()
-        return execute_single(LookingMotion(target=self.target, camera=camera))
+        return execute_single(
+            LookingMotion(look_at_target=self.look_at_target, camera=camera)
+        )
 
 
 @dataclass
-class PathPlanningNavigateAction(ActionDescription):
+class PathPlanningNavigateAction(ActionDescription, TargetLocationMovedTo):
     """
     Navigates the robot to a pose along a path through the environment's free space.
 
@@ -126,14 +121,11 @@ class PathPlanningNavigateAction(ActionDescription):
     This works for obstacles which are known in the environment beforehand not such that are added during navigation.
     """
 
-    target: Pose
-    """
-    Where the robot should stand at the end of the path, with its base.
-    """
-
     @property
     def _action_plan(self) -> PlanNode:
-        return sequential([MoveMotion(waypoint) for waypoint in self._path()])
+        return sequential(
+            [MoveMotion(target_location=waypoint) for waypoint in self._path()]
+        )
 
     @property
     def _floor(self) -> Floor:
@@ -216,7 +208,7 @@ class PathPlanningNavigateAction(ActionDescription):
             ).to_pose()
             for waypoint, next_waypoint in zip(waypoints[1:], waypoints[2:])
         ]
-        return poses + [self.target]
+        return poses + [self.target_location]
 
     def _waypoints(self) -> list[Point2]:
         """
@@ -233,7 +225,7 @@ class PathPlanningNavigateAction(ActionDescription):
             bloat_obstacles=self.robot.mobile_base.base_radius,
         )
         return free_space.path_from_to(
-            Point2.from_pose(base_pose), Point2.from_pose(self.target)
+            Point2.from_pose(base_pose), Point2.from_pose(self.target_location)
         )
 
 
@@ -270,11 +262,11 @@ class ElevatorNavigation(ActionDescription):
     def _action_plan(self) -> PlanNode:
         return sequential(
             [
-                NavigateAction(self._pose_infront_of_elevator),
+                NavigateAction(target_location=self._pose_infront_of_elevator),
                 pause_until(
                     [
                         NavigateAction(
-                            Pose.from_xyz_rpy(
+                            target_location=Pose.from_xyz_rpy(
                                 z=self._height_in_cabin,
                                 reference_frame=self.elevator.root,
                             )
@@ -284,7 +276,11 @@ class ElevatorNavigation(ActionDescription):
                 ),
                 ReAttachNode(body=self.robot.root, new_parent=self.elevator.root),
                 pause_until(
-                    [NavigateAction(self._pose_infront_of_elevator)],
+                    [
+                        NavigateAction(
+                            target_location=self._pose_infront_of_elevator
+                        )
+                    ],
                     monitor=self._elevator_open_at_floor(self.target_floor),
                 ),
                 ReAttachNode(body=self.robot.root, new_parent=self.world.root),
