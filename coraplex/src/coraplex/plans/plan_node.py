@@ -263,19 +263,6 @@ class PlanNode(PlanEntity):
     def add_child(self, child: PlanNode):
         self.plan.add_edge(self, child)
 
-    @property
-    def is_interrupted(self) -> bool:
-        return any(
-            parent.status == LifeCycleValues.INTERRUPTED
-            for parent in [self] + self.path
-        )
-
-    @property
-    def is_paused(self) -> bool:
-        return any(
-            parent.status == LifeCycleValues.PAUSED for parent in [self] + self.path
-        )
-
     def perform(self):
         """
         Perform the node and update the fields of this node.
