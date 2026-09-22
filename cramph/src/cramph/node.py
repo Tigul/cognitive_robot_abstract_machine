@@ -1441,6 +1441,30 @@ class StatechartNode(SubclassJSONSerializer):
         return self.statechart.last_observation_state[self]
 
     @property
+    def start_time(self) -> Optional[float]:
+        """
+        :return: Seconds since the statechart started at which this node most
+            recently started running, None if it has not started since its last
+            reset.
+        """
+        run = self.statechart.history.get_current_run_ticks_of_node(self)
+        if run is None:
+            return None
+        return run.start_tick * self.statechart.context.require_tick_duration()
+
+    @property
+    def end_time(self) -> Optional[float]:
+        """
+        :return: Seconds since the statechart started at which this node most
+            recently ended, None if it has not started since its last reset or has
+            not ended yet.
+        """
+        run = self.statechart.history.get_current_run_ticks_of_node(self)
+        if run is None or run.end_tick is None:
+            return None
+        return run.end_tick * self.statechart.context.require_tick_duration()
+
+    @property
     def start_condition(self) -> Scalar:
         """
         :return: The expression deciding when this node transitions from NOT_STARTED to RUNNING.

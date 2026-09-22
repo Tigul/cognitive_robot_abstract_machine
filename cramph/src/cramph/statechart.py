@@ -1094,6 +1094,23 @@ class StateHistoryItem:
         return str(merged)
 
 
+@dataclass(frozen=True)
+class RunTicks:
+    """
+    The tick a node's run started and, once it has ended, the tick it ended on.
+    """
+
+    start_tick: int
+    """
+    The tick this run started on.
+    """
+
+    end_tick: Optional[int]
+    """
+    The tick this run ended on, None while it is still running.
+    """
+
+
 @dataclass
 class StateHistory:
     """
@@ -1136,6 +1153,37 @@ class StateHistory:
         :return: The recorded observation state of `node` at every tick, in order.
         """
         return [history_item.observation_state[node] for history_item in self.history]
+
+    def get_current_run_ticks_of_node(self, node: StatechartNode) -> Optional[RunTicks]:
+        """
+        :param node: The node to look up.
+        :return: The start and, once reached, end tick of `node`'s most recent run
+            since its last reset, or None if it has not started since then (or
+            this history is still empty).
+        """
+        if not self.history:
+            return None
+        current_state = self.history[-1].life_cycle_state[node]
+        if current_state == LifeCycleValues.NOT_STARTED:
+            return None
+        start_index = len(self.history) - 1
+        while (
+            start_index > 0
+            and self.history[start_index - 1].life_cycle_state[node]
+            != LifeCycleValues.NOT_STARTED
+        ):
+            start_index -= 1
+        if not current_state.is_terminal:
+            return RunTicks(
+                start_tick=self.history[start_index].tick_count, end_tick=None
+            )
+        end_index = start_index
+        while not self.history[end_index].life_cycle_state[node].is_terminal:
+            end_index += 1
+        return RunTicks(
+            start_tick=self.history[start_index].tick_count,
+            end_tick=self.history[end_index].tick_count,
+        )
 
     def __len__(self) -> int:
         return len(self.history)
