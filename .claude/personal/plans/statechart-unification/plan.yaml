@@ -1,0 +1,181 @@
+schema_version: 1
+id: statechart-unification
+title: "Unify coraplex's Plan tree with cramph's Statechart"
+description: >
+  Retire coraplex's eager, perform()-based Plan tree in favour of cramph's
+  reactive, tick-based Statechart as the single persistent structure for
+  describing and running behaviour. The lever is ActionDescription: it stops
+  being a Designator that builds PlanNode subtrees and becomes a CompositeNode
+  that expands into statechart nodes directly.
+default_repository: cram2/cognitive_robot_abstract_machine
+
+waves:
+  - id: foundation
+    name: "Foundation"
+    description: >
+      The unlanded cramph package every other item stacks on.
+  - id: conversion
+    name: "Action conversion"
+    description: >
+      ActionDescription becomes a CompositeNode, and Statechart grows the Plan
+      introspection that actually transfers. Two independent tracks.
+  - id: retirement
+    name: "Retiring the plan layer"
+    description: >
+      Remove the duplicate control-flow vocabulary and the throwaway
+      per-batch motion state chart.
+  - id: deferred
+    name: "Deferred work"
+    description: >
+      Imperative actions and the final removal of the Plan classes, set aside
+      until the patterns above are established.
+
+tracks:
+  - id: cramph-base
+    name: "cramph foundation"
+    wave: foundation
+  - id: statechart-introspection
+    name: "Statechart introspection"
+    wave: conversion
+    description: "Pure cramph work, parallel to the action conversion."
+  - id: action-conversion
+    name: "Action conversion"
+    wave: conversion
+    description: "coraplex-side work making actions into composite nodes."
+  - id: plan-layer-retirement
+    name: "Plan layer retirement"
+    wave: retirement
+  - id: deferred-work
+    name: "Deferred work"
+    wave: deferred
+
+items:
+  - id: cramph-foundation
+    title: "cramph package foundation (statechart, node, composites)"
+    branch: plan-cramp-second-iter
+    pull_request_number: null
+    track: cramph-base
+    depends_on: []
+    status: in_progress
+    notes: >
+      49 commits ahead of cram2/main with no PR open. Verified at plan
+      creation: the entire cramph package exists on this branch alone - no
+      other local or remote branch contains cramph/src/cramph/statechart.py,
+      and no open PR on cram2 introduces it. Every other item stacks on this,
+      so nothing in this plan can land upstream until it does.
+    blockers:
+      - "No pull request opened yet for a 49-commit branch the whole plan depends on."
+
+  - id: statechart-plan-parity
+    title: "Give Statechart the Plan introspection that transfers (layers, visualize)"
+    branch: null
+    pull_request_number: null
+    track: statechart-introspection
+    depends_on: [cramph-foundation]
+    status: not_started
+    notes: >
+      Statechart already has nodes, top_level_nodes, get_nodes_by_type, draw()
+      and history. Missing versus Plan: layers, and an interactive visualize()
+      using the krrood.rustworkx_utils.visualization backends Plan already
+      uses. layers must BFS over StatechartNode.children, NOT rx.layers on
+      rx_graph - rx_graph's edges are transition-condition dependencies, not
+      parent/child structure, so visualize() needs its own presentation graph
+      the way StatechartGraphviz already builds one. simplify(), merge_nodes(),
+      re_perform() and replay() deliberately do not port: they assume a
+      mutable, restartable single-shot tree, which a compiled statechart is
+      not. Pure cramph, no coraplex coupling.
+
+  - id: action-description-composite-node
+    title: "ActionDescription becomes a CompositeNode; convert MoveTorso, ParkArms, SetGripper"
+    branch: null
+    pull_request_number: null
+    track: action-conversion
+    depends_on: [cramph-foundation]
+    status: not_started
+    notes: >
+      Folds in the Designator split (a plan_node-free parameter mixin) and a
+      coraplex ContextExtension carrying robot/evaluate_conditions/
+      ticks_per_motion for StatechartContext - per scope-decision.md both
+      exist only to enable this item, and landing either alone ships code
+      nothing reads. Must subclass CompositeNode, NOT Sequence: CramLanguageNode
+      redefines nodes as a non-kw_only init=True field, so an action's own
+      positional fields (torso_state, arm, gripper) would follow a defaulted
+      argument and raise TypeError at class-definition time. Instead the action
+      owns one internal Sequence as its single child and forwards its
+      last_observation, mirroring MonitoredCompositeNode. The
+      make_node/ActionCompositeNode bridge ships in the same PR, because
+      transporting.py already embeds these actions inside Plan trees and would
+      break the moment ActionDescription stops being a Designator.
+
+  - id: convert-remaining-declarative-actions
+    title: "Convert the remaining fixed, non-branching actions"
+    branch: null
+    pull_request_number: null
+    track: action-conversion
+    depends_on: [action-description-composite-node]
+    status: not_started
+    notes: >
+      One PR per cohesive cluster. Check every candidate for underspecified
+      a(...)/an(...) usage before including it: NavigateAction is resolved
+      generatively in transporting.py, experiments/ and
+      test_underspecified_designator.py, so it and everything composing it
+      (PathPlanningNavigateAction, ElevatorNavigation) stay on the Designator
+      path until convert-imperative-actions lands.
+
+  - id: retire-language-nodes
+    title: "Retire coraplex.language's LanguageNode family for cramph.composites"
+    branch: null
+    pull_request_number: null
+    track: plan-layer-retirement
+    depends_on: [convert-remaining-declarative-actions]
+    status: not_started
+    notes: >
+      Every LanguageNode subclass already declares its exact cramph equivalent
+      through motion_state_chart_template - SequentialNode/Sequence,
+      ParallelNode/Parallel, TryInOrderNode/TryInOrder, RepeatNode/RepeatUntil,
+      CancelMonitor/CancelledWhenTrue, PauseMonitor/PausedWhileTrue,
+      PauseUntilMonitor/PausedUntilTrue - and add_to_motion_state_chart already
+      builds the real thing. Only the imperative notify() path is redundant.
+
+  - id: persistent-motion-state-chart
+    title: "Build one long-lived Statechart instead of one per execution-boundary batch"
+    branch: null
+    pull_request_number: null
+    track: plan-layer-retirement
+    depends_on: [retire-language-nodes]
+    status: not_started
+    notes: >
+      Retires the throwaway chart in
+      BuildsMotionStateChart.create_giskard_executable and the repeated
+      executor.compile in GiskardExecutable._execute_simulation.
+      ExecutionBoundaryNode and contains_execution_boundary need rethinking for
+      a chart that no longer restarts. Biggest remaining structural change;
+      expect it to split further once the earlier items reveal the real
+      boundary logic.
+
+  - id: convert-imperative-actions
+    title: "Convert underspecified resolution and execute()-override actions to declarative constructs"
+    branch: null
+    pull_request_number: null
+    track: deferred-work
+    depends_on: [persistent-motion-state-chart]
+    status: deferred
+    notes: >
+      UnderspecifiedNode and ActionTrial retry candidates in a Python loop
+      catching PlanFailure; ReachAction and FullBodyControlledAction override
+      execute() to call .perform() immediately with side effects. Neither maps
+      onto wiring a symbolic condition once before compile, so they need
+      RepeatUntil/TryInOrder/Attempt/monitor equivalents. Deferred by explicit
+      decision at plan creation, not blocked.
+
+  - id: retire-plan-layer
+    title: "Retire Plan, PlanNode, Designator, PlanEntity, Executable and their ORM mappings"
+    branch: null
+    pull_request_number: null
+    track: deferred-work
+    depends_on: [convert-imperative-actions]
+    status: deferred
+    notes: >
+      The end state: Statechart as the single persistent structure for both
+      authoring and execution. Includes the ORM mappings tied to the retired
+      classes.
