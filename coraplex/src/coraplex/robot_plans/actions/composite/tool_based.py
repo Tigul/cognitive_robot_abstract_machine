@@ -36,7 +36,7 @@ from coraplex.exceptions import (
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
-from coraplex.robot_plans.mixins import HasTcpGoalThresholds, UsedArm, UsedTool
+from coraplex.robot_plans.mixins import ArmDrivenToGoal, UsedTool
 from coraplex.view_manager import ViewManager
 from coraplex.robot_plans.actions.composite.tool_paths import (
     ToolPath,
@@ -99,9 +99,7 @@ class FullBodyControlledAction(ActionDescription, ABC):
 
 
 @dataclass(kw_only=True)
-class ToolMotionAction(
-    FullBodyControlledAction, UsedArm, UsedTool, HasTcpGoalThresholds, ABC
-):
+class ToolMotionAction(FullBodyControlledAction, ArmDrivenToGoal, UsedTool, ABC):
     """
     An action that moves a tool along a sampled tool path while keeping the tool aligned
     with its target.
@@ -389,7 +387,7 @@ class WipingAction(ToolMotionAction):
 
 
 @dataclass(kw_only=True)
-class PouringAction(FullBodyControlledAction, UsedArm, UsedTool, HasTcpGoalThresholds):
+class PouringAction(FullBodyControlledAction, ArmDrivenToGoal, UsedTool):
     """
     Pour from a held source container into a target container by tilting the source next
     to the target's rim.

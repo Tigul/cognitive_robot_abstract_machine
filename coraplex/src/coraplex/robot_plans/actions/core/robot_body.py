@@ -21,10 +21,10 @@ from coraplex.datastructures.trajectory import PoseTrajectory
 from coraplex.plans.factories import execute_single, sequential
 from coraplex.robot_plans.actions.base import ActionDescription, DescriptionType
 from coraplex.robot_plans.mixins import (
+    ArmDrivenToGoal,
     EndEffectorPoseParameters,
     GripperActuationParameters,
     HasMaxJointVelocity,
-    HasTcpGoalThresholds,
     LinkAlignmentApplied,
     TorsoStateSet,
     UsedArm,
@@ -185,7 +185,7 @@ class CarryAction(ActionDescription, UsedArm, LinkAlignmentApplied):
 
 
 @dataclass
-class FollowToolCenterPointPathAction(ActionDescription, UsedArm, HasTcpGoalThresholds):
+class FollowToolCenterPointPathAction(ActionDescription, ArmDrivenToGoal):
     """
     Represents an action to move a robotic arm's TCP (Tool Center Point) along a path of
     poses.
@@ -219,9 +219,7 @@ class FollowToolCenterPointPathAction(ActionDescription, UsedArm, HasTcpGoalThre
 
 
 @dataclass
-class MoveManipulatorAction(
-    ActionDescription, EndEffectorPoseParameters, HasTcpGoalThresholds
-):
+class MoveManipulatorAction(ActionDescription, EndEffectorPoseParameters):
     """
     Move the end_effector to a specific pose.
     """

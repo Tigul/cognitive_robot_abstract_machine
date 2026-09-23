@@ -25,7 +25,7 @@ from semantic_digital_twin.world_description.world_entity import (
     SemanticAnnotation,
 )
 
-# %% input parameters
+# %% behaviour parameters
 
 
 @dataclass(eq=False)
@@ -287,7 +287,79 @@ class LinkAlignmentApplied:
     """
 
 
-# %% higher-order input parameters
+@dataclass(eq=False)
+class ToolCenterPointGoalThresholds:
+    """
+    Mixin for behaviours that count their tool-center-point goal as reached within a
+    tolerance, falling back to
+    :attr:`~coraplex.datastructures.dataclasses.Context.motion_tolerances` when left unset.
+
+    Meant to be mixed into something carrying a ``context``, which the resolvers read.
+    """
+
+    position_threshold: Optional[float] = field(default=None, kw_only=True)
+    """
+    Distance threshold in meters for goal achievement. ``None`` falls back to
+    :attr:`~coraplex.datastructures.dataclasses.MotionToleranceConfig.default_tcp_position_threshold`.
+    """
+
+    orientation_threshold: Optional[float] = field(default=None, kw_only=True)
+    """
+    Rotation threshold in rad for goal achievement. ``None`` falls back to
+    :attr:`~coraplex.datastructures.dataclasses.MotionToleranceConfig.tool_orientation_threshold`.
+    """
+
+    def resolved_position_threshold(self) -> float:
+        """
+        :return: :attr:`position_threshold` if set, otherwise the context's default.
+        """
+        if self.position_threshold is not None:
+            return self.position_threshold
+        return self.context.motion_tolerances.default_tcp_position_threshold
+
+    def resolved_orientation_threshold(self) -> float:
+        """
+        :return: :attr:`orientation_threshold` if set, otherwise the context's default.
+        """
+        if self.orientation_threshold is not None:
+            return self.orientation_threshold
+        return self.context.motion_tolerances.tool_orientation_threshold
+
+
+@dataclass(eq=False)
+class GraspDetectionThreshold:
+    """
+    Mixin for behaviours that check whether an object is held between the gripper's
+    fingers.
+    """
+
+    grasp_detection_threshold: float = field(default=0.9, kw_only=True)
+    """
+    Minimum fraction of sampled rays between the gripper's fingers that must hit the
+    target object for it to count as grasped/held (see
+    :func:`~semantic_digital_twin.reasoning.robot_predicates.is_body_gripped`).
+    """
+
+
+@dataclass
+class HasMaxJointVelocity:
+    """
+    Adds an optional joint velocity cap to an action or motion.
+
+    .. note:: Stands on its own rather than joining one of the bundles below, because the
+        behaviours that cap a joint speed share no other parameter: one names an arm, the
+        other the joints it drives.
+    """
+
+    max_joint_velocity: Optional[float] = field(default=None, kw_only=True)
+    """
+    Maximum joint velocity (in rad/s or m/s, per joint), enforced via
+    :class:`~giskardpy.motion_statechart.tasks.joint_tasks.JointVelocityLimit`. ``None``
+    leaves the speed unconstrained.
+    """
+
+
+# %% combined behaviour parameters
 
 
 @dataclass(eq=False)
@@ -332,12 +404,24 @@ class HandleOperationParameters(HandleOperatedOn, UsedArm):
 
 
 @dataclass(eq=False)
+class ArmDrivenToGoal(UsedArm, ToolCenterPointGoalThresholds):
+    """
+    Bundle of the parameters for driving an arm's tool center point to a goal: the arm and
+    how close to the goal it has to come.
+    """
+
+
+@dataclass(eq=False)
 class EndEffectorPoseParameters(
-    UsedEndEffector, TargetPoseReached, GripperCollisionAllowed
+    UsedEndEffector,
+    TargetPoseReached,
+    GripperCollisionAllowed,
+    ToolCenterPointGoalThresholds,
 ):
     """
     Bundle of the parameters for driving an end effector to a target pose: the end effector,
-    the target pose, and whether gripper collision is allowed.
+    the target pose, whether gripper collision is allowed, and how close to the pose it has
+    to come.
     """
 
 
@@ -365,32 +449,70 @@ class GripperActuationParameters(GripperStateSet, UsedArm):
     """
 
 
-# %% tuning parameters
-
-
-@dataclass
-class HasMaxJointVelocity:
+@dataclass(eq=False)
+class GripperStallTolerated(GripperActuationParameters):
     """
-    Adds an optional joint velocity cap to an action or motion.
+    Bundle of the parameters for setting a gripper that may stall short of its target: the
+    gripper state, the arm, and how a stall is tolerated.
     """
 
-    max_joint_velocity: Optional[float] = field(default=None, kw_only=True)
+    finger_velocity: Optional[float] = field(default=None, kw_only=True)
     """
-    Maximum joint velocity (in rad/s or m/s, per joint), enforced via
+    Maximum finger joint velocity (in m/s), enforced via
     :class:`~giskardpy.motion_statechart.tasks.joint_tasks.JointVelocityLimit`. ``None``
     leaves the speed unconstrained.
     """
 
+    stall_minimum_time: Optional[float] = field(default=None, kw_only=True)
+    """
+    Minimum stall dwell time (in seconds, see
+    :attr:`~giskardpy.motion_statechart.monitors.monitors.LocalMinimumReached.minimum_time`)
+    to command. Only meaningful when :attr:`tolerate_stall` is True. ``None`` keeps the
+    default.
+    """
+
+    tolerate_stall: bool = field(default=False, kw_only=True)
+    """
+    Whether this motion is also considered done once the fingers' velocities settle
+    near zero, even without reaching their nominal target position -- checked via a
+    separate :class:`~giskardpy.motion_statechart.monitors.monitors.LocalMinimumReached`
+    monitor alongside the goal, not by the goal's own observation, since stalling does
+    not mean the goal itself was reached.
+    """
+
+
+@dataclass(eq=False)
+class CartesianMovementLimited(UsedMovementType):
+    """
+    Bundle of the parameters for a speed-capped Cartesian movement: the type of movement
+    and the speeds the tool center point may not exceed.
+    """
+
+    max_linear_velocity: Optional[float] = field(default=None, kw_only=True)
+    """
+    Maximum linear speed (in m/s) of the tool center point, enforced via
+    :class:`~giskardpy.motion_statechart.tasks.cartesian_tasks.CartesianPositionVelocityLimit`.
+    ``None`` leaves the linear speed unconstrained (other than the robot's own hardware
+    limits).
+    """
+
+    max_angular_velocity: Optional[float] = field(default=None, kw_only=True)
+    """
+    Maximum angular speed (in rad/s) of the tool center point, enforced via
+    :class:`~giskardpy.motion_statechart.tasks.cartesian_tasks.CartesianRotationVelocityLimit`.
+    Only meaningful for :class:`~giskardpy.motion_statechart.tasks.cartesian_tasks.CartesianPose`
+    (i.e. when not :attr:`~coraplex.datastructures.enums.MovementType.TRANSLATION`).
+    ``None`` leaves the angular speed unconstrained.
+    """
+
+
+# %% per-action tuning
+
 
 @dataclass
-class HasApproachVelocity:
+class ReachTuningParameters(GraspDetectionThreshold):
     """
-    Adds an optional pre-approach speed to an action that reaches towards a target
-    before its main motion.
-
-    Shared by :class:`~coraplex.robot_plans.actions.core.pick_up.ReachAction` and
-    :class:`~coraplex.robot_plans.actions.core.pick_up.PickUpAction`, since a pick-up's
-    reach is itself a :class:`ReachAction` and forwards this same value to it.
+    Tunable approach speeds and grasp sensitivity for reaching towards a target.
     """
 
     pre_approach_linear_velocity: Optional[float] = field(default=None, kw_only=True)
@@ -398,32 +520,6 @@ class HasApproachVelocity:
     Maximum linear speed (in m/s) for the initial pre-pose approach, enforced via
     :class:`~giskardpy.motion_statechart.tasks.cartesian_tasks.CartesianPositionVelocityLimit`.
     ``None`` leaves the speed unconstrained.
-    """
-
-
-@dataclass
-class HasGraspDetectionThreshold:
-    """
-    Adds a grasp-detection sensitivity threshold to an action that checks whether an
-    object is held between the gripper's fingers.
-
-    Shared by :class:`~coraplex.robot_plans.actions.core.pick_up.ReachAction`,
-    :class:`~coraplex.robot_plans.actions.core.pick_up.PickUpAction` and
-    :class:`~coraplex.robot_plans.actions.core.placing.PlaceAction`.
-    """
-
-    grasp_detection_threshold: float = field(default=0.9, kw_only=True)
-    """
-    Minimum fraction of sampled rays between the gripper's fingers that must hit the
-    target object for it to count as grasped/held (see
-    :func:`~semantic_digital_twin.reasoning.robot_predicates.is_body_gripped`).
-    """
-
-
-@dataclass
-class ReachTuningParameters(HasApproachVelocity):
-    """
-    Tunable approach speeds for :class:`~coraplex.robot_plans.actions.core.pick_up.ReachAction`.
     """
 
     final_approach_linear_velocity: Optional[float] = field(default=None, kw_only=True)
@@ -438,15 +534,12 @@ class ReachTuningParameters(HasApproachVelocity):
 @dataclass
 class PickUpTuningParameters(ReachTuningParameters):
     """
-    Tunable grasp speeds and target-object friction for
-    :class:`~coraplex.robot_plans.actions.core.pick_up.PickUpAction`.
+    Tunable grasp speeds and target-object friction for picking an object up.
 
-    Extends :class:`ReachTuningParameters` rather than just :class:`HasApproachVelocity`:
-    :class:`~coraplex.robot_plans.actions.core.pick_up.PickUpAction` forwards both
-    ``pre_approach_linear_velocity`` and ``final_approach_linear_velocity`` verbatim to
-    the internal :class:`~coraplex.robot_plans.actions.core.pick_up.ReachAction` it
-    builds, so both fields are literally the same value under the same name in both
-    places rather than two similarly-named-but-distinct fields.
+    Extends :class:`ReachTuningParameters` because a pick-up's reach forwards both
+    approach speeds verbatim to the reach it builds, so both fields are literally the
+    same value under the same name in both places rather than two
+    similarly-named-but-distinct fields.
     """
 
     grasp_closing_velocity: Optional[float] = field(default=None, kw_only=True)
@@ -483,10 +576,10 @@ class PickUpTuningParameters(ReachTuningParameters):
 
 
 @dataclass
-class PlaceTuningParameters:
+class PlaceTuningParameters(GraspDetectionThreshold):
     """
-    Tunable transport/placing/release speeds for
-    :class:`~coraplex.robot_plans.actions.core.placing.PlaceAction`.
+    Tunable transport, placing and release speeds, and grasp sensitivity, for putting an
+    object down.
     """
 
     placing_linear_velocity: Optional[float] = field(default=None, kw_only=True)
@@ -520,99 +613,3 @@ class PlaceTuningParameters:
     :class:`~giskardpy.motion_statechart.tasks.cartesian_tasks.CartesianPositionVelocityLimit`.
     ``None`` leaves the speed unconstrained.
     """
-
-
-@dataclass
-class GripperStallToleranceParameters:
-    """
-    Adds an optional finger speed and stall-tolerance to a gripper open/close motion.
-    """
-
-    finger_velocity: Optional[float] = field(default=None, kw_only=True)
-    """
-    Maximum finger joint velocity (in m/s), enforced via
-    :class:`~giskardpy.motion_statechart.tasks.joint_tasks.JointVelocityLimit`. ``None``
-    leaves the speed unconstrained.
-    """
-
-    stall_minimum_time: Optional[float] = field(default=None, kw_only=True)
-    """
-    Minimum stall dwell time (in seconds, see
-    :attr:`~giskardpy.motion_statechart.monitors.monitors.LocalMinimumReached.minimum_time`)
-    to command. Only meaningful when :attr:`tolerate_stall` is True. ``None`` keeps the
-    default.
-    """
-
-    tolerate_stall: bool = field(default=False, kw_only=True)
-    """
-    Whether this motion is also considered done once the fingers' velocities settle
-    near zero, even without reaching their nominal target position -- checked via a
-    separate :class:`~giskardpy.motion_statechart.monitors.monitors.LocalMinimumReached`
-    monitor alongside the goal, not by the goal's own observation, since stalling does
-    not mean the goal itself was reached.
-    """
-
-
-@dataclass
-class CartesianVelocityLimitParameters:
-    """
-    Adds an optional linear and angular speed cap to a Cartesian tool-center-point
-    motion.
-    """
-
-    max_linear_velocity: Optional[float] = field(default=None, kw_only=True)
-    """
-    Maximum linear speed (in m/s) of the tool center point, enforced via
-    :class:`~giskardpy.motion_statechart.tasks.cartesian_tasks.CartesianPositionVelocityLimit`.
-    ``None`` leaves the linear speed unconstrained (other than the robot's own hardware
-    limits).
-    """
-
-    max_angular_velocity: Optional[float] = field(default=None, kw_only=True)
-    """
-    Maximum angular speed (in rad/s) of the tool center point, enforced via
-    :class:`~giskardpy.motion_statechart.tasks.cartesian_tasks.CartesianRotationVelocityLimit`.
-    Only meaningful for :class:`~giskardpy.motion_statechart.tasks.cartesian_tasks.CartesianPose`
-    (i.e. when not :attr:`~coraplex.datastructures.enums.MovementType.TRANSLATION`).
-    ``None`` leaves the angular speed unconstrained.
-    """
-
-
-@dataclass
-class HasTcpGoalThresholds:
-    """
-    Adds optional tool-center-point goal-achievement thresholds to a motion, falling
-    back to :attr:`~coraplex.datastructures.dataclasses.Context.motion_tolerances` when
-    left unset.
-
-    Meant to be mixed into a :class:`~coraplex.robot_plans.motions.base.BaseMotion`
-    subclass, whose ``context`` the resolver methods below rely on.
-    """
-
-    position_threshold: Optional[float] = field(default=None, kw_only=True)
-    """
-    Distance threshold in meters for goal achievement. ``None`` falls back to
-    :attr:`~coraplex.datastructures.dataclasses.MotionToleranceConfig.default_tcp_position_threshold`.
-    """
-
-    orientation_threshold: Optional[float] = field(default=None, kw_only=True)
-    """
-    Rotation threshold in rad for goal achievement. ``None`` falls back to
-    :attr:`~coraplex.datastructures.dataclasses.MotionToleranceConfig.tool_orientation_threshold`.
-    """
-
-    def resolved_position_threshold(self) -> float:
-        """
-        :return: :attr:`position_threshold` if set, otherwise the context's default.
-        """
-        if self.position_threshold is not None:
-            return self.position_threshold
-        return self.context.motion_tolerances.default_tcp_position_threshold
-
-    def resolved_orientation_threshold(self) -> float:
-        """
-        :return: :attr:`orientation_threshold` if set, otherwise the context's default.
-        """
-        if self.orientation_threshold is not None:
-            return self.orientation_threshold
-        return self.context.motion_tolerances.tool_orientation_threshold

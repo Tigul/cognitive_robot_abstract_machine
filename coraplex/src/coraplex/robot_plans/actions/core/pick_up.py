@@ -30,9 +30,8 @@ from coraplex.querying.predicates import GripperIsFree
 from coraplex.exceptions import PerceptionTargetMissing
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.mixins import (
+    ArmDrivenToGoal,
     GraspParameters,
-    HasGraspDetectionThreshold,
-    HasTcpGoalThresholds,
     PickUpTuningParameters,
     PoseSequenceReversed,
     ReachTuningParameters,
@@ -57,11 +56,10 @@ logger = logging.getLogger(__name__)
 class ReachAction(
     ActionDescription,
     GraspParameters,
+    ArmDrivenToGoal,
     TargetPoseReached,
     PoseSequenceReversed,
     ReachTuningParameters,
-    HasGraspDetectionThreshold,
-    HasTcpGoalThresholds,
 ):
     """
     Let the robot reach a specific pose.
@@ -184,9 +182,8 @@ class ReachAction(
 class PickUpAction(
     ActionDescription,
     GraspParameters,
+    ArmDrivenToGoal,
     PickUpTuningParameters,
-    HasGraspDetectionThreshold,
-    HasTcpGoalThresholds,
 ):
     """
     Let the robot pick up an object.
@@ -315,7 +312,7 @@ class PickUpAction(
 
 
 @dataclass
-class GraspingAction(ActionDescription, GraspParameters, HasTcpGoalThresholds):
+class GraspingAction(ActionDescription, GraspParameters, ArmDrivenToGoal):
     """
     Grasps an object described by the given Object Designator description.
     """

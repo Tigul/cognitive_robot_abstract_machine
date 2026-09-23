@@ -47,8 +47,6 @@ def test_get_bound_variables(immutable_model_world):
 
     assert len(bound_variables) == 14
     assert list(bound_variables.keys()) == [
-        "position_threshold",
-        "orientation_threshold",
         "grasp_detection_threshold",
         "pre_approach_linear_velocity",
         "final_approach_linear_velocity",
@@ -56,6 +54,8 @@ def test_get_bound_variables(immutable_model_world):
         "lift_linear_velocity",
         "grasp_stall_minimum_time",
         "object_friction",
+        "position_threshold",
+        "orientation_threshold",
         "grasp_description",
         "arm",
         "target_object",

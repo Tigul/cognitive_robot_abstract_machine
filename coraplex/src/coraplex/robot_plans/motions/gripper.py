@@ -28,24 +28,18 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
 from coraplex.exceptions import MissingToolFrame, MissingWaypoints
 from coraplex.robot_plans.mixins import (
-    CartesianVelocityLimitParameters,
+    ArmDrivenToGoal,
+    CartesianMovementLimited,
     EndEffectorPoseParameters,
     GraspParameters,
-    GripperActuationParameters,
     GripperCollisionAllowed,
-    GripperStallToleranceParameters,
-    HasTcpGoalThresholds,
+    GripperStallTolerated,
     PoseSequenceReversed,
     TargetPoseReached,
-    UsedArm,
     UsedMovementType,
 )
 from coraplex.robot_plans.motions.base import BaseMotion
-from coraplex.datastructures.enums import (
-    Arms,
-    MovementType,
-    WaypointsMovementType,
-)
+from coraplex.datastructures.enums import MovementType, WaypointsMovementType
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.view_manager import ViewManager
 from coraplex.utils import translate_pose_along_local_axis
@@ -55,9 +49,9 @@ from coraplex.utils import translate_pose_along_local_axis
 class ReachMotion(
     BaseMotion,
     GraspParameters,
+    ArmDrivenToGoal,
     UsedMovementType,
     PoseSequenceReversed,
-    HasTcpGoalThresholds,
 ):
     """
     Moves the tool center point through the grasp description's pre-grasp and grasp
@@ -108,12 +102,7 @@ class ReachMotion(
 
 
 @dataclass
-class MoveGripperMotion(
-    BaseMotion,
-    GripperActuationParameters,
-    GripperCollisionAllowed,
-    GripperStallToleranceParameters,
-):
+class MoveGripperMotion(BaseMotion, GripperStallTolerated, GripperCollisionAllowed):
     """
     Opens or closes the gripper.
     """
@@ -167,11 +156,9 @@ class MoveGripperMotion(
 class MoveToolCenterPointMotion(
     BaseMotion,
     TargetPoseReached,
-    UsedArm,
+    ArmDrivenToGoal,
     GripperCollisionAllowed,
-    UsedMovementType,
-    CartesianVelocityLimitParameters,
-    HasTcpGoalThresholds,
+    CartesianMovementLimited,
 ):
     """
     Moves the Tool center point (TCP) of the robot.
@@ -249,9 +236,7 @@ class MoveToolCenterPointMotion(
 
 
 @dataclass
-class MoveTCPWaypointsMotion(
-    BaseMotion, UsedArm, GripperCollisionAllowed, HasTcpGoalThresholds
-):
+class MoveTCPWaypointsMotion(BaseMotion, ArmDrivenToGoal, GripperCollisionAllowed):
     """
     Moves the Tool center point (TCP) of the robot.
     """
@@ -296,7 +281,7 @@ class MoveTCPWaypointsMotion(
 
 
 @dataclass
-class MoveTCPWaypointsAlignedMotion(BaseMotion, HasTcpGoalThresholds):
+class MoveTCPWaypointsAlignedMotion(BaseMotion, ArmDrivenToGoal):
     """
     Moves the tool center point (TCP) of the robot along waypoints while keeping the
     given plane alignments.
@@ -305,11 +290,6 @@ class MoveTCPWaypointsAlignedMotion(BaseMotion, HasTcpGoalThresholds):
     waypoints: List[Point3]
     """
     Waypoints the TCP should move along.
-    """
-
-    arm: Arms
-    """
-    Arm with the TCP that should be moved along the waypoints.
     """
 
     alignment_pairs: List[AlignmentPair] = field(default_factory=list)
@@ -405,9 +385,7 @@ class MoveTCPWaypointsAlignedMotion(BaseMotion, HasTcpGoalThresholds):
 
 
 @dataclass
-class MoveManipulatorMotion(
-    BaseMotion, EndEffectorPoseParameters, HasTcpGoalThresholds
-):
+class MoveManipulatorMotion(BaseMotion, EndEffectorPoseParameters):
     """
     Moves the Tool center point (TCP) of the robot.
     """

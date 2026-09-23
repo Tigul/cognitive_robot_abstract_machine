@@ -241,7 +241,7 @@ def test_move_tcp_waypoints_aligned_motion_forwards_position_threshold(
     waypoints = [Point3.from_iterable([1, 1, 1])]
 
     motion = MoveTCPWaypointsAlignedMotion(
-        waypoints, Arms.LEFT, position_threshold=0.001
+        waypoints=waypoints, arm=Arms.LEFT, position_threshold=0.001
     )
     execute_single(motion, context=context)
 

@@ -22,8 +22,7 @@ from coraplex.querying.predicates import GripperIsFree
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.mixins import (
-    HasGraspDetectionThreshold,
-    HasTcpGoalThresholds,
+    ArmDrivenToGoal,
     ObjectManipulationParameters,
     PlaceTuningParameters,
     TargetLocationMovedTo,
@@ -46,10 +45,9 @@ if TYPE_CHECKING:
 class PlaceAction(
     ActionDescription,
     ObjectManipulationParameters,
+    ArmDrivenToGoal,
     TargetLocationMovedTo,
     PlaceTuningParameters,
-    HasGraspDetectionThreshold,
-    HasTcpGoalThresholds,
 ):
     """
     Places an Object at a position using an arm.

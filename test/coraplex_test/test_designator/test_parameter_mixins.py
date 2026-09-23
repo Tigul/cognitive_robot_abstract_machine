@@ -1,3 +1,5 @@
+import dataclasses
+
 from coraplex.datastructures.enums import (
     ApproachDirection,
     Arms,
@@ -8,10 +10,19 @@ from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
-from coraplex.robot_plans.motions.gripper import MoveGripperMotion
+from coraplex.robot_plans.actions.core.robot_body import (
+    ParkArmsAction,
+    SetGripperAction,
+)
+from coraplex.robot_plans.motions.gripper import (
+    MoveGripperMotion,
+    MoveToolCenterPointMotion,
+)
 from coraplex.robot_plans.mixins import (
+    ArmDrivenToGoal,
     GraspParameters,
     GripperActuationParameters,
+    GripperStallTolerated,
     GripperStateSet,
     HandleOperatedOn,
     HandleOperationParameters,
@@ -19,6 +30,7 @@ from coraplex.robot_plans.mixins import (
     ObjectActedOn,
     ObjectManipulationParameters,
     PlaceTuningParameters,
+    ToolCenterPointGoalThresholds,
     UsedArm,
     UsedGraspDescription,
 )
@@ -132,3 +144,49 @@ def test_inherited_parameters_keep_their_declared_types():
         hints["placing_linear_velocity"]
         == PlaceTuningParameters.__annotations__["placing_linear_velocity"]
     )
+
+
+# %% tuning carried by the behaviour it tunes
+
+
+def test_behaviours_driving_a_tool_center_point_carry_their_own_tolerances():
+    """
+    The goal tolerances belong to driving an arm to a goal, so a behaviour that does
+    that has them without naming a second mixin.
+    """
+    assert issubclass(MoveToolCenterPointMotion, ArmDrivenToGoal)
+    assert issubclass(ArmDrivenToGoal, UsedArm)
+    assert issubclass(ArmDrivenToGoal, ToolCenterPointGoalThresholds)
+
+    hints = MoveToolCenterPointMotion.get_type_hints()
+    assert (
+        hints["position_threshold"]
+        == ToolCenterPointGoalThresholds.__annotations__["position_threshold"]
+    )
+
+
+def test_behaviours_without_a_tool_center_point_goal_have_no_tolerances():
+    """
+    Parking an arm and setting a gripper drive no tool center point, so folding the
+    tolerances into the arm parameters must not reach them.
+    """
+    assert issubclass(ParkArmsAction, UsedArm)
+    assert not issubclass(ParkArmsAction, ToolCenterPointGoalThresholds)
+    assert "position_threshold" not in {
+        f.name for f in dataclasses.fields(ParkArmsAction)
+    }
+
+    assert issubclass(SetGripperAction, GripperActuationParameters)
+    assert not issubclass(SetGripperAction, GripperStallTolerated)
+    assert "tolerate_stall" not in {
+        f.name for f in dataclasses.fields(SetGripperAction)
+    }
+
+
+def test_only_the_gripper_motion_tolerates_a_stall():
+    """
+    Stalling is something the motion commanding the fingers tolerates, so the stall
+    parameters sit on the gripper actuation the motion uses rather than beside it.
+    """
+    assert issubclass(MoveGripperMotion, GripperStallTolerated)
+    assert issubclass(GripperStallTolerated, GripperActuationParameters)
