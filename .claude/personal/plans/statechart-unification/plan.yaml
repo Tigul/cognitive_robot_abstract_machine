@@ -102,26 +102,27 @@ items:
       not. Pure cramph, no coraplex coupling.
 
   - id: action-description-composite-node
-    title: "ActionDescription becomes a CompositeNode; convert MoveTorso, ParkArms, SetGripper"
-    branch: null
+    title: "Action becomes a CompositeNode; convert MoveTorso, ParkArms, SetGripper"
+    branch: action-description-composite-node
     pull_request_number: null
     track: action-conversion
     depends_on: [cramph-foundation]
-    status: not_started
+    status: in_progress
     notes: >
-      Folds in the Designator split (a plan_node-free parameter mixin) and a
-      coraplex ContextExtension carrying robot/evaluate_conditions/
-      ticks_per_motion for StatechartContext - per scope-decision.md both
-      exist only to enable this item, and landing either alone ships code
-      nothing reads. Must subclass CompositeNode, NOT Sequence: CramLanguageNode
-      redefines nodes as a non-kw_only init=True field, so an action's own
-      positional fields (torso_state, arm, gripper) would follow a defaulted
-      argument and raise TypeError at class-definition time. Instead the action
-      owns one internal Sequence as its single child and forwards its
-      last_observation, mirroring MonitoredCompositeNode. The
-      make_node/ActionCompositeNode bridge ships in the same PR, because
-      transporting.py already embeds these actions inside Plan trees and would
-      break the moment ActionDescription stops being a Designator.
+      Committed, not yet opened as a pull request: it stacks on
+      plan-cramp-second-iter, so a pull request into ichumuh:cramph would carry
+      that branch's 49 commits until it lands underneath. Landed as a new
+      class 'Action' beside an untouched ActionDescription rather than
+      changing that base, because ~25 action classes inherit it and the ones
+      reached through an underspecified statement or overriding execute()
+      cannot convert yet. Action subclasses CompositeNode and owns one
+      internal Sequence; it must not subclass Sequence, per the dataclass
+      field-ordering constraint in roadmap.md. Also split
+      DesignatorParameters out of Designator, added PlanContextExtension, and
+      added the ActionCompositeNode bridge so unconverted plan trees keep
+      working. Condition wiring was dropped from this item, see
+      wire-action-conditions. 826 tests pass across test_plan, test_actions,
+      test_designator and cramph_test.
 
   - id: convert-remaining-declarative-actions
     title: "Convert the remaining fixed, non-branching actions"
@@ -137,6 +138,25 @@ items:
       test_underspecified_designator.py, so it and everything composing it
       (PathPlanningNavigateAction, ElevatorNavigation) stay on the Designator
       path until convert-imperative-actions lands.
+
+  - id: wire-action-conditions
+    title: "Make an action's pre- and post-conditions actually gate it"
+    branch: null
+    pull_request_number: null
+    track: action-conversion
+    depends_on: [action-description-composite-node]
+    status: not_started
+    notes: >
+      Split out of action-description-composite-node once it turned out that
+      conditions are inert today rather than merely unwired: perform() calls
+      evaluate_pre_condition(), which is defined nowhere, and
+      GiskardExecutable._add_condition_monitors is dead code marked "being
+      reworked". Wiring a converted action's conditions is therefore new
+      behaviour, not preservation of old behaviour - a post-condition that
+      reads false would newly cancel a statechart that passes today - so it
+      needs its own tests rather than riding along with a refactor. The
+      ThreadedPredicateMonitor that condition_nodes.condition_monitor already
+      builds is the mechanism.
 
   - id: retire-language-nodes
     title: "Retire coraplex.language's LanguageNode family for cramph.composites"

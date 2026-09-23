@@ -228,11 +228,18 @@ the way `StatechartGraphviz` already builds one for `draw()`.
   assert action.life_cycle_state == LifeCycleValues.SUCCEEDED
   ```
 
-- **Existing tests must keep passing unmodified** — notably
-  `test/coraplex_test/test_plan/test_plan.py` and
-  `test_underspecified_designator.py`, which exercise `transporting.py`
-  (embedding converted actions through the new bridge) and `NavigateAction`
-  (through the untouched `Designator` path).
+- **Converting an action changes how it appears in an unconverted plan tree**,
+  so some existing tests do change with each conversion batch — an
+  expectation this plan originally got wrong. Where the converted action was
+  only a fixture, point the test at one still on the old path; where the test
+  is about how an action parses, assert what it expands into now. What must
+  never change is behaviour: every `perform()`-based test kept passing
+  untouched.
+- **Count a contributed node as one motion.** `motion_count` cannot be derived
+  by counting what an action expands into, because a template assembling its
+  children hands them to a goal that does not belong to a chart yet, so
+  nothing has expanded. Getting this wrong makes `execute()` bail on
+  `motion_count == 0` and the robot silently does nothing.
 - Run tests with the project interpreter (`/home/jonas/envs/cram/bin/python`)
   and `pytest -n 2`.
 - **Every pull request targets `ichumuh:cramph`**, based on
