@@ -80,11 +80,15 @@ condition-wiring can be proven on one simple case.
 
 ### Where this work lands, and what it stacks on
 
-Pull requests for this plan go from **Tigul fork branches into the `cramph`
-branch of `ichumuh/cognitive_robot_abstract_machine`** — the shared
-integration branch for the cramph package — not into `cram2/main`. The
-existing `ichumuh#7` (`Tigul:cramph-new-motions` → `cramph`, "Rip
-MotionDesignator") is the precedent for that shape.
+Work lands in two stages:
+
+1. **Every item here is a pull request into `plan-cramp-second-iter`** on the
+   Tigul fork, so each review sees only that item's own diff.
+2. **`plan-cramp-second-iter` then goes to `ichumuh:cramph`**, the shared
+   integration branch for the cramph package, carrying the collected work.
+
+Nothing here targets `cram2/main`. `ichumuh#7` (`Tigul:cramph-new-motions` →
+`cramph`, "Rip MotionDesignator") is the precedent for that second stage.
 
 Verified at plan creation:
 

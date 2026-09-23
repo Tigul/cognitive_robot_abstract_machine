@@ -7,9 +7,10 @@ description: >
   describing and running behaviour. The lever is ActionDescription: it stops
   being a Designator that builds PlanNode subtrees and becomes a CompositeNode
   that expands into statechart nodes directly. Every item here is a pull
-  request from a Tigul fork branch into the 'cramph' integration branch on
-  ichumuh/cognitive_robot_abstract_machine, not into cram2/main.
-default_repository: ichumuh/cognitive_robot_abstract_machine
+  request into 'plan-cramp-second-iter' on the Tigul fork, which itself goes on
+  to the 'cramph' branch of ichumuh/cognitive_robot_abstract_machine once the
+  work below has collected there. Nothing here targets cram2/main.
+default_repository: Tigul/cognitive_robot_abstract_machine
 
 waves:
   - id: foundation
@@ -53,8 +54,9 @@ tracks:
 
 items:
   - id: cramph-foundation
-    title: "Land the current cramph work (graph navigation, start/end times, callbacks) onto ichumuh:cramph"
+    title: "Land the collected cramph work onto ichumuh:cramph"
     branch: plan-cramp-second-iter
+    repository: ichumuh/cognitive_robot_abstract_machine
     pull_request_number: null
     track: cramph-base
     depends_on: []
@@ -79,7 +81,7 @@ items:
       import them - verified ImportError. Inherited from the base, not caused
       by these 7 commits, but it affects anything importing those modules.
     blockers:
-      - "No pull request opened yet into ichumuh:cramph for the 7 commits the rest of the plan stacks on."
+      - "No pull request opened yet into ichumuh:cramph. It collects every item of this plan first, so it grows as they merge into it."
       - "Base branch has broken imports in alternative_motion_mappings (inherited from the Rip MotionDesignator commit)."
 
   - id: statechart-plan-parity
@@ -104,14 +106,13 @@ items:
   - id: action-description-composite-node
     title: "Action becomes a CompositeNode; convert MoveTorso, ParkArms, SetGripper"
     branch: action-description-composite-node
-    pull_request_number: null
+    pull_request_number: 4
     track: action-conversion
     depends_on: [cramph-foundation]
     status: in_progress
     notes: >
-      Committed, not yet opened as a pull request: it stacks on
-      plan-cramp-second-iter, so a pull request into ichumuh:cramph would carry
-      that branch's 49 commits until it lands underneath. Landed as a new
+      Open as a draft pull request into plan-cramp-second-iter, which keeps the
+      diff to this work rather than the 49 commits under it. Landed as a new
       class 'Action' beside an untouched ActionDescription rather than
       changing that base, because ~25 action classes inherit it and the ones
       reached through an underspecified statement or overriding execute()
