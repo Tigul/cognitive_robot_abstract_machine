@@ -51,7 +51,7 @@ def test_factory_construction():
 
 def test_simplify_tree():
     act = NavigateAction(Pose())
-    act2 = MoveTorsoAction(TorsoState.HIGH)
+    act2 = DetectAction(DetectionTechnique.REGION)
     act3 = DetectAction(DetectionTechnique.TYPES)
     act4 = DetectAction(DetectionTechnique.TYPES)
 

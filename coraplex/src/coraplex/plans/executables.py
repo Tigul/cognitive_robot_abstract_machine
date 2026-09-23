@@ -152,7 +152,7 @@ class GiskardExecutable(Executable):
         :return: An executor that runs a motion state chart in simulation.
         """
         return StatechartExecutor(
-            context=StatechartContext(world=context.world),
+            context=context.create_statechart_context(),
             extensions=[
                 RosNodeAccess(context.ros_node),
                 MotionControl(
