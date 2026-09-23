@@ -296,7 +296,7 @@ class Plan:
             has none.
         """
         if self.context is None:
-            raise ContextIsUnavailable
+            raise ContextIsUnavailable()
         return self.context.plan_transformations
 
     def applicable_transformations(self, node: PlanNode) -> List[PlanTransformation]:
