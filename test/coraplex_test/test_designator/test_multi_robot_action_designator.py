@@ -808,7 +808,6 @@ def test_transport_open_container(mutable_multiple_robot_apartment, rclpy_node):
     if isinstance(robot, HSRB):
         return
     context.plan_transformations.append(OpenDrawerBeforeTransport())
-    context.plan_transformations.append(OpenDrawerBeforePickUp())
     description = TransportAction(
         object_designator=world.get_semantic_annotations_by_type(Spoon)[0],
         target_location=Pose.from_xyz_rpy(
