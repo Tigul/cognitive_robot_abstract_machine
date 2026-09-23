@@ -53,11 +53,11 @@ world = setup_world()
 pr2_view = PR2.from_world(world)
 context = Context(world, pr2_view)
 
-description = TransportAction(world.get_semantic_annotations_by_type(Milk)[0],
-                              Pose.from_xyz_quaternion(2.4, 2.8, 1,
-                                                       0.0, 0.0, 0.0, 1.0, reference_frame=world.root),
-                              Arms.LEFT)
-plan = sequential([MoveTorsoAction(TorsoState.HIGH),
+description = TransportAction(target_object=world.get_semantic_annotations_by_type(Milk)[0],
+                              target_location=Pose.from_xyz_quaternion(2.4, 2.8, 1,
+                                                                       0.0, 0.0, 0.0, 1.0, reference_frame=world.root),
+                              arm=Arms.LEFT)
+plan = sequential([MoveTorsoAction(torso_state=TorsoState.HIGH),
                    description], context=context).plan
 with simulated_robot:
     plan.perform()

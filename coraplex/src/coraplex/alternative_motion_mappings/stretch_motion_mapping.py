@@ -166,7 +166,7 @@ class StretchMoveGripperMotion(MoveGripperMotion, AlternativeMotion[Stretch]):
 
     @property
     def _motion_chart(self):
-        arm = ViewManager().get_end_effector_view(self.gripper, self.robot)
+        arm = ViewManager().get_end_effector_view(self.arm, self.robot)
 
         return Parallel(
             [

@@ -47,8 +47,8 @@ from coraplex.plans.factories import *
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 
-navigate = NavigateAction(Pose.from_xyz_quaternion(1, 1, 0, reference_frame=world.root))
-park = ParkArmsAction(Arms.BOTH)
+navigate = NavigateAction(target_location=Pose.from_xyz_quaternion(1, 1, 0, reference_frame=world.root))
+park = ParkArmsAction(arm=Arms.BOTH)
 
 plan = sequential([navigate, park], context=context).plan
 ```

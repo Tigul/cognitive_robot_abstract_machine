@@ -41,7 +41,7 @@ def pre_condition(variables, context, kwargs):
             robot=context.robot,
             world=context.world,
             arm=variables["arm"],
-            object_designator=kwargs["object_designator"],
+            target_object=kwargs["target_object"],
             grasp_description=kwargs["grasp_description"],
         ),
     )

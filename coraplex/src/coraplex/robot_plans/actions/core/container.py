@@ -91,7 +91,7 @@ class OpenAction(
                     alternative_motion_mappings=context.alternative_motion_mappings,
                 ),
                 arm=kwargs["arm"],
-                object_designator=kwargs["handle"],
+                target_object=kwargs["handle"],
                 as_single_grasp=True,
             ),
         )

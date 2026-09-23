@@ -192,7 +192,7 @@ def test_is_object_reachable_by_copies_current_world_lazily(
             world=world,
         ),
         arm=Arms.RIGHT,
-        object_designator=milk,
+        target_object=milk,
         grasp_description=_right_front_grasp(view),
     )
 
@@ -240,7 +240,7 @@ def test_is_object_reachable_by_uses_target_pose_sequence(
             world=world,
         ),
         arm=Arms.RIGHT,
-        object_designator=milk,
+        target_object=milk,
         grasp_description=_right_front_grasp(view),
         target_pose=target,
     )()
@@ -278,7 +278,7 @@ def test_is_object_reachable_by_single_grasp_delegates_to_is_reachable_by(
             world=world,
         ),
         arm=Arms.RIGHT,
-        object_designator=milk,
+        target_object=milk,
         as_single_grasp=True,
     )()
 
@@ -307,7 +307,7 @@ def test_is_object_reachable_by_reachable(immutable_model_world):
             world=world,
         ),
         arm=Arms.RIGHT,
-        object_designator=milk,
+        target_object=milk,
         grasp_description=_right_front_grasp(view),
     )
 
@@ -328,7 +328,7 @@ def test_is_object_reachable_by_not_reachable(immutable_model_world):
             world=world,
         ),
         arm=Arms.RIGHT,
-        object_designator=milk,
+        target_object=milk,
         grasp_description=_right_front_grasp(view),
     )
 

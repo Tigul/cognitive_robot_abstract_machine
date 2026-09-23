@@ -46,7 +46,7 @@ from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import *
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
-motion_description = MoveMotion(target=Pose.from_xyz_quaternion(pos_x=1., reference_frame=world.root))
+motion_description = MoveMotion(target_location=Pose.from_xyz_quaternion(pos_x=1., reference_frame=world.root))
 
 with simulated_robot:
     execute_single(motion_description, context=context).perform()
@@ -63,7 +63,7 @@ from coraplex.execution_environment import simulated_robot
 from coraplex.datastructures.enums import Arms
 
 motion_description = MoveToolCenterPointMotion(
-    target=Pose.from_xyz_quaternion(1.5, 0.6, 0.6, 0, 0, 0, 1, reference_frame=world.root), arm=Arms.LEFT)
+    target_pose=Pose.from_xyz_quaternion(1.5, 0.6, 0.6, 0, 0, 0, 1, reference_frame=world.root), arm=Arms.LEFT)
 
 with simulated_robot:
     execute_single(motion_description, context=context).perform()
@@ -78,7 +78,7 @@ motion designator takes the target as position and orientation, in reality only 
 from coraplex.robot_plans.motions import LookingMotion
 from coraplex.execution_environment import simulated_robot
 
-motion_description = LookingMotion(target=Pose.from_xyz_quaternion(1, 1, 1, 0, 0, 0, 1, reference_frame=world.root),
+motion_description = LookingMotion(look_at_target=Pose.from_xyz_quaternion(1, 1, 1, 0, 0, 0, 1, reference_frame=world.root),
                                    camera=pr2_view.get_default_camera())
 
 with simulated_robot:
@@ -96,7 +96,7 @@ from coraplex.execution_environment import simulated_robot
 from coraplex.datastructures.enums import Arms
 from semantic_digital_twin.datastructures.definitions import GripperState
 
-motion_description = MoveGripperMotion(motion=GripperState.OPEN, gripper=Arms.LEFT)
+motion_description = MoveGripperMotion(motion=GripperState.OPEN, arm=Arms.LEFT)
 
 with simulated_robot:
     execute_single(motion_description, context=context).perform()

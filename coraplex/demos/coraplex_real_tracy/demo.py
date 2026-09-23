@@ -150,36 +150,40 @@ context = Context(
 plan = sequential(
     [
         # Stack Box 2
-        ParkArmsAction(Arms.BOTH),
+        ParkArmsAction(arm=Arms.BOTH),
         PickUpAction(
-            box2_annotation,
-            Arms.LEFT,
-            GraspDescription(
+            target_object=box2_annotation,
+            arm=Arms.LEFT,
+            grasp_description=GraspDescription(
                 ApproachDirection.FRONT,
                 VerticalAlignment.TOP,
                 context.robot.left_arm.end_effector,
             ),
         ),
         PlaceAction(
-            box2,
-            Pose.from_xyz_rpy(0.8, 0.0, 1.02, yaw=0, reference_frame=world.root),
-            Arms.LEFT,
+            target_object=box2_annotation,
+            target_location=Pose.from_xyz_rpy(
+                0.8, 0.0, 1.02, yaw=0, reference_frame=world.root
+            ),
+            arm=Arms.LEFT,
         ),
         # Stack Box 3
-        ParkArmsAction(Arms.BOTH),
+        ParkArmsAction(arm=Arms.BOTH),
         PickUpAction(
-            box3_annotation,
-            Arms.RIGHT,
-            GraspDescription(
+            target_object=box3_annotation,
+            arm=Arms.RIGHT,
+            grasp_description=GraspDescription(
                 ApproachDirection.FRONT,
                 VerticalAlignment.TOP,
                 context.robot.right_arm.end_effector,
             ),
         ),
         PlaceAction(
-            box3,
-            Pose.from_xyz_rpy(0.8, 0.0, 1.12, yaw=0, reference_frame=world.root),
-            Arms.RIGHT,
+            target_object=box3_annotation,
+            target_location=Pose.from_xyz_rpy(
+                0.8, 0.0, 1.12, yaw=0, reference_frame=world.root
+            ),
+            arm=Arms.RIGHT,
         ),
     ],
     context=context,

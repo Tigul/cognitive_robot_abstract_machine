@@ -350,7 +350,7 @@ class IsObjectReachableBy(PoseValidator):
     The arm whose end effector should reach the object.
     """
 
-    object_designator: IsGraspable
+    target_object: IsGraspable
     """
     The graspable object that should be reachable.
     """
@@ -394,7 +394,7 @@ class IsObjectReachableBy(PoseValidator):
                     robot=robot,
                     alternative_motion_mappings=self.alternative_motion_mappings,
                 ),
-                pose=self.object_designator.root.global_pose,
+                pose=self.target_object.root.global_pose,
                 tip_link=end_effector.tool_frame,
                 grasp_description=GraspDescription(
                     ApproachDirection.FRONT,
@@ -405,11 +405,11 @@ class IsObjectReachableBy(PoseValidator):
 
         if self.target_pose is not None:
             pose_sequence = self.grasp_description.pose_sequence(
-                self.target_pose, self.object_designator.root, reverse=self.reverse
+                self.target_pose, self.target_object.root, reverse=self.reverse
             )
         else:
             pose_sequence = self.grasp_description.grasp_pose_sequence(
-                self.object_designator.root
+                self.target_object.root
             )
 
         return AreReachableBy(

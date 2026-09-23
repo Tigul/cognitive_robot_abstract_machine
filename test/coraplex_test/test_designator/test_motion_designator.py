@@ -52,7 +52,10 @@ from giskardpy.motion_statechart.tasks.joint_tasks import (
 )
 from giskardpy.motion_statechart.tasks.pointing import Pointing
 from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
-from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Handle,
+    Milk,
+)
 from semantic_digital_twin.spatial_types import Point3, Quaternion
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
@@ -561,8 +564,8 @@ def test_move_tool_center_point_motion_frees_the_manipulator_it_reaches_with(
     target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
     motion = MoveToolCenterPointMotion(
-        target,
-        Arms.LEFT,
+        target_pose=target,
+        arm=Arms.LEFT,
         movement_type=MovementType.CARTESIAN,
         allow_gripper_collision=True,
     )
@@ -587,8 +590,8 @@ def test_move_tool_center_point_motion_frees_what_the_manipulator_grasps_later(
     held_body = world.get_body_by_name("milk.stl")
 
     motion = MoveToolCenterPointMotion(
-        Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root),
-        Arms.LEFT,
+        target_pose=Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root),
+        arm=Arms.LEFT,
         movement_type=MovementType.CARTESIAN,
         allow_gripper_collision=True,
     )
@@ -614,7 +617,7 @@ def test_move_tool_center_point_motion_keeps_the_manipulator_clear_by_default(
     target = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
     motion = MoveToolCenterPointMotion(
-        target, Arms.LEFT, movement_type=MovementType.CARTESIAN
+        target_pose=target, arm=Arms.LEFT, movement_type=MovementType.CARTESIAN
     )
     execute_single(motion, context=context)
 
@@ -630,7 +633,7 @@ def test_move_gripper_motion_frees_the_fingers_it_closes(immutable_model_world):
     world, view, context = immutable_model_world
 
     close_motion = MoveGripperMotion(
-        motion=GripperState.CLOSE, gripper=Arms.LEFT, allow_gripper_collision=True
+        motion=GripperState.CLOSE, arm=Arms.LEFT, allow_gripper_collision=True
     )
     execute_single(close_motion, context=context)
 
@@ -647,7 +650,7 @@ def test_move_gripper_motion_keeps_the_fingers_clear_by_default(immutable_model_
     """
     world, view, context = immutable_model_world
 
-    close_motion = MoveGripperMotion(motion=GripperState.CLOSE, gripper=Arms.LEFT)
+    close_motion = MoveGripperMotion(motion=GripperState.CLOSE, arm=Arms.LEFT)
     execute_single(close_motion, context=context)
 
     assert _collision_rule_nodes(close_motion.motion_chart) == []
@@ -665,7 +668,9 @@ def test_pick_up_action_closes_the_gripper_on_what_it_grasps(immutable_model_wor
         view.left_arm.end_effector,
     )
     pick_up = PickUpAction(
-        world.get_semantic_annotations_by_type(Milk)[0], Arms.LEFT, grasp_description
+        target_object=world.get_semantic_annotations_by_type(Milk)[0],
+        arm=Arms.LEFT,
+        grasp_description=grasp_description,
     )
     sequential([pick_up], context=context)
 
@@ -689,13 +694,15 @@ def test_place_action_lets_the_carried_object_touch_what_it_lands_on(
     world, view, context = mutable_model_world
     target_location = Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
 
-    milk = world.get_body_by_name("milk.stl")
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
     with world.modify_world():
         world.move_branch_with_fixed_connection(
-            milk, view.left_arm.end_effector.tool_frame
+            milk.root, view.left_arm.end_effector.tool_frame
         )
 
-    place = PlaceAction(milk, target_location, Arms.LEFT)
+    place = PlaceAction(
+        target_object=milk, target_location=target_location, arm=Arms.LEFT
+    )
     sequential([place], context=context)
     plan = place._action_plan.plan
 
@@ -849,9 +856,9 @@ def test_opening_motion_yields_to_collision_avoidance(immutable_model_world):
     buys the drawer trajectory by pushing the arm through whatever is in its way.
     """
     world, view, context = immutable_model_world
-    handle = world.get_body_by_name("handle_cab3_door_top")
+    handle = Handle(root=world.get_body_by_name("handle_cab3_door_top"))
 
-    motion = OpeningMotion(object_part=handle, arm=Arms.LEFT)
+    motion = OpeningMotion(handle=handle, arm=Arms.LEFT)
     execute_single(motion, context=context)
 
     assert (
@@ -869,9 +876,9 @@ def test_opening_motion_keeps_the_gripper_on_the_handle(immutable_model_world):
     and container move independently.
     """
     world, view, context = immutable_model_world
-    handle = world.get_body_by_name("handle_cab3_door_top")
+    handle = Handle(root=world.get_body_by_name("handle_cab3_door_top"))
 
-    motion = OpeningMotion(object_part=handle, arm=Arms.LEFT)
+    motion = OpeningMotion(handle=handle, arm=Arms.LEFT)
     execute_single(motion, context=context)
 
     assert (
@@ -885,9 +892,9 @@ def test_closing_motion_yields_to_collision_avoidance(immutable_model_world):
     Pushing a drawer shut is the same motion run backwards and needs the same weight.
     """
     world, view, context = immutable_model_world
-    handle = world.get_body_by_name("handle_cab3_door_top")
+    handle = Handle(root=world.get_body_by_name("handle_cab3_door_top"))
 
-    motion = ClosingMotion(object_part=handle, arm=Arms.LEFT)
+    motion = ClosingMotion(handle=handle, arm=Arms.LEFT)
     execute_single(motion, context=context)
 
     assert (
@@ -901,9 +908,9 @@ def test_closing_motion_keeps_the_gripper_on_the_handle(immutable_model_world):
     Closing holds the handle the same way opening does.
     """
     world, view, context = immutable_model_world
-    handle = world.get_body_by_name("handle_cab3_door_top")
+    handle = Handle(root=world.get_body_by_name("handle_cab3_door_top"))
 
-    motion = ClosingMotion(object_part=handle, arm=Arms.LEFT)
+    motion = ClosingMotion(handle=handle, arm=Arms.LEFT)
     execute_single(motion, context=context)
 
     assert (
@@ -928,7 +935,9 @@ def test_grasping_action_frees_the_gripper_for_its_whole_approach(
         view.left_arm.end_effector,
     )
     grasping = GraspingAction(
-        world.get_body_by_name("milk.stl"), Arms.LEFT, grasp_description
+        target_object=world.get_semantic_annotations_by_type(Milk)[0],
+        arm=Arms.LEFT,
+        grasp_description=grasp_description,
     )
     sequential([grasping], context=context)
 

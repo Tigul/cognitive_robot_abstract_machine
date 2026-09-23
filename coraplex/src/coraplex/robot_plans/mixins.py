@@ -1,4 +1,13 @@
-from __future__ import annotations
+"""
+Reusable parameters for actions and motions: the inputs a behaviour is given and the
+knobs that tune how it carries them out.
+
+.. note:: Annotations here are evaluated at class creation, so this module must not
+    defer them with ``from __future__ import annotations``.
+    :meth:`~coraplex.plans.designator.Designator.get_type_hints` resolves a designator's
+    inherited fields against the *concrete* class's module, which does not import the
+    types declared here.
+"""
 
 from dataclasses import dataclass, field
 

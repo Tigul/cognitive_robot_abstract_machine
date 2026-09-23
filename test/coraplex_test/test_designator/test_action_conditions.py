@@ -151,4 +151,3 @@ def test_pick_up_post_condition(mutable_model_world):
     )
 
     assert _construct_and_evaluate_condition(pick_action, pick_action.post_condition)
-

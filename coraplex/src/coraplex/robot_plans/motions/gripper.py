@@ -156,7 +156,7 @@ class MoveGripperMotion(
             )
         if self.allow_gripper_collision:
             accompanying_nodes.extend(
-                self._only_allow_gripper_collision_rules(self.gripper)
+                self._only_allow_gripper_collision_rules(self.arm)
             )
         if not accompanying_nodes:
             return done_node

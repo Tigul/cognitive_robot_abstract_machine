@@ -129,11 +129,13 @@ with world.modify_world():
 
 plan = sequential(
     [
-        ParkArmsAction(Arms.BOTH),
-        MoveTorsoAction(TorsoState.HIGH),
-        NavigateAction(Pose.from_xyz_rpy(2.0, 2.0, 0.0, reference_frame=world.root)),
+        ParkArmsAction(arm=Arms.BOTH),
+        MoveTorsoAction(torso_state=TorsoState.HIGH),
+        NavigateAction(
+            target_location=Pose.from_xyz_rpy(2.0, 2.0, 0.0, reference_frame=world.root)
+        ),
         PickUpAction(
-            object_designator=milk,
+            target_object=milk,
             arm=Arms.RIGHT,
             grasp_description=GraspDescription(
                 ApproachDirection.FRONT,
@@ -141,9 +143,11 @@ plan = sequential(
                 context.robot.right_arm.end_effector,
             ),
         ),
-        NavigateAction(Pose.from_xyz_rpy(4.0, 4.0, 0.0, reference_frame=world.root)),
+        NavigateAction(
+            target_location=Pose.from_xyz_rpy(4.0, 4.0, 0.0, reference_frame=world.root)
+        ),
         PlaceAction(
-            object_designator=milk_body,
+            target_object=milk,
             target_location=Pose.from_xyz_rpy(4.2, 4.0, 1.0, reference_frame=world.root),
             arm=Arms.RIGHT,
         ),

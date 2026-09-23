@@ -69,15 +69,15 @@ def main() -> None:
 
     plan = sequential(
         [
-            SetGripperAction(Arms.RIGHT, GripperState.CLOSE),
-            ParkArmsAction(Arms.BOTH),
-            MoveTorsoAction(TorsoState.HIGH),
+            SetGripperAction(arm=Arms.RIGHT, motion=GripperState.CLOSE),
+            ParkArmsAction(arm=Arms.BOTH),
+            MoveTorsoAction(torso_state=TorsoState.HIGH),
             NavigateAction(
-                Pose.from_xyz_rpy(*BASE_POSITION_XYZ, reference_frame=world.root)
+                target_location=Pose.from_xyz_rpy(
+                    *BASE_POSITION_XYZ, reference_frame=world.root
+                )
             ),
-            PouringAction(
-                target_container=bowl_body, source_container=cup, arm=Arms.RIGHT
-            ),
+            PouringAction(target_container=bowl_body, tool=cup, arm=Arms.RIGHT),
         ],
         context=context,
     ).plan

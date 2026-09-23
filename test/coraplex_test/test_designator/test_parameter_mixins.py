@@ -7,6 +7,7 @@ from coraplex.datastructures.grasp import GraspDescription
 from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.motions.gripper import MoveGripperMotion
 from coraplex.robot_plans.mixins import (
     GraspParameters,
@@ -17,6 +18,7 @@ from coraplex.robot_plans.mixins import (
     NavigationParameters,
     ObjectActedOn,
     ObjectManipulationParameters,
+    PlaceTuningParameters,
     UsedArm,
     UsedGraspDescription,
 )
@@ -111,3 +113,22 @@ def test_open_action_operates_on_handle(immutable_model_world):
     assert action.handle.root is world.get_body_by_name("handle_cab10_m")
     assert issubclass(OpenAction, HandleOperatedOn)
     assert issubclass(OpenAction, UsedArm)
+
+
+# %% runtime resolution of the inherited field types
+
+
+def test_inherited_parameters_keep_their_declared_types():
+    """
+    A designator resolves its fields against its own module, which does not import the
+    types the mixins declare, so those annotations have to survive as types rather than
+    as strings this module cannot look up.
+    """
+    hints = PlaceAction.get_type_hints()
+
+    assert hints["target_object"] is ObjectActedOn.__annotations__["target_object"]
+    assert hints["arm"] is UsedArm.__annotations__["arm"]
+    assert (
+        hints["placing_linear_velocity"]
+        == PlaceTuningParameters.__annotations__["placing_linear_velocity"]
+    )

@@ -117,8 +117,8 @@ class PathPlanningNavigateAction(ActionDescription, TargetLocationMovedTo):
     The free space is decomposed into a graph of convex sets, so the robot drives around
     the furniture and walls between it and the target instead of straight at them.
 
-
-    This works for obstacles which are known in the environment beforehand not such that are added during navigation.
+     This works for obstacles which are known in the environment beforehand, not for
+    such that are added during navigation.
     """
 
     @property
@@ -276,11 +276,7 @@ class ElevatorNavigation(ActionDescription):
                 ),
                 ReAttachNode(body=self.robot.root, new_parent=self.elevator.root),
                 pause_until(
-                    [
-                        NavigateAction(
-                            target_location=self._pose_infront_of_elevator
-                        )
-                    ],
+                    [NavigateAction(target_location=self._pose_infront_of_elevator)],
                     monitor=self._elevator_open_at_floor(self.target_floor),
                 ),
                 ReAttachNode(body=self.robot.root, new_parent=self.world.root),

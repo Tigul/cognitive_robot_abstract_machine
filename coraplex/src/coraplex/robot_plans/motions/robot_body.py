@@ -35,11 +35,13 @@ class MoveJointsMotion(BaseMotion, LinkAlignmentApplied, HasMaxJointVelocity):
     """
     Target positions of joints, should correspond to the list of names.
     """
+
     tip_normal: Optional[Vector3] = None
     """
     Normalized vector representing the current orientation axis of the end-effector
     (optional).
     """
+
     root_normal: Optional[Vector3] = None
     """
     Normalized vector representing the desired orientation axis to align with

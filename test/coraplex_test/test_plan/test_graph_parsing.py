@@ -56,7 +56,10 @@ from giskardpy.motion_statechart.context import MotionStatechartContext
 from giskardpy.motion_statechart.goals.templates import (
     Parallel,
     RepeatOnStall,
-    Sequence, TryAll, TryInOrder, CancelledWhenTrue,
+    Sequence,
+    TryAll,
+    TryInOrder,
+    CancelledWhenTrue,
 )
 from giskardpy.motion_statechart.graph_node import CancelMotion
 from giskardpy.motion_statechart.monitors.payload_monitors import CountNodeResets
@@ -114,7 +117,10 @@ def test_sequential_plan_nests_a_goal_per_plan_node(immutable_model_world):
     world, view, context = immutable_model_world
 
     plan = sequential(
-        [MoveTorsoAction(TorsoState.LOW), MoveTorsoAction(TorsoState.HIGH)],
+        [
+            MoveTorsoAction(torso_state=TorsoState.LOW),
+            MoveTorsoAction(torso_state=TorsoState.HIGH),
+        ],
         context=context,
     )
     plan.notify()
@@ -171,7 +177,7 @@ def test_pause_monitor_pauses_the_children_goal(immutable_model_world, rclpy_nod
     monitor = ConstFalseNode(name="never")
 
     plan = pause_while(
-        [MoveTorsoAction(TorsoState.HIGH)], monitor=monitor, context=context
+        [MoveTorsoAction(torso_state=TorsoState.HIGH)], monitor=monitor, context=context
     )
     executable = _parse_and_compile(plan, world, context)
 
@@ -194,7 +200,7 @@ def test_pause_until_monitor_pauses_the_children_goal(
     monitor = ConstFalseNode(name="never")
 
     plan = pause_until(
-        [MoveTorsoAction(TorsoState.HIGH)], monitor=monitor, context=context
+        [MoveTorsoAction(torso_state=TorsoState.HIGH)], monitor=monitor, context=context
     )
     executable = _parse_and_compile(plan, world, context)
 
@@ -211,7 +217,7 @@ def test_cancel_monitor_ends_the_children_goal(immutable_model_world, rclpy_node
     monitor = ConstFalseNode(name="never")
 
     plan = cancel_when(
-        [MoveTorsoAction(TorsoState.HIGH)], monitor=monitor, context=context
+        [MoveTorsoAction(torso_state=TorsoState.HIGH)], monitor=monitor, context=context
     )
     executable = _parse_and_compile(plan, world, context)
 
@@ -234,7 +240,7 @@ def test_cancel_monitor_ends_the_motion_when_the_monitor_fires(
     monitor = ConstFalseNode(name="never")
 
     plan = cancel_when(
-        [MoveTorsoAction(TorsoState.HIGH)], monitor=monitor, context=context
+        [MoveTorsoAction(torso_state=TorsoState.HIGH)], monitor=monitor, context=context
     )
     executable = _parse_and_compile(plan, world, context)
 
@@ -259,9 +265,10 @@ def test_monitored_subtree_nested_in_a_sequence_compiles(
 
     plan = sequential(
         [
-            MoveTorsoAction(TorsoState.LOW),
+            MoveTorsoAction(torso_state=TorsoState.LOW),
             cancel_when(
-                [MoveTorsoAction(TorsoState.HIGH)], monitor=ConstFalseNode(name="never")
+                [MoveTorsoAction(torso_state=TorsoState.HIGH)],
+                monitor=ConstFalseNode(name="never"),
             ),
         ],
         context=context,
@@ -285,7 +292,9 @@ def test_repeat_node_wraps_its_children_in_a_repeating_goal(
     world, view, context = immutable_model_world
 
     plan = repeat(
-        [MoveTorsoAction(TorsoState.HIGH)], maximum_repetitions=3, context=context
+        [MoveTorsoAction(torso_state=TorsoState.HIGH)],
+        maximum_repetitions=3,
+        context=context,
     )
     executable = _parse_and_compile(plan, world, context)
 

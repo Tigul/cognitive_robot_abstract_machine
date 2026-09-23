@@ -29,8 +29,10 @@ from semantic_digital_twin.api import (
     RobotSpecification,
     WorldSpecification,
 )
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    GraspableObject,
+)
 from semantic_digital_twin.robots.unitree_g1 import UnitreeG1
-from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.geometry import Color, Scale
@@ -110,7 +112,7 @@ def build_world() -> World:
     # to name it by, not a particular kind of object.
     with world.modify_world():
         world.add_semantic_annotation(
-            HasRootBody(root=world.get_body_by_name("parcel"))
+            GraspableObject(root=world.get_body_by_name("parcel"))
         )
     return world
 
@@ -141,7 +143,7 @@ def build_plan(world: World, robot: UnitreeG1) -> Plan:
     parcel_annotation = an(
         entity(
             semantic_annotation := variable(
-                HasRootBody, domain=world.semantic_annotations
+                GraspableObject, domain=world.semantic_annotations
             )
         ).where(semantic_annotation.root == parcel)
     ).first()
@@ -161,20 +163,30 @@ def build_plan(world: World, robot: UnitreeG1) -> Plan:
     return sequential(
         [
             # %% bring to place pose
-            ParkArmsAction(Arms.BOTH),
-            NavigateAction(standing_pose_in_front_of(PICK_POSE, world)),
-            PickUpAction(parcel_annotation, Arms.LEFT, grasp),
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(arm=Arms.BOTH),
+            NavigateAction(target_location=standing_pose_in_front_of(PICK_POSE, world)),
+            PickUpAction(
+                target_object=parcel_annotation, arm=Arms.LEFT, grasp_description=grasp
+            ),
+            ParkArmsAction(arm=Arms.BOTH),
             MoveJointsMotion(
                 names=[
                     connection.name for connection in robot.torso.active_connections
                 ],
                 positions=[0.0] * len(robot.torso.active_connections),
             ),
-            NavigateAction(Pose.from_xyz_rpy(yaw=-1.57, reference_frame=robot.root)),
-            NavigateAction(standing_pose_in_front_of(PLACE_POSE, world)),
-            PlaceAction(parcel, place_pose, Arms.LEFT),
-            ParkArmsAction(Arms.BOTH),
+            NavigateAction(
+                target_location=Pose.from_xyz_rpy(yaw=-1.57, reference_frame=robot.root)
+            ),
+            NavigateAction(
+                target_location=standing_pose_in_front_of(PLACE_POSE, world)
+            ),
+            PlaceAction(
+                target_object=parcel_annotation,
+                target_location=place_pose,
+                arm=Arms.LEFT,
+            ),
+            ParkArmsAction(arm=Arms.BOTH),
             MoveJointsMotion(
                 names=[
                     connection.name for connection in robot.torso.active_connections
@@ -196,7 +208,7 @@ def build_plan2(world: World, robot: UnitreeG1) -> Plan:
     parcel_annotation = an(
         entity(
             semantic_annotation := variable(
-                HasRootBody, domain=world.semantic_annotations
+                GraspableObject, domain=world.semantic_annotations
             )
         ).where(semantic_annotation.root == parcel)
     ).first()
@@ -216,20 +228,30 @@ def build_plan2(world: World, robot: UnitreeG1) -> Plan:
     return sequential(
         [
             # %% bring to place pose
-            ParkArmsAction(Arms.BOTH),
-            NavigateAction(standing_pose_in_front_of(PLACE_POSE, world)),
-            PickUpAction(parcel_annotation, Arms.LEFT, grasp),
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(arm=Arms.BOTH),
+            NavigateAction(
+                target_location=standing_pose_in_front_of(PLACE_POSE, world)
+            ),
+            PickUpAction(
+                target_object=parcel_annotation, arm=Arms.LEFT, grasp_description=grasp
+            ),
+            ParkArmsAction(arm=Arms.BOTH),
             MoveJointsMotion(
                 names=[
                     connection.name for connection in robot.torso.active_connections
                 ],
                 positions=[0.0] * len(robot.torso.active_connections),
             ),
-            NavigateAction(Pose.from_xyz_rpy(yaw=1.57, reference_frame=robot.root)),
-            NavigateAction(standing_pose_in_front_of(PICK_POSE, world)),
-            PlaceAction(parcel, pick_pose, Arms.LEFT),
-            ParkArmsAction(Arms.BOTH),
+            NavigateAction(
+                target_location=Pose.from_xyz_rpy(yaw=1.57, reference_frame=robot.root)
+            ),
+            NavigateAction(target_location=standing_pose_in_front_of(PICK_POSE, world)),
+            PlaceAction(
+                target_object=parcel_annotation,
+                target_location=pick_pose,
+                arm=Arms.LEFT,
+            ),
+            ParkArmsAction(arm=Arms.BOTH),
             MoveJointsMotion(
                 names=[
                     connection.name for connection in robot.torso.active_connections

@@ -68,8 +68,8 @@ from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from semantic_digital_twin.spatial_types import Pose
 
-navigate = NavigateAction(Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
-park = ParkArmsAction(Arms.BOTH)
+navigate = NavigateAction(target_location=Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
+park = ParkArmsAction(arm=Arms.BOTH)
 
 plan = sequential([navigate, park], context=context).plan
 ```
@@ -107,8 +107,8 @@ from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from semantic_digital_twin.spatial_types import Pose
 
-navigate = NavigateAction(Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
-park = ParkArmsAction(Arms.BOTH)
+navigate = NavigateAction(target_location=Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
+park = ParkArmsAction(arm=Arms.BOTH)
 
 plan = try_in_order([navigate, park], context=context).plan
 
@@ -132,8 +132,8 @@ from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from semantic_digital_twin.spatial_types import Pose
 
-navigate = NavigateAction(Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
-park = ParkArmsAction(Arms.BOTH)
+navigate = NavigateAction(target_location=Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
+park = ParkArmsAction(arm=Arms.BOTH)
 
 plan = parallel([navigate, park], context=context).plan
 
@@ -155,8 +155,8 @@ from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from semantic_digital_twin.spatial_types import Pose
 
-navigate = NavigateAction(Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
-park = ParkArmsAction(Arms.BOTH)
+navigate = NavigateAction(target_location=Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
+park = ParkArmsAction(arm=Arms.BOTH)
 
 plan = try_all([navigate, park], context=context).plan
 
@@ -177,9 +177,9 @@ from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkAr
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.spatial_types import Pose
 
-navigate = NavigateAction(Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
-park = ParkArmsAction(Arms.BOTH)
-move_torso = MoveTorsoAction(TorsoState.HIGH)
+navigate = NavigateAction(target_location=Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
+park = ParkArmsAction(arm=Arms.BOTH)
+move_torso = MoveTorsoAction(torso_state=TorsoState.HIGH)
 
 plan = parallel([navigate, sequential([park, move_torso])], context=context).plan
 
@@ -212,7 +212,7 @@ def code_test():
     print("Code function")
 
 
-park = ParkArmsAction(Arms.BOTH)
+park = ParkArmsAction(arm=Arms.BOTH)
 code_lambda = code(lambda: print("This is from the code object"), context=context)
 code_func = code(code_test, context=context)
 
@@ -248,7 +248,7 @@ def code_test():
     raise PlanFailure
 
 
-navigate = NavigateAction(Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
+navigate = NavigateAction(target_location=Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
 code_func = code(code_test, context=context)
 
 plan = try_all([navigate, code_func], context=context).plan
@@ -272,7 +272,7 @@ from coraplex.plans.factories import repeat
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
 from semantic_digital_twin.datastructures.definitions import TorsoState
 
-move_torso_up = MoveTorsoAction(TorsoState.HIGH)
+move_torso_up = MoveTorsoAction(torso_state=TorsoState.HIGH)
 move_torso_down = MoveTorsoAction(TorsoState.LOW)
 
 plan = repeat([move_torso_up, move_torso_down], maximum_repetitions=3, context=context).plan
@@ -306,7 +306,7 @@ from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
 from giskardpy.motion_statechart.monitors.payload_monitors import CountSimulationTimeSeconds
 from semantic_digital_twin.datastructures.definitions import TorsoState
 
-move_torso_up = MoveTorsoAction(TorsoState.HIGH)
+move_torso_up = MoveTorsoAction(torso_state=TorsoState.HIGH)
 move_torso_down = MoveTorsoAction(TorsoState.LOW)
 
 plan = cancel_when(
@@ -331,7 +331,7 @@ from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
 from giskardpy.motion_statechart.monitors.payload_monitors import CountSimulationTimeSeconds
 from semantic_digital_twin.datastructures.definitions import TorsoState
 
-move_torso_up = MoveTorsoAction(TorsoState.HIGH)
+move_torso_up = MoveTorsoAction(torso_state=TorsoState.HIGH)
 move_torso_down = MoveTorsoAction(TorsoState.LOW)
 
 plan = pause_until(

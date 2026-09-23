@@ -90,8 +90,8 @@ from coraplex.datastructures.enums import Arms
 from semantic_digital_twin.datastructures.definitions import TorsoState
 
 with simulated_robot:
-    sequential([ParkArmsAction(Arms.BOTH),
-                MoveTorsoAction(TorsoState.HIGH)], context=context).perform()
+    sequential([ParkArmsAction(arm=Arms.BOTH),
+                MoveTorsoAction(torso_state=TorsoState.HIGH)], context=context).perform()
 
 ```
 
@@ -102,7 +102,7 @@ from coraplex.locations.factories import reachability_location
 
 location = reachability_location(world.get_body_by_name("milk.stl"), context=context, arm=Arms.LEFT)
 
-plan = execute_single(NavigateAction(next(iter(location))), context=context)
+plan = execute_single(NavigateAction(target_location=next(iter(location))), context=context)
 
 with simulated_robot:
     plan.perform()
@@ -128,7 +128,7 @@ from coraplex.locations.factories import visibility_location
 
 location = visibility_location(world.get_body_by_name("milk.stl"), context=context)
 
-plan = execute_single(NavigateAction(next(iter(location))), context=context)
+plan = execute_single(NavigateAction(target_location=next(iter(location))), context=context)
 
 with simulated_robot:
     plan.perform()

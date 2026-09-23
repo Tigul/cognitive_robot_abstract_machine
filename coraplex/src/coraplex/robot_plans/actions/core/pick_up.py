@@ -149,7 +149,7 @@ class ReachAction(
                     alternative_motion_mappings=context.alternative_motion_mappings,
                 ),
                 arm=variables["arm"],
-                object_designator=kwargs["target_object"],
+                target_object=kwargs["target_object"],
                 grasp_description=kwargs["grasp_description"],
                 target_pose=kwargs["target_pose"],
                 reverse=kwargs["reverse_pose_sequence"],
@@ -289,7 +289,7 @@ class PickUpAction(
                     alternative_motion_mappings=context.alternative_motion_mappings,
                 ),
                 arm=variables["arm"],
-                object_designator=kwargs["target_object"],
+                target_object=kwargs["target_object"],
                 grasp_description=kwargs["grasp_description"],
             ),
         )

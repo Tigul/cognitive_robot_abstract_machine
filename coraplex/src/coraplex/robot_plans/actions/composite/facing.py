@@ -21,9 +21,8 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 @dataclass
 class FaceAtAction(ActionDescription, TargetLookedAt, JointStatesKept):
     """
-    Turn the robot chassis such that is faces the ``look_at_target`` and after that perform a
-    look
-    at action.
+    Turn the robot chassis such that is faces the ``look_at_target`` and after that
+    perform a look at action.
     """
 
     keep_joint_states: bool = field(
@@ -56,9 +55,10 @@ class FaceAtAction(ActionDescription, TargetLookedAt, JointStatesKept):
 
         return sequential(
             [
-                NavigateAction(target_location=new_robot_pose,
-                        keep_joint_states=self.keep_joint_states,
-                    ),  # turn robot
-                    LookAtAction(look_at_target=self.look_at_target),  # look at the target
+                NavigateAction(
+                    target_location=new_robot_pose,
+                    keep_joint_states=self.keep_joint_states,
+                ),  # turn robot
+                LookAtAction(look_at_target=self.look_at_target),  # look at the target
             ]
         )

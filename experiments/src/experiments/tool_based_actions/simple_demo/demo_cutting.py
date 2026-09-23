@@ -69,11 +69,13 @@ def main() -> None:
 
     plan = sequential(
         [
-            SetGripperAction(Arms.RIGHT, GripperState.CLOSE),
-            ParkArmsAction(Arms.BOTH),
-            MoveTorsoAction(TorsoState.HIGH),
+            SetGripperAction(arm=Arms.RIGHT, motion=GripperState.CLOSE),
+            ParkArmsAction(arm=Arms.BOTH),
+            MoveTorsoAction(torso_state=TorsoState.HIGH),
             NavigateAction(
-                Pose.from_xyz_rpy(*BASE_POSITION_XYZ, reference_frame=world.root)
+                target_location=Pose.from_xyz_rpy(
+                    *BASE_POSITION_XYZ, reference_frame=world.root
+                )
             ),
             CuttingAction(
                 object_to_cut=bread_body,

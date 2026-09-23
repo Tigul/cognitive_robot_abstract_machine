@@ -119,7 +119,7 @@ class PerceptionTargetMissing(DataclassException):
         return f"{self.instance} perceives before grasping but names no object."
 
     def suggest_correction(self) -> str:
-        return "provide an object_designator or leave perceive_before_grasp off."
+        return "provide a target_object or leave perceive_before_grasp off."
 
 
 @dataclass

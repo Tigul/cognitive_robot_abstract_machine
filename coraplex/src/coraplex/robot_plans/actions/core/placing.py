@@ -69,9 +69,7 @@ class PlaceAction(
         """
         return sequential(
             [
-                ReAttachNode(
-                    body=self.target_object.root, new_parent=self.world.root
-                ),
+                ReAttachNode(body=self.target_object.root, new_parent=self.world.root),
                 MoveToolCenterPointMotion(
                     target_pose=retract_pose,
                     arm=self.arm,

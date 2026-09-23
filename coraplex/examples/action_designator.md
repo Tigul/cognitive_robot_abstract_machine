@@ -118,7 +118,7 @@ from semantic_digital_twin.datastructures.definitions import TorsoState
 
 torso_pose = TorsoState.HIGH
 
-torso_desig = MoveTorsoAction(torso_pose)
+torso_desig = MoveTorsoAction(torso_state=torso_pose)
 
 plan = execute_single(torso_desig, context=context).plan
 
@@ -142,7 +142,7 @@ gripper = Arms.RIGHT
 motion = GripperState.OPEN
 
 with simulated_robot:
-    execute_single(SetGripperAction(gripper=gripper, motion=motion), context=context).perform()
+    execute_single(SetGripperAction(arm=gripper, motion=motion), context=context).perform()
 ```
 
 ## Park Arms
@@ -155,7 +155,7 @@ from coraplex.execution_environment import simulated_robot
 from coraplex.datastructures.enums import Arms
 
 with simulated_robot:
-    execute_single(ParkArmsAction(Arms.BOTH), context=context).perform()
+    execute_single(ParkArmsAction(arm=Arms.BOTH), context=context).perform()
 ```
 
 ## Pick Up and Place
@@ -184,13 +184,13 @@ arm = Arms.RIGHT
 
 with simulated_robot:
     sequential(
-        [ParkArmsAction(Arms.BOTH),
-         MoveTorsoAction(TorsoState.HIGH),
+        [ParkArmsAction(arm=Arms.BOTH),
+         MoveTorsoAction(torso_state=TorsoState.HIGH),
          NavigateAction(
-             Pose.from_xyz_rpy(1.5, 2.4, 0.0, reference_frame=world.root)
+             target_location=Pose.from_xyz_rpy(1.5, 2.4, 0.0, reference_frame=world.root)
          ),
          PickUpAction(
-             object_designator=world.get_semantic_annotations_by_type(Milk)[0],
+             target_object=world.get_semantic_annotations_by_type(Milk)[0],
              arm=arm,
              grasp_description=GraspDescription(
                  ApproachDirection.FRONT,
@@ -199,7 +199,7 @@ with simulated_robot:
              ),
          ),
          PlaceAction(
-             object_designator=world.get_body_by_name("milk.stl"),
+             target_object=world.get_semantic_annotations_by_type(Milk)[0],
              target_location=Pose.from_xyz_rpy(2.4, 2.2, 1, reference_frame=world.root),
              arm=arm,
          )],
@@ -217,7 +217,7 @@ from coraplex.execution_environment import simulated_robot
 
 target_location = Pose.from_xyz_rpy(3, 2, 1, reference_frame=world.root)
 with simulated_robot:
-    execute_single(LookAtAction(target=target_location), context=context).perform()
+    execute_single(LookAtAction(look_at_target=target_location), context=context).perform()
 ```
 
 ## Detect

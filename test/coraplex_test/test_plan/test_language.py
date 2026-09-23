@@ -182,7 +182,9 @@ def test_perform_repeat_runs_a_succeeding_motion_once(immutable_model_world):
     world, robot_view, context = immutable_model_world
 
     plan = repeat(
-        [MoveTorsoAction(TorsoState.HIGH)], maximum_repetitions=3, context=context
+        [MoveTorsoAction(torso_state=TorsoState.HIGH)],
+        maximum_repetitions=3,
+        context=context,
     ).plan
     with simulated_robot:
         plan.perform()
@@ -203,10 +205,15 @@ def test_repeat_does_not_give_up_on_a_child_that_starts_at_its_goal(
     """
     world, robot_view, context = immutable_model_world
     with simulated_robot:
-        sequential([MoveTorsoAction(TorsoState.HIGH)], context).plan.perform()
+        sequential(
+            [MoveTorsoAction(torso_state=TorsoState.HIGH)], context
+        ).plan.perform()
 
     plan = repeat(
-        [MoveTorsoAction(TorsoState.HIGH), MoveTorsoAction(TorsoState.LOW)],
+        [
+            MoveTorsoAction(torso_state=TorsoState.HIGH),
+            MoveTorsoAction(torso_state=TorsoState.LOW),
+        ],
         maximum_repetitions=3,
         context=context,
     ).plan
@@ -287,8 +294,8 @@ def test_exception_try_all(immutable_model_world):
 
 
 def test_cancel_monitor_construction():
-    act = ParkArmsAction(Arms.BOTH)
-    act2 = MoveTorsoAction(TorsoState.HIGH)
+    act = ParkArmsAction(arm=Arms.BOTH)
+    act2 = MoveTorsoAction(torso_state=TorsoState.HIGH)
 
     root = cancel_when([act, act2], monitor=ConstFalseNode(name="never"))
     assert isinstance(root, CancelMonitor)
@@ -310,7 +317,7 @@ def test_cancel_monitor_stops_the_motion_it_wraps(immutable_model_world):
     start_position = _torso_position(world)
 
     plan = cancel_when(
-        [MoveTorsoAction(TorsoState.HIGH)],
+        [MoveTorsoAction(torso_state=TorsoState.HIGH)],
         monitor=ConstTrueNode(name="always"),
         context=context,
     ).plan
@@ -332,10 +339,10 @@ def test_cancel_monitor_gives_up_on_the_plan_instead_of_stalling(immutable_model
     plan = sequential(
         [
             cancel_when(
-                [MoveTorsoAction(TorsoState.HIGH)],
+                [MoveTorsoAction(torso_state=TorsoState.HIGH)],
                 monitor=ConstTrueNode(name="always"),
             ),
-            MoveTorsoAction(TorsoState.LOW),
+            MoveTorsoAction(torso_state=TorsoState.LOW),
         ],
         context=context,
     ).plan
@@ -352,7 +359,7 @@ def test_never_firing_cancel_monitor_leaves_the_motion_alone(immutable_model_wor
     world, robot_view, context = immutable_model_world
 
     plan = cancel_when(
-        [MoveTorsoAction(TorsoState.HIGH)],
+        [MoveTorsoAction(torso_state=TorsoState.HIGH)],
         monitor=ConstFalseNode(name="never"),
         context=context,
     ).plan
@@ -373,7 +380,7 @@ def test_repeat_raises_when_it_runs_out_of_attempts(immutable_model_world):
     unreachable = Pose.from_xyz_rpy(5, 0, 0, reference_frame=world.root)
 
     plan = repeat(
-        [MoveToolCenterPointMotion(target=unreachable, arm=Arms.RIGHT)],
+        [MoveToolCenterPointMotion(target_pose=unreachable, arm=Arms.RIGHT)],
         maximum_repetitions=2,
         context=context,
         repeat_template=partial(RepeatOnStall, timeout=timedelta(seconds=1)),
@@ -392,7 +399,9 @@ def test_repeat_of_a_non_converging_motion_is_attempted(immutable_model_world):
     world, robot_view, context = immutable_model_world
     target = Pose.from_xyz_rpy(1, -1, reference_frame=world.root)
 
-    plan = repeat([NavigateAction(target)], maximum_repetitions=2, context=context).plan
+    plan = repeat(
+        [NavigateAction(target_location=target)], maximum_repetitions=2, context=context
+    ).plan
     with simulated_robot:
         plan.perform()
 

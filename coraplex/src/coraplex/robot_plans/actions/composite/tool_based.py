@@ -2,11 +2,8 @@ from __future__ import annotations
 
 import math
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from functools import cached_property
 from dataclasses import dataclass, field
-from time import sleep
-from typing import Tuple
+from functools import cached_property
 
 import numpy as np
 from scipy.spatial.transform import Rotation
@@ -54,7 +51,6 @@ from coraplex.robot_plans.motions.gripper import (
     MoveTCPWaypointsAlignedMotion,
     MoveToolCenterPointMotion,
 )
-from coraplex.robot_plans.actions.base import ActionDescription, DescriptionType
 
 
 @dataclass(kw_only=True)
@@ -578,16 +574,16 @@ class PouringAction(FullBodyControlledAction, UsedArm, UsedTool, HasTcpGoalThres
         return sequential(
             [
                 MoveToolCenterPointMotion(
-                    pre_pour_pose,
-                    self.arm,
+                    target_pose=pre_pour_pose,
+                    arm=self.arm,
                     allow_gripper_collision=True,
                     movement_type=MovementType.CARTESIAN,
                     position_threshold=self.position_threshold,
                     orientation_threshold=self.orientation_threshold,
                 ),
                 MoveToolCenterPointMotion(
-                    pour_pose,
-                    self.arm,
+                    target_pose=pour_pose,
+                    arm=self.arm,
                     allow_gripper_collision=True,
                     movement_type=MovementType.CARTESIAN,
                     position_threshold=self.position_threshold,
