@@ -5,16 +5,11 @@ Module holding all enums of CoraPlex.
 from __future__ import annotations
 
 from enum import Enum, auto, IntEnum, StrEnum
-<<<<<<< HEAD
-
 from typing_extensions import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from coraplex.plans.plan import Plan
     from coraplex.plans.plan_node import PlanNode
-=======
->>>>>>> 2a9c17c38a8bf6fc0a6829d1837b9009ce7e9c3f
-
 
 class VisualizationLayout(Enum):
     BFS = "bfs"
