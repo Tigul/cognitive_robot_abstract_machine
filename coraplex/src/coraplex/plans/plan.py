@@ -339,6 +339,24 @@ class Plan:
         result = self.root.perform()
         return result
 
+    def notify_node_started(self, node: PlanNode) -> None:
+        """
+        Report a node's execution start to registered observers.
+
+        :param node: The started node.
+        """
+        for callback in self.node_callbacks:
+            callback.on_start(node)
+
+    def notify_node_ended(self, node: PlanNode) -> None:
+        """
+        Report a node's execution outcome to registered observers.
+
+        :param node: The completed node.
+        """
+        for callback in self.node_callbacks:
+            callback.on_end(node)
+
     def re_perform(self):
         for child in self.root.descendants:
             if child.is_leaf:

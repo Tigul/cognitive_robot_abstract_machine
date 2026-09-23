@@ -5,12 +5,15 @@ Module holding all enums of CoraPlex.
 from __future__ import annotations
 
 from enum import Enum, auto, IntEnum, StrEnum
+<<<<<<< HEAD
 
 from typing_extensions import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from coraplex.plans.plan import Plan
     from coraplex.plans.plan_node import PlanNode
+=======
+>>>>>>> 2a9c17c38a8bf6fc0a6829d1837b9009ce7e9c3f
 
 
 class VisualizationLayout(Enum):
@@ -90,6 +93,45 @@ class ExecutionType(Enum):
     SIMULATED = auto()
     SEMI_REAL = auto()
     NO_EXECUTION = auto()
+
+
+class VisualizationBackend(StrEnum):
+    """The renderer selected for a simulated world."""
+
+    NONE = "none"
+    """Run without a renderer."""
+    RVIZ = "rviz"
+    """Publish native ROS visualization markers."""
+    RERUN = "rerun"
+    """Use the native Rerun adapter."""
+    CRAMERA = "cramera"
+    """Use an installed browser visualization provider."""
+
+
+class VisualizationOption(StrEnum):
+    """
+    Configuration names for optional visualization providers.
+    """
+
+    BACKEND = "CORAPLEX_VISUALIZATION"
+    """
+    Environment setting selecting the renderer.
+    """
+
+    RERUN_MODE = "CORAPLEX_RERUN_MODE"
+    """
+    Environment setting selecting Rerun's output mode.
+    """
+
+    RERUN_TARGET = "CORAPLEX_RERUN_TARGET"
+    """
+    Environment setting selecting Rerun's file or server.
+    """
+
+    PROVIDER_GROUP = "coraplex.visualizations"
+    """
+    Installed entry points implementing PlanVisualization.
+    """
 
 
 class Arms(IntEnum):
