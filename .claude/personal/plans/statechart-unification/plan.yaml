@@ -6,8 +6,10 @@ description: >
   reactive, tick-based Statechart as the single persistent structure for
   describing and running behaviour. The lever is ActionDescription: it stops
   being a Designator that builds PlanNode subtrees and becomes a CompositeNode
-  that expands into statechart nodes directly.
-default_repository: cram2/cognitive_robot_abstract_machine
+  that expands into statechart nodes directly. Every item here is a pull
+  request from a Tigul fork branch into the 'cramph' integration branch on
+  ichumuh/cognitive_robot_abstract_machine, not into cram2/main.
+default_repository: ichumuh/cognitive_robot_abstract_machine
 
 waves:
   - id: foundation
@@ -51,20 +53,34 @@ tracks:
 
 items:
   - id: cramph-foundation
-    title: "cramph package foundation (statechart, node, composites)"
+    title: "Land the current cramph work (graph navigation, start/end times, callbacks) onto ichumuh:cramph"
     branch: plan-cramp-second-iter
     pull_request_number: null
     track: cramph-base
     depends_on: []
     status: in_progress
     notes: >
-      49 commits ahead of cram2/main with no PR open. Verified at plan
-      creation: the entire cramph package exists on this branch alone - no
-      other local or remote branch contains cramph/src/cramph/statechart.py,
-      and no open PR on cram2 introduces it. Every other item stacks on this,
-      so nothing in this plan can land upstream until it does.
+      The cramph package lives on the 'cramph' branch of
+      ichumuh/cognitive_robot_abstract_machine (fetched locally as
+      simon/cramph), which is the shared integration base and is 42 commits
+      ahead of cram2/main. plan-cramp-second-iter is 7 commits on top of it
+      and 0 behind: graph navigation, start/end times, life-cycle callbacks,
+      the candidate generator move, and typing fixes - work already pulling
+      Statechart toward Plan parity, which is this plan's own direction. Those
+      7 commits touch cramph/statechart.py, node.py, context.py,
+      data_types.py and coraplex/plans/{plan_node,executables,underspecified}.py,
+      so later items branch off this rather than off the base to avoid
+      conflicting with it. No pull request opened for them yet.
+      Separately, the base itself is currently broken: the 'Rip
+      MotionDesignator' commit (3cb9824eb, an ancestor of simon/cramph, landed
+      out-of-band while its PR ichumuh#7 shows closed) removed MoveMotion,
+      ClosingMotion, MoveGripperMotion and LookingMotion while
+      alternative_motion_mappings/{tiago,stretch,hsrb}_motion_mapping.py still
+      import them - verified ImportError. Inherited from the base, not caused
+      by these 7 commits, but it affects anything importing those modules.
     blockers:
-      - "No pull request opened yet for a 49-commit branch the whole plan depends on."
+      - "No pull request opened yet into ichumuh:cramph for the 7 commits the rest of the plan stacks on."
+      - "Base branch has broken imports in alternative_motion_mappings (inherited from the Rip MotionDesignator commit)."
 
   - id: statechart-plan-parity
     title: "Give Statechart the Plan introspection that transfers (layers, visualize)"

@@ -78,14 +78,38 @@ safe first slice. They also happen to minimize condition complexity: only
 `MoveTorsoAction` has a condition at all (a post-condition), so the
 condition-wiring can be proven on one simple case.
 
-### The whole `cramph` package is unlanded
+### Where this work lands, and what it stacks on
 
-Verified at plan creation: `cramph/src/cramph/statechart.py` exists on
-**exactly one branch anywhere** — `plan-cramp-second-iter` — which is 49
-commits ahead of `cram2/main` with **no PR open**. No other branch contains
-it, and no open PR on cram2 introduces it. That branch is tracked here as
-`cramph-foundation`, and every other item depends on it: nothing in this plan
-can land upstream until it does.
+Pull requests for this plan go from **Tigul fork branches into the `cramph`
+branch of `ichumuh/cognitive_robot_abstract_machine`** — the shared
+integration branch for the cramph package — not into `cram2/main`. The
+existing `ichumuh#7` (`Tigul:cramph-new-motions` → `cramph`, "Rip
+MotionDesignator") is the precedent for that shape.
+
+Verified at plan creation:
+
+- `simon/cramph` (that integration branch) holds the cramph package and is
+  **42 commits ahead of `cram2/main`**.
+- `plan-cramp-second-iter` is **7 commits ahead of it and 0 behind** — graph
+  navigation, start/end times, life-cycle callbacks, the candidate-generator
+  move and typing fixes. Some of that is already Statechart-toward-Plan
+  parity work, i.e. this plan's own direction arriving ahead of the plan.
+- Those 7 commits touch `cramph/{statechart,node,context,data_types}.py` and
+  `coraplex/plans/{plan_node,executables,underspecified}.py`, which is why
+  later items branch off `plan-cramp-second-iter` rather than off the base.
+
+**A correction worth recording:** an earlier pass of this analysis claimed
+the cramph package existed on exactly one branch anywhere with no PR. That
+was wrong — it came from `git branch --contains` over refs that had never
+had `simon` fetched. cramph is perfectly well established on the integration
+branch; only the 7 commits on top of it are unlanded.
+
+**The base is currently broken**, inherited rather than introduced here: the
+"Rip MotionDesignator" commit (`3cb9824eb`, an ancestor of `simon/cramph`,
+landed out-of-band while its pull request shows closed) removed `MoveMotion`,
+`ClosingMotion`, `MoveGripperMotion` and `LookingMotion`, but
+`alternative_motion_mappings/{tiago,stretch,hsrb}_motion_mapping.py` still
+import them. Confirmed with a real `ImportError`, not inferred.
 
 ## The first conversion PR (`action-description-composite-node`)
 
@@ -211,6 +235,9 @@ the way `StatechartGraphviz` already builds one for `draw()`.
   (through the untouched `Designator` path).
 - Run tests with the project interpreter (`/home/jonas/envs/cram/bin/python`)
   and `pytest -n 2`.
+- **Every pull request targets `ichumuh:cramph`**, based on
+  `plan-cramp-second-iter` (or on whichever earlier item it depends on),
+  never on `cram2/main`.
 
 ## History
 
