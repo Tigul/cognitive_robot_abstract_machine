@@ -131,7 +131,7 @@ items:
     pull_request_number: 5
     track: action-conversion
     depends_on: [action-description-composite-node]
-    status: in_progress
+    status: done
     notes: >
       Converted OpenAction, CloseAction, DetectAction, GraspingAction,
       LookAtAction, MoveManipulatorAction and FollowToolCenterPointPathAction -
