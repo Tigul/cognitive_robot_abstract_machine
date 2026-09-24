@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from importlib.resources import files
 from pathlib import Path
-from typing import Self, List
+from typing import ClassVar, Self, List
 
 from krrood.ormatic.utils import classproperty
 from semantic_digital_twin.adapters.sensors.lidar import Lidar, LidarSource
@@ -55,6 +55,18 @@ from semantic_digital_twin.world_description.connections import (
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
+
+
+class TiagoTopic(StrEnum):
+    """
+    Topics the Tiago publishes the state of its parts on, where it does not follow the
+    conventional name.
+    """
+
+    LASER_SCAN = "scan"
+    """
+    Placeholder, to be replaced with the topic the real robot publishes its scans on.
+    """
 
 
 class TiagoJoint(StrEnum):
@@ -481,6 +493,11 @@ class TiagoBaseLidar(Lidar):
 
     ..note:: The description's own beam count is not a whole number, so the scanner's
         angular resolution of a third of a degree gives the angle between two beams.
+    """
+
+    topic_name: ClassVar[str] = TiagoTopic.LASER_SCAN
+    """
+    The topic the robot publishes this scanner's sweeps on.
     """
 
     @classmethod

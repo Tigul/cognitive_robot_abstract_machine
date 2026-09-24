@@ -5,7 +5,7 @@ from dataclasses import dataclass
 import numpy as np
 import pytest
 from sensor_msgs.msg import LaserScan
-from typing_extensions import Self
+from typing_extensions import ClassVar, Self
 
 from semantic_digital_twin.adapters.ros.lidar import SubscribedLidarSource
 from semantic_digital_twin.adapters.ros.exceptions import LaserScanBeamCountMismatch
@@ -133,6 +133,11 @@ class RootMountedLidar(Lidar):
     real scan says otherwise.
     """
 
+    topic_name: ClassVar[str] = TOPIC_NAME
+    """
+    The topic this lidar declares its scanner publishes on.
+    """
+
     @classmethod
     def with_source(
         cls, robot_root: KinematicStructureEntity, source: LidarSource
@@ -155,7 +160,7 @@ def test_a_lidar_switched_onto_its_robot_listens_on_the_given_topic(
 ):
     lidar = RootMountedLidar.with_simulated_source(world_with_laser_body.root)
 
-    lidar.use_real_source(rclpy_node, TOPIC_NAME)
+    lidar.use_real_source(rclpy_node)
 
     assert isinstance(lidar.source, SubscribedLidarSource)
     assert lidar.source.topic_name == TOPIC_NAME

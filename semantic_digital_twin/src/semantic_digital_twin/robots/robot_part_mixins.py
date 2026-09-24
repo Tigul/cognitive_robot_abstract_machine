@@ -505,11 +505,11 @@ class HasInputSource(
         """
 
     @abstractmethod
-    def real_source(self, node: Node, topic_name: str) -> TGenericInputSource:
+    def real_source(self, node: Node) -> TGenericInputSource:
         """
         :param node: The ros node the messages are received on.
-        :param topic_name: The topic the robot publishes this part's state on.
-        :return: The source reading this part from the robot itself.
+        :return: The source reading this part from the robot itself, on the topic this
+            part declares.
         """
 
     def use_simulated_source(self) -> None:
@@ -518,20 +518,16 @@ class HasInputSource(
         """
         self.use_source(self.simulated_source())
 
-    def use_real_source(self, node: Node, topic_name: Optional[str] = None) -> None:
+    def use_real_source(self, node: Node) -> None:
         """
-        Read this part from the robot itself.
+        Read this part from the robot itself, on the topic it declares.
 
         :param node: The ros node the messages are received on.
-        :param topic_name: The topic to read, or ``None`` to read the one this part
-            declares.
-        :raises UndeclaredTopicError: If no topic is given and this part declares none.
+        :raises UndeclaredTopicError: If this part declares no topic.
         """
-        if topic_name is None:
-            topic_name = self.topic_name
-        if topic_name is None:
+        if self.topic_name is None:
             raise UndeclaredTopicError(robot_part=self)
-        self.use_source(self.real_source(node, topic_name))
+        self.use_source(self.real_source(node))
 
     def use_source(self, source: TGenericInputSource) -> None:
         """
@@ -543,6 +539,8 @@ class HasInputSource(
         """
         if not isinstance(source, self.source_family()):
             raise UnexpectedInputSourceError(
-                robot_part=self, source=source, expected_source_family=self.source_family()
+                robot_part=self,
+                source=source,
+                expected_source_family=self.source_family(),
             )
         self.source = source

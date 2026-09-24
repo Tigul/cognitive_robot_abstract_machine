@@ -58,6 +58,11 @@ class StretchTopic(StrEnum):
 
     ODOMETRY = "odom"
 
+    LASER_SCAN = "scan"
+    """
+    Placeholder, to be replaced with the topic the real robot publishes its scans on.
+    """
+
 
 class StretchJoint(StrEnum):
     """
@@ -376,6 +381,11 @@ class StretchBaseLidar(Lidar):
 
     ..note:: The sweep closes a full circle, so its last beam stops one increment short
         of its first rather than repeating it.
+    """
+
+    topic_name: ClassVar[str] = StretchTopic.LASER_SCAN
+    """
+    The topic the robot publishes this scanner's sweeps on.
     """
 
     @classmethod

@@ -416,7 +416,7 @@ class KinematicChain(AbstractRobotPart, HasInputSource[JointPositionSource], ABC
     def simulated_source(cls) -> JointPositionSource:
         return SimulatedJointPositionSource()
 
-    def real_source(self, node: Node, topic_name: str) -> JointPositionSource:
+    def real_source(self, node: Node) -> JointPositionSource:
         from semantic_digital_twin.adapters.ros.input_synchronization import (
             PendingJointPositionSource,
         )
@@ -424,7 +424,7 @@ class KinematicChain(AbstractRobotPart, HasInputSource[JointPositionSource], ABC
         return PendingJointPositionSource(
             world=self._world,
             node=node,
-            topic_name=topic_name,
+            topic_name=self.topic_name,
             connections=self.active_connections,
         )
 
@@ -671,7 +671,7 @@ class MobileBase(
     def simulated_source(cls) -> BasePoseSource:
         return SimulatedBasePoseSource()
 
-    def real_source(self, node: Node, topic_name: str) -> BasePoseSource:
+    def real_source(self, node: Node) -> BasePoseSource:
         """
         :raises MissingDriveConnectionError: If there is no drive the odometry could be
             written into.
@@ -685,7 +685,7 @@ class MobileBase(
         if drive is None:
             raise MissingDriveConnectionError(robot_part=self)
         return SubscribedBasePoseSource(
-            world=self._world, node=node, topic_name=topic_name, connection=drive
+            world=self._world, node=node, topic_name=self.topic_name, connection=drive
         )
 
     @classproperty

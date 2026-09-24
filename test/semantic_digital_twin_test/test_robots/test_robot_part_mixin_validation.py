@@ -132,7 +132,7 @@ class PartWithoutItsSingleChild(
     def simulated_source(cls) -> MountedSource:
         return MountedSource()
 
-    def real_source(self, node, topic_name: str) -> MountedSource:
+    def real_source(self, node) -> MountedSource:
         return MountedSource()
 
 

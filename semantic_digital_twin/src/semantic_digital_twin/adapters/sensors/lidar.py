@@ -146,10 +146,10 @@ class Lidar(Sensor, HasInputSource[LidarSource], ABC):
     def simulated_source(cls) -> LidarSource:
         return SimulatedLidarSource()
 
-    def real_source(self, node: Node, topic_name: str) -> LidarSource:
+    def real_source(self, node: Node) -> LidarSource:
         from semantic_digital_twin.adapters.ros.lidar import SubscribedLidarSource
 
-        return SubscribedLidarSource(node=node, topic_name=topic_name)
+        return SubscribedLidarSource(node=node, topic_name=self.topic_name)
 
     @classmethod
     @abstractmethod

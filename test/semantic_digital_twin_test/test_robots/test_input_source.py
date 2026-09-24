@@ -27,7 +27,10 @@ from semantic_digital_twin.robots.pr2 import (
     PR2MobileBase,
     PR2Topic,
 )
+from semantic_digital_twin.robots.hsrb import HSRBBaseLidar, HSRBTopic
 from semantic_digital_twin.robots.robot_part_mixins import HasInputSource
+from semantic_digital_twin.robots.stretch import StretchBaseLidar, StretchTopic
+from semantic_digital_twin.robots.tiago import TiagoBaseLidar, TiagoTopic
 from semantic_digital_twin.robots.tracy import (
     TracyLeftArm,
     TracyLeftGripperLeftFinger,
@@ -94,8 +97,8 @@ class PartReadFromADeclaredTopic(HasInputSource[JointPositionSource]):
     def simulated_source(cls) -> JointPositionSource:
         return SimulatedJointPositionSource()
 
-    def real_source(self, node, topic_name: str) -> JointPositionSource:
-        return TopicReadingSource(topic_name=topic_name)
+    def real_source(self, node) -> JointPositionSource:
+        return TopicReadingSource(topic_name=self.topic_name)
 
 
 @dataclass(eq=False)
@@ -154,7 +157,7 @@ def test_a_switched_part_reads_the_world_it_stands_in_again():
     assert isinstance(part.source, SimulatedJointPositionSource)
 
 
-def test_a_part_switched_without_a_topic_reads_the_one_it_declares():
+def test_a_switched_part_reads_the_topic_it_declares():
     part = PartReadFromADeclaredTopic()
 
     part.use_real_source(node=None)
@@ -162,29 +165,13 @@ def test_a_part_switched_without_a_topic_reads_the_one_it_declares():
     assert part.source.topic_name == RobotTopic.JOINT_STATES
 
 
-def test_a_part_switched_with_a_topic_reads_that_one():
-    part = PartReadFromADeclaredTopic()
-
-    part.use_real_source(node=None, topic_name="measured_joint_states")
-
-    assert part.source.topic_name == "measured_joint_states"
-
-
-def test_a_part_declaring_no_topic_cannot_be_switched_without_one():
+def test_a_part_declaring_no_topic_cannot_be_read_from_its_robot():
     part = PartWithoutADeclaredTopic()
 
     with pytest.raises(UndeclaredTopicError) as raised:
         part.use_real_source(node=None)
 
     assert raised.value.robot_part is part
-
-
-def test_a_part_declaring_no_topic_is_switched_with_one():
-    part = PartWithoutADeclaredTopic()
-
-    part.use_real_source(node=None, topic_name="measured_joint_states")
-
-    assert part.source.topic_name == "measured_joint_states"
 
 
 # %% the topics the robots declare
@@ -198,8 +185,17 @@ def test_the_pr2_base_reads_the_odometry_its_interface_names():
     assert PR2MobileBase.topic_name == PR2Topic.ODOMETRY
 
 
-def test_a_base_lidar_declares_no_topic():
-    assert PR2BaseLidar.topic_name is None
+@pytest.mark.parametrize(
+    "lidar, topic",
+    [
+        (PR2BaseLidar, PR2Topic.LASER_SCAN),
+        (HSRBBaseLidar, HSRBTopic.LASER_SCAN),
+        (TiagoBaseLidar, TiagoTopic.LASER_SCAN),
+        (StretchBaseLidar, StretchTopic.LASER_SCAN),
+    ],
+)
+def test_a_base_lidar_reads_the_scanner_topic_its_robot_declares(lidar, topic):
+    assert lidar.topic_name == topic
 
 
 def test_an_arm_of_a_robot_publishing_per_controller_reads_its_own_topic():
