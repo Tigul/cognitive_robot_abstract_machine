@@ -9,9 +9,15 @@ from cramph.data_types import LifeCycleValues
 
 from coraplex.datastructures.enums import DetectionTechnique
 
+from dataclasses import dataclass
+
+from coraplex.plans.factories import execute_single
+from coraplex.plans.plan_node import PlanNode
+from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.plans.failures import PlanCancelled, PlanFailure, RepetitionsExhausted
 from coraplex.language import (
     CancelMonitor,
+    CodeNode,
     SequentialNode,
     TryAllNode,
     ParallelNode,
@@ -49,11 +55,28 @@ def test_factory_construction():
     assert len(root.children) == 3
 
 
+@dataclass
+class ActionBuiltAsAPlanTree(ActionDescription):
+    """
+    An action that still builds a plan tree, so that simplification can be exercised
+    whatever else has moved over to running as a statechart node.
+    """
+
+    label: str
+    """
+    Tells one of these apart from another, so an assertion on order means something.
+    """
+
+    @property
+    def _action_plan(self) -> PlanNode:
+        return execute_single(CodeNode())
+
+
 def test_simplify_tree():
-    act = NavigateAction(Pose())
-    act2 = DetectAction(DetectionTechnique.REGION)
-    act3 = DetectAction(DetectionTechnique.TYPES)
-    act4 = DetectAction(DetectionTechnique.TYPES)
+    act = ActionBuiltAsAPlanTree("first")
+    act2 = ActionBuiltAsAPlanTree("second")
+    act3 = ActionBuiltAsAPlanTree("third")
+    act4 = ActionBuiltAsAPlanTree("fourth")
 
     root = sequential([act, sequential([act2, act3]), act4])
     root.plan.validate()

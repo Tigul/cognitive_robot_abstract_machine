@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass, field
 
-from typing_extensions import Optional, Any, Dict
+from typing_extensions import Optional, Any, Dict, List
 
 from coraplex.config.action_conf import ActionConfig
 from coraplex.datastructures.dataclasses import Context
@@ -11,7 +11,8 @@ from coraplex.exceptions import NoFloorBelowRobot, NotOnASingleLevelException
 from coraplex.plans.attachment_nodes import ReAttachNode
 from coraplex.plans.factories import execute_single, pause_until, sequential
 from coraplex.plans.plan_node import PlanNode
-from coraplex.robot_plans.actions.base import ActionDescription
+from cramph.node import StatechartNode
+from coraplex.robot_plans.actions.base import Action, ActionDescription
 from coraplex.datastructures.enums import ExecutionType
 from coraplex.plans.executables import GiskardExecutable
 from cramph.composites import Parallel
@@ -119,8 +120,8 @@ class NavigateAction(DrivesBase):
         )
 
 
-@dataclass
-class LookAtAction(ActionDescription):
+@dataclass(eq=False, repr=False)
+class LookAtAction(Action):
     """
     Lets the robot look at a position.
     """
@@ -136,16 +137,16 @@ class LookAtAction(ActionDescription):
     """
 
     @property
-    def _action_plan(self) -> PlanNode:
+    def _sub_nodes(self) -> List[StatechartNode]:
         camera = self.camera or self.robot.get_default_camera()
-        return execute_single(
+        return [
             Pointing(
                 root_link=self.robot.get_torso().root,
                 tip_link=camera.root,
                 goal_point=self.target.to_position(),
                 pointing_axis=camera.forward_facing_axis,
             )
-        )
+        ]
 
 
 @dataclass

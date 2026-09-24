@@ -10,11 +10,16 @@ from coraplex.datastructures.enums import Arms
 from coraplex.plans.factories import make_node
 from coraplex.plans.plan_node import ActionCompositeNode
 from coraplex.robot_plans.actions.base import Action
+from coraplex.datastructures.trajectory import PoseTrajectory
+from coraplex.robot_plans.actions.core.navigation import LookAtAction
 from coraplex.robot_plans.actions.core.robot_body import (
+    FollowToolCenterPointPathAction,
+    MoveManipulatorAction,
     MoveTorsoAction,
     ParkArmsAction,
     SetGripperAction,
 )
+from coraplex.view_manager import ViewManager
 from cramph.composites import Parallel, Sequence
 from cramph.data_types import LifeCycleValues, ObservationStateValues
 from cramph.exceptions import CompositeNodeWithoutChildrenError
@@ -25,12 +30,18 @@ from cramph.nodes_for_testing import (
     NodeSucceedingOnObservingTrue,
 )
 from cramph.statechart import Statechart
+from giskardpy.motion_statechart.goals.collision_avoidance import (
+    UpdateTemporaryCollisionRules,
+)
 from giskardpy.motion_statechart.goals.gripper import MoveGripper
+from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
+from giskardpy.motion_statechart.tasks.pointing import Pointing
 from giskardpy.motion_statechart.tasks.joint_tasks import (
     JointPositionList,
     JointVelocityLimit,
 )
 from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
+from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 # %% a body handed in, so expansion is exercised without a robot
 
@@ -229,3 +240,48 @@ def test_make_node_wraps_an_action_for_a_plan_tree():
 
     assert isinstance(node, ActionCompositeNode)
     assert node.action is action
+
+
+def test_look_at_points_the_default_camera(immutable_simple_pr2_world):
+    """
+    Looking somewhere aims the robot's own camera, and runs nothing else.
+    """
+    _, robot, context = immutable_simple_pr2_world
+    action = LookAtAction(Pose())
+
+    _expanded(action, context)
+
+    [pointing] = _nodes_of_type(action, Pointing)
+    assert pointing.tip_link == robot.get_default_camera().root
+
+
+def test_following_a_path_runs_one_goal_per_waypoint(immutable_simple_pr2_world):
+    """
+    Every waypoint of the path becomes a goal of its own, in order.
+    """
+    _, _, context = immutable_simple_pr2_world
+    waypoints = [Pose(), Pose(), Pose()]
+    action = FollowToolCenterPointPathAction(PoseTrajectory(waypoints), Arms.LEFT)
+
+    _expanded(action, context)
+
+    assert len(_nodes_of_type(action, CartesianPose)) == len(waypoints)
+
+
+def test_moving_the_manipulator_relaxes_collisions_only_when_allowed(
+    immutable_simple_pr2_world,
+):
+    """
+    The gripper is only let through its surroundings when the caller asks.
+    """
+    _, robot, context = immutable_simple_pr2_world
+    end_effector = ViewManager.get_end_effector_view(Arms.LEFT, robot)
+    allowed = MoveManipulatorAction(Pose(), end_effector, True)
+    forbidden = MoveManipulatorAction(Pose(), end_effector, False)
+
+    _expanded(allowed, context)
+    _expanded(forbidden, context)
+
+    assert len(_nodes_of_type(allowed, UpdateTemporaryCollisionRules)) == 1
+    assert _nodes_of_type(forbidden, UpdateTemporaryCollisionRules) == []
+    assert len(_nodes_of_type(forbidden, CartesianPose)) == 1
