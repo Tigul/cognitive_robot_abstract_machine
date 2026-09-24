@@ -156,22 +156,31 @@ items:
 
   - id: wire-action-conditions
     title: "Make an action's pre- and post-conditions actually gate it"
-    branch: null
+    branch: wire-action-conditions
     pull_request_number: null
     track: action-conversion
     depends_on: [action-description-composite-node]
-    status: not_started
+    status: blocked
     notes: >
-      Split out of action-description-composite-node once it turned out that
-      conditions are inert today rather than merely unwired: perform() calls
-      evaluate_pre_condition(), which is defined nowhere, and
-      GiskardExecutable._add_condition_monitors is dead code marked "being
-      reworked". Wiring a converted action's conditions is therefore new
-      behaviour, not preservation of old behaviour - a post-condition that
-      reads false would newly cancel a statechart that passes today - so it
-      needs its own tests rather than riding along with a refactor. The
-      ThreadedPredicateMonitor that condition_nodes.condition_monitor already
-      builds is the mechanism.
+      Attempted and parked on a local, unpushed branch (commit "Parked: let an
+      action's conditions gate it"). The wiring itself works and is covered by
+      three tests: a pre-condition that does not hold stops the action before it
+      acts, a post-condition that does not hold fails it, and either ends the
+      statechart with ConditionNotSatisfied. One design point worth keeping: the
+      action's own observation has to wait on the post-condition monitor's
+      observation, or the action succeeds before the background evaluation has
+      answered - acting is not arriving. What is unfinished is switching it on.
+      Twelve tests fail, and not because the conditions are wrong:
+      NavigateAction's evaluate True in 0.02s in a simple world, but in the
+      multi-robot apartment its pre-condition monitor stays running and the body
+      never starts, and underspecified resolution returns EmptyUnderspecified
+      because ConditionNotSatisfied is a PlanFailure, so ActionTrial now rejects
+      every candidate - which is the trial's documented purpose finally taking
+      effect, all at once. Also worth knowing before resuming:
+      Context.evaluate_conditions defaults to True today and gates nothing, so
+      the flag currently lies; making it meaningful is part of this item.
+    blockers:
+      - "Turning conditions on fails 12 tests that need per-case investigation, not a shared fix."
 
   - id: retire-language-nodes
     title: "Retire coraplex.language's LanguageNode family for cramph.composites"
