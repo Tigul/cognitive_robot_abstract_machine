@@ -126,26 +126,33 @@ items:
       test_designator and cramph_test.
 
   - id: convert-remaining-declarative-actions
-    title: "Convert the remaining fixed, non-branching actions"
-    branch: convert-declarative-actions
-    pull_request_number: 5
+    title: "Convert every action whose body is a fixed composition of goals"
+    branch: convert-navigate-action
+    pull_request_number: 6
     track: action-conversion
     depends_on: [action-description-composite-node]
-    status: done
+    status: in_progress
     notes: >
-      Converted OpenAction, CloseAction, DetectAction, GraspingAction,
-      LookAtAction, MoveManipulatorAction and FollowToolCenterPointPathAction -
-      every action left whose body is a fixed composition of goals. Open and
-      Close run a GraspingAction, so those three had to go together: a
-      converted action's steps must be statechart nodes. What remains is
-      blocked for four distinct reasons, each of which is a later item's work:
-      reached through an underspecified a(...) (NavigateAction, PickUpAction,
-      PlaceAction, MoveToReach); overrides execute() (ReachAction,
-      FullBodyControlledAction and the tool actions under it); a parent whose
-      children are blocked (DrivesBase, PathPlanningNavigateAction); or embeds
-      an action that has not converted (TransportAction, FaceAtAction,
-      ElevatorNavigation, PickAndPlaceAction, MoveAndPickUpAction,
-      MoveAndPlaceAction). 862 tests pass.
+      Landing in two batches. Tigul#5 (merged) converted OpenAction, CloseAction,
+      DetectAction, GraspingAction, LookAtAction, MoveManipulatorAction and
+      FollowToolCenterPointPathAction; Open and Close run a GraspingAction, so
+      those three went together. Tigul#6 (open) converts DrivesBase with
+      NavigateAction and PathPlanningNavigateAction, the first actions reached
+      through an underspecified a(...) statement, and so also reworks
+      UnderspecifiedNode and ActionTrial: resolution now asks make_node for the
+      node that runs a proposal, and a trial rebinds the action's parameters and
+      builds a fresh action rather than rebinding the action itself. Two reasons,
+      both found by running the code - rebind_world_entities recurses forever on
+      a statechart node, whose transition conditions point back at it, and a
+      statechart node belongs to one statechart, so a tried instance cannot be
+      the one that runs for real. Tigul#6 also drops keep_joint_states, which
+      nothing read: three further actions carried their own copy only to forward
+      it. Still blocked and each a later item's work: ElevatorNavigation needs a
+      statechart node that re-parents a body (nothing in giskardpy does, and
+      ReAttachNode is deliberately a plan-tree execution boundary); ReachAction
+      and the FullBodyControlled tool actions override execute(); PickUpAction,
+      PlaceAction and MoveToReach are reached through a(...) and PlaceAction also
+      looks a previous PickUpAction up by designator type. 866 tests pass.
 
   - id: wire-action-conditions
     title: "Make an action's pre- and post-conditions actually gate it"
