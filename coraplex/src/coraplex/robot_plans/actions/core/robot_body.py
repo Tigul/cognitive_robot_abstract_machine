@@ -5,7 +5,6 @@ from datetime import timedelta
 
 from typing_extensions import Optional, Dict, Any, List
 
-from coraplex.plans.plan_node import PlanNode
 from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.variable import Variable
 from coraplex.datastructures.dataclasses import Context
@@ -16,14 +15,13 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from coraplex.datastructures.enums import Arms
 
 from coraplex.datastructures.trajectory import PoseTrajectory
-from coraplex.plans.factories import execute_single
-from coraplex.robot_plans.actions.base import Action, ActionDescription
+from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.mixins import (
     HasMaxJointVelocity,
     MovesGripper,
     MovesToolCenterPoint,
 )
-from cramph.composites import Parallel, Sequence
+from cramph.composites import Parallel
 from cramph.node import StatechartNode
 from giskardpy.motion_statechart.binding_policy import GoalBindingPolicy
 from giskardpy.motion_statechart.goals.collision_avoidance import (
@@ -137,8 +135,8 @@ class ParkArmsAction(Action, HasMaxJointVelocity):
         return JointState(connections=connections, target_values=target_values)
 
 
-@dataclass
-class FollowToolCenterPointPathAction(ActionDescription, MovesToolCenterPoint):
+@dataclass(eq=False, repr=False)
+class FollowToolCenterPointPathAction(Action, MovesToolCenterPoint):
     """
     Represents an action to move a robotic arm's TCP (Tool Center Point) along a path of
     poses.
@@ -155,12 +153,8 @@ class FollowToolCenterPointPathAction(ActionDescription, MovesToolCenterPoint):
     """
 
     @property
-    def _action_plan(self) -> PlanNode:
-        target_locations = list(self.target_locations.poses)
-
-        return execute_single(
-            Sequence(nodes=[self._waypoint_goal(pose) for pose in target_locations])
-        )
+    def _sub_nodes(self) -> List[StatechartNode]:
+        return [self._waypoint_goal(pose) for pose in self.target_locations.poses]
 
     def _waypoint_goal(self, target: Pose) -> CartesianPose:
         """
@@ -188,8 +182,8 @@ class FollowToolCenterPointPathAction(ActionDescription, MovesToolCenterPoint):
         pass
 
 
-@dataclass
-class MoveManipulatorAction(ActionDescription, MovesToolCenterPoint):
+@dataclass(eq=False, repr=False)
+class MoveManipulatorAction(Action, MovesToolCenterPoint):
     """
     Move the end_effector to a specific pose.
     """
@@ -210,7 +204,7 @@ class MoveManipulatorAction(ActionDescription, MovesToolCenterPoint):
     """
 
     @property
-    def _action_plan(self) -> PlanNode:
+    def _sub_nodes(self) -> List[StatechartNode]:
         goal = CartesianPose(
             root_link=self.context.controlled_root,
             tip_link=self.end_effector.tool_frame,
@@ -220,15 +214,15 @@ class MoveManipulatorAction(ActionDescription, MovesToolCenterPoint):
             binding_policy=GoalBindingPolicy.Bind_on_start,
         )
         if not self.allow_gripper_collision:
-            return execute_single(goal)
-        return execute_single(
+            return [goal]
+        return [
             Parallel(
                 [
                     goal,
                     UpdateTemporaryCollisionRules.for_end_effector(self.end_effector),
                 ]
             )
-        )
+        ]
 
     @staticmethod
     def post_condition(

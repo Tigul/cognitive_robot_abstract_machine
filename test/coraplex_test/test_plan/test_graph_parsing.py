@@ -29,9 +29,8 @@ from coraplex.plans.factories import (
 )
 from coraplex.exceptions import PerceptionTargetMissing
 from coraplex.plans.plan_node import (
-    ActionNode,
+    ActionCompositeNode,
     ExecutionBoundaryNode,
-    MotionNode,
     PlanNode,
 )
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
@@ -626,8 +625,8 @@ def test_detecting_motion_merges_with_the_motions_around_it(immutable_model_worl
 
 def test_detect_action_parses_to_a_single_motion_chart(immutable_model_world):
     """
-    An action that only perceives still compiles to a motion chart, so its conditions
-    are carried by that chart rather than needing to run around it.
+    An action that only perceives still compiles to a motion chart of its own, rather
+    than being left out for contributing no movement.
     """
     world, view, context = immutable_model_world
 
@@ -639,9 +638,11 @@ def test_detect_action_parses_to_a_single_motion_chart(immutable_model_world):
     executable = plan.parse()
 
     assert type(executable) == GiskardExecutable
-    assert [type(task) for task in motion_goals_of(plan)] == [PerceptionTask]
-    assert executable.pre_condition_node
-    assert executable.post_condition_node
+    assert [
+        type(node)
+        for node in executable.motion_state_chart.nodes
+        if isinstance(node, PerceptionTask)
+    ] == [PerceptionTask]
 
 
 # %% perceiving before the grasp
@@ -653,9 +654,10 @@ def detect_actions_of(plan: PlanNode) -> List[DetectAction]:
     :return: The detections the plan performs, in no particular order.
     """
     return [
-        node.designator
+        node.action
         for node in plan.descendants
-        if isinstance(node, ActionNode) and isinstance(node.designator, DetectAction)
+        if isinstance(node, ActionCompositeNode)
+        and isinstance(node.action, DetectAction)
     ]
 
 
