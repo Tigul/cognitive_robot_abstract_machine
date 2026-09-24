@@ -20,5 +20,11 @@ Done:
 - The 12 failures / 50 errors in the local krrood run (`TypeError __init__ 11 args`)
   also happen without the fix, so they come from the local env.
 
-Next: finish the full coraplex run locally, then commit, push, and set the PR to
-draft; check CI.
+- Committed and pushed as 463f655d3. PR #579 description has a new "Also fixes" section;
+  PR converted to draft.
+- Local check: EQL core (285 passed) and test_plan_transformations +
+  test_underspecified_designator (38 passed, no LeakedWorldsError). The full coraplex
+  suite is not run locally, because it crashed the laptop on 2026-09-24.
+
+Next: CI on 463f655d3 should turn `test_each_lib (coraplex)` green. Mark the PR ready
+only when the user says so.
