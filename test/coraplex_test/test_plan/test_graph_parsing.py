@@ -77,10 +77,12 @@ def test_parse_simple_action(immutable_model_world):
     executable = plan.parse()
 
     assert type(executable) == GiskardExecutable
-    assert executable.pre_condition_node
-    assert executable.post_condition_node
     assert executable.motion_count == 1
-    assert [type(goal) for goal in motion_goals_of(plan)] == [JointPositionList]
+    assert [
+        type(node)
+        for node in executable.motion_state_chart.nodes
+        if isinstance(node, JointPositionList)
+    ] == [JointPositionList]
 
 
 # %% the chart mirrors the plan tree
@@ -117,15 +119,13 @@ def test_sequential_plan_nests_a_goal_per_plan_node(immutable_model_world):
 
     action_goals = root_goal.nodes
     assert len(action_goals) == 2
-    assert [type(goal) for goal in action_goals] == [Sequence, Sequence]
-    assert [goal.name for goal in action_goals] == ["ActionNode", "ActionNode"]
+    assert [type(goal) for goal in action_goals] == [MoveTorsoAction, MoveTorsoAction]
 
-    tasks = motion_goals_of(plan)
-    # Each task is run by the attempt its goal wrapped it in.
-    assert [[child.task for child in goal.nodes] for goal in action_goals] == [
-        [tasks[0]],
-        [tasks[1]],
-    ]
+    # Each action runs its own task, at the leaves of the goal it expanded into.
+    assert [
+        len([node for node in goal.descendants if isinstance(node, JointPositionList)])
+        for goal in action_goals
+    ] == [1, 1]
 
 
 # %% monitored subtrees

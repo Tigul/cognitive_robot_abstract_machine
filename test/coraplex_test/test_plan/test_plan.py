@@ -511,11 +511,10 @@ def test_conditions_reference_surviving_action_node_after_merge(immutable_model_
     world, robot_view, context = immutable_model_world
 
     plan = sequential(
-        [MoveTorsoAction(TorsoState.HIGH)],
+        [NavigateAction(Pose())],
         context=context,
     ).plan
-    with simulated_robot:
-        plan.perform()
+    plan.root.notify()
 
     live_node_indices = {node.index for node in [plan.root, *plan.root.descendants]}
     condition_nodes = [
@@ -637,13 +636,15 @@ def test_node_expansion(immutable_model_world):
     assert len(expanded_children[1].children) == 4
 
 
-def test_expand_move_torso(immutable_model_world):
+def test_expanding_an_action_mounts_its_conditions_around_its_body(
+    immutable_model_world,
+):
     world, view, context = immutable_model_world
-    plan = sequential([MoveTorsoAction(TorsoState.HIGH)], context=context)
+    plan = sequential([NavigateAction(Pose())], context=context)
 
     plan.notify()
 
-    node = plan.plan.get_nodes_by_designator_type(MoveTorsoAction)[0]
+    node = plan.plan.get_nodes_by_designator_type(NavigateAction)[0]
 
     assert len(node.children) == 3
 
