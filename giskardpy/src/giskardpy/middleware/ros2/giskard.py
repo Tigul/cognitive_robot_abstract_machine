@@ -134,7 +134,7 @@ class Giskard:
             executor=self.executor,
             action_server=action_server,
             feedback_publisher=feedback_publisher,
-            inputs=WorldStateInputs(world=world),
+            inputs=WorldStateInputs(world=world, reapplies_inputs=True),
             cycle_counter=cycle_counter,
             world_updates=world_updates,
         )

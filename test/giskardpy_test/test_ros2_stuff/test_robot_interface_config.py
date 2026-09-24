@@ -1,4 +1,6 @@
-from dataclasses import fields, is_dataclass
+from dataclasses import dataclass, fields, is_dataclass
+
+import pytest
 
 from giskardpy.middleware.ros2.giskard import Giskard
 from giskardpy.middleware.ros2.robot_interface_config import (
@@ -10,6 +12,7 @@ from giskardpy.middleware.ros2.scripts.iai_robots.daisy.configs import (
 )
 from giskardpy.middleware.ros2.scripts.iai_robots.pr2.configs import (
     PR2VelocityMujocoInterface,
+    WorldWithPR2Config,
 )
 from giskardpy.middleware.ros2.scripts.iai_robots.stretch.configs import (
     StretchStandaloneInterface,
@@ -17,8 +20,15 @@ from giskardpy.middleware.ros2.scripts.iai_robots.stretch.configs import (
 from giskardpy.middleware.ros2.scripts.iai_robots.tracy.configs import (
     TracyStandAloneRobotInterfaceConfig,
 )
-from giskardpy.middleware.ros2.server_config import GiskardServerConfig
+from giskardpy.middleware.ros2.server_config import ExecutionMode, GiskardServerConfig
+from giskardpy.middleware.ros2.utils.utils import load_xacro
 from giskardpy.model.world_config import EmptyWorld
+from semantic_digital_twin.adapters.ros.input_synchronization import (
+    LatestJointPositionSource,
+    PendingJointPositionSource,
+    SubscribedBasePoseSource,
+)
+from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.robots.daisy import DAiSyJoint
 from semantic_digital_twin.robots.stretch import StretchJoint
 from semantic_digital_twin.robots.tracy import TracyJoint
@@ -146,3 +156,86 @@ def test_the_stretch_interface_controls_every_joint_except_the_drive():
         StretchJoint.HEAD_PAN,
         StretchJoint.HEAD_TILT,
     ]
+
+
+# %% reading the robot's own parts from the robot
+
+
+@dataclass
+class PartReadingInterface(RobotInterfaceConfig):
+    """
+    An interface that reads every part of the robot from the robot itself, on the topics
+    the parts declare.
+    """
+
+    def setup(self):
+        self.sync_robot_parts()
+
+
+@pytest.fixture()
+def pr2_reading_its_own_parts(init_rospy) -> Giskard:
+    """
+    A closed-loop Giskard whose PR2 is read from what the robot publishes.
+    """
+    giskard = Giskard(
+        world_config=WorldWithPR2Config(urdf=load_xacro(PR2.get_ros_file_path())),
+        robot_interface_config=PartReadingInterface(),
+        server_config=GiskardServerConfig(execution_mode=ExecutionMode.CLOSED_LOOP),
+        qp_controller_config=QPControllerConfig(target_frequency=25),
+    )
+    giskard.setup()
+    return giskard
+
+
+def test_a_chain_read_from_the_robot_is_applied_by_the_motion_server(
+    pr2_reading_its_own_parts,
+):
+    arm = pr2_reading_its_own_parts.robot.left_arm
+
+    assert isinstance(arm.source, PendingJointPositionSource)
+    assert any(
+        synchronizer is arm.source
+        for synchronizer in pr2_reading_its_own_parts.motion_server.inputs.synchronizers
+    )
+
+
+def test_the_closed_control_loop_rewrites_the_joint_positions_every_cycle(
+    pr2_reading_its_own_parts,
+):
+    """
+    A closed-loop cycle integrates the commanded velocities, so it has to be pulled back
+    onto the last measurement in every cycle rather than reading each message once.
+    """
+    loop_inputs = (
+        pr2_reading_its_own_parts.motion_server.control_loop.inputs.synchronizers
+    )
+
+    assert any(
+        isinstance(synchronizer, LatestJointPositionSource)
+        for synchronizer in loop_inputs
+    )
+    assert not any(
+        isinstance(synchronizer, PendingJointPositionSource)
+        for synchronizer in loop_inputs
+    )
+
+
+def test_the_base_pose_is_read_by_both_loops_from_one_source(
+    pr2_reading_its_own_parts,
+):
+    """
+    Odometry reports a pose rather than integrating one, so the same source serves both
+    loops and nothing has to be read twice.
+    """
+    base_source = pr2_reading_its_own_parts.robot.mobile_base.source
+    motion_server = pr2_reading_its_own_parts.motion_server
+
+    assert isinstance(base_source, SubscribedBasePoseSource)
+    assert any(
+        synchronizer is base_source
+        for synchronizer in motion_server.inputs.synchronizers
+    )
+    assert any(
+        synchronizer is base_source
+        for synchronizer in motion_server.control_loop.inputs.synchronizers
+    )

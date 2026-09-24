@@ -3,9 +3,12 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
-from typing_extensions import List
+from typing_extensions import List, TYPE_CHECKING
 
 from semantic_digital_twin.world import World
+
+if TYPE_CHECKING:
+    from semantic_digital_twin.robots.robot_parts import AbstractRobot
 
 # %% base classes
 
@@ -30,6 +33,16 @@ class InputSynchronizer(ABC):
         :return: Whether anything was written.
         """
 
+    def rewriting_every_cycle(self) -> InputSynchronizer:
+        """
+        :return: An input that writes what it last read in every cycle, for a loop that
+            moves the world state away from it between cycles.
+
+        Defaults to this input, which already writes whatever it holds whenever it is
+        applied.
+        """
+        return self
+
     def close(self) -> None:
         """
         Release the resources used to receive inputs.
@@ -51,6 +64,26 @@ class WorldStateInputs:
     """
     The inputs, applied in the order they were added.
     """
+
+    reapplies_inputs: bool = False
+    """
+    Whether this loop needs its inputs written again in every cycle, as a loop does that
+    moves the world state away from what it last read.
+    """
+
+    def read_robot(self, robot: AbstractRobot) -> None:
+        """
+        Apply everything the parts of a robot are read from in this loop from now on.
+
+        Parts that are read from the world they stand in need nothing applied and are
+        therefore left out.
+
+        :param robot: The robot whose parts this loop reads.
+        """
+        for synchronizer in robot.get_input_synchronizers():
+            if self.reapplies_inputs:
+                synchronizer = synchronizer.rewriting_every_cycle()
+            self.synchronizers.append(synchronizer)
 
     def apply_inputs(self) -> bool:
         """

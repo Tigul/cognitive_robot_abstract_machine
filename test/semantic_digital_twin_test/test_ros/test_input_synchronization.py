@@ -14,11 +14,12 @@ from numpy.testing import assert_allclose
 from sensor_msgs.msg import JointState
 
 from semantic_digital_twin.adapters.ros.input_synchronization import (
+    LatestJointPositionSource,
     LatestJointStateSynchronizer,
     OdometrySynchronizer,
+    PendingJointPositionSource,
     PendingJointStateSynchronizer,
     SubscribedBasePoseSource,
-    SubscribedJointPositionSource,
     TfFrameSynchronizer,
     TopicInputSynchronizer,
 )
@@ -185,7 +186,8 @@ def test_odometry_synchronizer_reads_odometry_messages():
 
 
 def test_the_source_of_a_part_reads_the_same_messages_as_the_synchronizer_it_is():
-    assert SubscribedJointPositionSource.message_type() is JointState
+    assert PendingJointPositionSource.message_type() is JointState
+    assert LatestJointPositionSource.message_type() is JointState
     assert SubscribedBasePoseSource.message_type() is Odometry
 
 
@@ -259,7 +261,7 @@ def test_the_source_of_a_part_writes_the_joints_of_that_part(
     rclpy_node, world_with_two_connections
 ):
     world, part_connection, other_connection = world_with_two_connections
-    source = SubscribedJointPositionSource(
+    source = PendingJointPositionSource(
         world=world,
         node=rclpy_node,
         topic_name="joint_states",
@@ -276,7 +278,7 @@ def test_the_source_of_a_part_leaves_the_joints_of_another_part_alone(
 ):
     world, part_connection, other_connection = world_with_two_connections
     position_before_apply = world.state[other_connection.raw_dof.id].position
-    source = SubscribedJointPositionSource(
+    source = PendingJointPositionSource(
         world=world,
         node=rclpy_node,
         topic_name="joint_states",
@@ -286,6 +288,58 @@ def test_the_source_of_a_part_leaves_the_joints_of_another_part_alone(
 
     assert source.apply() is True
     assert world.state[other_connection.raw_dof.id].position == position_before_apply
+
+
+# %% the reader a loop that moves the state away from the robot needs
+
+
+def test_a_part_source_hands_out_a_rewriting_reader_of_the_same_topic(
+    rclpy_node, world_with_two_connections
+):
+    world, part_connection, _ = world_with_two_connections
+    source = PendingJointPositionSource(
+        world=world,
+        node=rclpy_node,
+        topic_name="joint_states",
+        connections=[part_connection],
+    )
+
+    rewriting_source = source.rewriting_every_cycle()
+
+    assert isinstance(rewriting_source, LatestJointPositionSource)
+    assert rewriting_source.topic_name == source.topic_name
+    assert rewriting_source.connections == source.connections
+
+
+def test_a_rewriting_part_source_writes_its_message_every_cycle(
+    rclpy_node, world_with_two_connections
+):
+    world, part_connection, _ = world_with_two_connections
+    source = LatestJointPositionSource(
+        world=world,
+        node=rclpy_node,
+        topic_name="joint_states",
+        connections=[part_connection],
+    )
+    source.latest_message = joint_state_message(part_connection.name.name, 0.42)
+
+    assert source.apply() is True
+    world.state[part_connection.raw_dof.id].position = 1.0
+    assert source.apply() is True
+    assert world.state[part_connection.raw_dof.id].position == 0.42
+
+
+def test_an_input_that_already_rewrites_hands_out_itself(
+    rclpy_node, omni_drive_world: World
+):
+    source = SubscribedBasePoseSource(
+        world=omni_drive_world,
+        node=rclpy_node,
+        topic_name="odom",
+        connection=omni_drive_world.get_connection_by_name("root_T_base"),
+    )
+
+    assert source.rewriting_every_cycle() is source
 
 
 # %% writing the base pose

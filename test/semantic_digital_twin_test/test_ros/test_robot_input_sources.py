@@ -7,8 +7,8 @@ from __future__ import annotations
 import pytest
 
 from semantic_digital_twin.adapters.ros.input_synchronization import (
+    PendingJointPositionSource,
     SubscribedBasePoseSource,
-    SubscribedJointPositionSource,
 )
 from semantic_digital_twin.adapters.sensors.lidar import SimulatedLidarSource
 from semantic_digital_twin.robots.input_source import RobotTopic
@@ -30,7 +30,7 @@ def test_switching_a_robot_reads_every_part_declaring_a_topic_from_the_robot(
 ):
     annotated_pr2.use_real_sources(rclpy_node)
 
-    assert isinstance(annotated_pr2.left_arm.source, SubscribedJointPositionSource)
+    assert isinstance(annotated_pr2.left_arm.source, PendingJointPositionSource)
     assert isinstance(annotated_pr2.mobile_base.source, SubscribedBasePoseSource)
 
 

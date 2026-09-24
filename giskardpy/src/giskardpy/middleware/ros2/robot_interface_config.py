@@ -150,6 +150,19 @@ class RobotInterfaceConfig(ABC):
                 )
         self.tf_frame_synchronizer.track(joint, tf_parent_frame, tf_child_frame)
 
+    def sync_robot_parts(self):
+        """
+        Tell Giskard to read every part of the robot that declares a topic from the
+        robot itself, instead of from the world it stands in.
+
+        The topics come from the parts, so a part mounted on a different robot is read
+        wherever that robot publishes it.
+        """
+        self.robot.use_real_sources(rospy.get_node())
+        self.motion_server.inputs.read_robot(self.robot)
+        if self.server_config.is_closed_loop:
+            self.control_loop.inputs.read_robot(self.robot)
+
     def sync_joint_state_topic(self, topic_name: str, group_name: str | None = None):
         """
         Tell Giskard to sync the world state with a joint state topic.

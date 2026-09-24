@@ -4,7 +4,10 @@ from dataclasses import dataclass
 
 import pytest
 
-from semantic_digital_twin.input_synchronization import InputSynchronizer
+from semantic_digital_twin.input_synchronization import (
+    InputSynchronizer,
+    WorldStateInputs,
+)
 from semantic_digital_twin.robots.exceptions import (
     MissingInputSourceError,
     UndeclaredTopicError,
@@ -45,6 +48,17 @@ class TopicReadingSource(JointPositionSource):
 
 
 @dataclass
+class RewritingSource(JointPositionSource, InputSynchronizer):
+    """
+    A source that writes what it last read in every cycle, standing in for the reader a
+    loop needs when it moves the world state away from the robot between cycles.
+    """
+
+    def apply(self) -> bool:
+        return False
+
+
+@dataclass
 class AppliedSource(JointPositionSource, InputSynchronizer):
     """
     A source a loop has to apply, standing in for one that writes what a robot reports
@@ -53,6 +67,9 @@ class AppliedSource(JointPositionSource, InputSynchronizer):
 
     def apply(self) -> bool:
         return False
+
+    def rewriting_every_cycle(self) -> RewritingSource:
+        return RewritingSource(world=self.world)
 
 
 # %% stand-ins for the parts that can be told where they are read from
@@ -224,3 +241,34 @@ def test_a_switched_robot_reads_the_world_it_stands_in_again(annotated_pr2):
 
     assert isinstance(annotated_pr2.left_arm.source, SimulatedJointPositionSource)
     assert annotated_pr2.get_input_synchronizers() == []
+
+
+# %% the loops that apply what a robot reports
+
+
+def test_a_loop_applies_every_source_a_robots_parts_are_read_from(annotated_pr2):
+    source = AppliedSource(world=annotated_pr2._world)
+    annotated_pr2.left_arm.use_source(source)
+    inputs = WorldStateInputs(world=annotated_pr2._world)
+
+    inputs.read_robot(annotated_pr2)
+
+    assert inputs.synchronizers == [source]
+
+
+def test_a_loop_reapplying_its_inputs_reads_a_rewriting_source(annotated_pr2):
+    annotated_pr2.left_arm.use_source(AppliedSource(world=annotated_pr2._world))
+    inputs = WorldStateInputs(world=annotated_pr2._world, reapplies_inputs=True)
+
+    inputs.read_robot(annotated_pr2)
+
+    [synchronizer] = inputs.synchronizers
+    assert isinstance(synchronizer, RewritingSource)
+
+
+def test_a_loop_reading_a_simulated_robot_applies_nothing(annotated_pr2):
+    inputs = WorldStateInputs(world=annotated_pr2._world)
+
+    inputs.read_robot(annotated_pr2)
+
+    assert inputs.synchronizers == []

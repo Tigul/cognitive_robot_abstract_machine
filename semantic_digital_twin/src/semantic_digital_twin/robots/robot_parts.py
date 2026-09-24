@@ -418,10 +418,10 @@ class KinematicChain(AbstractRobotPart, HasInputSource[JointPositionSource], ABC
 
     def real_source(self, node: Node, topic_name: str) -> JointPositionSource:
         from semantic_digital_twin.adapters.ros.input_synchronization import (
-            SubscribedJointPositionSource,
+            PendingJointPositionSource,
         )
 
-        return SubscribedJointPositionSource(
+        return PendingJointPositionSource(
             world=self._world,
             node=node,
             topic_name=topic_name,

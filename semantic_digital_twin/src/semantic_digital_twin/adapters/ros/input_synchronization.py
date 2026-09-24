@@ -128,7 +128,9 @@ class LatestJointStateSynchronizer(JointStateInputSynchronizer):
 
 
 @dataclass
-class SubscribedJointPositionSource(JointPositionSource, PendingJointStateSynchronizer):
+class SubscribedJointPositionSource(
+    JointPositionSource, JointStateInputSynchronizer, ABC
+):
     """
     The joint positions one robot part reports on a ROS 2 topic.
 
@@ -144,6 +146,33 @@ class SubscribedJointPositionSource(JointPositionSource, PendingJointStateSynchr
 
     def writes(self, connection: ActiveConnection1DOF) -> bool:
         return connection in self.connections
+
+
+@dataclass
+class PendingJointPositionSource(
+    SubscribedJointPositionSource, PendingJointStateSynchronizer
+):
+    """
+    The joint positions of one robot part, written once per message the robot publishes.
+    """
+
+    def rewriting_every_cycle(self) -> LatestJointPositionSource:
+        return LatestJointPositionSource(
+            world=self.world,
+            node=self.node,
+            topic_name=self.topic_name,
+            connections=self.connections,
+        )
+
+
+@dataclass
+class LatestJointPositionSource(
+    SubscribedJointPositionSource, LatestJointStateSynchronizer
+):
+    """
+    The joint positions of one robot part, written again in every cycle however old the
+    last message is.
+    """
 
 
 # %% base pose
