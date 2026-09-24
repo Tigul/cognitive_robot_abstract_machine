@@ -10,6 +10,12 @@ from typing_extensions import List, Self, TYPE_CHECKING
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.lidar_reading import LidarReading
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
+from semantic_digital_twin.robots.exceptions import MissingInputSourceError
+from semantic_digital_twin.robots.input_source import InputSource
+from semantic_digital_twin.robots.robot_part_mixins import (
+    HasInputSource,
+    TGenericInputSource,
+)
 from semantic_digital_twin.robots.robot_parts import Sensor
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
@@ -23,7 +29,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class LidarSource(ABC):
+class LidarSource(InputSource, ABC):
     """
     Where the readings of a lidar come from, either the world or a real scanner.
     """
@@ -100,7 +106,7 @@ class SimulatedLidarSource(LidarSource):
 
 
 @dataclass(eq=False)
-class Lidar(Sensor, ABC):
+class Lidar(Sensor, HasInputSource[LidarSource], ABC):
     """
     A lidar is a sensor that measures the distance to the surfaces around it along a fan
     of beams.
@@ -114,7 +120,9 @@ class Lidar(Sensor, ABC):
     The directions this lidar sweeps and the distances it can measure.
     """
 
-    source: LidarSource = field(kw_only=True)
+    source: TGenericInputSource = field(
+        default_factory=SimulatedLidarSource, kw_only=True
+    )
     """
     Where the readings of this lidar come from.
     """
@@ -122,7 +130,10 @@ class Lidar(Sensor, ABC):
     def get_lidar_reading(self) -> LidarReading:
         """
         :return: The most recent sweep of this lidar.
+        :raises MissingInputSourceError: If nothing says where the readings come from.
         """
+        if self.source is None:
+            raise MissingInputSourceError(robot_part=self)
         return self.source.get_lidar_reading(self)
 
     def setup_hardware_interfaces(self):
@@ -130,6 +141,15 @@ class Lidar(Sensor, ABC):
 
     def setup_joint_states(self) -> List[JointState]:
         return []
+
+    @classmethod
+    def simulated_source(cls) -> LidarSource:
+        return SimulatedLidarSource()
+
+    def real_source(self, node: Node, topic_name: str) -> LidarSource:
+        from semantic_digital_twin.adapters.ros.lidar import SubscribedLidarSource
+
+        return SubscribedLidarSource(node=node, topic_name=topic_name)
 
     @classmethod
     @abstractmethod
@@ -149,25 +169,7 @@ class Lidar(Sensor, ABC):
         :param robot_root: The root of the robot carrying this lidar.
         :return: This lidar, measuring the world it stands in.
         """
-        return cls.with_source(robot_root, SimulatedLidarSource())
-
-    @classmethod
-    def with_real_source(
-        cls, robot_root: KinematicStructureEntity, node: Node, topic: str
-    ) -> Self:
-        """
-        Creates a Lidar sensor attached to a real source.
-
-        :param robot_root: The root of the robot carrying this lidar.
-        :param node: The ros node, used for subscribing
-        :param topic: The topic name of the real source.
-        :return: A lidar sensor, measuring the real  world it stands in.
-        """
-        from semantic_digital_twin.adapters.ros.lidar import SubscribedLidarSource
-
-        return cls.with_source(
-            robot_root, SubscribedLidarSource(node=node, topic_name=topic)
-        )
+        return cls.with_source(robot_root, cls.simulated_source())
 
     @classmethod
     def setup_default_configuration_in_world_below_robot_root(

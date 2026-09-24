@@ -8,7 +8,7 @@ from importlib.resources import files
 from pathlib import Path
 
 import numpy as np
-from typing_extensions import Self, List
+from typing_extensions import ClassVar, Self, List
 
 from krrood.ormatic.utils import classproperty
 from semantic_digital_twin.adapters.sensors.lidar import Lidar, LidarSource
@@ -48,6 +48,15 @@ from semantic_digital_twin.world_description.connections import DifferentialDriv
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
+
+
+class StretchTopic(StrEnum):
+    """
+    Topics the Stretch publishes the state of its parts on, where it does not follow the
+    conventional name.
+    """
+
+    ODOMETRY = "odom"
 
 
 class StretchJoint(StrEnum):
@@ -392,6 +401,11 @@ class StretchMobileBase(
     HasTorso[StretchTorso],
     HasLidar[StretchBaseLidar],
 ):
+    topic_name: ClassVar[str] = StretchTopic.ODOMETRY
+    """
+    The topic the Stretch publishes the pose of its base on.
+    """
+
     full_body_controlled: bool = field(default=True, kw_only=True)
 
     @classproperty

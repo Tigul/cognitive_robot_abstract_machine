@@ -150,6 +150,17 @@ def subscribed_lidar(node, world: World) -> RootMountedLidar:
     )
 
 
+def test_a_lidar_switched_onto_its_robot_listens_on_the_given_topic(
+    rclpy_node, world_with_laser_body
+):
+    lidar = RootMountedLidar.with_simulated_source(world_with_laser_body.root)
+
+    lidar.use_real_source(rclpy_node, TOPIC_NAME)
+
+    assert isinstance(lidar.source, SubscribedLidarSource)
+    assert lidar.source.topic_name == TOPIC_NAME
+
+
 def test_a_lidar_given_a_subscribed_source_listens_on_the_given_topic(
     rclpy_node, world_with_laser_body
 ):

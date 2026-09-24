@@ -8,6 +8,8 @@ from typing import Union
 
 from typing_extensions import (
     ClassVar,
+    Optional,
+    TYPE_CHECKING,
     Type,
     TypeVar,
     Generic,
@@ -18,11 +20,12 @@ from typing_extensions import (
 from krrood.patterns.subclass_safe_generic import (
     SubClassSafeGeneric,
 )
-from krrood.utils import get_generic_type_parameters
+from krrood.utils import get_existing_field_by_name, get_generic_type_parameters
 from semantic_digital_twin.datastructures.lidar_reading import LidarReading
 from semantic_digital_twin.reasoning.predicates import LeftOf, RightOf
 from semantic_digital_twin.robots.exceptions import (
     MissingEndEffectorError,
+    MissingInputSourceError,
     MissingLidarError,
     MissingMobileBaseError,
     MissingNeckError,
@@ -32,7 +35,13 @@ from semantic_digital_twin.robots.exceptions import (
     TooFewFingersError,
     UnexpectedArmCountError,
     UnexpectedFingerCountError,
+    UnexpectedInputSourceError,
+    UndeclaredTopicError,
 )
+from semantic_digital_twin.robots.input_source import InputSource
+
+if TYPE_CHECKING:
+    from rclpy.node import Node
 
 logger = logging.getLogger("semantic_digital_twin")
 
@@ -53,6 +62,7 @@ TGenericFingers = TypeVarTuple("TGenericFingers")
 TGenericArms = TypeVarTuple("TGenericArms")
 TGenericSensors = TypeVarTuple("TGenericSensors")
 TGenericLidar = TypeVar("TGenericLidar")
+TGenericInputSource = TypeVar("TGenericInputSource", bound=InputSource)
 
 
 @dataclass(eq=False)
@@ -439,3 +449,100 @@ class HasLidar(Generic[TGenericLidar], SubClassSafeGeneric, RobotPartMixin, ABC)
         :return: The most recent sweep of the attached lidar.
         """
         return self.lidar.get_lidar_reading()
+
+
+# %% where a part is read from
+
+
+@dataclass(eq=False)
+class HasInputSource(
+    Generic[TGenericInputSource], SubClassSafeGeneric, RobotPartMixin, ABC
+):
+    """
+    Mixin class for robot parts that can be read either from the world they stand in or
+    from the robot they stand for.
+
+    The kind of source a part can be read from is bound as the generic parameter, so a
+    part cannot be handed a source meant for another kind of part.
+    """
+
+    source: TGenericInputSource = field(default=None, kw_only=True)
+    """
+    Where this part is read from.
+
+    ..note:: A family of parts re-declares this field under the same type variable, to
+        give it the default its own kind of source has.
+    """
+
+    topic_name: ClassVar[Optional[str]] = None
+    """
+    The topic the real robot publishes this part's state on, if its description names
+    one.
+    """
+
+    def validate(self):
+        """
+        :raises MissingInputSourceError: If nothing says where this part is read from.
+        """
+        if self.source is None:
+            raise MissingInputSourceError(robot_part=self)
+
+    @classmethod
+    def source_family(cls) -> Type[TGenericInputSource]:
+        """
+        :return: The kind of source this part can be read from.
+
+        ..note:: Read off :attr:`source`, which :class:`SubClassSafeGeneric` narrows to
+            the type the part binds, so the binding stays the only place it is stated.
+        """
+        return get_existing_field_by_name(cls, "source").type
+
+    @classmethod
+    @abstractmethod
+    def simulated_source(cls) -> TGenericInputSource:
+        """
+        :return: The source reading this part from the world it stands in.
+        """
+
+    @abstractmethod
+    def real_source(self, node: Node, topic_name: str) -> TGenericInputSource:
+        """
+        :param node: The ros node the messages are received on.
+        :param topic_name: The topic the robot publishes this part's state on.
+        :return: The source reading this part from the robot itself.
+        """
+
+    def use_simulated_source(self) -> None:
+        """
+        Read this part from the world it stands in.
+        """
+        self.use_source(self.simulated_source())
+
+    def use_real_source(self, node: Node, topic_name: Optional[str] = None) -> None:
+        """
+        Read this part from the robot itself.
+
+        :param node: The ros node the messages are received on.
+        :param topic_name: The topic to read, or ``None`` to read the one this part
+            declares.
+        :raises UndeclaredTopicError: If no topic is given and this part declares none.
+        """
+        if topic_name is None:
+            topic_name = self.topic_name
+        if topic_name is None:
+            raise UndeclaredTopicError(robot_part=self)
+        self.use_source(self.real_source(node, topic_name))
+
+    def use_source(self, source: TGenericInputSource) -> None:
+        """
+        Read this part from the given source from now on.
+
+        :param source: Where this part is read from.
+        :raises UnexpectedInputSourceError: If the source is not one this part can be
+            read from.
+        """
+        if not isinstance(source, self.source_family()):
+            raise UnexpectedInputSourceError(
+                robot_part=self, source=source, expected_source_family=self.source_family()
+            )
+        self.source = source

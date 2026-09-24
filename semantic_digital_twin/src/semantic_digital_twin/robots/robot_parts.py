@@ -8,6 +8,7 @@ from collections import defaultdict
 from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import (
+    ClassVar,
     Optional,
     Self,
     TYPE_CHECKING,
@@ -39,12 +40,23 @@ from semantic_digital_twin.exceptions import (
     DuplicateRobotAssignmentsError,
     MissingDefaultCameraError,
 )
+from semantic_digital_twin.input_synchronization import InputSynchronizer
+from semantic_digital_twin.robots.exceptions import MissingDriveConnectionError
+from semantic_digital_twin.robots.input_source import (
+    BasePoseSource,
+    JointPositionSource,
+    RobotTopic,
+    SimulatedBasePoseSource,
+    SimulatedJointPositionSource,
+)
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasEndEffector,
+    HasInputSource,
     HasMobileBase,
     HasSensors,
     TGenericEndEffector,
     HasLeftRightArm,
+    TGenericInputSource,
     TGenericSensors,
     RobotPartMixin,
 )
@@ -83,6 +95,8 @@ from semantic_digital_twin.world_description.world_modification import (
 )
 
 if TYPE_CHECKING:
+    from rclpy.node import Node
+
     from semantic_digital_twin.world import World
     from semantic_digital_twin.api import (
         BodySpecification,
@@ -372,7 +386,7 @@ class AbstractRobotPart(HasRootBody, HasRobotParts, ABC):
 
 
 @dataclass(eq=False)
-class KinematicChain(AbstractRobotPart, ABC):
+class KinematicChain(AbstractRobotPart, HasInputSource[JointPositionSource], ABC):
     """
     A kinematic chain is a robot part that consists of a chain of bodies and connections
     between them.
@@ -385,6 +399,34 @@ class KinematicChain(AbstractRobotPart, ABC):
     """
     The body at the end of the kinematic chain.
     """
+
+    source: TGenericInputSource = field(
+        default_factory=SimulatedJointPositionSource, kw_only=True
+    )
+    """
+    Where the positions of this chain's joints come from.
+    """
+
+    topic_name: ClassVar[str] = RobotTopic.JOINT_STATES
+    """
+    The topic a robot publishes the positions of its joints on.
+    """
+
+    @classmethod
+    def simulated_source(cls) -> JointPositionSource:
+        return SimulatedJointPositionSource()
+
+    def real_source(self, node: Node, topic_name: str) -> JointPositionSource:
+        from semantic_digital_twin.adapters.ros.input_synchronization import (
+            SubscribedJointPositionSource,
+        )
+
+        return SubscribedJointPositionSource(
+            world=self._world,
+            node=node,
+            topic_name=topic_name,
+            connections=self.active_connections,
+        )
 
     def _kinematic_structure_entities(
         self, visited: Set[int]
@@ -601,7 +643,9 @@ TGenericDrive = TypeVar("TGenericDrive", bound=WheeledDrive)
 
 
 @dataclass(eq=False)
-class MobileBase(AbstractRobotPart, Generic[TGenericDrive], ABC):
+class MobileBase(
+    AbstractRobotPart, Generic[TGenericDrive], HasInputSource[BasePoseSource], ABC
+):
     """
     The base of a robot.
 
@@ -615,6 +659,34 @@ class MobileBase(AbstractRobotPart, Generic[TGenericDrive], ABC):
 
     If False, only the robot will always stand still when moving an arm.
     """
+
+    source: TGenericInputSource = field(
+        default_factory=SimulatedBasePoseSource, kw_only=True
+    )
+    """
+    Where the pose of this base comes from.
+    """
+
+    @classmethod
+    def simulated_source(cls) -> BasePoseSource:
+        return SimulatedBasePoseSource()
+
+    def real_source(self, node: Node, topic_name: str) -> BasePoseSource:
+        """
+        :raises MissingDriveConnectionError: If there is no drive the odometry could be
+            written into.
+        """
+        from semantic_digital_twin.adapters.ros.input_synchronization import (
+            SubscribedBasePoseSource,
+        )
+
+        robot = self._robot
+        drive = robot.drive if robot is not None else None
+        if drive is None:
+            raise MissingDriveConnectionError(robot_part=self)
+        return SubscribedBasePoseSource(
+            world=self._world, node=node, topic_name=topic_name, connection=drive
+        )
 
     @classproperty
     @abstractmethod
@@ -998,6 +1070,56 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
 
     def get_sensors(self) -> list[Sensor]:
         return [p for p in self._robot_parts if isinstance(p, Sensor)]
+
+    # %% where the parts of this robot are read from
+
+    @property
+    def _parts_with_input_source(self) -> list[HasInputSource]:
+        """
+        The parts that can be told where they are read from.
+
+        ..note:: Asked for explicitly rather than through a method every part answers,
+            because a method on :class:`AbstractRobotPart` would shadow the mixin's.
+        """
+        return [
+            robot_part
+            for robot_part in self._robot_parts
+            if isinstance(robot_part, HasInputSource)
+        ]
+
+    def use_real_sources(self, node: Node) -> None:
+        """
+        Read every part that declares a topic from what this robot publishes there.
+
+        Parts that declare no topic keep reading the world they stand in.
+
+        :param node: The ros node the messages are received on.
+        """
+        for robot_part in self._parts_with_input_source:
+            if robot_part.topic_name is None:
+                continue
+            robot_part.use_real_source(node)
+
+    def use_simulated_sources(self) -> None:
+        """
+        Read every part of this robot from the world it stands in again.
+        """
+        for robot_part in self._parts_with_input_source:
+            robot_part.use_simulated_source()
+
+    def get_input_synchronizers(self) -> list[InputSynchronizer]:
+        """
+        :return: The inputs a loop has to apply to keep this robot's parts on what the
+            real robot reports.
+
+        A part read from the world it stands in needs nothing applied, so a fully
+        simulated robot has no inputs.
+        """
+        return [
+            robot_part.source
+            for robot_part in self._parts_with_input_source
+            if isinstance(robot_part.source, InputSynchronizer)
+        ]
 
     def get_torso(self):
         [torso] = [p for p in self._robot_parts if isinstance(p, Torso)]

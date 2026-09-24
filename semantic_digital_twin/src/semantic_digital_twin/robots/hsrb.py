@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 from importlib.resources import files
 from pathlib import Path
-from typing import Self, List
+from typing import ClassVar, Self, List
 
 from krrood.ormatic.utils import classproperty
 from semantic_digital_twin.adapters.sensors.lidar import Lidar, LidarSource
@@ -53,6 +53,15 @@ from semantic_digital_twin.world_description.connections import (
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
+
+
+class HSRBTopic(StrEnum):
+    """
+    Topics the HSRB publishes the state of its parts on, where it does not follow the
+    conventional name.
+    """
+
+    ODOMETRY = "laser_odom"
 
 
 class HSRBJoint(StrEnum):
@@ -442,6 +451,11 @@ class HSRBBaseLidar(Lidar):
 class HSRBMobileBase(
     MobileBase[OmniDrive], HasTorso[HSRBTorso], HasLidar[HSRBBaseLidar]
 ):
+
+    topic_name: ClassVar[str] = HSRBTopic.ODOMETRY
+    """
+    The topic the HSRB publishes the pose of its base on.
+    """
 
     @classproperty
     def forward_axis(cls) -> Vector3:

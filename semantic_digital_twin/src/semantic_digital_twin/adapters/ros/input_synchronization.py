@@ -17,8 +17,12 @@ from semantic_digital_twin.exceptions import (
     AlreadyTrackedByTfFrameError,
     ConnectionCannotBeTrackedByTfFrameError,
 )
+from semantic_digital_twin.input_synchronization import InputSynchronizer
+from semantic_digital_twin.robots.input_source import (
+    BasePoseSource,
+    JointPositionSource,
+)
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
-from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
     ActiveConnection1DOF,
     Connection6DoF,
@@ -27,93 +31,6 @@ from semantic_digital_twin.world_description.connections import (
 )
 
 # %% base classes
-
-
-@dataclass
-class InputSynchronizer(ABC):
-    """
-    Writes an external source of truth, e.g. a robot's joint states, into the world
-    state.
-    """
-
-    world: World
-    """
-    The world whose state is kept in sync with the external source.
-    """
-
-    @abstractmethod
-    def apply(self) -> bool:
-        """
-        Write the most recent input into the world state.
-
-        :return: Whether anything was written.
-        """
-
-    def close(self) -> None:
-        """
-        Release the resources used to receive inputs.
-        """
-
-
-@dataclass
-class WorldStateInputs:
-    """
-    All inputs that one loop reads before it computes anything.
-    """
-
-    world: World
-    """
-    The world whose state is written and whose observers are notified.
-    """
-
-    synchronizers: List[InputSynchronizer] = field(default_factory=list)
-    """
-    The inputs, applied in the order they were added.
-    """
-
-    def apply_inputs(self) -> bool:
-        """
-        Write all inputs into the world state, in the order they were added.
-
-        :return: Whether any of them wrote something.
-        """
-        wrote_something = False
-        for synchronizer in self.synchronizers:
-            wrote_something |= synchronizer.apply()
-        return wrote_something
-
-    def synchronize(self) -> None:
-        """
-        Write all inputs into the world state and announce the change.
-
-        Nothing is announced when no input wrote, because announcing recomputes the
-        forward kinematics and reaches every observer of the world.
-        """
-        if not self.apply_inputs():
-            return
-        self.announce_state()
-
-    def synchronize_and_announce(self) -> None:
-        """
-        Write all inputs into the world state and announce the state even if no input
-        wrote.
-
-        Use this where nothing else announces, so that the observers of the world do not
-        go stale.
-        """
-        self.apply_inputs()
-        self.announce_state()
-
-    def announce_state(self) -> None:
-        """
-        Hand the current world state to the observers of the world.
-
-        Nothing is announced while the world model is being modified, because the
-        observers would see an inconsistent model.
-        """
-        if self.world.world_is_being_modified:
-            return
-        self.world.notify_state_change()
 
 
 @dataclass
@@ -158,7 +75,18 @@ class JointStateInputSynchronizer(TopicInputSynchronizer[JointState], ABC):
             connection: ActiveConnection1DOF = self.world.get_connection_by_name(
                 joint_name
             )
+            if not self.writes(connection):
+                continue
             self.world.state[connection.raw_dof.id].position = position
+
+    def writes(self, connection: ActiveConnection1DOF) -> bool:
+        """
+        Whether the position this synchronizer received for a connection is its to
+        write.
+
+        :param connection: The connection the message reports a position for.
+        """
+        return True
 
     @abstractmethod
     def take_message(self) -> JointState | None:
@@ -199,6 +127,25 @@ class LatestJointStateSynchronizer(JointStateInputSynchronizer):
         return self.latest_message
 
 
+@dataclass
+class SubscribedJointPositionSource(JointPositionSource, PendingJointStateSynchronizer):
+    """
+    The joint positions one robot part reports on a ROS 2 topic.
+
+    A robot publishes all of its joints on one topic, so this source writes only the
+    connections of the part it is attached to and leaves the rest of the robot to
+    whatever reads it.
+    """
+
+    connections: List[ActiveConnection1DOF] = field(kw_only=True)
+    """
+    The connections of the part this source is attached to.
+    """
+
+    def writes(self, connection: ActiveConnection1DOF) -> bool:
+        return connection in self.connections
+
+
 # %% base pose
 
 
@@ -224,6 +171,13 @@ class OdometrySynchronizer(TopicInputSynchronizer[Odometry]):
             quat_y=pose.orientation.y,
             quat_z=pose.orientation.z,
         )
+
+
+@dataclass
+class SubscribedBasePoseSource(BasePoseSource, OdometrySynchronizer):
+    """
+    The pose a real mobile base reports as odometry on a ROS 2 topic.
+    """
 
 
 @dataclass

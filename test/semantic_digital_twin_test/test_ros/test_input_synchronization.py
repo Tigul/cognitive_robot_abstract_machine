@@ -17,6 +17,8 @@ from semantic_digital_twin.adapters.ros.input_synchronization import (
     LatestJointStateSynchronizer,
     OdometrySynchronizer,
     PendingJointStateSynchronizer,
+    SubscribedBasePoseSource,
+    SubscribedJointPositionSource,
     TfFrameSynchronizer,
     TopicInputSynchronizer,
 )
@@ -26,12 +28,17 @@ from semantic_digital_twin.exceptions import (
     ConnectionCannotBeTrackedByTfFrameError,
     UnboundMessageTypeError,
 )
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from semantic_digital_twin.spatial_types import (
+    HomogeneousTransformationMatrix,
+    Vector3,
+)
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
+    ActiveConnection1DOF,
     Connection6DoF,
     FixedConnection,
     OmniDrive,
+    RevoluteConnection,
 )
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -130,6 +137,30 @@ def omni_drive_world() -> World:
 
 
 @pytest.fixture()
+def world_with_two_connections() -> (
+    tuple[World, ActiveConnection1DOF, ActiveConnection1DOF]
+):
+    """
+    A world whose root drives two separate one degree of freedom connections, standing
+    for the joints of two different robot parts.
+    """
+    world = World()
+    with world.modify_world():
+        root = Body(name=PrefixedName("root"))
+        part_body = Body(name=PrefixedName("part_body"))
+        other_body = Body(name=PrefixedName("other_body"))
+        part_connection = RevoluteConnection.create_with_dofs(
+            world=world, parent=root, child=part_body, axis=Vector3.Z()
+        )
+        other_connection = RevoluteConnection.create_with_dofs(
+            world=world, parent=root, child=other_body, axis=Vector3.Z()
+        )
+        world.add_connection(part_connection)
+        world.add_connection(other_connection)
+    return world, part_connection, other_connection
+
+
+@pytest.fixture()
 def tracked_connection(world_with_two_bodies):
     """
     A world whose two bodies are joined by a tracked 6 degree of freedom connection.
@@ -151,6 +182,11 @@ def test_joint_state_synchronizers_read_joint_state_messages():
 
 def test_odometry_synchronizer_reads_odometry_messages():
     assert OdometrySynchronizer.message_type() is Odometry
+
+
+def test_the_source_of_a_part_reads_the_same_messages_as_the_synchronizer_it_is():
+    assert SubscribedJointPositionSource.message_type() is JointState
+    assert SubscribedBasePoseSource.message_type() is Odometry
 
 
 def test_synchronizer_without_bound_message_type_is_rejected():
@@ -216,7 +252,64 @@ def test_synchronizer_writes_nothing_without_a_message(rclpy_node, mini_world: W
     assert mini_world.state[connection.raw_dof.id].position == position_before_apply
 
 
+# %% writing the joints of one robot part
+
+
+def test_the_source_of_a_part_writes_the_joints_of_that_part(
+    rclpy_node, world_with_two_connections
+):
+    world, part_connection, other_connection = world_with_two_connections
+    source = SubscribedJointPositionSource(
+        world=world,
+        node=rclpy_node,
+        topic_name="joint_states",
+        connections=[part_connection],
+    )
+    source.latest_message = joint_state_message(part_connection.name.name, 0.42)
+
+    assert source.apply() is True
+    assert world.state[part_connection.raw_dof.id].position == 0.42
+
+
+def test_the_source_of_a_part_leaves_the_joints_of_another_part_alone(
+    rclpy_node, world_with_two_connections
+):
+    world, part_connection, other_connection = world_with_two_connections
+    position_before_apply = world.state[other_connection.raw_dof.id].position
+    source = SubscribedJointPositionSource(
+        world=world,
+        node=rclpy_node,
+        topic_name="joint_states",
+        connections=[part_connection],
+    )
+    source.latest_message = joint_state_message(other_connection.name.name, 0.42)
+
+    assert source.apply() is True
+    assert world.state[other_connection.raw_dof.id].position == position_before_apply
+
+
 # %% writing the base pose
+
+
+def test_the_source_of_a_base_writes_the_reported_pose_into_the_drive(
+    rclpy_node, omni_drive_world: World
+):
+    connection = omni_drive_world.get_connection_by_name("root_T_base")
+    expected_pose = HomogeneousTransformationMatrix.from_xyz_rpy(x=0.5, yaw=-0.25)
+    source = SubscribedBasePoseSource(
+        world=omni_drive_world,
+        node=rclpy_node,
+        topic_name="odom",
+        connection=connection,
+    )
+    source.latest_message = odometry_message(expected_pose)
+
+    assert source.apply() is True
+    assert_allclose(
+        connection.origin.to_np().astype(float),
+        expected_pose.to_np().astype(float),
+        atol=1e-9,
+    )
 
 
 def test_odometry_synchronizer_writes_the_pose_into_the_drive(

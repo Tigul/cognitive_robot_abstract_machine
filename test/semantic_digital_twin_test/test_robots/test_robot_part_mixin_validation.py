@@ -6,6 +6,7 @@ import pytest
 
 from semantic_digital_twin.robots.exceptions import (
     MissingEndEffectorError,
+    MissingInputSourceError,
     MissingLidarError,
     MissingMobileBaseError,
     MissingNeckError,
@@ -16,10 +17,12 @@ from semantic_digital_twin.robots.exceptions import (
     UnexpectedArmCountError,
     UnexpectedFingerCountError,
 )
+from semantic_digital_twin.robots.input_source import InputSource
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasArms,
     HasEndEffector,
     HasFingers,
+    HasInputSource,
     HasLeftRightArm,
     HasLidar,
     HasMobileBase,
@@ -37,6 +40,13 @@ from semantic_digital_twin.robots.robot_part_mixins import (
 class MountedPart:
     """
     A part a mixin can hold, carrying nothing the validation looks at.
+    """
+
+
+@dataclass
+class MountedSource(InputSource):
+    """
+    A source a mixin can be read from, carrying nothing the validation looks at.
     """
 
 
@@ -112,10 +122,18 @@ class PartWithoutItsSingleChild(
     HasEndEffector[MountedPart],
     HasMobileBase[MountedPart],
     HasSensors[MountedPart],
+    HasInputSource[MountedSource],
 ):
     """
     A part combining every mixin that requires a single child, carrying none of them.
     """
+
+    @classmethod
+    def simulated_source(cls) -> MountedSource:
+        return MountedSource()
+
+    def real_source(self, node, topic_name: str) -> MountedSource:
+        return MountedSource()
 
 
 @dataclass(eq=False)
@@ -155,6 +173,7 @@ class PartWithLeftAndRightArm(HasLeftRightArm[MountedPart, MountedPart]):
         (HasEndEffector, MissingEndEffectorError),
         (HasMobileBase, MissingMobileBaseError),
         (HasSensors, MissingSensorsError),
+        (HasInputSource, MissingInputSourceError),
     ],
 )
 def test_a_mixin_missing_its_child_names_the_child_it_misses(mixin, error):

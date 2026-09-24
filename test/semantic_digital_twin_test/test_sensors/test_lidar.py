@@ -16,6 +16,11 @@ from semantic_digital_twin.datastructures.lidar_reading import LidarReading
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.exceptions import InvalidScanPattern
+from semantic_digital_twin.robots.exceptions import (
+    MissingInputSourceError,
+    UnexpectedInputSourceError,
+)
+from semantic_digital_twin.robots.input_source import SimulatedJointPositionSource
 from semantic_digital_twin.robots.robot_parts import Sensor
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -353,3 +358,25 @@ def test_a_lidar_annotated_from_a_robot_description_measures_the_world():
     )
 
     assert isinstance(lidar.source, SimulatedLidarSource)
+
+
+def test_a_lidar_is_not_read_from_a_source_of_another_kind():
+    _, mount = world_with_walls()
+    lidar = BodyMountedLidar.with_simulated_source(mount)
+
+    with pytest.raises(UnexpectedInputSourceError) as raised:
+        lidar.use_source(SimulatedJointPositionSource())
+
+    assert raised.value.expected_source_family is LidarSource
+
+
+def test_a_lidar_that_was_not_told_where_its_readings_come_from_says_so():
+    _, mount = world_with_walls()
+    lidar = BodyMountedLidar(
+        root=mount, scan_pattern=forward_beam_pattern(), source=None
+    )
+
+    with pytest.raises(MissingInputSourceError) as raised:
+        lidar.get_lidar_reading()
+
+    assert raised.value.robot_part is lidar
