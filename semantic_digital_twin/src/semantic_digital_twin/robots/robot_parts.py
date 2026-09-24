@@ -940,7 +940,7 @@ class AbstractRobot(Agent, HasRobotParts, ABC):
             assert part._robot == self, f"Part {part} refers to wrong robot"
 
             if isinstance(part, RobotPartMixin):
-                part.validate_assumptions()
+                part.validate()
 
         return True
 

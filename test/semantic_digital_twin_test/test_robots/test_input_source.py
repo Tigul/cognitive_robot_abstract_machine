@@ -140,7 +140,7 @@ def test_a_part_that_was_not_told_where_it_is_read_from_says_so():
     part = PartReadFromADeclaredTopic()
 
     with pytest.raises(MissingInputSourceError) as raised:
-        part.validate_assumptions()
+        part.validate()
 
     assert raised.value.robot_part is part
 

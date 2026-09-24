@@ -272,6 +272,15 @@ def test_simulated_source_returns_one_range_per_beam():
     assert len(reading.ranges) == pattern.beam_count
 
 
+def test_simulated_source_measures_the_distances_a_reading_is_typed_to_hold():
+    _, mount = world_with_walls(FAR_WALL_DISTANCE)
+    lidar = simulated_lidar(mount, forward_beam_pattern())
+
+    reading = lidar.get_lidar_reading()
+
+    assert reading.ranges.dtype == np.float64
+
+
 def test_simulated_source_expresses_its_beams_in_the_lidars_own_root():
     _, mount = world_with_walls(FAR_WALL_DISTANCE)
     lidar = simulated_lidar(mount, forward_beam_pattern())

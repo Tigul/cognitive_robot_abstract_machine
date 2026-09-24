@@ -5,6 +5,7 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 import numpy as np
+import numpy.typing as npt
 from typing_extensions import List, Self, TYPE_CHECKING
 
 from semantic_digital_twin.datastructures.joint_state import JointState
@@ -74,11 +75,11 @@ class SimulatedLidarSource(LidarSource):
 
     def _nearest_hit_per_beam(
         self,
-        points: np.ndarray,
-        index_ray: np.ndarray,
-        world_P_lidar: np.ndarray,
+        points: npt.NDArray[np.float64],
+        index_ray: npt.NDArray[np.int_],
+        world_P_lidar: npt.NDArray[np.float64],
         beam_count: int,
-    ) -> np.ndarray:
+    ) -> npt.NDArray[np.float64]:
         """
         Reduces the hits of a ray test to the one distance each beam measures.
 

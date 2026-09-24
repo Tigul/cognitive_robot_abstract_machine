@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+import numpy.typing as npt
 from typing_extensions import TYPE_CHECKING
 
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
@@ -29,7 +30,7 @@ class LidarReading:
     The directions the sweep covered and the distances it could measure.
     """
 
-    ranges: np.ndarray
+    ranges: npt.NDArray[np.float64]
     """
     The distance each beam travelled before it hit a surface, in meters, ordered like the
     beams of :attr:`scan_pattern`.

@@ -79,6 +79,14 @@ def test_converted_scan_keeps_the_ranges_of_the_message(world_with_laser_body):
     assert reading.ranges.tolist() == RANGES
 
 
+def test_converted_scan_holds_the_distances_a_reading_is_typed_to_hold(
+    world_with_laser_body,
+):
+    reading = LaserScanToSemDTConverter.convert(laser_scan(), world_with_laser_body)
+
+    assert reading.ranges.dtype == np.float64
+
+
 def test_converted_scan_is_expressed_in_the_body_named_by_its_header(
     world_with_laser_body,
 ):

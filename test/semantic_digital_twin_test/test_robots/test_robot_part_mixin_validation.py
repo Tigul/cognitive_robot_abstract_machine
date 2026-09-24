@@ -83,29 +83,54 @@ class PartNarrowingAMixin(HasTwoFingers[Thumb, OpposingFinger]):
     """
 
 
+@dataclass(eq=False)
+class PartCombiningANarrowingMixinWithAnother(
+    HasOneArm[MountedPart], HasNeck[MountedPart]
+):
+    """
+    A part whose first mixin narrows another and whose second is unrelated, as a torso
+    carrying one arm and a neck is.
+    """
+
+
 # %% assumptions of independent mixins
 
 
 def test_every_independent_mixin_is_checked():
+    """
+    A part combining several mixins resolves ``validate`` to the first of them, so each
+    one has to hand the check on to the next.
+    """
     part = PartCombiningIndependentMixins(torso=MountedPart())
 
     with pytest.raises(MissingLidarError):
-        part.validate_assumptions()
+        part.validate()
 
 
 def test_a_part_satisfying_every_independent_mixin_passes():
     part = PartCombiningIndependentMixins(torso=MountedPart(), lidar=MountedPart())
 
-    part.validate_assumptions()
+    part.validate()
 
 
 # %% assumptions a narrowing mixin replaces
 
 
+def test_a_narrowing_mixin_hands_the_check_on_to_the_mixins_after_it():
+    """
+    A mixin that narrows another still sits in front of every mixin declared after it,
+    so ending the chain there would leave their assumptions unchecked.
+    """
+    part = PartCombiningANarrowingMixinWithAnother(arms=[MountedPart()])
+
+    with pytest.raises(MissingNeckError):
+        part.validate()
+
+
 def test_a_narrowed_assumption_replaces_the_one_it_narrows():
     part = PartNarrowingAMixin(fingers=[Thumb(), OpposingFinger()])
 
-    part.validate_assumptions()
+    part.validate()
 
     with pytest.raises(TooFewFingersError):
         HasFingers.validate(part)
@@ -187,10 +212,10 @@ def test_too_few_fingers_carries_the_counts():
     part = PartWithManyFingers(fingers=[Thumb(), OpposingFinger()])
 
     with pytest.raises(TooFewFingersError) as raised:
-        part.validate_assumptions()
+        part.validate()
 
     assert raised.value.robot_part is part
-    assert raised.value.minimum_count == HasFingers.minimum_finger_count
+    assert raised.value.minimum_count == 3
     assert raised.value.actual_count == len(part.fingers)
 
 
@@ -198,7 +223,7 @@ def test_a_wrong_number_of_fingers_carries_the_counts():
     part = PartNarrowingAMixin(fingers=[Thumb()])
 
     with pytest.raises(UnexpectedFingerCountError) as raised:
-        part.validate_assumptions()
+        part.validate()
 
     assert raised.value.expected_count == HasTwoFingers.finger_count
     assert raised.value.actual_count == len(part.fingers)
@@ -208,9 +233,9 @@ def test_too_few_arms_carries_the_counts():
     part = PartWithManyArms(arms=[MountedPart(), MountedPart()])
 
     with pytest.raises(TooFewArmsError) as raised:
-        part.validate_assumptions()
+        part.validate()
 
-    assert raised.value.minimum_count == HasArms.minimum_arm_count
+    assert raised.value.minimum_count == 3
     assert raised.value.actual_count == len(part.arms)
 
 
@@ -225,7 +250,7 @@ def test_a_wrong_number_of_arms_carries_the_counts(part_type, expected_count):
     part = part_type(arms=[])
 
     with pytest.raises(UnexpectedArmCountError) as raised:
-        part.validate_assumptions()
+        part.validate()
 
     assert raised.value.expected_count == expected_count
     assert raised.value.actual_count == 0

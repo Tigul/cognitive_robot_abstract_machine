@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 import numpy as np
+import numpy.typing as npt
 from typing_extensions import TYPE_CHECKING, List, Optional
 
 from semantic_digital_twin.exceptions import InvalidScanPattern
@@ -80,7 +81,7 @@ class ScanPattern:
         )
 
     @property
-    def beam_angles(self) -> np.ndarray:
+    def beam_angles(self) -> npt.NDArray[np.float64]:
         """
         :return: The angle of every beam, in radians, ordered from
             :attr:`minimum_angle` outwards.
@@ -88,7 +89,7 @@ class ScanPattern:
         return self.minimum_angle + np.arange(self.beam_count) * self.angle_increment
 
     @property
-    def beam_directions(self) -> np.ndarray:
+    def beam_directions(self) -> npt.NDArray[np.float64]:
         """
         :return: A unit vector along every beam, one per row, in the scanner's frame.
         """

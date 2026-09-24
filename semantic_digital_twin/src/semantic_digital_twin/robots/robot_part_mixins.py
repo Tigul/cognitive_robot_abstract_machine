@@ -69,41 +69,19 @@ TGenericInputSource = TypeVar("TGenericInputSource", bound=InputSource)
 class RobotPartMixin(ABC):
     """
     Base mixin class for robot parts.
+
+    Every mixin states its own assumption in :meth:`validate` and then hands the check
+    on to the next mixin of the part, so that a part combining several of them has all
+    of their assumptions checked rather than only the first one's.
     """
 
-    @abstractmethod
     def validate(self):
         """
-        Validation method that describes assumptions made about the robot part.
-        """
+        Checks the assumptions this mixin makes about the robot part.
 
-    def validate_assumptions(self):
+        Ends the chain of checks a part's mixins hand along, so a mixin that makes no
+        assumption of its own needs no implementation.
         """
-        Checks the assumptions of every mixin this robot part combines.
-
-        ..note:: Calling :meth:`validate` would reach only one mixin, since a part
-            combining several of them resolves the name to the first.
-        """
-        for mixin in self._narrowest_mixins():
-            mixin.validate(self)
-
-    def _narrowest_mixins(self) -> list[Type[RobotPartMixin]]:
-        """
-        :return: The mixins stating this part's assumptions, leaving out every mixin
-            another one of them narrows.
-        """
-        mixins = [
-            ancestor
-            for ancestor in type(self).__mro__
-            if issubclass(ancestor, RobotPartMixin) and "validate" in vars(ancestor)
-        ]
-        return [
-            mixin
-            for mixin in mixins
-            if not any(
-                other is not mixin and issubclass(other, mixin) for other in mixins
-            )
-        ]
 
 
 @dataclass(eq=False)
@@ -115,11 +93,6 @@ class HasFingers(
 ):
     """
     Mixin class for robots or robot parts that have fingers as their direct children.
-    """
-
-    minimum_finger_count: ClassVar[int] = 3
-    """
-    How many fingers a part combining this mixin has at least.
     """
 
     fingers: list[Union[TGenericThumb, Unpack[TGenericFingers]]] = field(
@@ -134,12 +107,14 @@ class HasFingers(
         :raises TooFewFingersError: If fewer fingers are attached than this mixin
             allows.
         """
-        if len(self.fingers) < self.minimum_finger_count:
+        minimum_count = 3
+        if len(self.fingers) < minimum_count:
             raise TooFewFingersError(
                 robot_part=self,
-                minimum_count=self.minimum_finger_count,
+                minimum_count=minimum_count,
                 actual_count=len(self.fingers),
             )
+        super().validate()
 
     @property
     def thumb(self) -> TGenericThumb:
@@ -173,6 +148,9 @@ class HasTwoFingers(
         """
         :raises UnexpectedFingerCountError: If a different number of fingers is attached
             than this mixin allows.
+
+        ..note:: Hands the check on past :class:`HasFingers`, whose minimum this exact
+            count replaces, and on to the mixins declared after it.
         """
         if len(self.fingers) != self.finger_count:
             raise UnexpectedFingerCountError(
@@ -180,6 +158,7 @@ class HasTwoFingers(
                 expected_count=self.finger_count,
                 actual_count=len(self.fingers),
             )
+        super(HasFingers, self).validate()
 
     @property
     def finger(self) -> Union[TGenericLeftFinger, TGenericRightFinger]:
@@ -214,6 +193,7 @@ class HasSensors(
         """
         if not self.sensors:
             raise MissingSensorsError(robot_part=self)
+        super().validate()
 
 
 @dataclass(eq=False)
@@ -236,17 +216,13 @@ class HasEndEffector(
         """
         if self.end_effector is None:
             raise MissingEndEffectorError(robot_part=self)
+        super().validate()
 
 
 @dataclass(eq=False)
 class HasArms(Generic[Unpack[TGenericArms]], SubClassSafeGeneric, RobotPartMixin, ABC):
     """
     Mixin class for robots or robot parts that have arms as their direct children.
-    """
-
-    minimum_arm_count: ClassVar[int] = 3
-    """
-    How many arms a part combining this mixin has at least.
     """
 
     arms: list[Union[Unpack[TGenericArms]]] = field(default_factory=list, kw_only=True)
@@ -258,12 +234,14 @@ class HasArms(Generic[Unpack[TGenericArms]], SubClassSafeGeneric, RobotPartMixin
         """
         :raises TooFewArmsError: If fewer arms are attached than this mixin allows.
         """
-        if len(self.arms) < self.minimum_arm_count:
+        minimum_count = 3
+        if len(self.arms) < minimum_count:
             raise TooFewArmsError(
                 robot_part=self,
-                minimum_count=self.minimum_arm_count,
+                minimum_count=minimum_count,
                 actual_count=len(self.arms),
             )
+        super().validate()
 
 
 @dataclass(eq=False)
@@ -281,6 +259,9 @@ class HasOneArm(HasArms[TGenericArm], RobotPartMixin, ABC):
         """
         :raises UnexpectedArmCountError: If a different number of arms is attached than
             this mixin allows.
+
+        ..note:: Hands the check on past :class:`HasArms`, whose minimum this exact count
+            replaces, and on to the mixins declared after it.
         """
         if len(self.arms) != self.arm_count:
             raise UnexpectedArmCountError(
@@ -288,6 +269,7 @@ class HasOneArm(HasArms[TGenericArm], RobotPartMixin, ABC):
                 expected_count=self.arm_count,
                 actual_count=len(self.arms),
             )
+        super(HasArms, self).validate()
 
     @property
     def arm(self) -> TGenericArm:
@@ -313,6 +295,17 @@ class HasLeftRightArm(
     """
 
     def validate(self):
+        """
+        :raises UnexpectedArmCountError: If a different number of arms is attached than
+            this mixin allows.
+
+        ..note:: Hands the check on past :class:`HasArms`, whose minimum this exact count
+            replaces, and on to the mixins declared after it.
+        """
+        self._validate_arm_count()
+        super(HasArms, self).validate()
+
+    def _validate_arm_count(self):
         """
         :raises UnexpectedArmCountError: If a different number of arms is attached than
             this mixin allows.
@@ -349,7 +342,7 @@ class HasLeftRightArm(
         :raises UnexpectedArmCountError: If a different number of arms is attached than
             this mixin allows.
         """
-        HasLeftRightArm.validate(self)
+        self._validate_arm_count()
         pov = self.root.global_transform
         [first_arm, second_arm] = self.arms
         # the arms may share a root, but the first body after the root should be different
@@ -386,6 +379,7 @@ class HasMobileBase(
         """
         if self.mobile_base is None:
             raise MissingMobileBaseError(robot_part=self)
+        super().validate()
 
 
 @dataclass(eq=False)
@@ -405,6 +399,7 @@ class HasTorso(Generic[TGenericTorso], SubClassSafeGeneric, RobotPartMixin, ABC)
         """
         if self.torso is None:
             raise MissingTorsoError(robot_part=self)
+        super().validate()
 
 
 @dataclass(eq=False)
@@ -424,6 +419,7 @@ class HasNeck(Generic[TGenericNeck], SubClassSafeGeneric, RobotPartMixin, ABC):
         """
         if self.neck is None:
             raise MissingNeckError(robot_part=self)
+        super().validate()
 
 
 @dataclass(eq=False)
@@ -443,6 +439,7 @@ class HasLidar(Generic[TGenericLidar], SubClassSafeGeneric, RobotPartMixin, ABC)
         """
         if self.lidar is None:
             raise MissingLidarError(robot_part=self)
+        super().validate()
 
     def get_lidar_reading(self) -> LidarReading:
         """
@@ -486,6 +483,7 @@ class HasInputSource(
         """
         if self.source is None:
             raise MissingInputSourceError(robot_part=self)
+        super().validate()
 
     @classmethod
     def source_family(cls) -> Type[TGenericInputSource]:
