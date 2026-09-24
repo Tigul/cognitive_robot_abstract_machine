@@ -28,6 +28,7 @@ from semantic_digital_twin.adapters.ros.input_synchronization import (
     PendingJointPositionSource,
     SubscribedBasePoseSource,
 )
+from semantic_digital_twin.robots.input_source import SimulatedJointPositionSource
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.robots.daisy import DAiSyJoint
 from semantic_digital_twin.robots.stretch import StretchJoint
@@ -57,15 +58,14 @@ def test_two_interfaces_with_the_same_joint_names_are_equal():
     )
 
 
-def test_the_mujoco_interface_defaults_name_every_part_of_the_drive():
+def test_the_mujoco_interface_defaults_name_the_frames_its_localization_uses():
     interface = PR2VelocityMujocoInterface()
 
     assert (
         interface.map_name,
         interface.localization_joint_name,
         interface.odom_link_name,
-        interface.drive_joint_name,
-    ) == ("map", "localization", "odom_combined", "brumbrum")
+    ) == ("map", "localization", "odom_combined")
 
 
 # %% the tf frame synchronizer is created on demand
@@ -239,3 +239,49 @@ def test_the_base_pose_is_read_by_both_loops_from_one_source(
         synchronizer is base_source
         for synchronizer in motion_server.control_loop.inputs.synchronizers
     )
+
+
+@dataclass
+class BaseReadingInterface(RobotInterfaceConfig):
+    """
+    An interface that reads only the robot's base from the robot itself, leaving its
+    joints to whatever else reads them.
+    """
+
+    def setup(self):
+        self.sync_robot_part(self.robot.mobile_base)
+
+
+@pytest.fixture()
+def pr2_reading_only_its_base(init_rospy) -> Giskard:
+    """
+    A closed-loop Giskard whose PR2 reads only its base from what the robot publishes.
+    """
+    giskard = Giskard(
+        world_config=WorldWithPR2Config(urdf=load_xacro(PR2.get_ros_file_path())),
+        robot_interface_config=BaseReadingInterface(),
+        server_config=GiskardServerConfig(execution_mode=ExecutionMode.CLOSED_LOOP),
+        qp_controller_config=QPControllerConfig(target_frequency=25),
+    )
+    giskard.setup()
+    return giskard
+
+
+def test_syncing_one_part_applies_that_part(pr2_reading_only_its_base):
+    base_source = pr2_reading_only_its_base.robot.mobile_base.source
+    motion_server = pr2_reading_only_its_base.motion_server
+
+    assert isinstance(base_source, SubscribedBasePoseSource)
+    assert [
+        synchronizer
+        for synchronizer in motion_server.inputs.synchronizers
+        if synchronizer is base_source
+    ] == [base_source]
+
+
+def test_syncing_one_part_leaves_the_other_parts_reading_the_world(
+    pr2_reading_only_its_base,
+):
+    arm = pr2_reading_only_its_base.robot.left_arm
+
+    assert isinstance(arm.source, SimulatedJointPositionSource)

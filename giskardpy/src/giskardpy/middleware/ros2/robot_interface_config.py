@@ -37,6 +37,7 @@ from giskardpy.middleware.ros2.ros2_interface import (
 )
 from giskardpy.middleware.ros2.server_config import GiskardServerConfig
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.robots.robot_part_mixins import HasInputSource
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import (
@@ -162,6 +163,16 @@ class RobotInterfaceConfig(ABC):
         self.motion_server.inputs.read_robot(self.robot)
         if self.server_config.is_closed_loop:
             self.control_loop.inputs.read_robot(self.robot)
+
+    def sync_robot_part(self, robot_part: HasInputSource):
+        """
+        Tell Giskard to read one part of the robot from the robot itself, on the topic
+        that part declares.
+        """
+        robot_part.use_real_source(rospy.get_node())
+        self.motion_server.inputs.read_robot_part(robot_part)
+        if self.server_config.is_closed_loop:
+            self.control_loop.inputs.read_robot_part(robot_part)
 
     def sync_joint_state_topic(self, topic_name: str, group_name: str | None = None):
         """

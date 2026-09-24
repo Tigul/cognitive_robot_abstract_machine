@@ -8,6 +8,7 @@ from typing_extensions import List, TYPE_CHECKING
 from semantic_digital_twin.world import World
 
 if TYPE_CHECKING:
+    from semantic_digital_twin.robots.robot_part_mixins import HasInputSource
     from semantic_digital_twin.robots.robot_parts import AbstractRobot
 
 # %% base classes
@@ -81,9 +82,30 @@ class WorldStateInputs:
         :param robot: The robot whose parts this loop reads.
         """
         for synchronizer in robot.get_input_synchronizers():
-            if self.reapplies_inputs:
-                synchronizer = synchronizer.rewriting_every_cycle()
-            self.synchronizers.append(synchronizer)
+            self.read(synchronizer)
+
+    def read_robot_part(self, robot_part: HasInputSource) -> None:
+        """
+        Apply what one part of a robot is read from in this loop from now on.
+
+        A part that is read from the world it stands in needs nothing applied and is
+        therefore left out.
+
+        :param robot_part: The part this loop reads.
+        """
+        if not isinstance(robot_part.source, InputSynchronizer):
+            return
+        self.read(robot_part.source)
+
+    def read(self, synchronizer: InputSynchronizer) -> None:
+        """
+        Apply the given input in this loop from now on, in the way this loop needs it.
+
+        :param synchronizer: The input this loop reads.
+        """
+        if self.reapplies_inputs:
+            synchronizer = synchronizer.rewriting_every_cycle()
+        self.synchronizers.append(synchronizer)
 
     def apply_inputs(self) -> bool:
         """

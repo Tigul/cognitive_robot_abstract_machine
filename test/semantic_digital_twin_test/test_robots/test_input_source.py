@@ -28,6 +28,13 @@ from semantic_digital_twin.robots.pr2 import (
     PR2Topic,
 )
 from semantic_digital_twin.robots.robot_part_mixins import HasInputSource
+from semantic_digital_twin.robots.tracy import (
+    TracyLeftArm,
+    TracyLeftGripperLeftFinger,
+    TracyRightArm,
+    TracyRightGripperRightFinger,
+    TracyTopic,
+)
 from semantic_digital_twin.robots.robot_parts import KinematicChain
 from semantic_digital_twin.world import World
 
@@ -193,6 +200,18 @@ def test_the_pr2_base_reads_the_odometry_its_interface_names():
 
 def test_a_base_lidar_declares_no_topic():
     assert PR2BaseLidar.topic_name is None
+
+
+def test_an_arm_of_a_robot_publishing_per_controller_reads_its_own_topic():
+    assert TracyLeftArm.topic_name == TracyTopic.LEFT_ARM_JOINT_STATES
+    assert TracyRightArm.topic_name == TracyTopic.RIGHT_ARM_JOINT_STATES
+
+
+def test_a_finger_reads_the_topic_of_the_gripper_it_belongs_to():
+    assert TracyLeftGripperLeftFinger.topic_name == TracyTopic.LEFT_GRIPPER_JOINT_STATES
+    assert (
+        TracyRightGripperRightFinger.topic_name == TracyTopic.RIGHT_GRIPPER_JOINT_STATES
+    )
 
 
 # %% an annotated robot
