@@ -127,18 +127,25 @@ items:
 
   - id: convert-remaining-declarative-actions
     title: "Convert the remaining fixed, non-branching actions"
-    branch: null
-    pull_request_number: null
+    branch: convert-declarative-actions
+    pull_request_number: 5
     track: action-conversion
     depends_on: [action-description-composite-node]
-    status: not_started
+    status: in_progress
     notes: >
-      One PR per cohesive cluster. Check every candidate for underspecified
-      a(...)/an(...) usage before including it: NavigateAction is resolved
-      generatively in transporting.py, experiments/ and
-      test_underspecified_designator.py, so it and everything composing it
-      (PathPlanningNavigateAction, ElevatorNavigation) stay on the Designator
-      path until convert-imperative-actions lands.
+      Converted OpenAction, CloseAction, DetectAction, GraspingAction,
+      LookAtAction, MoveManipulatorAction and FollowToolCenterPointPathAction -
+      every action left whose body is a fixed composition of goals. Open and
+      Close run a GraspingAction, so those three had to go together: a
+      converted action's steps must be statechart nodes. What remains is
+      blocked for four distinct reasons, each of which is a later item's work:
+      reached through an underspecified a(...) (NavigateAction, PickUpAction,
+      PlaceAction, MoveToReach); overrides execute() (ReachAction,
+      FullBodyControlledAction and the tool actions under it); a parent whose
+      children are blocked (DrivesBase, PathPlanningNavigateAction); or embeds
+      an action that has not converted (TransportAction, FaceAtAction,
+      ElevatorNavigation, PickAndPlaceAction, MoveAndPickUpAction,
+      MoveAndPlaceAction). 862 tests pass.
 
   - id: wire-action-conditions
     title: "Make an action's pre- and post-conditions actually gate it"
