@@ -268,7 +268,16 @@ the way `StatechartGraphviz` already builds one for `draw()`.
   `retire-language-nodes` is next.
 - **2026-09-25**: Tigul#7 merged: language nodes run only as their cramph
   composite, `CodeNode` runs as a `FunctionCall` statechart node, and plan-node
-  statuses are copied back from the chart. `persistent-motion-state-chart` is next.
+  statuses are copied back from the chart.
+- **2026-09-25**: `persistent-motion-state-chart` split in three, with the user's OK.
+  Two execution boundaries remain, and neither fits one compiled chart:
+  `UnderspecifiedNode` grounds its statement only after the preceding motions
+  ran, and a compiled `Statechart` cannot gain nodes
+  (`StatechartAlreadyCompiledError`); `ReAttachNode` re-parents a body between
+  charts, which nothing in giskardpy does inside one. So `growable-statechart`
+  (cramph: extend and recompile in place) comes first, then
+  `reattach-statechart-node`, then what is left of `persistent-motion-state-chart`
+  (coraplex extends the one chart at each boundary).
 
 ## Retiring the language nodes' imperative path (`retire-language-nodes`, Tigul#7)
 
