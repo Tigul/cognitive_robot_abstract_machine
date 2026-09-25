@@ -1,7 +1,8 @@
 from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 
-from typing_extensions import Dict, List, Optional
+import pytest
+from typing_extensions import Dict, Iterator, List, Optional
 
 from krrood.entity_query_language.backends import (
     EntityQueryLanguageGenerativeBackend,
@@ -82,6 +83,18 @@ def register_probe() -> UUID:
     key = uuid4()
     _registered_probes[key] = TrialProbe()
     return key
+
+
+@pytest.fixture(autouse=True)
+def release_registered_probes() -> Iterator[None]:
+    """
+    Drop every probe a test registered once it has finished.
+
+    A probe keeps the worlds its calls ran against, so a probe left registered would
+    keep them in memory for the rest of the session.
+    """
+    yield
+    _registered_probes.clear()
 
 
 @dataclass(eq=False, repr=False)
@@ -370,7 +383,8 @@ def test_real_failure_keeps_state_and_next_trial_reflects_it(
     # Both the failed and the accepted candidate are attached to the tree - a real
     # failure is not undone, only worked around by trying the next candidate.
     assert [
-        child.children[0].designator.fail_on_attempt_number for child in plan.root.children
+        child.children[0].designator.fail_on_attempt_number
+        for child in plan.root.children
     ] == [
         2,
         None,
