@@ -198,21 +198,57 @@ items:
       PauseUntilMonitor/PausedUntilTrue - and add_to_motion_state_chart already
       builds the real thing. Only the imperative notify() path is redundant.
 
-  - id: persistent-motion-state-chart
-    title: "Build one long-lived Statechart instead of one per execution-boundary batch"
+  - id: growable-statechart
+    title: "Let a compiled Statechart grow: add nodes and recompile in place"
     branch: null
     pull_request_number: null
     track: plan-layer-retirement
     depends_on: [retire-language-nodes]
     status: not_started
     notes: >
+      Split out of persistent-motion-state-chart on 2026-09-25. Pure cramph.
+      Statechart.add_node raises StatechartAlreadyCompiledError once compiled,
+      because compile binds its updaters to the state arrays that adding a
+      node would replace. A plan only knows some of its nodes mid-run
+      (underspecified grounding happens after the preceding motions ran), so
+      one long-lived chart has to be able to take nodes after it compiled:
+      extend in place and recompile, keeping the life-cycle and observation
+      state and the history of the nodes already there.
+
+  - id: reattach-statechart-node
+    title: "Re-parent a body from inside a running statechart"
+    branch: null
+    pull_request_number: null
+    track: plan-layer-retirement
+    depends_on: [growable-statechart]
+    status: not_started
+    notes: >
+      Split out of persistent-motion-state-chart on 2026-09-25. ReAttachNode is
+      an execution boundary only because its world.move_branch runs between
+      charts (MoveBranchExecutable) - nothing in giskardpy re-parents a body
+      inside a chart. A statechart node doing it needs whatever the controller
+      compiled against the old kinematic structure rebuilt, which is why it
+      builds on growable-statechart's recompiling. Also unblocks
+      ElevatorNavigation's conversion (see convert-remaining-declarative-actions).
+
+  - id: persistent-motion-state-chart
+    title: "Build one long-lived Statechart instead of one per execution-boundary batch"
+    branch: null
+    pull_request_number: null
+    track: plan-layer-retirement
+    depends_on: [growable-statechart, reattach-statechart-node]
+    status: not_started
+    notes: >
       Retires the throwaway chart in
       BuildsMotionStateChart.create_giskard_executable and the repeated
-      executor.compile in GiskardExecutable._execute_simulation.
-      ExecutionBoundaryNode and contains_execution_boundary need rethinking for
-      a chart that no longer restarts. Biggest remaining structural change;
-      expect it to split further once the earlier items reveal the real
-      boundary logic.
+      executor.compile in GiskardExecutable._execute_simulation: one chart per
+      plan, extended at each boundary rather than replaced. Split on
+      2026-09-25, when it turned out a single compiled chart cannot hold nodes
+      only known mid-run (UnderspecifiedNode) nor survive a re-parented body
+      (ReAttachNode) - those became growable-statechart and
+      reattach-statechart-node. What is left here is the coraplex side:
+      parse_children / contains_execution_boundary extend the one chart
+      instead of cutting the plan into separate ones.
 
   - id: convert-imperative-actions
     title: "Convert underspecified resolution and execute()-override actions to declarative constructs"
