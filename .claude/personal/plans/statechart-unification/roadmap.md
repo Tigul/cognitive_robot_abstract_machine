@@ -266,3 +266,36 @@ the way `StatechartGraphviz` already builds one for `draw()`.
 - **2026-09-25**: Tigul#6 merged, the second and last batch of the declarative
   action conversion, so `convert-remaining-declarative-actions` is done and
   `retire-language-nodes` is next.
+
+## Retiring the language nodes' imperative path (`retire-language-nodes`, Tigul#7)
+
+Settled 2026-09-25 with the user, after reading `coraplex/language.py`.
+
+**The premise needed correcting.** The item's notes called the `notify()` path
+redundant, but it is worse than redundant. `ParallelNode`, `TryInOrderNode` and
+`TryAllNode` perform their children in `notify()`, and `PlanNode.perform()` then
+parses the same subtree into a chart and runs it again. Every motion runs twice,
+and a motion node gets handed to a second goal, which is why
+`test_exception_try_in_order` and `test_exception_try_all` are skipped. Two
+behaviours also exist only on that path: `CodeNode` running its function, and
+`parallel()` giving each child its own thread.
+
+**Scope, chosen by the user:**
+- Remove the `notify()` overrides and `ExecutesInParallel._perform_parallel`.
+- `CodeNode` becomes a leaf that adds a statechart node running its function in
+  a worker thread (the `ThreadedPredicateMonitor` idiom). A `PlanFailure` makes
+  that node fail, which a `TryInOrder` or `TryAll` can recover from. Any other
+  exception is raised out of the tick, as it was raised out of `perform()` before.
+- Plan-node statuses are copied from their chart nodes after execution. Without
+  that, dropping `notify()` would leave every child `NOT_STARTED`
+  (`test_perform_parallel` checks that every node succeeded).
+- Un-skip the two try tests. No other test changes.
+
+**Deferred on purpose:** deleting the `LanguageNode` classes. Plan trees still hold
+`ActionNode`, `UnderspecifiedNode` and execution boundaries, so that goes with
+`retire-plan-layer`.
+
+**Known consequence:** a chart whose root fails still waits out its tick budget
+and raises `MotionDidNotFinish` (a `PlanFailure`) rather than the code step's own
+failure. Ending the chart early on a failed root would change failure reporting
+for every chart, so this item leaves it alone.
