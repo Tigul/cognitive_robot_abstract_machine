@@ -26,5 +26,14 @@ Done:
   test_underspecified_designator (38 passed, no LeakedWorldsError). The full coraplex
   suite is not run locally, because it crashed the laptop on 2026-09-24.
 
-Next: CI on 463f655d3 should turn `test_each_lib (coraplex)` green. Mark the PR ready
-only when the user says so.
+- CI on 463f655d3: 1 LeakedWorldsError left (31 > 30, test_ormatic_designator on gw1).
+  Checked each module alone, after all fixtures were torn down; two real test-side leaks:
+  the `_registered_probes` global in test_underspecified_designator (released by an autouse
+  fixture) and the exception-instance parametrize in test_visualization_lifecycle (now
+  exception types). Both modules now leave 0 worlds. Pushed as ed68a54f0; PR description
+  extended; PR set to draft.
+- The other tests in the CI list only hold session-fixture worlds (credited to whichever test
+  ran when they were built), which is not a leak.
+
+Next: CI on ed68a54f0 should turn `test_each_lib (coraplex)` green. Mark the PR ready
+only when the user says so. Open question: stray empty coraplex/src/coraplex/plan.py.
