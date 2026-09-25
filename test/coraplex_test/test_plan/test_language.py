@@ -262,11 +262,6 @@ def test_exception_sequential(immutable_model_world):
     assert plan.root.status == LifeCycleValues.FAILED
 
 
-@pytest.mark.skip(
-    reason="Performing the children and parsing the tree afterwards hands the same "
-    "motion node to a second goal, which a motion built as a giskard node does not "
-    "survive. Skipped until the rework of how motions reach the chart lands."
-)
 def test_exception_try_in_order(immutable_model_world):
     world, robot_view, context = immutable_model_world
 
@@ -283,11 +278,6 @@ def test_exception_try_in_order(immutable_model_world):
     assert plan.root.status == LifeCycleValues.SUCCEEDED
 
 
-@pytest.mark.skip(
-    reason="Performing the children and parsing the tree afterwards hands the same "
-    "motion node to a second goal, which a motion built as a giskard node does not "
-    "survive. Skipped until the rework of how motions reach the chart lands."
-)
 def test_exception_try_all(immutable_model_world):
     world, robot_view, context = immutable_model_world
 
@@ -303,6 +293,49 @@ def test_exception_try_all(immutable_model_world):
 
     assert type(plan.root) is TryAllNode
     assert plan.root.status == LifeCycleValues.SUCCEEDED
+
+
+# %% children run only as part of the chart
+
+
+def test_try_in_order_recovers_from_a_failing_code_step(immutable_model_world):
+    """
+    A code step that fails is one failed alternative, so the next one is tried.
+    """
+    world, robot_view, context = immutable_model_world
+
+    def raise_except():
+        raise PlanFailure()
+
+    plan = try_in_order(
+        [code(raise_except), MoveTorsoAction(TorsoState.HIGH)], context
+    ).plan
+    with simulated_robot:
+        plan.perform()
+
+    [torso_up] = (
+        robot_view.get_torso().get_joint_state_by_type(TorsoState.HIGH).target_values
+    )
+    assert _torso_position(world) == pytest.approx(torso_up, abs=0.05)
+    assert plan.root.status == LifeCycleValues.SUCCEEDED
+
+
+def test_children_report_the_outcome_of_the_chart_they_ran_in(immutable_model_world):
+    """
+    A child is only run as part of its parent's chart, and reports how it ended there.
+    """
+    world, robot_view, context = immutable_model_world
+
+    root = sequential(
+        [MoveTorsoAction(TorsoState.HIGH), ParkArmsAction(Arms.BOTH)], context
+    )
+    with simulated_robot:
+        root.plan.perform()
+
+    assert [child.status for child in root.children] == [
+        LifeCycleValues.SUCCEEDED,
+        LifeCycleValues.SUCCEEDED,
+    ]
 
 
 # %% monitored subtrees
