@@ -200,11 +200,12 @@ items:
 
   - id: growable-statechart
     title: "Let a compiled Statechart grow: add nodes and recompile in place"
-    branch: null
-    pull_request_number: null
+    branch: growable-statechart
+    pull_request_number: 8
     track: plan-layer-retirement
     depends_on: [retire-language-nodes]
-    status: not_started
+    status: in_progress
+    session: claude-code:83d327e3-bd59-4aa9-b846-f2c9d5e79302
     notes: >
       Split out of persistent-motion-state-chart on 2026-09-25. Pure cramph.
       Statechart.add_node raises StatechartAlreadyCompiledError once compiled,
