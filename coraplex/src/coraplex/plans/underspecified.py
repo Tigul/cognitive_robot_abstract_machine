@@ -12,9 +12,10 @@ from coraplex.plans.executables import (
     UnderspecifiedExecutable,
 )
 from coraplex.plans.failures import PlanFailure
+from coraplex.plans.designator import DesignatorParameters
+from coraplex.plans.factories import make_node
 from coraplex.plans.plan import Plan
-from coraplex.plans.plan_node import ActionNode, ExecutionBoundaryNode
-from coraplex.robot_plans.actions.base import ActionDescription
+from coraplex.plans.plan_node import ExecutionBoundaryNode, PlanNode
 from cramph.candidate_generator import CandidateGenerator
 from krrood.entity_query_language.query.match import Match
 
@@ -68,14 +69,17 @@ class ActionTrial:
     notice that it has moved on and the copy has to be replaced.
     """
 
-    def succeeds(self, action: ActionDescription) -> bool:
+    def succeeds(self, action: DesignatorParameters) -> bool:
         """
         Run `action` against the copy and restore the copy afterwards.
 
-        The action is copied onto the copy first: reading through a reference to the
-        world it was grounded in would be harmless, but an action that modifies the
-        model (attaching a grasped body, say) requires the entities it is given to
-        belong to the world being modified.
+        The action is rebuilt from its own parameters, rebound onto the copy: reading
+        through a reference to the world it was grounded in would be harmless, but an
+        action that modifies the model (attaching a grasped body, say) requires the
+        entities it is given to belong to the world being modified. Rebinding the
+        parameters rather than the action itself is also what keeps an action that runs
+        as a statechart node out of trouble, since such a node refers back to itself
+        through its own transition conditions and belongs to one statechart only.
 
         The version to roll back to is read here rather than when the copy is taken, so
         each attempt undoes only its own modifications. Reverting is itself recorded, so
@@ -88,7 +92,9 @@ class ActionTrial:
         context = self._copy()
         world = context.world
         plan = Plan(context=context)
-        candidate = ActionNode(designator=world.rebind_world_entities(action))
+        candidate = make_node(
+            type(action)(**world.rebind_world_entities(action.designator_parameter))
+        )
         plan.add_node(candidate)
         version = world.get_world_model_manager().version
 
@@ -139,7 +145,7 @@ class ActionTrial:
 
 @dataclass(eq=False, repr=False)
 class UnderspecifiedNode(
-    ExecutionBoundaryNode, CandidateGenerator[ActionDescription, ActionNode]
+    ExecutionBoundaryNode, CandidateGenerator[DesignatorParameters, PlanNode]
 ):
     """
     An action or language expression that is described by an underspecified `an(...)`
@@ -173,10 +179,10 @@ class UnderspecifiedNode(
     def designator_type(self) -> Type:
         return self.underspecified_action.type
 
-    def _generate_proposals(self) -> Iterator[ActionDescription]:
+    def _generate_proposals(self) -> Iterator[DesignatorParameters]:
         return self.context.query_backend.evaluate(self.underspecified_action)
 
-    def _is_viable(self, proposal: ActionDescription) -> bool:
+    def _is_viable(self, proposal: DesignatorParameters) -> bool:
         """
         Try `proposal` against a disposable copy of the world (:class:`ActionTrial`),
         which is rolled back between proposals.
@@ -192,15 +198,15 @@ class UnderspecifiedNode(
             self._trial = ActionTrial(context=self.context)
         return self._trial.succeeds(proposal)
 
-    def _create_candidate(self, proposal: ActionDescription) -> ActionNode:
+    def _create_candidate(self, proposal: DesignatorParameters) -> PlanNode:
         """
-        Wrap a grounded action in an `ActionNode`, add it as this node's child and
+        Give a grounded action the node that runs it, add it as this node's child and
         expand it against the current world state.
 
         :param proposal: The grounded action that survived its trial.
         :return: The new candidate node.
         """
-        candidate = ActionNode(designator=proposal)
+        candidate = make_node(proposal)
         self.add_child(candidate)
         candidate.notify()
         return candidate

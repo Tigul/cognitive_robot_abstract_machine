@@ -10,8 +10,9 @@ from coraplex.datastructures.enums import Arms
 from coraplex.plans.factories import make_node
 from coraplex.plans.plan_node import ActionCompositeNode
 from coraplex.robot_plans.actions.base import Action
+from coraplex.execution_environment import simulated_robot
 from coraplex.datastructures.trajectory import PoseTrajectory
-from coraplex.robot_plans.actions.core.navigation import LookAtAction
+from coraplex.robot_plans.actions.core.navigation import LookAtAction, NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import (
     FollowToolCenterPointPathAction,
     MoveManipulatorAction,
@@ -36,6 +37,7 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
 from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.pointing import Pointing
+from giskardpy.motion_statechart.monitors.overwrite_state_monitors import SetOdometry
 from giskardpy.motion_statechart.tasks.joint_tasks import (
     JointPositionList,
     JointVelocityLimit,
@@ -285,3 +287,32 @@ def test_moving_the_manipulator_relaxes_collisions_only_when_allowed(
     assert len(_nodes_of_type(allowed, UpdateTemporaryCollisionRules)) == 1
     assert _nodes_of_type(forbidden, UpdateTemporaryCollisionRules) == []
     assert len(_nodes_of_type(forbidden, CartesianPose)) == 1
+
+
+def test_navigating_drives_the_base_towards_what_it_should_face(
+    immutable_simple_pr2_world,
+):
+    """
+    Navigating commands the base pose, and runs nothing else.
+    """
+    _, robot, context = immutable_simple_pr2_world
+    action = NavigateAction(Pose())
+
+    _expanded(action, context)
+
+    [drive] = _nodes_of_type(action, CartesianPose)
+    assert drive.tip_link == robot.root
+
+
+def test_navigating_writes_the_odometry_when_simulated(immutable_simple_pr2_world):
+    """
+    A simulated run has no drive to follow a pose, so it sets the odometry itself.
+    """
+    _, _, context = immutable_simple_pr2_world
+    action = NavigateAction(Pose())
+
+    with simulated_robot:
+        _expanded(action, context)
+
+    assert len(_nodes_of_type(action, SetOdometry)) == 1
+    assert _nodes_of_type(action, CartesianPose) == []
