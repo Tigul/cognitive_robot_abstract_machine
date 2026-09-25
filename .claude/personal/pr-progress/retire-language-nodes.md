@@ -16,5 +16,10 @@ Plan (2026-09-25, scope chosen by the user: chart-only path):
    test_giskard_templates, test_underspecified_designator with -n 2.
 Out of scope: deleting the LanguageNode classes (retire-plan-layer).
 
-Done: branch and draft PR bootstrapped, manifest and roadmap recorded.
-Next: step 1.
+Done (2026-09-25): all 5 steps, committed and pushed as fc605001e. The code node is
+FunctionCall in coraplex/language.py (thread started in on_start, joined in the next
+on_tick, so the tick budget does not matter). Outcomes are copied back through
+GiskardExecutable.plan_nodes_in_chart / PlanNodeInChart, a list because an Action
+and some language nodes are unhashable. AllChildrenFailed removed. 303 + 17 tests
+pass; ORM regenerated cleanly. PR description updated; PR is still a draft.
+Next: the user reviews. Mark the PR ready only when the user says so.
