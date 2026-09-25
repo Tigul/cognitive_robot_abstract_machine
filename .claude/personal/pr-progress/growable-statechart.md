@@ -18,4 +18,9 @@ through only while its parent is being added (parent_node_index >= _compiled_nod
 History snapshots are compared by value (np.array_equal; != broke on different lengths).
 811 cramph and giskard tests + 56 coraplex tests pass, run serially. PR description updated;
 PR is still a draft.
-Next: the user reviews. Then reattach-statechart-node, which builds on extend and recompile.
+Benchmarked on request: extend costs about a full recompile (report
+https://claude.ai/artifact/GZPafsk73fc6Ng6tpcWtRb). The user parked the fix as the deferred plan
+item statechart-compile-performance; the PR description now has a "Known limitation" section.
+Next: waiting for the user's review of #8 (the user chose to wait rather than stack
+reattach-statechart-node on it). After the merge, start reattach-statechart-node from
+plan-cramp-second-iter.
