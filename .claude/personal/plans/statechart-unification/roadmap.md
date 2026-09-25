@@ -278,6 +278,12 @@ the way `StatechartGraphviz` already builds one for `draw()`.
   (cramph: extend and recompile in place) comes first, then
   `reattach-statechart-node`, then what is left of `persistent-motion-state-chart`
   (coraplex extends the one chart at each boundary).
+- **2026-09-25**: benchmarked `extend` (Tigul#8) at the user's request: it costs
+  about a full recompile and grows with the chart, which matters inside
+  giskard's control loop. The fix (vectorizing `CompiledTick._create_pass`,
+  compiling out of the loop, an incremental QP) was parked by the user as the
+  deferred item `statechart-compile-performance`. Report:
+  https://claude.ai/artifact/GZPafsk73fc6Ng6tpcWtRb
 
 ## Retiring the language nodes' imperative path (`retire-language-nodes`, Tigul#7)
 
