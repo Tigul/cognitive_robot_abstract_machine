@@ -251,6 +251,34 @@ items:
       parse_children / contains_execution_boundary extend the one chart
       instead of cutting the plan into separate ones.
 
+  - id: statechart-compile-performance
+    title: "Make compiling and extending a statechart cheap enough for a control loop"
+    branch: null
+    pull_request_number: null
+    track: deferred-work
+    depends_on: [growable-statechart]
+    status: deferred
+    notes: >
+      Parked by the user on 2026-09-25, to be picked up later. Measured on
+      growable-statechart (7e68a6f33, report:
+      https://claude.ai/artifact/GZPafsk73fc6Ng6tpcWtRb): extend costs about a
+      full recompile, so it grows with the chart (pure cramph, adding 5 nodes:
+      106 ms at 10 nodes, 695 ms at 100, 3,558 ms at 500, against 39 ms for a
+      fresh chart; giskard on a PR2: 57-334 ms for 1-20 goals). 97% is
+      CompiledTick._create_pass rebuilding every node's pass expressions; with
+      real motions MotionControl.after_compile rebuilds the whole QP. Proposed:
+      (1) vectorize _create_pass - the life cycle state machine is identical
+      for every node (create_lifecycle_transitions is never overridden), so
+      only the six transition conditions and the observation expression stay
+      symbolic, compiled per batch so extend compiles only added nodes, and
+      the gating, transition ladder and parent coupling (per depth level) run
+      in numpy; must be measured for tick time too, since small charts tick in
+      about 0.16 ms today; (2) keep compiling out of giskard's control loop -
+      extend only where nothing moves, and for the real robot prepare the
+      extended tick and QP beside the running ones and swap at a tick
+      boundary; (3) giskardpy: incremental QP rebuild. Needed before a
+      persistent chart is used on the real robot or for long plans.
+
   - id: convert-imperative-actions
     title: "Convert underspecified resolution and execute()-override actions to declarative constructs"
     branch: null
