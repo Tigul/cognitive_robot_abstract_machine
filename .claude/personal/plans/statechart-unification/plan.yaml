@@ -184,11 +184,12 @@ items:
 
   - id: retire-language-nodes
     title: "Retire coraplex.language's LanguageNode family for cramph.composites"
-    branch: null
-    pull_request_number: null
+    branch: retire-language-nodes
+    pull_request_number: 7
     track: plan-layer-retirement
     depends_on: [convert-remaining-declarative-actions]
-    status: not_started
+    status: in_progress
+    session: claude-code:83d327e3-bd59-4aa9-b846-f2c9d5e79302
     notes: >
       Every LanguageNode subclass already declares its exact cramph equivalent
       through motion_state_chart_template - SequentialNode/Sequence,
