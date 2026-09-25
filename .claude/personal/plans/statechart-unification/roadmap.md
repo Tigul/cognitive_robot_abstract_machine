@@ -245,7 +245,7 @@ the way `StatechartGraphviz` already builds one for `draw()`.
   nothing has expanded. Getting this wrong makes `execute()` bail on
   `motion_count == 0` and the robot silently does nothing.
 - Run tests with the project interpreter (`/home/jonas/envs/cram/bin/python`)
-  and `pytest -n 2`.
+  and run pytest serially, without `-n`: even `-n 2` has crashed the laptop.
 - **Every pull request targets `ichumuh:cramph`**, based on
   `plan-cramp-second-iter` (or on whichever earlier item it depends on),
   never on `cram2/main`.
@@ -266,6 +266,9 @@ the way `StatechartGraphviz` already builds one for `draw()`.
 - **2026-09-25**: Tigul#6 merged, the second and last batch of the declarative
   action conversion, so `convert-remaining-declarative-actions` is done and
   `retire-language-nodes` is next.
+- **2026-09-25**: Tigul#7 merged: language nodes run only as their cramph
+  composite, `CodeNode` runs as a `FunctionCall` statechart node, and plan-node
+  statuses are copied back from the chart. `persistent-motion-state-chart` is next.
 
 ## Retiring the language nodes' imperative path (`retire-language-nodes`, Tigul#7)
 
