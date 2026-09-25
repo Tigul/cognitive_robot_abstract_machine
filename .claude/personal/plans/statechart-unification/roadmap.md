@@ -263,3 +263,6 @@ the way `StatechartGraphviz` already builds one for `draw()`.
   Tigul fork, and opening one on the shared `cram2` upstream was declined).
 - Per-branch working detail continues to live in
   `.claude/personal/pr-progress/<branch>.md`, independently of this plan.
+- **2026-09-25**: Tigul#6 merged, the second and last batch of the declarative
+  action conversion, so `convert-remaining-declarative-actions` is done and
+  `retire-language-nodes` is next.

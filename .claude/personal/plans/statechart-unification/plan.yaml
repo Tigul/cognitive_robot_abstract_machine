@@ -131,12 +131,12 @@ items:
     pull_request_number: 6
     track: action-conversion
     depends_on: [action-description-composite-node]
-    status: in_progress
+    status: done
     notes: >
-      Landing in two batches. Tigul#5 (merged) converted OpenAction, CloseAction,
+      Landed in two batches. Tigul#5 (merged) converted OpenAction, CloseAction,
       DetectAction, GraspingAction, LookAtAction, MoveManipulatorAction and
       FollowToolCenterPointPathAction; Open and Close run a GraspingAction, so
-      those three went together. Tigul#6 (open) converts DrivesBase with
+      those three went together. Tigul#6 (merged 2026-09-25) converted DrivesBase with
       NavigateAction and PathPlanningNavigateAction, the first actions reached
       through an underspecified a(...) statement, and so also reworks
       UnderspecifiedNode and ActionTrial: resolution now asks make_node for the
