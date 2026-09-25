@@ -311,3 +311,25 @@ behaviours also exist only on that path: `CodeNode` running its function, and
 and raises `MotionDidNotFinish` (a `PlanFailure`) rather than the code step's own
 failure. Ending the chart early on a failed root would change failure reporting
 for every chart, so this item leaves it alone.
+
+## Growing a compiled statechart (`growable-statechart`, Tigul#8)
+
+Settled 2026-09-25, in auto mode, after reading `cramph/statechart.py` and `executor.py`.
+
+- **An explicit operation, not a relaxed `add_node`.** `add_node` keeps raising
+  `StatechartAlreadyCompiledError` after compile, and
+  `test_a_compiled_statechart_rejects_new_nodes` stays as it is. Growing is
+  `Statechart.extend(nodes)` / `StatechartExecutor.extend(nodes)`, which adds and
+  recompiles in one step, so a chart is never left with nodes that aren't compiled.
+- **Only the new nodes go through the per-node compile steps.** The steps that OR
+  into conditions (`_succeed_self_deciding_nodes_observing_true`,
+  `_fail_self_failing_nodes_observing_false`), `wire_conditions_over_children` and
+  `build` are not safe to repeat on nodes that already ran them. The edges and
+  `CompiledTick` are rebuilt over every node.
+- **State survives.** `State.grow` appends rather than replaces values, and
+  `CompiledTick` is rebuilt over the grown arrays. The history is not restarted.
+- **The QP is rebuilt:** the executor re-runs every extension's `after_compile`.
+  `MotionControl.after_compile` builds its controller from scratch.
+- **New nodes join at the top level**, as siblings the existing nodes can be read
+  by. The existing nodes' own conditions are frozen, so wiring a new node in
+  *after* an old one is done through the new node's start condition.
