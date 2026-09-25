@@ -621,6 +621,19 @@ class StatechartAlreadyCompiledError(StatechartError):
 
 
 @dataclass
+class StatechartNotCompiledError(StatechartError):
+    """
+    Raised when a statechart is extended before it was compiled.
+    """
+
+    def error_message(self) -> str:
+        return "The statechart is not compiled yet, so there is nothing to extend."
+
+    def suggest_correction(self) -> str:
+        return "Add the nodes with add_node, then compile the statechart."
+
+
+@dataclass
 class PrerequisiteNotExpandedError(NodeInitializationError):
     """
     Raised when a composite node joins a statechart before a composite node it reads

@@ -42,6 +42,7 @@ from cramph.exceptions import (
     SuccessDeciderNotDeclaredError,
     PrerequisiteNotExpandedError,
     StatechartAlreadyCompiledError,
+    StatechartNotCompiledError,
     NotInStatechartError,
     RemovedNodeStillReferencedError,
 )
@@ -1069,19 +1070,23 @@ class StateHistoryItem:
         self.life_cycle_state = deepcopy(self.life_cycle_state)
         self.observation_state = deepcopy(self.observation_state)
 
+    def records(self, node: StatechartNode) -> bool:
+        """
+        :param node: The node to look up.
+        :return: Whether `node` had joined the statechart when this snapshot was taken.
+        """
+        return node.index < len(self.life_cycle_state.data)
+
     def __eq__(self, other: StateHistoryItem) -> bool:
         """
         :param other: The item to compare against.
         :return: True if `other` has the same life cycle and observation state.
         .. note:: :attr:`tick_count` is not compared.
         """
-        has_life_cycle_changed = np.any(
-            other.life_cycle_state.data != self.life_cycle_state.data
+        return (
+            other.life_cycle_state == self.life_cycle_state
+            and other.observation_state == self.observation_state
         )
-        has_observation_changed = np.any(
-            other.observation_state.data != self.observation_state.data
-        )
-        return not has_life_cycle_changed and not has_observation_changed
 
     def __repr__(self) -> str:
         """
@@ -1141,18 +1146,35 @@ class StateHistory:
     ) -> list[LifeCycleValues]:
         """
         :param node: The node to fetch the recorded life cycle state for.
-        :return: The recorded life cycle state of `node` at every tick, in order.
+        :return: The recorded life cycle state of `node` at every tick since it
+            joined, in order.
         """
-        return [history_item.life_cycle_state[node] for history_item in self.history]
+        return [
+            history_item.life_cycle_state[node]
+            for history_item in self.items_recording(node)
+        ]
 
     def get_observation_history_of_node(
         self, node: StatechartNode
     ) -> list[ObservationStateValues]:
         """
         :param node: The node to fetch the recorded observation state for.
-        :return: The recorded observation state of `node` at every tick, in order.
+        :return: The recorded observation state of `node` at every tick since it
+            joined, in order.
         """
-        return [history_item.observation_state[node] for history_item in self.history]
+        return [
+            history_item.observation_state[node]
+            for history_item in self.items_recording(node)
+        ]
+
+    def items_recording(self, node: StatechartNode) -> List[StateHistoryItem]:
+        """
+        :param node: The node to look up.
+        :return: The snapshots taken since `node` joined the statechart, in order.
+        """
+        return [
+            history_item for history_item in self.history if history_item.records(node)
+        ]
 
     def get_current_run_ticks_of_node(self, node: StatechartNode) -> Optional[RunTicks]:
         """
@@ -1161,28 +1183,27 @@ class StateHistory:
             since its last reset, or None if it has not started since then (or
             this history is still empty).
         """
-        if not self.history:
+        history = self.items_recording(node)
+        if not history:
             return None
-        current_state = self.history[-1].life_cycle_state[node]
+        current_state = history[-1].life_cycle_state[node]
         if current_state == LifeCycleValues.NOT_STARTED:
             return None
-        start_index = len(self.history) - 1
+        start_index = len(history) - 1
         while (
             start_index > 0
-            and self.history[start_index - 1].life_cycle_state[node]
+            and history[start_index - 1].life_cycle_state[node]
             != LifeCycleValues.NOT_STARTED
         ):
             start_index -= 1
         if not current_state.is_terminal:
-            return RunTicks(
-                start_tick=self.history[start_index].tick_count, end_tick=None
-            )
+            return RunTicks(start_tick=history[start_index].tick_count, end_tick=None)
         end_index = start_index
-        while not self.history[end_index].life_cycle_state[node].is_terminal:
+        while not history[end_index].life_cycle_state[node].is_terminal:
             end_index += 1
         return RunTicks(
-            start_tick=self.history[start_index].tick_count,
-            end_tick=self.history[end_index].tick_count,
+            start_tick=history[start_index].tick_count,
+            end_tick=history[end_index].tick_count,
         )
 
     def __len__(self) -> int:
@@ -1293,6 +1314,11 @@ class Statechart(SubclassJSONSerializer):
     _compiled_tick: Optional[CompiledTick] = field(default=None, init=False, repr=False)
     """
     Updates every node once per tick, created by :meth:`compile`.
+    """
+
+    _compiled_node_count: int = field(default=0, init=False, repr=False)
+    """
+    How many of the nodes, counted in index order, the latest compile covered.
     """
 
     _nodes: List[StatechartNode] = field(default_factory=list, init=False, repr=False)
@@ -1425,15 +1451,27 @@ class Statechart(SubclassJSONSerializer):
         :class:`CompositeNode`, which adds its children in turn.
 
         :param node: The node to add.
-        :raises StatechartAlreadyCompiledError: If this statechart is compiled.
+        :raises StatechartAlreadyCompiledError: If this statechart is compiled, unless
+            `node` is the child of a node that is being added by :meth:`extend`.
         :raises PrerequisiteNotExpandedError: If `node` is a composite node that reads
             a composite node which has not joined this statechart yet.
         """
-        if self.is_compiled:
+        if self.is_compiled and not self._joins_a_node_being_added(node):
             raise StatechartAlreadyCompiledError()
         self._register_node(node)
         if isinstance(node, CompositeNode):
             self._expand(node)
+
+    def _joins_a_node_being_added(self, node: StatechartNode) -> bool:
+        """
+        :param node: The node joining this statechart.
+        :return: Whether `node` becomes the child of a node the latest compile did not
+            cover.
+        """
+        return (
+            node.parent_node_index is not None
+            and node.parent_node_index >= self._compiled_node_count
+        )
 
     def _expand(self, node: CompositeNode) -> None:
         """
@@ -1624,14 +1662,18 @@ class Statechart(SubclassJSONSerializer):
         for parent_node in condition.node_dependencies:
             self.rx_graph.add_edge(owner.index, parent_node.index, condition)
 
-    def _build_nodes(self, context: StatechartContext):
+    def _build_nodes(self, context: StatechartContext, nodes: List[StatechartNode]):
         """
-        Builds every node of the statechart and applies its resulting artifacts.
+        Builds `nodes` and applies their resulting artifacts, leaving every other node
+        of the statechart as it was built already.
 
         :param context: The build context passed to every node's build.
+        :param nodes: The nodes to build.
         """
-        built_node_indices: set[int] = set()
-        for node in self.nodes:
+        built_node_indices = {node.index for node in self.nodes} - {
+            node.index for node in nodes
+        }
+        for node in nodes:
             self._build_and_apply_artifacts(node, context, built_node_indices, [])
 
     def _build_and_apply_artifacts(
@@ -1693,17 +1735,8 @@ class Statechart(SubclassJSONSerializer):
         Compiles all components of the statechart in its :attr:`context`.
         This method must be called before tick().
         """
-        context = self.context
         self.sanity_check()
-        self._wire_conditions_over_children()
-        self._check_children_of_goals()
-        self._check_every_node_declares_its_success_decider()
-        self._succeed_self_deciding_nodes_observing_true()
-        self._fail_self_failing_nodes_observing_false()
-        self._build_nodes(context=context)
-        self._add_transitions()
-        self._compiled_tick = CompiledTick(statechart=self)
-        self._compiled_tick.compile(context=context)
+        self._compile_nodes(self.nodes)
         self.history.append(
             next_item=StateHistoryItem(
                 tick_count=0,
@@ -1712,33 +1745,76 @@ class Statechart(SubclassJSONSerializer):
             )
         )
 
-    def _check_children_of_goals(self) -> None:
+    def extend(self, nodes: List[StatechartNode]) -> None:
         """
-        Lets every goal reject the children it was expanded with.
+        Adds `nodes` to this compiled statechart and compiles them into it.
+
+        The nodes already there keep their state, their conditions and their history,
+        and a node's history starts on the tick it joined.
+
+        :param nodes: The nodes to add, each joining at the top level.
+        :raises StatechartNotCompiledError: If this statechart is not compiled yet.
         """
-        for goal in self.get_nodes_by_type(CompositeNode):
+        if not self.is_compiled:
+            raise StatechartNotCompiledError()
+        first_added_index = len(self._nodes)
+        for node in nodes:
+            self._register_node(node)
+            if isinstance(node, CompositeNode):
+                self._expand(node)
+        self._compile_nodes(self._nodes[first_added_index:])
+
+    def _compile_nodes(self, nodes: List[StatechartNode]) -> None:
+        """
+        Completes and builds `nodes`, then compiles the tick over every node.
+
+        :param nodes: The nodes not compiled yet.
+        """
+        goals = [node for node in nodes if isinstance(node, CompositeNode)]
+        self._wire_conditions_over_children(goals)
+        self._check_children_of_goals(goals)
+        self._check_every_node_declares_its_success_decider(nodes)
+        self._succeed_self_deciding_nodes_observing_true(nodes)
+        self._fail_self_failing_nodes_observing_false(nodes)
+        self._build_nodes(context=self.context, nodes=nodes)
+        self._add_transitions()
+        self._compiled_tick = CompiledTick(statechart=self)
+        self._compiled_tick.compile(context=self.context)
+        self._compiled_node_count = len(self._nodes)
+
+    @staticmethod
+    def _check_children_of_goals(goals: List[CompositeNode]) -> None:
+        """
+        Lets every goal in `goals` reject the children it was expanded with.
+        """
+        for goal in goals:
             goal.check_children()
 
-    def _wire_conditions_over_children(self) -> None:
+    @staticmethod
+    def _wire_conditions_over_children(goals: List[CompositeNode]) -> None:
         """
-        Lets every goal wire the conditions it derives from its final children into
-        its own transitions.
+        Lets every goal in `goals` wire the conditions it derives from its final
+        children into its own transitions.
         """
-        for goal in self.get_nodes_by_type(CompositeNode):
+        for goal in goals:
             goal.wire_conditions_over_children()
 
-    def _check_every_node_declares_its_success_decider(self) -> None:
+    @staticmethod
+    def _check_every_node_declares_its_success_decider(
+        nodes: List[StatechartNode],
+    ) -> None:
         """
-        :raises SuccessDeciderNotDeclaredError: If a node's class does not declare
-            :attr:`~cramph.node.StatechartNode.success_decided_by`.
+        :raises SuccessDeciderNotDeclaredError: If the class of a node in `nodes` does
+            not declare :attr:`~cramph.node.StatechartNode.success_decided_by`.
         """
-        for node in self.nodes:
+        for node in nodes:
             if node.success_decided_by is None:
                 raise SuccessDeciderNotDeclaredError(node=node)
 
-    def _succeed_self_deciding_nodes_observing_true(self):
+    @staticmethod
+    def _succeed_self_deciding_nodes_observing_true(nodes: List[StatechartNode]):
         """
-        Succeeds every node that declares
+        Succeeds every node in `nodes` that declares
         :attr:`~cramph.data_types.SuccessDecider.ITSELF` once it
         observes True, on top of whatever else already ends it.
 
@@ -1746,22 +1822,23 @@ class Statechart(SubclassJSONSerializer):
         enough that the conditions are still the ones a caller wrote while the templates
         were checking them.
         """
-        for node in self.nodes:
+        for node in nodes:
             if node.success_decided_by != SuccessDecider.ITSELF:
                 continue
             node.success_condition = sm.logic_or(
                 node.success_condition, node.observes_true
             )
 
-    def _fail_self_failing_nodes_observing_false(self):
+    @staticmethod
+    def _fail_self_failing_nodes_observing_false(nodes: List[StatechartNode]):
         """
-        Fails every node that declares
+        Fails every node in `nodes` that declares
         :attr:`~cramph.node.StatechartNode.fails_when_observing_false`
         once it observes False, on top of whatever else already fails it.
 
         Runs once every goal has expanded, so no template can wire this away.
         """
-        for node in self.nodes:
+        for node in nodes:
             if not node.fails_when_observing_false:
                 continue
             node.fail_condition = sm.logic_or(node.fail_condition, node.observes_false)

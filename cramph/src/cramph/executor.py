@@ -12,11 +12,13 @@ from cramph.exceptions import (
     MissingExecutorExtensionError,
     StatechartOfDifferentContextError,
     NonPositiveRealTimeFactorError,
+    StatechartNotCompiledError,
 )
 from cramph.statechart import Statechart
 from krrood.symbolic_math.symbolic_math import FloatVariable
 
 if TYPE_CHECKING:
+    from cramph.node import StatechartNode
     from semantic_digital_twin.adapters.multi_sim import MujocoSim
 
 
@@ -289,6 +291,23 @@ class StatechartExecutor:
         for extension in self.extensions:
             extension.after_compile(self)
         self.statechart.tick()
+
+    def extend(self, nodes: List[StatechartNode]) -> None:
+        """
+        Adds `nodes` to the running statechart and compiles them into it, without
+        restarting the tick count.
+
+        Every extension compiles again, so what it builds from the nodes covers the
+        added ones too.
+
+        :param nodes: The nodes to add, each joining at the top level.
+        :raises StatechartNotCompiledError: If no statechart was compiled yet.
+        """
+        if self.statechart is None:
+            raise StatechartNotCompiledError()
+        self.statechart.extend(nodes)
+        for extension in self.extensions:
+            extension.after_compile(self)
 
     def tick(self):
         """
