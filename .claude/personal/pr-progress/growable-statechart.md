@@ -13,5 +13,9 @@ Plan:
 5. Run the cramph_test statechart tests and the giskardpy motion statechart tests serially
    (no -n).
 
-Done: branch and draft PR bootstrapped, manifest and roadmap recorded.
-Next: step 1.
+Done (2026-09-25): steps 1-5, committed and pushed as 7e68a6f33. add_node lets a child
+through only while its parent is being added (parent_node_index >= _compiled_node_count).
+History snapshots are compared by value (np.array_equal; != broke on different lengths).
+811 cramph and giskard tests + 56 coraplex tests pass, run serially. PR description updated;
+PR is still a draft.
+Next: the user reviews. Then reattach-statechart-node, which builds on extend and recompile.
