@@ -208,13 +208,14 @@ items:
     session: claude-code:83d327e3-bd59-4aa9-b846-f2c9d5e79302
     notes: >
       Split out of persistent-motion-state-chart on 2026-09-25. Pure cramph.
-      Statechart.add_node raises StatechartAlreadyCompiledError once compiled,
-      because compile binds its updaters to the state arrays that adding a
-      node would replace. A plan only knows some of its nodes mid-run
-      (underspecified grounding happens after the preceding motions ran), so
-      one long-lived chart has to be able to take nodes after it compiled:
-      extend in place and recompile, keeping the life-cycle and observation
-      state and the history of the nodes already there.
+      Tigul#8. After review (2026-09-27) there is no separate extend: add_node /
+      add_nodes accept a compiled statechart, and Statechart.modify() batches
+      changes like World.modify_world() - the outermost block recompiles the
+      whole chart once, keeping state and history; a block that raises drops
+      what it added. The executor is a RecompileCallback and re-runs its
+      extensions' after_compile. A compiled composite still rejects new
+      children. Recompiling costs about a full compile, see
+      statechart-compile-performance.
 
   - id: reattach-statechart-node
     title: "Re-parent a body from inside a running statechart"
