@@ -1,26 +1,24 @@
-Tigul#8 "Let a running statechart take new nodes" (growable-statechart ->
-plan-cramp-second-iter), draft. Plan item statechart-unification/growable-statechart,
-split out of persistent-motion-state-chart on 2026-09-25.
+Tigul#8 "Let a running statechart take new nodes, batched in modify()"
+(growable-statechart -> plan-cramp-second-iter), draft. Plan item
+statechart-unification/growable-statechart.
 
-Plan:
-1. Failing tests in test/cramph_test/test_statechart (new module): extend a compiled
-   chart with a node that starts after an old one succeeded; the old nodes' states and
-   history survive; the tick count is not reset; extend on an uncompiled chart raises.
-2. Statechart.extend(nodes): register and expand; per-node compile steps for the new
-   nodes only; rebuild edges and CompiledTick. add_node keeps raising after compile.
-3. StatechartExecutor.extend(nodes): Statechart.extend plus every extension's after_compile.
-4. A giskardpy test that a motion added by extend actually moves (MotionControl QP rebuild).
-5. Run the cramph_test statechart tests and the giskardpy motion statechart tests serially
-   (no -n).
+History: 7e68a6f33 added Statechart.extend / StatechartExecutor.extend. Benchmarked on request:
+recompiling costs about a full compile (report https://claude.ai/artifact/GZPafsk73fc6Ng6tpcWtRb);
+the user parked the fix as the deferred item statechart-compile-performance.
 
-Done (2026-09-25): steps 1-5, committed and pushed as 7e68a6f33. add_node lets a child
-through only while its parent is being added (parent_node_index >= _compiled_node_count).
-History snapshots are compared by value (np.array_equal; != broke on different lengths).
-811 cramph and giskard tests + 56 coraplex tests pass, run serially. PR description updated;
-PR is still a draft.
-Benchmarked on request: extend costs about a full recompile (report
-https://claude.ai/artifact/GZPafsk73fc6Ng6tpcWtRb). The user parked the fix as the deferred plan
-item statechart-compile-performance; the PR description now has a "Known limitation" section.
-Next: waiting for the user's review of #8 (the user chose to wait rather than stack
-reattach-statechart-node on it). After the merge, start reattach-statechart-node from
-plan-cramp-second-iter.
+Review (2026-09-27, Tigul): extend is redundant with add_node / add_nodes; batch like
+World.modify_world(). Follow-up from the user: a compiled chart must still accept add_node, and
+the outermost block recompiles everything.
+Done in cbd07f5f4:
+- Statechart.modify() -> StatechartModification (nests; the outermost exit recompiles only if
+  _changed_since_compile; a block that raises drops its nodes via _drop_nodes_from -> _renumber)
+- add_node on a compiled chart wraps itself in a block; add_nodes is one block; a child of a
+  compiled composite is still rejected (_joins_a_compiled_node)
+- compile() completes and builds only nodes past _compiled_node_count; a recompile notifies
+  RecompileCallbacks, and StatechartExecutor is one (after_recompile runs the extensions again)
+- removed extend x2 and StatechartNotCompiledError; test_a_compiled_statechart_rejects_new_nodes
+  -> test_a_compiled_statechart_takes_new_nodes (as asked)
+- 815 cramph and giskard tests + 56 coraplex tests pass, run serially; ORM regenerated
+- PR body updated; both threads replied to and resolved; the review summary answered with a PR
+  comment; PR converted back to draft (it had been set to ready)
+Next: the user's next review round. After the merge: reattach-statechart-node.
