@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from abc import ABC, abstractmethod
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor
 from copy import deepcopy
@@ -42,7 +43,6 @@ from cramph.exceptions import (
     SuccessDeciderNotDeclaredError,
     PrerequisiteNotExpandedError,
     StatechartAlreadyCompiledError,
-    StatechartNotCompiledError,
     NotInStatechartError,
     RemovedNodeStillReferencedError,
 )
@@ -1211,6 +1211,57 @@ class StateHistory:
 
 
 @dataclass
+class RecompileCallback(ABC):
+    """
+    Something told whenever a statechart that already compiled compiles again, because
+    nodes joined it.
+    """
+
+    @abstractmethod
+    def after_recompile(self) -> None:
+        """
+        React to the statechart having compiled again.
+        """
+
+
+@dataclass
+class StatechartModification:
+    """
+    Batches changes to a statechart, so that a compiled statechart compiles again only
+    once, when the outermost of any nested modifications ends.
+
+    If the block raises, the nodes added inside it are dropped again and the statechart
+    stays as it was.
+    """
+
+    statechart: Statechart
+    """
+    The statechart being changed.
+    """
+
+    _node_count_at_start: int = field(init=False, default=0)
+    """
+    How many nodes the statechart held when this modification started.
+    """
+
+    def __enter__(self) -> Self:
+        self._node_count_at_start = len(self.statechart.nodes)
+        self.statechart._open_modifications += 1
+        return self
+
+    def __exit__(self, exception_type, exception, traceback) -> None:
+        statechart = self.statechart
+        statechart._open_modifications -= 1
+        if exception is not None:
+            statechart._drop_nodes_from(self._node_count_at_start)
+        if statechart._open_modifications > 0 or not statechart.is_compiled:
+            return
+        if not statechart._changed_since_compile:
+            return
+        statechart.compile()
+
+
+@dataclass
 class Statechart(SubclassJSONSerializer):
     """
     Represents a statechart.
@@ -1314,6 +1365,23 @@ class Statechart(SubclassJSONSerializer):
     _compiled_tick: Optional[CompiledTick] = field(default=None, init=False, repr=False)
     """
     Updates every node once per tick, created by :meth:`compile`.
+    """
+
+    _open_modifications: int = field(default=0, init=False, repr=False)
+    """
+    How many :class:`StatechartModification` blocks are open on this statechart.
+    """
+
+    _recompile_callbacks: List[RecompileCallback] = field(
+        default_factory=list, init=False, repr=False
+    )
+    """
+    Told whenever this statechart compiles again after it had compiled.
+    """
+
+    _changed_since_compile: bool = field(default=False, init=False, repr=False)
+    """
+    Whether nodes joined or were dropped since the latest compile.
     """
 
     _compiled_node_count: int = field(default=0, init=False, repr=False)
@@ -1441,37 +1509,76 @@ class Statechart(SubclassJSONSerializer):
     @property
     def is_compiled(self) -> bool:
         """
-        :return: Whether :meth:`compile` ran, after which the nodes can no longer change.
+        :return: Whether :meth:`compile` ran.
         """
         return self._compiled_tick is not None
+
+    def modify(self) -> StatechartModification:
+        """
+        :return: A block batching changes to this statechart. A compiled statechart
+            compiles again once the outermost block ends, keeping the state and the
+            history of the nodes it already held.
+        """
+        return StatechartModification(statechart=self)
+
+    def add_recompile_callback(self, callback: RecompileCallback) -> None:
+        """
+        :param callback: Told whenever this statechart compiles again after it had
+            compiled. A callback already registered is not added twice.
+        """
+        if any(registered is callback for registered in self._recompile_callbacks):
+            return
+        self._recompile_callbacks.append(callback)
 
     def add_node(self, node: StatechartNode):
         """
         Adds a node to the statechart, and expands it right away if it is a
         :class:`CompositeNode`, which adds its children in turn.
 
+        A compiled statechart compiles again once the node joined, or once the
+        outermost :meth:`modify` block around the addition ends.
+
         :param node: The node to add.
-        :raises StatechartAlreadyCompiledError: If this statechart is compiled, unless
-            `node` is the child of a node that is being added by :meth:`extend`.
+        :raises StatechartAlreadyCompiledError: If `node` would become the child of a
+            node that is compiled already, whose wiring over its children is fixed.
         :raises PrerequisiteNotExpandedError: If `node` is a composite node that reads
             a composite node which has not joined this statechart yet.
         """
-        if self.is_compiled and not self._joins_a_node_being_added(node):
+        if self._joins_a_compiled_node(node):
             raise StatechartAlreadyCompiledError()
-        self._register_node(node)
-        if isinstance(node, CompositeNode):
-            self._expand(node)
+        with self.modify():
+            self._register_node(node)
+            if isinstance(node, CompositeNode):
+                self._expand(node)
 
-    def _joins_a_node_being_added(self, node: StatechartNode) -> bool:
+    def _joins_a_compiled_node(self, node: StatechartNode) -> bool:
         """
         :param node: The node joining this statechart.
-        :return: Whether `node` becomes the child of a node the latest compile did not
-            cover.
+        :return: Whether `node` becomes the child of a node the latest compile covered.
         """
         return (
             node.parent_node_index is not None
-            and node.parent_node_index >= self._compiled_node_count
+            and node.parent_node_index < self._compiled_node_count
         )
+
+    def _drop_nodes_from(self, first_dropped_index: int) -> None:
+        """
+        Drops every node from `first_dropped_index` on, which no compile covered yet.
+
+        :param first_dropped_index: The index of the first node to drop.
+        """
+        if first_dropped_index == len(self._nodes):
+            return
+        self._changed_since_compile = True
+        kept_nodes = self._nodes[:first_dropped_index]
+        for dropped_node in self._nodes[first_dropped_index:]:
+            parent_node = dropped_node.parent_node
+            if parent_node in kept_nodes and dropped_node in parent_node.nodes:
+                parent_node.nodes.remove(dropped_node)
+            dropped_node._statechart = None
+            dropped_node.index = None
+            dropped_node.parent_node_index = None
+        self._renumber(kept_nodes)
 
     def _expand(self, node: CompositeNode) -> None:
         """
@@ -1500,6 +1607,7 @@ class Statechart(SubclassJSONSerializer):
         self.observation_state.grow()
         self.last_observation_state.grow()
         self._nodes.append(node)
+        self._changed_since_compile = True
         if isinstance(node, CancelStatechart):
             self._cancel_nodes.append(node)
         if isinstance(node, EndStatechart):
@@ -1588,12 +1696,14 @@ class Statechart(SubclassJSONSerializer):
 
     def add_nodes(self, nodes: List[StatechartNode]):
         """
-        Adds every node in `nodes` to the statechart, see :meth:`add_node`.
+        Adds every node in `nodes` to the statechart in one :meth:`modify` block, see
+        :meth:`add_node`.
 
         :param nodes: The nodes to add.
         """
-        for node in nodes:
-            self.add_node(node)
+        with self.modify():
+            for node in nodes:
+                self.add_node(node)
 
     def get_node_by_index(self, index: int) -> StatechartNode:
         """
@@ -1734,9 +1844,18 @@ class Statechart(SubclassJSONSerializer):
         """
         Compiles all components of the statechart in its :attr:`context`.
         This method must be called before tick().
+
+        Compiling again, once nodes joined, keeps the state and the history of the
+        nodes already there: only the joined nodes are completed and built, and the
+        tick is compiled over every node. Every :class:`RecompileCallback` is told.
         """
+        is_recompile = self.is_compiled
         self.sanity_check()
-        self._compile_nodes(self.nodes)
+        self._compile_nodes(self._nodes[self._compiled_node_count :])
+        if is_recompile:
+            for callback in list(self._recompile_callbacks):
+                callback.after_recompile()
+            return
         self.history.append(
             next_item=StateHistoryItem(
                 tick_count=0,
@@ -1745,30 +1864,11 @@ class Statechart(SubclassJSONSerializer):
             )
         )
 
-    def extend(self, nodes: List[StatechartNode]) -> None:
-        """
-        Adds `nodes` to this compiled statechart and compiles them into it.
-
-        The nodes already there keep their state, their conditions and their history,
-        and a node's history starts on the tick it joined.
-
-        :param nodes: The nodes to add, each joining at the top level.
-        :raises StatechartNotCompiledError: If this statechart is not compiled yet.
-        """
-        if not self.is_compiled:
-            raise StatechartNotCompiledError()
-        first_added_index = len(self._nodes)
-        for node in nodes:
-            self._register_node(node)
-            if isinstance(node, CompositeNode):
-                self._expand(node)
-        self._compile_nodes(self._nodes[first_added_index:])
-
     def _compile_nodes(self, nodes: List[StatechartNode]) -> None:
         """
         Completes and builds `nodes`, then compiles the tick over every node.
 
-        :param nodes: The nodes not compiled yet.
+        :param nodes: The nodes no compile covered yet.
         """
         goals = [node for node in nodes if isinstance(node, CompositeNode)]
         self._wire_conditions_over_children(goals)
@@ -1781,6 +1881,7 @@ class Statechart(SubclassJSONSerializer):
         self._compiled_tick = CompiledTick(statechart=self)
         self._compiled_tick.compile(context=self.context)
         self._compiled_node_count = len(self._nodes)
+        self._changed_since_compile = False
 
     @staticmethod
     def _check_children_of_goals(goals: List[CompositeNode]) -> None:

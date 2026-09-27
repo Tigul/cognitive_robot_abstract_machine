@@ -52,7 +52,9 @@ def test_a_motion_added_while_running_moves_the_robot(pr2_world_state_reset):
 
     second = _torso_goal(world, 0.2)
     second.start_condition = first.is_succeeded
-    executor.extend([second, EndMotion.when_true(second)])
+    with statechart.modify():
+        statechart.add_node(second)
+        statechart.add_node(EndMotion.when_true(second))
     executor.tick_until_end(timeout=maximum_ticks)
 
     assert first.life_cycle_state == LifeCycleValues.SUCCEEDED
