@@ -90,7 +90,7 @@ items:
     pull_request_number: null
     track: statechart-introspection
     depends_on: [cramph-foundation]
-    status: not_started
+    status: in_progress
     notes: >
       Statechart already has nodes, top_level_nodes, get_nodes_by_type, draw()
       and history. Missing versus Plan: layers, and an interactive visualize()

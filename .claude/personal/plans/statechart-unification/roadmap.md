@@ -339,3 +339,24 @@ Settled 2026-09-25, in auto mode, after reading `cramph/statechart.py` and `exec
 - **New nodes join at the top level**, as siblings the existing nodes can be read
   by. The existing nodes' own conditions are frozen, so wiring a new node in
   *after* an old one is done through the new node's start condition.
+
+## Statechart introspection (`statechart-plan-parity`)
+
+Settled 2026-09-29, in auto mode, after reading `Plan.layers` / `Plan.visualize`
+and `cramph/statechart.py`.
+
+- **`layers` walks children breadth-first, starting from `top_level_nodes`.** A statechart
+  has several roots (every top-level node, `EndStatechart` included), unlike a plan's
+  single root, so layer 0 is all of them, in index order.
+- **`visualize()` draws a graph built for it:** each node at its own index, with edges
+  from a node to the nodes it runs. Labels are `unique_name`, colours are the life
+  cycle state's colour, and the details show life cycle, observation and the current
+  run's start and end tick. Ticks, because `start_time` raises without a tick duration.
+- **The drawn structure is fixed when `visualize()` is called; state is live.** Nodes
+  added later (`modify()`) need another `visualize()`. Keeping the graph in step
+  would mean hooking node registration, removal and renumbering, which is more than
+  this item is worth.
+- **Every `GraphVisualizerBackend` is mapped**, where `Plan` maps only Plotly and
+  Cytoscape, so no backend choice raises `KeyError`.
+- Not ported, as the item's notes already said: `simplify`, `merge_nodes`,
+  `re_perform`, `replay`.
