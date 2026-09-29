@@ -284,6 +284,8 @@ the way `StatechartGraphviz` already builds one for `draw()`.
   compiling out of the loop, an incremental QP) was parked by the user as the
   deferred item `statechart-compile-performance`. Report:
   https://claude.ai/artifact/GZPafsk73fc6Ng6tpcWtRb
+- **2026-09-29**: `statechart-plan-parity` merged straight into `plan-cramp-second-iter`
+  (fb1141412), without a pull request, at the user's request.
 
 ## Retiring the language nodes' imperative path (`retire-language-nodes`, Tigul#7)
 

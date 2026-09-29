@@ -86,11 +86,12 @@ items:
 
   - id: statechart-plan-parity
     title: "Give Statechart the Plan introspection that transfers (layers, visualize)"
-    branch: null
+    branch: statechart-plan-parity
     pull_request_number: null
     track: statechart-introspection
     depends_on: [cramph-foundation]
-    status: in_progress
+    status: done
+    session: claude-code:e9226dc7-e0b7-4cec-a081-c10e55ea7901
     notes: >
       Statechart already has nodes, top_level_nodes, get_nodes_by_type, draw()
       and history. Missing versus Plan: layers, and an interactive visualize()
@@ -101,7 +102,8 @@ items:
       the way StatechartGraphviz already builds one. simplify(), merge_nodes(),
       re_perform() and replay() deliberately do not port: they assume a
       mutable, restartable single-shot tree, which a compiled statechart is
-      not. Pure cramph, no coraplex coupling.
+      not. Pure cramph, no coraplex coupling. Merged directly into plan-cramp-second-iter
+      (fb1141412) on 2026-09-29 at the user's request, without a pull request.
 
   - id: action-description-composite-node
     title: "Action becomes a CompositeNode; convert MoveTorso, ParkArms, SetGripper"
