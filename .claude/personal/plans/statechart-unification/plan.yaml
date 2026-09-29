@@ -225,7 +225,7 @@ items:
     pull_request_number: null
     track: plan-layer-retirement
     depends_on: [growable-statechart]
-    status: not_started
+    status: in_progress
     notes: >
       Split out of persistent-motion-state-chart on 2026-09-25. ReAttachNode is
       an execution boundary only because its world.move_branch runs between

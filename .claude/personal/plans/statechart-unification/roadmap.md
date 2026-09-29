@@ -362,3 +362,36 @@ and `cramph/statechart.py`.
   Cytoscape, so no backend choice raises `KeyError`.
 - Not ported, as the item's notes already said: `simplify`, `merge_nodes`,
   `re_perform`, `replay`.
+
+## Re-parenting inside a running statechart (`reattach-statechart-node`)
+
+Settled 2026-09-29 with the user, in plan mode.
+
+- **The problem is stale forward kinematics, not the move itself.** `World.move_branch`
+  reuses the body's degrees of freedom, so the world state array survives. But every node
+  built before the move keeps pose expressions along the old body hierarchy. That covers
+  both its compiled observation and its QP constraints.
+- **Every node is rebuilt when the kinematic structure changes** (user's choice over "add
+  the motions after the move"). The statechart records the world's `ModelRevision` at
+  compile, and `tick()` compares it before settling and after the life cycle callbacks.
+  A change rebuilds every node and recompiles the tick, and the extensions compile again.
+  State, history, the tick count and float variables are kept.
+- **Detection is separate from `Statechart.modify()`**, at the user's request: a world
+  change is not a statechart change. A compile after a structure change also rebuilds the
+  nodes it already held.
+- **`StatechartNode.set_up(context)`** holds one-time registration: float variables,
+  bindings, ROS subscriptions and action clients, and the perception source. It runs once
+  per context, on the node's first build. `build` became repeatable. Collision-group
+  registration stays in `build`, because it is idempotent and depends on the groups the
+  structure change rebuilds.
+- **`MoveBranch` (cramph)** calls `world.move_branch` in `on_start`. That runs after
+  settling, the only safe point: `on_tick` runs mid-settle, and a thread would race
+  `apply_control_commands`.
+- **The robot stands still while rebuilding** (user's choice). A new
+  `before_recompile` hook: `MotionControl` zeroes the commanded derivatives, and
+  `ControlLoop` halts its command publishers before the tick blocks. A change the chart
+  makes itself does not trip `WorldModelModifiedDuringMotionError`, which fires only for
+  changes from other processes. Background compile-and-swap stays in
+  `statechart-compile-performance`.
+- Out of scope: coraplex's `ReAttachNode` stays an execution boundary
+  (`persistent-motion-state-chart`), and ElevatorNavigation's conversion comes later.
