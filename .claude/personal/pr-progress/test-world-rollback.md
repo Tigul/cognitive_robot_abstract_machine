@@ -8,6 +8,10 @@ Plan:
 3. [done] Local fixtures converted: multiple_robot_simple_apartment_context,
    simple_pr2_holding_milk_context (test_grasp); unused mutable multi-robot fixture removed.
 4. [done] test_world_snapshot.py (2 tests, pass).
-5. [running] run each affected module serially; compare failures to a baseline on HEAD.
-Next: triage failures (leaks the rollback misses -> report, no defensive guards),
-format docstrings, commit only when asked. No PR opened yet.
+5. [done] ran every affected module serially: all pass except 4 in test_perception.py
+   (test_motion_history_recording.py: pre-existing ImportError cramera.live).
+   Cause: World._remove_semantic_annotation uses list.remove (equality = class+root), so
+   reverting a second Milk on the same body removes the original and leaves the new,
+   detached annotation (_world None) in the world. SDT bug exposed by rollback.
+Next: user decides where the SDT fix goes (this branch vs separate bug PR); fix TDD-style
+with a failing SDT test first. Docstrings formatted. Nothing committed, no PR yet.
