@@ -28,7 +28,7 @@ Plan:
 All of the above committed (dac5091c5, 9b25173b5). PR #686 (cram2 upstream) open.
 8. [done] Timing branch vs main (24 changed modules, serial, 1 run each): 979s vs 999s (~2%);
    gain mostly test_multi_robot_action_designator (306 vs 321s) and test_grasp.
-9. [running] CI failure test_replay_complex_plan_from_db (TypeError: cannot pickle 'generator').
+9. [done] CI failure test_replay_complex_plan_from_db (TypeError: cannot pickle 'generator').
    Cause: krrood InferenceRecorder tags existing instances returned by @symbolic_function
    (ViewManager.get_end_effector_view -> PR2LeftGripper) with _inference_explanation_; that
    explanation holds live query generators, so rebind_world_entities' deepcopy of later actions
@@ -37,5 +37,6 @@ All of the above committed (dac5091c5, 9b25173b5). PR #686 (cram2 upstream) open
    User chose fix A+B on this branch: failing tests in test_explanation.py (3), then
    InstantiatedVariable._constructs_its_values_ + HasBoundValue._binds_constructed_instance_
    (A) and InferenceExplanation.__deepcopy__ returns self (B). krrood suite + SDT annotations +
-   minimal repro pass; full gw0 sequence rerun pending.
+   minimal repro + full gw0 sequence (333 passed; only the known local DAiSy setup errors) pass.
+   Uncommitted.
 Next: commit + push when asked (PR is upstream cram2 - do not comment/modify PR there).
