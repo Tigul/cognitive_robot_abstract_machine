@@ -4,7 +4,7 @@ User decisions: rebuild every node on a world-structure change (not only add-aft
 detection independent of Statechart.modify() (world change != statechart change);
 robot stands still while rebuilding (before_recompile hook).
 
-Done (uncommitted):
+Done, committed 89818aa1f and pushed:
 - cramph: StatechartNode.set_up (once per context, on first build; _set_up_context flag on node,
   deviates from plan's "track in statechart" because tests build nodes standalone and reuse
   nodes across contexts). Statechart records world revision at compile; tick() checks before
@@ -23,6 +23,7 @@ Done (uncommitted):
 - Known: CartesianPositionTrajectory rebuild keeps previous compiled function in
   FloatVariableData._bound_arguments (small leak per rebuild).
 - Passing: cramph + giskardpy test_motion_statechart (832 before last fix).
-Next: finish ROS2 + SDT run, rerun cramph/giskard, coraplex test_plan/test_actions/test_designator,
-commit, push. PR: gh token lacks pull-request write on Tigul fork (403) and cram2 org rejects
+Verified: cramph+giskard motion statechart 833 passed; coraplex plan/actions/designator 267 passed;
+ROS2+SDT world 44 failed/56 errors, all identical on base (none new).
+Next: open draft PR (body at scratchpad pr-body-reattach.md); PR: gh token lacks pull-request write on Tigul fork (403) and cram2 org rejects
 token for gh pr create -> user must fix token; then bootstrap open --pull-request-number.
