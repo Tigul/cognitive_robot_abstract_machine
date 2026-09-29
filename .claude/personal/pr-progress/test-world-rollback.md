@@ -22,4 +22,8 @@ Plan:
    now stops its ElevatorOperator callback) and test_multi_stationary_robot_action_designator.py
    (-> stationary_block_context). Callbacks deliberately not stopped generically in
    WorldSnapshot (internal lazily-registered callbacks). Full grep: no (im)mutable fixtures left.
-Next: confirm those two modules pass; commit when asked (two commits). No PR yet.
+   Results: multi_robot_action 100 passed; multi_stationary 7 passed + 7 DAiSy setup errors,
+   pre-existing (daisy_world session fixture: collision SRDF names
+   left_gripper_side_cylinder_link, which the DAiSy model lacks; same on old fixtures).
+Earlier work committed by the user as dac5091c5. Uncommitted: the two files above.
+Next: commit the two files when asked. No PR yet.
