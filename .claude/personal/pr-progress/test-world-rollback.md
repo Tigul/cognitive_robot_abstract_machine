@@ -39,4 +39,10 @@ All of the above committed (dac5091c5, 9b25173b5). PR #686 (cram2 upstream) open
    (A) and InferenceExplanation.__deepcopy__ returns self (B). krrood suite + SDT annotations +
    minimal repro + full gw0 sequence (333 passed; only the known local DAiSy setup errors) pass.
    Committed e6338dc68 and pushed to origin (Tigul fork). PR #686 not converted to draft / description not updated (upstream PR, needs permission).
-Next: commit + push when asked (PR is upstream cram2 - do not comment/modify PR there).
+10. [done] Memory, whole coraplex suite -n 2, 1 run each: peak PSS 4103 vs 4802 MB (-15%),
+   mean 3175 vs 3349 MB (-5%), wall clock equal (832 vs 833 s).
+11. [done, uncommitted] Bass (AbdelrhmanBassiouny) CHANGES_REQUESTED on #686: factories also
+   construct (variable.py:312), classproperty (variable.py:315). User chose: drop fix A (and its 2
+   tests), keep B (InferenceExplanation.__deepcopy__). krrood suite 2441 passed; repro sequence
+   passes. Classproperty moot.
+Next: commit + push when asked; replies to Bass only with permission (upstream cram2 PR).
