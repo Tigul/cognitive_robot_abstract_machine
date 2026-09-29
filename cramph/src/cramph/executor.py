@@ -168,9 +168,18 @@ class ExecutorExtension:
         :param context: The context handed to every node of the executed statecharts.
         """
 
+    def before_recompile(self, executor: StatechartExecutor) -> None:
+        """
+        Called before a statechart that already compiled compiles again, which blocks
+        the tick until :meth:`after_compile` is called.
+
+        :param executor: The executor this extension belongs to.
+        """
+
     def after_compile(self, executor: StatechartExecutor) -> None:
         """
-        Called once the statechart is compiled, before its first tick.
+        Called once the statechart is compiled, before its first tick, and again every
+        time it compiled again.
 
         :param executor: The executor this extension belongs to.
         """
@@ -207,7 +216,8 @@ class StatechartExecutor(RecompileCallback):
     Compiles a statechart and ticks it, counting the ticks.
 
     A statechart it runs may take new nodes while it runs, see
-    :meth:`~cramph.statechart.Statechart.modify`; the extensions then compile again.
+    :meth:`~cramph.statechart.Statechart.modify`, and builds its nodes again when the
+    kinematic structure of its world changes; the extensions then compile again.
     """
 
     context: StatechartContext
@@ -292,6 +302,13 @@ class StatechartExecutor(RecompileCallback):
         self.statechart.add_recompile_callback(self)
         self.after_recompile()
         self.statechart.tick()
+
+    def before_recompile(self) -> None:
+        """
+        Tell every extension that the statechart is about to compile again.
+        """
+        for extension in self.extensions:
+            extension.before_recompile(self)
 
     def after_recompile(self) -> None:
         """

@@ -66,6 +66,13 @@ class MotionControl(ExecutorExtension):
         )
         context.set_tick_duration(self.qp_controller_config.control_dt)
 
+    def before_recompile(self, executor: StatechartExecutor) -> None:
+        """
+        Stop the commanded motion, since no command is computed while the statechart
+        compiles again.
+        """
+        self.set_velocity_acceleration_jerk_to_zero(executor.context.world)
+
     def after_compile(self, executor: StatechartExecutor) -> None:
         world = executor.context.world
         self._compiled_world_state_data = world.state._data

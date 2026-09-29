@@ -481,13 +481,13 @@ class PerceptionTask(Task):
 
     Carried by the node rather than read from the execution environment, because on the
     real robot the chart is answered in the controller's process, where that environment
-    does not exist. None when the chart was built without one, which :meth:`build`
+    does not exist. None when the chart was built without one, which :meth:`set_up`
     rejects.
     """
 
     perception_source: Optional[PerceptionInterface] = field(init=False, default=None)
     """
-    The source answering the query, resolved during :meth:`build`.
+    The source answering the query, resolved during :meth:`set_up`.
     """
 
     _detections_applied: bool = field(init=False, default=False, repr=False)
@@ -503,11 +503,14 @@ class PerceptionTask(Task):
     :class:`~coraplex.exceptions.UnidentifiedDetections` instead of being chosen between.
     """
 
-    def build(self, context: StatechartContext) -> MotionNodeArtifacts:
+    def set_up(self, context: StatechartContext) -> None:
+        super().set_up(context)
         self.perception_source = PerceptionInterface.for_execution_type(
             self.execution_type,
             context.require_extension(RosContextExtension).ros_node,
         )
+
+    def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
         return MotionNodeArtifacts()
 
     def on_start(self, context: StatechartContext) -> None:

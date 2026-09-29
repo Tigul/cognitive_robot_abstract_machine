@@ -7,6 +7,7 @@ import pytest
 
 from cramph.executor import NoPacing
 from giskardpy.middleware.ros2 import rospy
+from giskardpy.middleware.ros2.command_publishing import CommandPublisher
 from giskardpy.middleware.ros2.control_loop import ControlLoop
 from giskardpy.middleware.ros2.exceptions import (
     GiskardWorldUpdateNotReceivedError,
@@ -534,3 +535,86 @@ class TestRealWorldUpdatesDuringAMotion:
             len(control_loop.controlled_world.kinematic_structure_entities)
             == entities_before + 1
         )
+
+
+# %% a model change the motion makes itself
+
+
+@dataclass
+class CommandPublisherRecordingCalls(CommandPublisher):
+    """
+    Stands in for a publisher to the robot, recording which of its methods ran, in
+    order.
+    """
+
+    calls: List[str] = field(default_factory=list)
+    """
+    The methods that ran, each by its name.
+    """
+
+    def publish(self) -> None:
+        self.calls.append(self.publish.__name__)
+
+    def stop(self) -> None:
+        self.calls.append(self.stop.__name__)
+
+
+@pytest.fixture()
+def local_control_loop() -> ControlLoop:
+    """
+    :return: A control loop running a long motion on a world no other process updates.
+    """
+    world = World(name="local")
+    add_moving_connection(world)
+    executor = StatechartExecutor(
+        context=StatechartContext(world=world),
+        pacer=NoPacing(),
+        extensions=[
+            MotionControl(
+                qp_controller_config=QPControllerConfig.create_with_simulation_defaults()
+            )
+        ],
+    )
+    motion_statechart = Statechart(context=executor.context)
+    motion_statechart.add_node(counter := CountSimulationTimeSeconds(seconds=1000.0))
+    motion_statechart.add_node(EndMotion.when_true(counter))
+    executor.compile(motion_statechart)
+    action_server = GoalQueueStub()
+    return ControlLoop(
+        executor=executor,
+        action_server=action_server,
+        feedback_publisher=ActionFeedbackPublisher(
+            executor=executor, action_server=action_server
+        ),
+        inputs=WorldStateInputs(world=world),
+        cycle_counter=CycleCounter(),
+        world_updates=IncomingWorldUpdates(
+            world_synchronizer=BufferingSynchronizerMimic()
+        ),
+    )
+
+
+class TestModelChangesOfTheMotionItself:
+
+    def test_the_robot_is_halted_before_the_motion_is_built_again(
+        self, local_control_loop: ControlLoop
+    ):
+        """
+        No command is computed while the motion statechart is built again after the
+        motion changed the model, so the robot is halted first, and not left running
+        with the last command.
+        """
+        publisher = CommandPublisherRecordingCalls()
+        local_control_loop.command_publishers.append(publisher)
+        world = local_control_loop.world
+        with world.modify_world():
+            carried_body = Body(name=PrefixedName("carried_body"))
+            world.add_body(carried_body)
+            world.add_connection(FixedConnection(parent=world.root, child=carried_body))
+
+        local_control_loop.run_cycle()
+
+        assert publisher.calls == [
+            CommandPublisherRecordingCalls.stop.__name__,
+            CommandPublisherRecordingCalls.publish.__name__,
+        ]

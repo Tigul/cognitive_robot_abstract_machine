@@ -160,6 +160,30 @@ class WiggleInsert(ConvergingTask):
     Auxiliary variable holding the current angular noise.
     """
 
+    def set_up(self, context: StatechartContext) -> None:
+        """
+        Register the noise variables and start the wiggle at rest.
+        """
+        super().set_up(context)
+        control_dt = context.require_extension(
+            MotionControlContext
+        ).qp_controller_config.control_dt
+        self._control_frequency = 1 / control_dt
+
+        self._current_angle = 0.0
+        self._angular_momentum = 0.0
+        self._current_vector = np.zeros(3)
+        self._vector_momentum = np.zeros(3)
+
+        self._random_translation = Vector3.create_with_variables(
+            f"{self.name}_rand_translation"
+        )
+        self._random_translation.reference_frame = self.root_link
+        context.float_variable_data.register_expression(self._random_translation)
+
+        self._random_angle = symbolic_math.FloatVariable(f"{self.name}_rand_angle")
+        context.float_variable_data.register_expression(self._random_angle)
+
     def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
         """
         Build motion constraints that press the tip into the hole while wiggling.
@@ -180,15 +204,6 @@ class WiggleInsert(ConvergingTask):
             ),
         )
 
-        control_dt = context.require_extension(
-            MotionControlContext
-        ).qp_controller_config.control_dt
-        self._control_frequency = 1 / control_dt
-
-        self._current_angle = 0.0
-        self._angular_momentum = 0.0
-        self._current_vector = np.zeros(3)
-        self._vector_momentum = np.zeros(3)
         self._perpendicular_basis_first, self._perpendicular_basis_second = (
             self._calculate_perpendicular_basis(hole_normal.to_np()[:3])
         )
@@ -200,12 +215,6 @@ class WiggleInsert(ConvergingTask):
             target_frame=self.root_link, spatial_object=self.hole_point
         )
 
-        self._random_translation = Vector3.create_with_variables(
-            f"{self.name}_rand_translation"
-        )
-        self._random_translation.reference_frame = self.root_link
-        context.float_variable_data.register_expression(self._random_translation)
-
         root_P_hole_wiggled = root_P_hole + self._random_translation
         artifacts.geometry.add_point_goal_constraints(
             frame_P_current=root_P_current,
@@ -214,9 +223,6 @@ class WiggleInsert(ConvergingTask):
             quadratic_weight=self.weight,
             name=f"{self.name}_point_goal",
         )
-
-        self._random_angle = symbolic_math.FloatVariable(f"{self.name}_rand_angle")
-        context.float_variable_data.register_expression(self._random_angle)
 
         tip_V_hole_normal = context.world.transform(
             target_frame=self.tip_link, spatial_object=hole_normal

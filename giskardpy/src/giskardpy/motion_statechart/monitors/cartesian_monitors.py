@@ -54,11 +54,11 @@ class RootRelativeGoalMonitor(MotionStatechartNode, ABC):
         :return: The goal spatial object, expressed in its own reference frame.
         """
 
-    def resolve_root_goal(self, context: StatechartContext) -> SpatialType:
+    def set_up(self, context: StatechartContext) -> None:
         """
-        Express the goal in the root link frame, captured relative to the goal reference frame via
-        a forward kinematics binding.
+        Bind the goal reference frame, which the goal is captured relative to.
         """
+        super().set_up(context)
         self._forward_kinematics_binding = ForwardKinematicsBinding(
             name=PrefixedName("root_T_goal_ref", str(self.name)),
             root=self.root_link,
@@ -66,6 +66,12 @@ class RootRelativeGoalMonitor(MotionStatechartNode, ABC):
             float_variable_data=context.float_variable_data,
         )
         self._forward_kinematics_binding.bind(context.world)
+
+    def resolve_root_goal(self, context: StatechartContext) -> SpatialType:
+        """
+        Express the goal in the root link frame, captured relative to the goal reference frame via
+        a forward kinematics binding.
+        """
         return self._forward_kinematics_binding.root_T_tip @ self.goal
 
     def on_start(self, context: StatechartContext) -> None:

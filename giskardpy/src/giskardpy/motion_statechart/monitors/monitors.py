@@ -86,12 +86,19 @@ class LocalMinimumReached(MotionStatechartNode):
                 context.tick_variable.evaluate()[0],
             )
 
-    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
-        if self.degrees_of_freedom is not None and not self.degrees_of_freedom:
-            raise EmptyDegreesOfFreedomError(node=self)
+    def set_up(self, context: StatechartContext) -> None:
+        """
+        Register the variable holding the tick this monitor started on, if it measures
+        from its own start.
+        """
+        super().set_up(context)
         if self.measure_from_own_start:
             self._start_cycle_variable = FloatVariable(f"{self.name}_start_cycle")
             context.float_variable_data.register_expression(self._start_cycle_variable)
+
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
+        if self.degrees_of_freedom is not None and not self.degrees_of_freedom:
+            raise EmptyDegreesOfFreedomError(node=self)
         return NodeArtifacts(
             observation=velocity_convergence_expression(
                 context=context,
