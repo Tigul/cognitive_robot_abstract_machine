@@ -10,7 +10,6 @@ from cramph.context import StatechartContext
 from cramph.data_types import LifeCycleValues, SuccessDecider
 from cramph.exceptions import (
     PrerequisiteNotExpandedError,
-    StatechartAlreadyCompiledError,
 )
 from cramph.executor import StatechartExecutor
 from cramph.node import CompositeNode, StatechartNode
@@ -117,15 +116,17 @@ def test_a_composite_node_joining_before_its_prerequisite_is_rejected(
         statechart.add_node(CompositeNodeCountingTheChildrenOfAnother(watched=sequence))
 
 
-def test_a_compiled_statechart_rejects_new_nodes(
+def test_a_compiled_statechart_takes_new_nodes(
     statechart_executor: StatechartExecutor,
 ):
     statechart = Statechart(context=statechart_executor.context)
     statechart.add_node(ConstTrueNode())
     statechart_executor.compile(statechart)
 
-    with pytest.raises(StatechartAlreadyCompiledError):
-        statechart.add_node(ConstTrueNode())
+    statechart.add_node(added := ConstTrueNode())
+
+    assert added in statechart.nodes
+    assert statechart.is_compiled
 
 
 # %% conditions a composite node wires over its own children

@@ -610,14 +610,18 @@ class StatechartOfDifferentContextError(StatechartError):
 @dataclass
 class StatechartAlreadyCompiledError(StatechartError):
     """
-    Raised when the structure of a statechart is changed after it was compiled.
+    Raised when a compiled part of a statechart is changed: a node is removed, or a node
+    is added as the child of a composite node that is compiled already.
     """
 
     def error_message(self) -> str:
-        return "The statechart is already compiled, so its nodes can no longer change."
+        return "That part of the statechart is compiled, so it can no longer change."
 
     def suggest_correction(self) -> str:
-        return "Finish adding and removing nodes before compiling the statechart."
+        return (
+            "Add new nodes at the top level or inside a composite node that joins with "
+            "them; batch several additions in Statechart.modify()."
+        )
 
 
 @dataclass

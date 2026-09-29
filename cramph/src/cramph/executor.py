@@ -13,7 +13,7 @@ from cramph.exceptions import (
     StatechartOfDifferentContextError,
     NonPositiveRealTimeFactorError,
 )
-from cramph.statechart import Statechart
+from cramph.statechart import RecompileCallback, Statechart
 from krrood.symbolic_math.symbolic_math import FloatVariable
 
 if TYPE_CHECKING:
@@ -202,9 +202,12 @@ GenericExecutorExtension = TypeVar("GenericExecutorExtension", bound=ExecutorExt
 
 
 @dataclass
-class StatechartExecutor:
+class StatechartExecutor(RecompileCallback):
     """
     Compiles a statechart and ticks it, counting the ticks.
+
+    A statechart it runs may take new nodes while it runs, see
+    :meth:`~cramph.statechart.Statechart.modify`; the extensions then compile again.
     """
 
     context: StatechartContext
@@ -286,9 +289,17 @@ class StatechartExecutor:
         self.statechart = statechart
         self.tick_count = 0
         self.statechart.compile()
+        self.statechart.add_recompile_callback(self)
+        self.after_recompile()
+        self.statechart.tick()
+
+    def after_recompile(self) -> None:
+        """
+        Let every extension compile again, so what it builds from the nodes covers
+        every node of the statechart. The tick count is not restarted.
+        """
         for extension in self.extensions:
             extension.after_compile(self)
-        self.statechart.tick()
 
     def tick(self):
         """
