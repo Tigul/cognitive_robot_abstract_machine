@@ -13,6 +13,7 @@ import rustworkx as rx
 from typing_extensions import (
     Any,
     ClassVar,
+    Dict,
     FrozenSet,
     List,
     MutableMapping,
@@ -25,6 +26,23 @@ from typing_extensions import (
 import krrood.symbolic_math.symbolic_math as sm
 from cramph.plotters.gantt_chart_plotter import HistoryGanttChartPlotter
 from krrood.adapters.json_serializer import SubclassJSONSerializer, from_json, to_json
+from krrood.rustworkx_utils.graph_visualizer_base import (
+    GraphLayout,
+    GraphVisualizerBackend,
+    GraphVisualizerBase,
+)
+from krrood.rustworkx_utils.visualization.cytoscape_graph_visualizer import (
+    CytoscapeGraphVisualizer,
+)
+from krrood.rustworkx_utils.visualization.interactive_graph_visualizer import (
+    InteractiveGraphVisualizer,
+)
+from krrood.rustworkx_utils.visualization.three_graph_visualizer import (
+    ThreeGraphVisualizer,
+)
+from krrood.rustworkx_utils.visualization.visnetwork_graph_visualizer import (
+    VisNetworkGraphVisualizer,
+)
 from krrood.symbolic_math.symbolic_math import VariableParameters
 from cramph.context import ContextExtension, StatechartContext
 from cramph.data_types import (
@@ -2019,6 +2037,103 @@ class Statechart(SubclassJSONSerializer):
         :param file_name: Where to save the resulting file.
         """
         StatechartGraphviz(self).to_dot_graph_pdf(file_name=file_name)
+
+    @property
+    def layers(self) -> List[List[StatechartNode]]:
+        """
+        :return: The nodes layer by layer, from the top-level nodes down to the most
+            deeply nested children, each layer in order.
+        """
+        layers = []
+        layer = self.top_level_nodes
+        while layer:
+            layers.append(layer)
+            layer = [child for node in layer for child in node.children]
+        return layers
+
+    _visualizer_classes: ClassVar[
+        Dict[GraphVisualizerBackend, Type[GraphVisualizerBase]]
+    ] = {
+        GraphVisualizerBackend.PLOTLY: InteractiveGraphVisualizer,
+        GraphVisualizerBackend.CYTOSCAPE: CytoscapeGraphVisualizer,
+        GraphVisualizerBackend.VIS_NETWORK: VisNetworkGraphVisualizer,
+        GraphVisualizerBackend.THREE: ThreeGraphVisualizer,
+    }
+    """
+    The visualizer to use for each rendering backend.
+    """
+
+    def visualize(
+        self,
+        backend: GraphVisualizerBackend = GraphVisualizerBackend.CYTOSCAPE,
+        layout: GraphLayout = GraphLayout.LAYERED,
+    ) -> GraphVisualizerBase:
+        """
+        Open an interactive visualization of the nodes and the nodes they run.
+
+        Nodes are labelled by their unique name, coloured by their life cycle state and
+        reveal their state and run ticks when clicked, all updated while the statechart
+        ticks.
+
+        .. note:: The drawn nodes are those the statechart holds when this is called;
+            call it again to see nodes added afterwards.
+
+        :param backend: The rendering technology to use.
+        :param layout: The algorithm used to place the nodes.
+        :return: The running visualizer.
+        """
+        visualizer = self._create_visualizer(backend=backend, layout=layout)
+        visualizer.run()
+        return visualizer
+
+    def _create_visualizer(
+        self, backend: GraphVisualizerBackend, layout: GraphLayout
+    ) -> GraphVisualizerBase:
+        """
+        :param backend: The rendering technology to use.
+        :param layout: The algorithm used to place the nodes.
+        :return: A visualizer of this statechart, before it is started.
+        """
+        return self._visualizer_classes[backend](
+            graph=self._parent_child_graph(),
+            label_getter=lambda node: node.unique_name,
+            information_getter=self._node_details,
+            color_getter=lambda node: node.life_cycle_state.color.to_hex(),
+            layout=layout,
+            title=f"Statechart with {len(self.nodes)} nodes",
+        )
+
+    def _parent_child_graph(self) -> rx.PyDiGraph[StatechartNode]:
+        """
+        Unlike :attr:`rx_graph`, whose edges are transition condition dependencies,
+        this graph's edges lead from each node to the nodes it runs.
+
+        :return: A graph of every node, each at its own :attr:`~StatechartNode.index`.
+        """
+        graph = rx.PyDiGraph()
+        graph.add_nodes_from(self.nodes)
+        graph.add_edges_from_no_data(
+            [
+                (node.index, child.index)
+                for node in self.nodes
+                for child in node.children
+            ]
+        )
+        return graph
+
+    def _node_details(self, node: StatechartNode) -> List[str]:
+        """
+        :param node: The node to describe.
+        :return: The state of the node and the ticks of its current run as detail lines.
+        """
+        details = [
+            f"life cycle: {node.life_cycle_state.name}",
+            f"observation: {self.observation_state[node].name}",
+        ]
+        run = self.history.get_current_run_ticks_of_node(node)
+        if run is None:
+            return details
+        return details + [f"start tick: {run.start_tick}", f"end tick: {run.end_tick}"]
 
     def plot_gantt_chart(
         self,
