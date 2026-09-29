@@ -13,5 +13,8 @@ Plan:
    Cause: World._remove_semantic_annotation uses list.remove (equality = class+root), so
    reverting a second Milk on the same body removes the original and leaves the new,
    detached annotation (_world None) in the world. SDT bug exposed by rollback.
-Next: user decides where the SDT fix goes (this branch vs separate bug PR); fix TDD-style
-with a failing SDT test first. Docstrings formatted. Nothing committed, no PR yet.
+6. [done] User chose: fix on this branch. Failing test
+   test_removing_a_semantic_annotation_keeps_an_equal_one (test_world.py), then
+   World._remove_semantic_annotation removes by identity. Perception + SDT world/
+   modification/annotation modules pass.
+Next: commit when asked (two commits: SDT fix, fixture refactor). No PR yet.
