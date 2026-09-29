@@ -17,4 +17,9 @@ Plan:
    test_removing_a_semantic_annotation_keeps_an_equal_one (test_world.py), then
    World._remove_semantic_annotation removes by identity. Perception + SDT world/
    modification/annotation modules pass.
-Next: commit when asked (two commits: SDT fix, fixture refactor). No PR yet.
+7. [running] Missed earlier (truncated grep): test_multi_robot_action_designator.py
+   (-> multiple_robot_apartment_context, still restores full_body_controlled; elevator test
+   now stops its ElevatorOperator callback) and test_multi_stationary_robot_action_designator.py
+   (-> stationary_block_context). Callbacks deliberately not stopped generically in
+   WorldSnapshot (internal lazily-registered callbacks). Full grep: no (im)mutable fixtures left.
+Next: confirm those two modules pass; commit when asked (two commits). No PR yet.
