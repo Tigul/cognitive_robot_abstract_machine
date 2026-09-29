@@ -25,5 +25,17 @@ Plan:
    Results: multi_robot_action 100 passed; multi_stationary 7 passed + 7 DAiSy setup errors,
    pre-existing (daisy_world session fixture: collision SRDF names
    left_gripper_side_cylinder_link, which the DAiSy model lacks; same on old fixtures).
-Earlier work committed by the user as dac5091c5. Uncommitted: the two files above.
-Next: commit the two files when asked. No PR yet.
+All of the above committed (dac5091c5, 9b25173b5). PR #686 (cram2 upstream) open.
+8. [done] Timing branch vs main (24 changed modules, serial, 1 run each): 979s vs 999s (~2%);
+   gain mostly test_multi_robot_action_designator (306 vs 321s) and test_grasp.
+9. [running] CI failure test_replay_complex_plan_from_db (TypeError: cannot pickle 'generator').
+   Cause: krrood InferenceRecorder tags existing instances returned by @symbolic_function
+   (ViewManager.get_end_effector_view -> PR2LeftGripper) with _inference_explanation_; that
+   explanation holds live query generators, so rebind_world_entities' deepcopy of later actions
+   fails. Rollback keeps the same gripper object across tests (old fixture discarded it).
+   Repro: test_action_conditions.py then test_ormatic_designator.py.
+   User chose fix A+B on this branch: failing tests in test_explanation.py (3), then
+   InstantiatedVariable._constructs_its_values_ + HasBoundValue._binds_constructed_instance_
+   (A) and InferenceExplanation.__deepcopy__ returns self (B). krrood suite + SDT annotations +
+   minimal repro pass; full gw0 sequence rerun pending.
+Next: commit + push when asked (PR is upstream cram2 - do not comment/modify PR there).
