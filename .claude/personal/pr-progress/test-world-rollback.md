@@ -38,5 +38,5 @@ All of the above committed (dac5091c5, 9b25173b5). PR #686 (cram2 upstream) open
    InstantiatedVariable._constructs_its_values_ + HasBoundValue._binds_constructed_instance_
    (A) and InferenceExplanation.__deepcopy__ returns self (B). krrood suite + SDT annotations +
    minimal repro + full gw0 sequence (333 passed; only the known local DAiSy setup errors) pass.
-   Uncommitted.
+   Committed e6338dc68 and pushed to origin (Tigul fork). PR #686 not converted to draft / description not updated (upstream PR, needs permission).
 Next: commit + push when asked (PR is upstream cram2 - do not comment/modify PR there).
