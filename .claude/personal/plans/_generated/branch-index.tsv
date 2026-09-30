@@ -6,3 +6,4 @@ wire-action-conditions	statechart-unification
 retire-language-nodes	statechart-unification
 growable-statechart	statechart-unification
 reattach-statechart-node	statechart-unification
+persistent-motion-state-chart	statechart-unification

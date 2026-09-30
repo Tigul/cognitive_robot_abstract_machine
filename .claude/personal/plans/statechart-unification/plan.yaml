@@ -238,11 +238,12 @@ items:
 
   - id: persistent-motion-state-chart
     title: "Build one long-lived Statechart instead of one per execution-boundary batch"
-    branch: null
+    branch: persistent-motion-state-chart
     pull_request_number: null
     track: plan-layer-retirement
     depends_on: [growable-statechart, reattach-statechart-node]
-    status: not_started
+    status: in_progress
+    session: https://claude.ai/code/session_019VXxvYLMiZn4gXYXsa6ngX
     notes: >
       Retires the throwaway chart in
       BuildsMotionStateChart.create_giskard_executable and the repeated
