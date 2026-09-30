@@ -1884,11 +1884,13 @@ class Statechart(SubclassJSONSerializer):
         """
         is_recompile = self.is_compiled
         if is_recompile:
-            self._tell_recompile_callbacks_before()
+            for callback in list(self._recompile_callbacks):
+                callback.before_recompile()
         self.sanity_check()
         self._compile_nodes(self._nodes[self._compiled_node_count :])
         if is_recompile:
-            self._tell_recompile_callbacks_after()
+            for callback in list(self._recompile_callbacks):
+                callback.after_recompile()
             return
         self.history.append(
             next_item=StateHistoryItem(
@@ -1900,7 +1902,9 @@ class Statechart(SubclassJSONSerializer):
 
     def _compile_nodes(self, nodes: List[StatechartNode]) -> None:
         """
-        Completes and builds `nodes`, then compiles the tick over every node.
+        Completes `nodes`, builds them, or every node if the kinematic structure of
+        the world changed since the nodes were built, then compiles the tick over
+        every node.
 
         :param nodes: The nodes no compile covered yet.
         """
@@ -1910,9 +1914,8 @@ class Statechart(SubclassJSONSerializer):
         self._check_every_node_declares_its_success_decider(nodes)
         self._succeed_self_deciding_nodes_observing_true(nodes)
         self._fail_self_failing_nodes_observing_false(nodes)
-        if self._world_structure_changed():
-            self._build_again(self._nodes[: self._compiled_node_count])
-        self._build_nodes(context=self.context, nodes=nodes)
+        nodes_to_build = self.nodes if self._world_structure_changed() else nodes
+        self._build_nodes(context=self.context, nodes=nodes_to_build)
         self._compile_tick()
         self._compiled_node_count = len(self._nodes)
         self._changed_since_compile = False
@@ -1942,44 +1945,16 @@ class Statechart(SubclassJSONSerializer):
 
     def _rebuild_if_world_structure_changed(self) -> None:
         """
-        Builds every node again and compiles the tick over them if the kinematic
-        structure of the world changed since they were built, because expressions
-        reading the structure, such as forward kinematics, describe the old one.
+        Compiles again, building every node again, if the kinematic structure of the
+        world changed since they were built, because expressions reading the
+        structure, such as forward kinematics, describe the old one.
 
         The state, the history and what each node registered in
         :meth:`~cramph.node.StatechartNode.set_up` are kept, so the statechart goes on
         from where it was.
         """
-        if not self._world_structure_changed():
-            return
-        self._tell_recompile_callbacks_before()
-        self._build_again(self.nodes)
-        self._compile_tick()
-        self._tell_recompile_callbacks_after()
-
-    def _build_again(self, nodes: List[StatechartNode]) -> None:
-        """
-        Builds `nodes` again against the current kinematic structure of the world.
-
-        :param nodes: Nodes that were built before.
-        """
-        built_node_indices = set()
-        for node in nodes:
-            self._build_and_apply_artifacts(node, self.context, built_node_indices, [])
-
-    def _tell_recompile_callbacks_before(self) -> None:
-        """
-        Tells every :class:`RecompileCallback` that this statechart compiles again.
-        """
-        for callback in list(self._recompile_callbacks):
-            callback.before_recompile()
-
-    def _tell_recompile_callbacks_after(self) -> None:
-        """
-        Tells every :class:`RecompileCallback` that this statechart compiled again.
-        """
-        for callback in list(self._recompile_callbacks):
-            callback.after_recompile()
+        if self._world_structure_changed():
+            self.compile()
 
     @staticmethod
     def _check_children_of_goals(goals: List[CompositeNode]) -> None:
