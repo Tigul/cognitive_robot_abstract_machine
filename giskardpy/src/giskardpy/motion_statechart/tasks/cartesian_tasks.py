@@ -341,6 +341,12 @@ class CartesianPositionTrajectory(CartesianTask):
         """
         Computing the current point relative to the goal reference frame is expensive, this method turns it into
         a compiled expression.
+
+        .. warning:: Every build binds a new compiled function to the float variable data, and
+            :meth:`~krrood.symbolic_math.float_variable_data.FloatVariableData.bind_argument`
+            never releases the one bound by the previous build. A statechart that builds its nodes again
+            after a change of the world structure therefore keeps one stale compiled function per rebuild.
+
         :param context: the current context, needed for the world reference.
         """
         root_T_tip = context.world.compose_forward_kinematics_expression(
