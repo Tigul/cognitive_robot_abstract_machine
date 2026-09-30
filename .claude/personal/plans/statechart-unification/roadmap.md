@@ -286,6 +286,8 @@ the way `StatechartGraphviz` already builds one for `draw()`.
   https://claude.ai/artifact/GZPafsk73fc6Ng6tpcWtRb
 - **2026-09-29**: `statechart-plan-parity` merged straight into `plan-cramp-second-iter`
   (fb1141412), without a pull request, at the user's request.
+- **2026-09-30**: Tigul#9 (`reattach-statechart-node`) merged (d8cd3dcc4), so
+  `persistent-motion-state-chart` is unblocked and is next.
 
 ## Retiring the language nodes' imperative path (`retire-language-nodes`, Tigul#7)
 
@@ -395,3 +397,19 @@ Settled 2026-09-29 with the user, in plan mode.
   `statechart-compile-performance`.
 - Out of scope: coraplex's `ReAttachNode` stays an execution boundary
   (`persistent-motion-state-chart`), and ElevatorNavigation's conversion comes later.
+
+## Persistent motion state chart (`persistent-motion-state-chart`)
+
+Settled 2026-09-30 with the user, in plan mode.
+
+- **A segment ends when its root goal succeeds.** No per-segment `EndMotion`: the executor
+  ticks until the segment's root is `SUCCEEDED` (or the chart cancels), the next boundary
+  extends the same chart, and one `EndMotion` is added when the plan finishes.
+- **Real robot goes persistent too** (user's choice over simulation only). Open risk:
+  `GiskardWrapper.execute` sends a whole chart, so whether giskard accepts a grown chart
+  without restarting its state has to be settled before that part is built. If not, it goes
+  back to the user, since recompiling mid-motion is what `statechart-compile-performance`
+  parks.
+- `ReAttachNode` adds the cramph `MoveBranch` node and stops being an execution boundary;
+  `UnderspecifiedNode` still grounds only after the preceding segment ran, then extends the
+  same chart inside `Statechart.modify()`.

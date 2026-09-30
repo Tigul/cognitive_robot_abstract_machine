@@ -5,3 +5,4 @@ convert-navigate-action	statechart-unification
 wire-action-conditions	statechart-unification
 retire-language-nodes	statechart-unification
 growable-statechart	statechart-unification
+reattach-statechart-node	statechart-unification

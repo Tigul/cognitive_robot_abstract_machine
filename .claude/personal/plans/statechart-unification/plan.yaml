@@ -221,11 +221,11 @@ items:
 
   - id: reattach-statechart-node
     title: "Re-parent a body from inside a running statechart"
-    branch: null
-    pull_request_number: null
+    branch: reattach-statechart-node
+    pull_request_number: 9
     track: plan-layer-retirement
     depends_on: [growable-statechart]
-    status: in_progress
+    status: done
     notes: >
       Split out of persistent-motion-state-chart on 2026-09-25. ReAttachNode is
       an execution boundary only because its world.move_branch runs between
@@ -234,6 +234,7 @@ items:
       compiled against the old kinematic structure rebuilt, which is why it
       builds on growable-statechart's recompiling. Also unblocks
       ElevatorNavigation's conversion (see convert-remaining-declarative-actions).
+      Tigul#9 merged 2026-09-30 (d8cd3dcc4).
 
   - id: persistent-motion-state-chart
     title: "Build one long-lived Statechart instead of one per execution-boundary batch"
@@ -253,6 +254,8 @@ items:
       reattach-statechart-node. What is left here is the coraplex side:
       parse_children / contains_execution_boundary extend the one chart
       instead of cutting the plan into separate ones.
+      Decided 2026-09-30: a segment ends when its root goal succeeds, with one
+      EndMotion when the plan finishes; the real-robot path goes persistent too.
 
   - id: statechart-compile-performance
     title: "Make compiling and extending a statechart cheap enough for a control loop"
