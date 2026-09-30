@@ -20,8 +20,16 @@ Done, committed 89818aa1f and pushed:
   test_world_updates.py TestModelChangesOfTheMotionItself (1, own ROS-free fixture).
 - Pre-existing: test_world_updates control_loop fixture calls Statechart() without context
   (3 errors on base too) - not touched.
-- Known: CartesianPositionTrajectory rebuild keeps previous compiled function in
-  FloatVariableData._bound_arguments (small leak per rebuild).
+- Review round 1 (PR #9): _build_again and _tell_recompile_callbacks_* removed, the
+  world-structure rebuild goes through compile() (commit 1a83f1574). motion_control comment withdrawn.
+  Replies/resolve/draft NOT done: token gets 403 on PR writes.
+- FOLLOW-UP (separate change, in krrood): leak in FloatVariableData._bound_arguments.
+  CartesianPositionTrajectory.compile_current_point_on_tick (giskardpy cartesian_tasks.py) calls
+  bind_argument() from build_artifacts, so every rebuild appends a BoundArgument and the previous
+  compiled function is never released; register_expression re-points the dead ones too. Harmless to
+  correctness, costs memory + work per registration. Fix idea: make the binding replaceable (unbind,
+  or key the BoundArgument by owning node so a rebuild replaces its entry); needs its own failing
+  test first (count _bound_arguments after N rebuilds). Check other bind_argument callers too.
 - Passing: cramph + giskardpy test_motion_statechart (832 before last fix).
 Verified: cramph+giskard motion statechart 833 passed; coraplex plan/actions/designator 267 passed;
 ROS2+SDT world 44 failed/56 errors, all identical on base (none new).
