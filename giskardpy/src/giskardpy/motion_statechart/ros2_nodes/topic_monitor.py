@@ -44,10 +44,10 @@ class TopicNode(MotionStatechartNode, Generic[MsgType]):
 
     ros2_node: Node = field(init=False)
 
-    def build(self, context: StatechartContext) -> NodeArtifacts:
+    def set_up(self, context: StatechartContext) -> None:
+        super().set_up(context)
         ros_context_extension = context.require_extension(RosContextExtension)
         self.ros2_node = ros_context_extension.ros_node
-        return super().build(context)
 
 
 @dataclass(eq=False, repr=False)
@@ -55,8 +55,8 @@ class TopicSubscriberNode(TopicNode[MsgType]):
     """
     Superclass for all nodes that subscribe to a ROS topic.
 
-    This node will automatically create a subscriber on build and cache the last message
-    in `current_msg` on_tick.
+    This node will automatically create a subscriber on set up and cache the last
+    message in `current_msg` on_tick.
     """
 
     _subscriber: Subscription = field(init=False)
@@ -76,15 +76,14 @@ class TopicSubscriberNode(TopicNode[MsgType]):
     __last_msg is copied to this variable on every tick while this node is RUNNING.
     """
 
-    def build(self, context: StatechartContext) -> NodeArtifacts:
-        node_artifacts = super().build(context)
+    def set_up(self, context: StatechartContext) -> None:
+        super().set_up(context)
         self._subscriber = self.ros2_node.create_subscription(
             msg_type=self.msg_type,
             topic=self.topic_name,
             callback=self.callback,
             qos_profile=self.qos_profile,
         )
-        return node_artifacts
 
     def callback(self, msg: MsgType):
         self.__last_msg = msg
@@ -110,7 +109,7 @@ class TopicPublisherNode(TopicNode[MsgType]):
     """
     Superclass for all nodes that publish to a ROS topic.
 
-    This node will automatically create a publisher on build.
+    This node will automatically create a publisher on set up.
     """
 
     _publisher: Publisher = field(init=False)
@@ -118,14 +117,13 @@ class TopicPublisherNode(TopicNode[MsgType]):
     Internal ROS publisher object.
     """
 
-    def build(self, context: StatechartContext) -> NodeArtifacts:
-        node_artifacts = super().build(context)
+    def set_up(self, context: StatechartContext) -> None:
+        super().set_up(context)
         self._publisher = self.ros2_node.create_publisher(
             msg_type=self.msg_type,
             topic=self.topic_name,
             qos_profile=self.qos_profile,
         )
-        return node_artifacts
 
 
 @dataclass(eq=False, repr=False)

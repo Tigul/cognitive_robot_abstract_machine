@@ -806,6 +806,13 @@ class StatechartNode(SubclassJSONSerializer):
     """
     What :meth:`build` returned, set by :meth:`apply_artifacts`.
     """
+    _set_up_context: Optional[StatechartContext] = field(
+        init=False, repr=False, default=None
+    )
+    """
+    The context :meth:`set_up` last ran in, which it does once per context, on the
+    first :meth:`build` in it.
+    """
     _observation_expression: Scalar = field(init=False, repr=False)
     """The parameter is set after build() using its NodeArtifacts."""
 
@@ -1332,17 +1339,38 @@ class StatechartNode(SubclassJSONSerializer):
         """
         return StatechartNode(name=self.name)
 
+    def set_up(self, context: StatechartContext) -> None:
+        """
+        Called once per context, when this node is first built in it, before
+        :meth:`build_artifacts`. Register what this node reads from `context` here,
+        such as float variables, because :meth:`build` may run more than once.
+
+        :param context: The context this node is built and ticked in.
+        """
+
     def build(self, context: StatechartContext) -> NodeArtifacts:
         """
-        Called exactly once during statechart compilation.
-        Override this method for setup steps that produce no artifacts.
+        Called when the statechart compiles this node, and again every time the
+        kinematic structure of the world changes, so that expressions reading the
+        structure follow it. Anything registered in `context` belongs in
+        :meth:`set_up`.
         .. warning:: Don't create other nodes within this function.
         .. warning:: An override must return ``super().build(context)``, otherwise
-            :meth:`build_artifacts` never runs.
+            :meth:`set_up` and :meth:`build_artifacts` never run.
         :param context: The context that contains data that can be used to build this node.
         :return: A NodeArtifacts instance that describes this node.
         """
+        self._set_up_once(context)
         return self.build_artifacts(context)
+
+    def _set_up_once(self, context: StatechartContext) -> None:
+        """
+        Calls :meth:`set_up` unless it already ran in `context`.
+        """
+        if self._set_up_context is context:
+            return
+        self.set_up(context)
+        self._set_up_context = context
 
     def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         """

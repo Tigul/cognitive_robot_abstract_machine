@@ -78,6 +78,7 @@ from cramph.node import (
     TransitionCondition,
 )
 from cramph.plotters.graphviz import StatechartGraphviz
+from semantic_digital_twin.world import ModelRevision
 from semantic_digital_twin.world_description.world_entity import (
     WorldEntityReferenceWriter,
 )
@@ -1232,8 +1233,15 @@ class StateHistory:
 class RecompileCallback(ABC):
     """
     Something told whenever a statechart that already compiled compiles again, because
-    nodes joined it.
+    nodes joined it or the kinematic structure of its world changed.
     """
+
+    @abstractmethod
+    def before_recompile(self) -> None:
+        """
+        React to the statechart being about to compile again, which blocks its tick
+        until it is done.
+        """
 
     @abstractmethod
     def after_recompile(self) -> None:
@@ -1405,6 +1413,13 @@ class Statechart(SubclassJSONSerializer):
     _compiled_node_count: int = field(default=0, init=False, repr=False)
     """
     How many of the nodes, counted in index order, the latest compile covered.
+    """
+
+    _compiled_world_revision: Optional[ModelRevision] = field(
+        default=None, init=False, repr=False
+    )
+    """
+    The kinematic structure of the world the nodes were last built against.
     """
 
     _nodes: List[StatechartNode] = field(default_factory=list, init=False, repr=False)
@@ -1868,6 +1883,9 @@ class Statechart(SubclassJSONSerializer):
         tick is compiled over every node. Every :class:`RecompileCallback` is told.
         """
         is_recompile = self.is_compiled
+        if is_recompile:
+            for callback in list(self._recompile_callbacks):
+                callback.before_recompile()
         self.sanity_check()
         self._compile_nodes(self._nodes[self._compiled_node_count :])
         if is_recompile:
@@ -1884,7 +1902,9 @@ class Statechart(SubclassJSONSerializer):
 
     def _compile_nodes(self, nodes: List[StatechartNode]) -> None:
         """
-        Completes and builds `nodes`, then compiles the tick over every node.
+        Completes `nodes`, builds them, or every node if the kinematic structure of
+        the world changed since the nodes were built, then compiles the tick over
+        every node.
 
         :param nodes: The nodes no compile covered yet.
         """
@@ -1894,12 +1914,47 @@ class Statechart(SubclassJSONSerializer):
         self._check_every_node_declares_its_success_decider(nodes)
         self._succeed_self_deciding_nodes_observing_true(nodes)
         self._fail_self_failing_nodes_observing_false(nodes)
-        self._build_nodes(context=self.context, nodes=nodes)
+        nodes_to_build = self.nodes if self._world_structure_changed() else nodes
+        self._build_nodes(context=self.context, nodes=nodes_to_build)
+        self._compile_tick()
+        self._compiled_node_count = len(self._nodes)
+        self._changed_since_compile = False
+
+    def _compile_tick(self) -> None:
+        """
+        Compiles the tick over every node as currently built, against the current
+        kinematic structure of the world.
+        """
         self._add_transitions()
         self._compiled_tick = CompiledTick(statechart=self)
         self._compiled_tick.compile(context=self.context)
-        self._compiled_node_count = len(self._nodes)
-        self._changed_since_compile = False
+        self._compiled_world_revision = self._world_revision()
+
+    def _world_revision(self) -> ModelRevision:
+        """
+        :return: The current kinematic structure of the world of :attr:`context`.
+        """
+        return self.context.world.get_world_model_manager().revision
+
+    def _world_structure_changed(self) -> bool:
+        """
+        :return: Whether the kinematic structure of the world changed since the nodes
+            were last built.
+        """
+        return self._world_revision() != self._compiled_world_revision
+
+    def _rebuild_if_world_structure_changed(self) -> None:
+        """
+        Compiles again, building every node again, if the kinematic structure of the
+        world changed since they were built, because expressions reading the
+        structure, such as forward kinematics, describe the old one.
+
+        The state, the history and what each node registered in
+        :meth:`~cramph.node.StatechartNode.set_up` are kept, so the statechart goes on
+        from where it was.
+        """
+        if self._world_structure_changed():
+            self.compile()
 
     @staticmethod
     def _check_children_of_goals(goals: List[CompositeNode]) -> None:
@@ -1970,10 +2025,16 @@ class Statechart(SubclassJSONSerializer):
         :class:`CompiledTick`, then the life cycle callbacks of every change run
         and the tick is recorded. A :class:`CancelStatechart` that started in this
         tick ends the statechart only after that.
+
+        If the kinematic structure of the world changed, before this tick or in one of
+        its callbacks, every node is built again right away, see
+        :meth:`~cramph.node.StatechartNode.build`.
         """
+        self._rebuild_if_world_structure_changed()
         changes = self._compiled_tick.settle(self.context)
         for change in changes:
             change.run_callback(self.context)
+        self._rebuild_if_world_structure_changed()
         self._log_life_cycle_changes(changes)
         self.history.append(
             next_item=StateHistoryItem(

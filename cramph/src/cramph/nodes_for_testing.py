@@ -774,9 +774,11 @@ class NodeWritingAVariableOnStart(StatechartNode):
     The variable written when this node starts, False until then.
     """
 
-    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
+    def set_up(self, context: StatechartContext) -> None:
         self.variable = FloatVariable(f"{self.name}/written_on_start")
         context.float_variable_data.register_expression(self.variable)
+
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         return NodeArtifacts(observation=sm.Scalar.const_trinary_unknown())
 
     def on_start(self, context: StatechartContext):

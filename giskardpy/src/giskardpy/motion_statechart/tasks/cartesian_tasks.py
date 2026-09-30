@@ -80,10 +80,11 @@ class CartesianTask(ConvergingTask, ABC):
     CURRENT_COLOR: ClassVar[Color] = Color(R=1.0, G=0.0, B=0.0, A=1.0)
     """The color of the current debug expression marker (red)."""
 
-    def build(self, context: StatechartContext) -> MotionNodeArtifacts:
+    def set_up(self, context: StatechartContext) -> None:
         """
-        Bind the goal reference frame before the subclass describes its error against it.
+        Bind the goal reference frame, which the error is described against.
         """
+        super().set_up(context)
         self._forward_kinematics_binding = ForwardKinematicsBinding(
             name=PrefixedName("root_T_goal_ref", str(self.name)),
             root=self.root_link,
@@ -92,8 +93,6 @@ class CartesianTask(ConvergingTask, ABC):
         )
         self._forward_kinematics_binding.bind(context.world)
         self.root_T_goal_reference_frame = self._forward_kinematics_binding.root_T_tip
-
-        return super().build(context)
 
     def on_start(self, context: StatechartContext):
         if self.binding_policy == GoalBindingPolicy.Bind_on_start:
@@ -255,9 +254,16 @@ class CartesianPositionTrajectory(CartesianTask):
             [point.to_np()[:-1] for point in self.goal_points]
         )
 
-    def build(self, context: StatechartContext) -> MotionNodeArtifacts:
+    def set_up(self, context: StatechartContext) -> None:
+        """
+        Register the target point on the trajectory and the distance left to travel.
+        """
+        super().set_up(context)
         self._goal_points_to_np()
-        return super().build(context)
+        self._init_goal_reference_frame_P_current_target_point(
+            context.float_variable_data
+        )
+        self._init_remaining_distance(context.float_variable_data)
 
     def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
         """
@@ -269,11 +275,6 @@ class CartesianPositionTrajectory(CartesianTask):
             trajectory the tip already is.
         """
         artifacts = MotionNodeArtifacts()
-        self._init_goal_reference_frame_P_current_target_point(
-            context.float_variable_data
-        )
-        self._init_remaining_distance(context.float_variable_data)
-
         root_P_goal = (
             self.root_T_goal_reference_frame
             @ self.goal_reference_frame_P_current_target_point
@@ -340,6 +341,12 @@ class CartesianPositionTrajectory(CartesianTask):
         """
         Computing the current point relative to the goal reference frame is expensive, this method turns it into
         a compiled expression.
+
+        .. warning:: Every build binds a new compiled function to the float variable data, and
+            :meth:`~krrood.symbolic_math.float_variable_data.FloatVariableData.bind_argument`
+            never releases the one bound by the previous build. A statechart that builds its nodes again
+            after a change of the world structure therefore keeps one stale compiled function per rebuild.
+
         :param context: the current context, needed for the world reference.
         """
         root_T_tip = context.world.compose_forward_kinematics_expression(
@@ -488,10 +495,11 @@ class CartesianPositionStraight(CartesianTask):
     def goal_reference_frame(self) -> KinematicStructureEntity:
         return self.goal_point.reference_frame
 
-    def build(self, context: StatechartContext) -> MotionNodeArtifacts:
+    def set_up(self, context: StatechartContext) -> None:
         """
-        Bind the pose the line starts at before the constraints are described against it.
+        Bind the pose the line starts at, which the constraints are described against.
         """
+        super().set_up(context)
         self._line_start_binding = ForwardKinematicsBinding(
             name=PrefixedName("root_T_line_start", str(self.name)),
             root=self.root_link,
@@ -499,7 +507,6 @@ class CartesianPositionStraight(CartesianTask):
             float_variable_data=context.float_variable_data,
         )
         self._line_start_binding.bind(context.world)
-        return super().build(context)
 
     def on_start(self, context: StatechartContext) -> None:
         """

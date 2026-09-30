@@ -61,7 +61,7 @@ class ActionServerTask(
 
     _action_client: ActionClient = field(init=False)
     """
-    ROS action client, is created in `build`.
+    ROS action client, is created in `set_up`.
     """
 
     _msg: ActionGoal = field(init=False, default=None)
@@ -81,10 +81,11 @@ class ActionServerTask(
         """
         ...
 
-    def build(self, context: StatechartContext) -> NodeArtifacts:
+    def set_up(self, context: StatechartContext) -> None:
         """
-        Creates the action client.
+        Creates the action client and the message to send.
         """
+        super().set_up(context)
         ros_context_extension = context.require_extension(RosContextExtension)
         self._action_client = ros_context_extension.get_or_create_action_client(
             self.message_type, self.action_topic
@@ -92,7 +93,6 @@ class ActionServerTask(
         self.build_msg(context)
         logger.info(f"Waiting for action server {self.action_topic}")
         self._action_client.wait_for_server()
-        return super().build(context)
 
     def on_start(self, context: StatechartContext):
         """
