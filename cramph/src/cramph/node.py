@@ -1076,8 +1076,19 @@ class StatechartNode(SubclassJSONSerializer):
         if tracker.has(node_id):
             return tracker.get(node_id)
         node = DataclassJSONSerializer.from_json(data, clazz=cls, **kwargs)
+        node._take_over_node_id(node_id)
         tracker.add(node_id, node)
         return node
+
+    def _take_over_node_id(self, node_id: str) -> None:
+        """
+        Gives this node the id of the node it was deserialized from, so that a later
+        document referring to that node finds this one.
+
+        :param node_id: The id the node was serialized with.
+        """
+        self._node_id = node_id
+        self._create_state_variables()
 
     def _set_transition(self, transition: TransitionCondition) -> None:
         """
@@ -1915,6 +1926,12 @@ def expanded_child_field() -> Any:
 
 @dataclass(eq=False, repr=False)
 class CompositeNode(StatechartNode):
+    accepts_children_after_compile: ClassVar[bool] = False
+    """
+    Whether children may join this node once the statechart compiled it, rather than
+    only while it expands.
+    """
+
     nodes: List[StatechartNode] = field(default_factory=list, init=False)
     plot_specifications: NodePlotSpec = plot_specification_field(
         NodePlotSpec.create_composite_node_style
