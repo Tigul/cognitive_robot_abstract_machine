@@ -22,6 +22,7 @@ from cramph.data_types import SuccessDecider
 from cramph.node import CompositeNode, NodeArtifacts, StatechartNode
 from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.variable import Variable
+from krrood.patterns.field_metadata import JSONMetadata
 from krrood.symbolic_math.symbolic_math import Scalar
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.world import World
@@ -53,9 +54,17 @@ class Action(CompositeNode, DesignatorParameters, ABC):
     success_decided_by = SuccessDecider.ITSELF
     fails_when_observing_false = True
 
-    _body: Optional[Sequence] = field(init=False, default=None, repr=False)
+    _body: Optional[Sequence] = field(
+        init=False,
+        default=None,
+        repr=False,
+        metadata=JSONMetadata(serialize=True).as_dict(),
+    )
     """
     The sequence running the nodes this action is made of, created when it is expanded.
+
+    Serialized, because a statechart is sent after its nodes expanded and the receiver
+    does not expand them again.
     """
 
     @property

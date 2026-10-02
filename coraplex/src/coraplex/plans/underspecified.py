@@ -2,9 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from typing_extensions import Any, Dict
+
 from cramph.composites import CompositeNodeChoosingItsChild
+from krrood.adapters.json_serializer import JSONField
 from krrood.entity_query_language.query.match import Match
 from krrood.patterns.field_metadata import JSONMetadata
+from krrood.utils import get_full_class_name
 
 
 @dataclass(eq=False, repr=False)
@@ -27,6 +31,16 @@ class UnderspecifiedNode(CompositeNodeChoosingItsChild):
     Not serialized: a process ticking the statechart elsewhere receives the chosen
     actions rather than grounding them itself.
     """
+
+    def to_json(self, **kwargs) -> Dict[str, Any]:
+        """
+        :return: The JSON representation of the node choosing its child that this is, so
+            a process ticking the statechart elsewhere needs nothing of coraplex.
+        """
+        return {
+            **super().to_json(**kwargs),
+            JSONField.TYPE: get_full_class_name(CompositeNodeChoosingItsChild),
+        }
 
     def __repr__(self):
         return f"{self.statement.type.__name__}"

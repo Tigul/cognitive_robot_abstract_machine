@@ -206,10 +206,14 @@ class PlanExecution:
 
     def _run_on_the_robot(self) -> None:
         """
-        Send the statechart to giskard and wait until it ended.
+        Send the statechart to giskard and wait until it ended, grounding every
+        underspecified action giskard reaches against the world as it is then.
         """
         statechart_context = self.context.create_statechart_context()
-        self.context.giskard_wrapper.execute(self.create_statechart(statechart_context))
+        self.context.giskard_wrapper.execute(
+            self.create_statechart(statechart_context),
+            child_chooser=UnderspecifiedChildChooser(context=self.context),
+        )
 
 
 # %% trying a grounded action out before it is executed for real
