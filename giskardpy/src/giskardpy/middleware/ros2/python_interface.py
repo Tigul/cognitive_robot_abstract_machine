@@ -116,15 +116,15 @@ class GiskardWrapper:
         self.world_updates.wait_for_the_changes_of_a_goal(result_json)
         parsed_life_cycle_state = LifeCycleState.from_json(
             result_json[MotionStatechartPayloadKey.LIFE_CYCLE_STATE],
-            motion_statechart=motion_statechart,
+            statechart=motion_statechart,
         )
         parsed_observation_state = ObservationState.from_json(
             result_json[MotionStatechartPayloadKey.OBSERVATION_STATE],
-            motion_statechart=motion_statechart,
+            statechart=motion_statechart,
         )
         parsed_last_observation_state = LastObservationState.from_json(
             result_json[MotionStatechartPayloadKey.LAST_OBSERVATION_STATE],
-            motion_statechart=motion_statechart,
+            statechart=motion_statechart,
         )
         motion_statechart.life_cycle_state.data = parsed_life_cycle_state.data
         motion_statechart.observation_state.data = parsed_observation_state.data

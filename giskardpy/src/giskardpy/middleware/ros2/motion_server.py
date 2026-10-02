@@ -215,7 +215,9 @@ class MotionServer:
         tracker = WorldEntityWithIDKwargsTracker.from_world(self.world)
         kwargs = tracker.create_kwargs()
         kwargs["world"] = self.world
-        motion_statechart = goal.parse_motion_statechart(**kwargs)
+        motion_statechart = goal.parse_motion_statechart(
+            context=self.executor.context, **kwargs
+        )
         self.executor.compile(motion_statechart)
         self.feedback_publisher.publish_structure()
         rospy.get_node().get_logger().info("Done parsing goal message.")
