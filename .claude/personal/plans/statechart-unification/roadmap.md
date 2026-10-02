@@ -413,3 +413,28 @@ Settled 2026-09-30 with the user, in plan mode.
 - `ReAttachNode` adds the cramph `MoveBranch` node and stops being an execution boundary;
   `UnderspecifiedNode` still grounds only after the preceding segment ran, then extends the
   same chart inside `Statechart.modify()`.
+
+## The statechart is the plan (`persistent-motion-state-chart`, rescoped)
+
+Settled 2026-10-01 with the user, in plan mode, replacing the segment design above.
+
+- **No parsing and no execution boundaries.** `Plan` is a root statechart node and a
+  context; `perform()` runs it as one statechart with one `EndMotion`. The factories build
+  cramph composites, every action is an `Action`, and the plan layer (plan nodes, language
+  nodes, executables, `Designator`, `ActionDescription`) is deleted. This absorbed
+  `convert-imperative-actions` and `retire-plan-layer`.
+- **`a(...)` grounds inside the chart.** cramph's `CompositeNodeChoosingItsChild` asks its
+  context's `ChildChooser` for a child when it starts and whenever its latest child failed;
+  coraplex's chooser grounds the statement and tries each candidate in an `ActionTrial`.
+  The statechart lets its extensions hold still (`before_recompile`) before a node chooses,
+  otherwise grounding and trials copy a moving world and nothing in them settles.
+- **Full-body actions** express their goals relative to the world root instead of toggling
+  `full_body_controlled` (the user's call). Wiping succeeds once its path succeeds or the
+  tool reached the final waypoint.
+- **Real robot:** Giskard's feedback names the nodes waiting for a child; the client chooses
+  on its copy and sends the added nodes on `<giskard>/child_choices`. A topic rather than a
+  second action server, since the reply only ever travels in the goal's own result.
+- **Found on the way:** every action compared equal (`DesignatorParameters` was a plain
+  dataclass), `Action` had to list `DesignatorParameters` last for ORMatic, an action's
+  expanded body has to be serialized, and the motion server parsed goals without a context.
+

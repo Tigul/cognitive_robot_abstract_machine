@@ -237,7 +237,7 @@ items:
       Tigul#9 merged 2026-09-30 (d8cd3dcc4).
 
   - id: persistent-motion-state-chart
-    title: "Build one long-lived Statechart instead of one per execution-boundary batch"
+    title: "Run a plan as one statechart, without a plan tree"
     branch: persistent-motion-state-chart
     pull_request_number: null
     track: plan-layer-retirement
@@ -245,19 +245,18 @@ items:
     status: in_progress
     session: https://claude.ai/code/session_019VXxvYLMiZn4gXYXsa6ngX
     notes: >
-      Retires the throwaway chart in
-      BuildsMotionStateChart.create_giskard_executable and the repeated
-      executor.compile in GiskardExecutable._execute_simulation: one chart per
-      plan, extended at each boundary rather than replaced. Split on
-      2026-09-25, when it turned out a single compiled chart cannot hold nodes
-      only known mid-run (UnderspecifiedNode) nor survive a re-parented body
-      (ReAttachNode) - those became growable-statechart and
-      reattach-statechart-node. What is left here is the coraplex side:
-      parse_children / contains_execution_boundary extend the one chart
-      instead of cutting the plan into separate ones.
-      Decided 2026-09-30: a segment ends when its root goal succeeds, with one
-      EndMotion when the plan finishes; the real-robot path goes persistent too.
-
+      Rescoped on 2026-10-01 with the user: no parsing at all, the statechart is
+      the plan, and it absorbs convert-imperative-actions and retire-plan-layer.
+      Pushed in five commits: dc331c495 (cramph CompositeNodeChoosingItsChild,
+      partial JSON), 859e9abf9 (Plan = root + context, factories build cramph
+      composites, a(...) grounds in the chart, all actions are Action, plan layer
+      deleted), daa4ea57c (motion server parses goals with a context),
+      a87ef641a (split_list_by_type removed), b544b929f (client chooses children
+      while Giskard runs the goal, child_choices topic). cramph, coraplex and the
+      giskard ROS 2 and statechart suites are green. No pull request yet.
+    blockers:
+      - "No pull request: creating one failed on the gh token (cram2 org lifetime policy / 403)."
+      - "The real-stretch cross-process demo still fails: a giskardpy MoveGripper does not survive a JSON round trip (pre-existing, separate root cause)."
   - id: statechart-compile-performance
     title: "Make compiling and extending a statechart cheap enough for a control loop"
     branch: null
@@ -288,27 +287,23 @@ items:
 
   - id: convert-imperative-actions
     title: "Convert underspecified resolution and execute()-override actions to declarative constructs"
-    branch: null
+    branch: persistent-motion-state-chart
     pull_request_number: null
     track: deferred-work
     depends_on: [persistent-motion-state-chart]
-    status: deferred
+    status: done
     notes: >
-      UnderspecifiedNode and ActionTrial retry candidates in a Python loop
-      catching PlanFailure; ReachAction and FullBodyControlledAction override
-      execute() to call .perform() immediately with side effects. Neither maps
-      onto wiring a symbolic condition once before compile, so they need
-      RepeatUntil/TryInOrder/Attempt/monitor equivalents. Deferred by explicit
-      decision at plan creation, not blocked.
-
+      Folded into persistent-motion-state-chart on 2026-10-01 at the user's
+      decision: underspecified statements ground inside the statechart, and the
+      execute()-override actions became Actions there.
   - id: retire-plan-layer
     title: "Retire Plan, PlanNode, Designator, PlanEntity, Executable and their ORM mappings"
-    branch: null
+    branch: persistent-motion-state-chart
     pull_request_number: null
     track: deferred-work
     depends_on: [convert-imperative-actions]
-    status: deferred
+    status: done
     notes: >
-      The end state: Statechart as the single persistent structure for both
-      authoring and execution. Includes the ORM mappings tied to the retired
-      classes.
+      Folded into persistent-motion-state-chart on 2026-10-01 at the user's
+      decision: the plan layer and its ORM mappings were deleted there (859e9abf9);
+      a performed plan is stored as its root node.
