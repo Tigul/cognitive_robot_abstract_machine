@@ -224,7 +224,7 @@ class Sage10kGymDemo(Sage10kAbstractDemoHSRB):
                 ),
             ],
             context=context,
-        ).plan
+        )
         return plan
 
 
@@ -298,7 +298,7 @@ class Sage10kTVStudioDemo(Sage10kAbstractDemoHSRB):
         )
         present_book = NavigateAction(target_location=self.robot_starting_pose)
 
-        return sequential([open_door, mpa, present_book], context=context).plan
+        return sequential([open_door, mpa, present_book], context=context)
 
 
 @dataclass
@@ -385,7 +385,7 @@ class Sage10kCraftsmanLobbyDemo(Sage10kAbstractDemoHSRB):
             arm=Arms.LEFT,
         )
 
-        return sequential([open_door, mpu, mpp], context=context).plan
+        return sequential([open_door, mpu, mpp], context=context)
 
 
 @dataclass
@@ -464,7 +464,7 @@ class Sage10kTropicalWarehouse(Sage10kAbstractDemoHSRB):
         return sequential(
             [open_door, park_arms, navigate1, mpu, park_arms, navigate2, present],
             context=context,
-        ).plan
+        )
 
 
 @dataclass
@@ -543,7 +543,7 @@ class Sage10kVaporwave(Sage10kAbstractDemoHSRB):
         return sequential(
             [open_door, park_arms, mpu, ParkArmsAction(arm=Arms.LEFT), mpp],
             context=context,
-        ).plan
+        )
 
 
 @dataclass
@@ -628,7 +628,7 @@ class Sage10kEclecticResidence(Sage10kAbstractDemoHSRB):
                 present,
             ],
             context=context,
-        ).plan
+        )
 
 
 @dataclass
@@ -681,7 +681,7 @@ class Sage10kSouthwesternStoreDemo(Sage10kAbstractDemoHSRB):
                 ),
             ],
             context=context,
-        ).plan
+        )
         return plan
 
     @property
@@ -799,7 +799,7 @@ class Sage10kBrutalistStoreDemo(Sage10kAbstractDemoHSRB):
                 ),
             ],
             context=context,
-        ).plan
+        )
         return plan
 
     @property
@@ -897,7 +897,7 @@ class Sage10kAmericanBuffetDemo(Sage10kAbstractDemoHSRB):
                 ),
             ],
             context=context,
-        ).plan
+        )
         return plan
 
     @property

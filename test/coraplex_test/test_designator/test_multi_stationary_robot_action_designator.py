@@ -147,7 +147,7 @@ def test_park_arms_multi(immutable_stationary_block_world):
     world, view, context = immutable_stationary_block_world
 
     description = ParkArmsAction(Arms.BOTH)
-    plan = execute_single(description, context=context).plan
+    plan = execute_single(description, context=context)
     with simulated_robot:
         plan.perform()
 
@@ -193,7 +193,7 @@ def test_reach_action_multi(immutable_stationary_block_world):
             ),
         ],
         context=context,
-    ).plan
+    )
 
     with simulated_robot:
         plan.perform()
@@ -215,7 +215,7 @@ def test_move_gripper_multi(immutable_stationary_block_world):
 
     plan = execute_single(
         SetGripperAction(Arms.LEFT, GripperState.OPEN), context=context
-    ).plan
+    )
 
     with simulated_robot:
         plan.perform()
@@ -229,7 +229,7 @@ def test_move_gripper_multi(immutable_stationary_block_world):
 
     plan = execute_single(
         SetGripperAction(Arms.LEFT, GripperState.CLOSE), context=context
-    ).plan
+    )
 
     with simulated_robot:
         plan.perform()
@@ -253,7 +253,7 @@ def test_grasping(immutable_stationary_block_world):
     plan = sequential(
         [ParkArmsAction(Arms.BOTH), description],
         context=context,
-    ).plan
+    )
     with simulated_robot:
         plan.perform()
     dist = np.linalg.norm(
@@ -281,7 +281,7 @@ def test_pick_up_multi(mutable_stationary_block_world):
             ),
         ],
         context=context,
-    ).plan
+    )
 
     with simulated_robot:
         plan.perform()
@@ -293,8 +293,6 @@ def test_pick_up_multi(mutable_stationary_block_world):
         )
         is not None
     )
-
-    plan.validate()
 
 
 @pytest.fixture
@@ -333,7 +331,7 @@ def test_place_multi(mutable_stationary_block_world, place_position):
             ),
         ],
         context=context,
-    ).plan
+    )
 
     with simulated_robot:
         plan.perform()
@@ -347,7 +345,6 @@ def test_place_multi(mutable_stationary_block_world, place_position):
     milk_position = box_body.global_transform.to_position().to_np()
 
     assert milk_position[:3] == pytest.approx(place_position.to_list()[:3], abs=0.01)
-    plan.validate()
 
 
 @pytest.fixture

@@ -38,11 +38,13 @@ from coraplex.datastructures.enums import (
 )
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot
-from coraplex.orm.ormatic_interface import Base, PlanMappingDAO  # type: ignore
+from coraplex.orm.ormatic_interface import Base, PlanDAO  # type: ignore
 from coraplex.plans.factories import sequential, try_in_order, code
 from coraplex.plans.failures import PlanFailure
 from coraplex.plans.plan import Plan
-from coraplex.plans.plan_node import ActionNode, PlanNode
+from coraplex.robot_plans.actions.base import Action
+from cramph.composites import Attempt
+from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
 from coraplex.testing import setup_world
@@ -257,19 +259,25 @@ def build_plan() -> Plan:
         context=context,
     )
 
-    plan = root.plan
     with simulated_robot:
-        plan.perform()
+        root.perform()
 
-    return plan
+    return root
+
+
+def _nodes_of(plan: Plan) -> List[StatechartNode]:
+    """
+    :return: Every node the performed plan ran, its root first.
+    """
+    return [plan.root, *plan.root.descendants]
 
 
 def _q_what_did_you_do(plan: Plan) -> BehaviourQuery:
-    n = eql.variable(ActionNode, domain=plan.plan_graph.nodes())
+    n = eql.variable(Action, domain=_nodes_of(plan))
     return BehaviourQuery(
         question="What did you just do?",
         query=eql.an(
-            eql.entity(n).where(n.status == LifeCycleValues.SUCCEEDED)
+            eql.entity(n).where(n.life_cycle_state == LifeCycleValues.SUCCEEDED)
         ).ordered_by(
             n.start_time,
             descending=False,
@@ -278,17 +286,17 @@ def _q_what_did_you_do(plan: Plan) -> BehaviourQuery:
 
 
 def _q_walk_through_in_order(plan: Plan) -> BehaviourQuery:
-    n = eql.variable(PlanNode, domain=plan.plan_graph.nodes())
+    n = eql.variable(StatechartNode, domain=_nodes_of(plan))
     return BehaviourQuery(
         question="Walk me through what you did in order.",
         query=eql.an(
-            eql.entity(n).where(n.status == LifeCycleValues.SUCCEEDED)
+            eql.entity(n).where(n.life_cycle_state == LifeCycleValues.SUCCEEDED)
         ).ordered_by(n.start_time),
     )
 
 
 def _q_total_duration(plan: Plan) -> BehaviourQuery:
-    n = eql.variable(ActionNode, domain=plan.plan_graph.nodes())
+    n = eql.variable(Action, domain=_nodes_of(plan))
     return BehaviourQuery(
         question="How long did the whole task take?",
         query=eql.set_of(
@@ -301,7 +309,7 @@ def _q_total_duration(plan: Plan) -> BehaviourQuery:
 
 
 def _q_duration_per_step(plan: Plan) -> BehaviourQuery:
-    n = eql.variable(PlanNode, domain=plan.plan_graph.nodes())
+    n = eql.variable(StatechartNode, domain=_nodes_of(plan))
     return BehaviourQuery(
         question="How long did each step take?",
         query=eql.an(eql.entity(n).where(n.end_time != None)).ordered_by(  # noqa: E711
@@ -311,47 +319,53 @@ def _q_duration_per_step(plan: Plan) -> BehaviourQuery:
 
 
 def _q_did_anything_go_wrong(plan: Plan) -> BehaviourQuery:
-    n = eql.variable(PlanNode, domain=plan.plan_graph.nodes())
+    n = eql.variable(StatechartNode, domain=_nodes_of(plan))
     return BehaviourQuery(
         question="Did anything go wrong?",
-        query=eql.an(eql.entity(n).where(n.status == LifeCycleValues.FAILED)),
+        query=eql.an(eql.entity(n).where(n.life_cycle_state == LifeCycleValues.FAILED)),
     )
 
 
 def _q_why_did_you_fail(plan: Plan) -> BehaviourQuery:
-    n = eql.variable(PlanNode, domain=plan.plan_graph.nodes())
+    n = eql.variable(Attempt, domain=_nodes_of(plan))
     return BehaviourQuery(
         question="Why did you fail at that step?",
-        query=eql.an(eql.entity(n.reason).where(n.status == LifeCycleValues.FAILED)),
+        query=eql.an(
+            eql.entity(n.failure_reasons).where(
+                n.life_cycle_state == LifeCycleValues.FAILED
+            )
+        ),
     )
 
 
 def _q_how_many_retries(plan: Plan) -> BehaviourQuery:
-    n = eql.variable(PlanNode, domain=plan.plan_graph.nodes())
+    n = eql.variable(StatechartNode, domain=_nodes_of(plan))
     return BehaviourQuery(
         question="How many times did you retry before giving up?",
         query=(
-            eql.set_of(c := eql.count_all()).where(n.status == LifeCycleValues.FAILED)
+            eql.set_of(c := eql.count_all()).where(
+                n.life_cycle_state == LifeCycleValues.FAILED
+            )
         ),
     )
 
 
 def _q_which_fallback(plan: Plan) -> BehaviourQuery:
-    n = eql.variable(PlanNode, domain=plan.plan_graph.nodes())
-    s = eql.variable(PlanNode, domain=n.left_siblings)
+    n = eql.variable(StatechartNode, domain=_nodes_of(plan))
+    s = eql.variable(StatechartNode, domain=n.left_siblings)
     return BehaviourQuery(
         question="Which fallback did you end up using?",
         query=eql.an(
             eql.entity(n).where(
-                n.status == LifeCycleValues.SUCCEEDED,
-                eql.exists(s, s.status == LifeCycleValues.FAILED),
+                n.life_cycle_state == LifeCycleValues.SUCCEEDED,
+                eql.exists(s, s.life_cycle_state == LifeCycleValues.FAILED),
             )
         ),
     )
 
 
 def _q_longest_step(plan: Plan) -> BehaviourQuery:
-    n = eql.variable(ActionNode, domain=plan.plan_graph.nodes())
+    n = eql.variable(Action, domain=_nodes_of(plan))
 
     return BehaviourQuery(
         question="Which step took the longest?",
@@ -362,22 +376,14 @@ def _q_longest_step(plan: Plan) -> BehaviourQuery:
 
 
 def _q_status_breakdown(plan: Plan) -> BehaviourQuery:
-    n = eql.variable(PlanNode, domain=plan.plan_graph.nodes())
+    n = eql.variable(StatechartNode, domain=_nodes_of(plan))
     return BehaviourQuery(
         question="Were all subtasks successful, or did some fail?",
         query=(
-            eql.set_of(status := n.status, c := eql.count(n))
+            eql.set_of(status := n.life_cycle_state, c := eql.count(n))
             .grouped_by(status)
             .ordered_by(c, descending=True)
         ),
-    )
-
-
-def _q_world_state_at_start(plan: Plan) -> BehaviourQuery:
-    n = eql.variable(Plan, domain=[plan])
-    return BehaviourQuery(
-        question="What was the state of the world when you started the task?",
-        query=eql.an(eql.entity(n.initial_world.state)),
     )
 
 
@@ -408,7 +414,6 @@ def build_queries(plan: Plan) -> List[BehaviourQuery]:
         _q_longest_step(plan),
         _q_status_breakdown(plan),
         _q_world_modifications(plan),
-        _q_world_state_at_start(plan),
         _q_world_state_at_end(plan),
     ]
 

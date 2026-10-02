@@ -1240,8 +1240,8 @@ class RecompileCallback(ABC):
     @abstractmethod
     def before_recompile(self) -> None:
         """
-        React to the statechart being about to compile again, which blocks its tick
-        until it is done.
+        React to the statechart being about to compile again, or to a node choosing its
+        child, either of which blocks its tick until it is done.
         """
 
     @abstractmethod
@@ -2097,12 +2097,18 @@ class Statechart(SubclassJSONSerializer):
         """
         Lets every node waiting for a child choose one, in one :meth:`modify` block,
         so the statechart compiles at most once for all of them.
+
+        Choosing blocks the tick the way compiling does, so every
+        :class:`RecompileCallback` is told first, which lets what it drives hold still
+        while a choice is made against the world.
         """
         waiting_nodes = [
             node for node in self._choosing_nodes if node.is_waiting_for_a_child
         ]
         if not waiting_nodes:
             return
+        for callback in list(self._recompile_callbacks):
+            callback.before_recompile()
         with self.modify():
             for node in waiting_nodes:
                 node.choose_child(self.context)

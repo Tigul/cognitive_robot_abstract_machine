@@ -238,3 +238,62 @@ def test_the_node_observes_what_its_latest_child_observed(
     )
 
     assert choosing_node.last_observation_state == ObservationStateValues.TRUE
+
+
+@dataclass
+class ExtensionHoldingStill(ExecutorExtension):
+    """
+    An executor extension that notes when it was told to hold still.
+    """
+
+    is_holding_still: bool = False
+    """
+    Whether :meth:`before_recompile` ran.
+    """
+
+    def before_recompile(self, executor: StatechartExecutor) -> None:
+        self.is_holding_still = True
+
+
+@dataclass
+class ChooserNotingWhetherTheExtensionHeldStill(ChildChooser):
+    """
+    Notes whether the extension held still by the time it was asked.
+    """
+
+    extension: ExtensionHoldingStill
+    """
+    The extension to look at.
+    """
+
+    child: StatechartNode
+    """
+    The child to choose.
+    """
+
+    held_still_when_asked: List[bool] = field(default_factory=list)
+    """
+    Whether the extension held still, once per question.
+    """
+
+    def choose_child(self, node: CompositeNodeChoosingItsChild, context) -> ChildChoice:
+        self.held_still_when_asked.append(self.extension.is_holding_still)
+        return ChosenChild(node=self.child)
+
+
+def test_the_extensions_hold_still_before_a_node_chooses(statechart_context):
+    """
+    Choosing blocks the tick, so whatever an extension is driving is stopped first.
+    """
+    extension = ExtensionHoldingStill()
+    executor = StatechartExecutor(context=statechart_context, extensions=[extension])
+    chooser = ChooserNotingWhetherTheExtensionHeldStill(
+        extension=extension, child=_succeeding_child("child")
+    )
+    executor.context.add_extension(ChildChooserAccess(chooser=chooser))
+    statechart = Statechart(context=executor.context)
+    statechart.add_node(CompositeNodeChoosingItsChild(name="choosing"))
+
+    executor.compile(statechart)
+
+    assert chooser.held_still_when_asked == [True]

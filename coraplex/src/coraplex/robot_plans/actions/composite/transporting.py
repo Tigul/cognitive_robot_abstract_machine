@@ -15,9 +15,8 @@ from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlign
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.locations.base import DeferredLocation
 from coraplex.locations.factories import reachability_location
-from coraplex.plans.factories import sequential
-from coraplex.plans.plan_node import PlanNode
-from coraplex.robot_plans.actions.base import ActionDescription
+from coraplex.plans.factories import ActionLike
+from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.actions.composite.facing import FaceAtAction
 from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
@@ -33,8 +32,8 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
 
 
-@dataclass
-class TransportAction(ActionDescription):
+@dataclass(eq=False, repr=False)
+class TransportAction(Action):
     """
     Transports an object to a position using an arm.
     """
@@ -95,7 +94,7 @@ class TransportAction(ActionDescription):
         ]
 
     @property
-    def _action_plan(self) -> PlanNode:
+    def _sub_nodes(self) -> List[ActionLike]:
         self.grasp_description = self.grasp_description or GraspDescription(
             ApproachDirection.FRONT,
             VerticalAlignment.NoAlignment,
@@ -140,7 +139,7 @@ class TransportAction(ActionDescription):
             ]
         )
 
-        return sequential(children)
+        return children
 
     def _make_navigate_action_for_placing(self, grasp_description: GraspDescription):
         """
@@ -157,8 +156,8 @@ class TransportAction(ActionDescription):
         )
 
 
-@dataclass
-class PickAndPlaceAction(ActionDescription):
+@dataclass(eq=False, repr=False)
+class PickAndPlaceAction(Action):
     """
     Transports an object to a position using an arm without moving the base of
     the robot.
@@ -184,26 +183,22 @@ class PickAndPlaceAction(ActionDescription):
     """
 
     @property
-    def _action_plan(self) -> PlanNode:
-        return sequential(
-            [
-                ParkArmsAction(Arms.BOTH),
-                PickUpAction(
-                    self.object_designator,
-                    self.arm,
-                    grasp_description=self.grasp_description,
-                ),
-                ParkArmsAction(Arms.BOTH),
-                PlaceAction(
-                    self.object_designator.root, self.target_location, self.arm
-                ),
-                ParkArmsAction(Arms.BOTH),
-            ]
-        )
+    def _sub_nodes(self) -> List[ActionLike]:
+        return [
+            ParkArmsAction(Arms.BOTH),
+            PickUpAction(
+                self.object_designator,
+                self.arm,
+                grasp_description=self.grasp_description,
+            ),
+            ParkArmsAction(Arms.BOTH),
+            PlaceAction(self.object_designator.root, self.target_location, self.arm),
+            ParkArmsAction(Arms.BOTH),
+        ]
 
 
-@dataclass
-class MoveAndPlaceAction(ActionDescription):
+@dataclass(eq=False, repr=False)
+class MoveAndPlaceAction(Action):
     """
     Navigate to `standing_position`, then turn towards the target and place the
     object.
@@ -227,18 +222,16 @@ class MoveAndPlaceAction(ActionDescription):
     """
 
     @property
-    def _action_plan(self) -> PlanNode:
-        return sequential(
-            [
-                NavigateAction(self.standing_position),
-                FaceAtAction(self.target_location),
-                PlaceAction(self.object_designator, self.target_location, self.arm),
-            ]
-        )
+    def _sub_nodes(self) -> List[ActionLike]:
+        return [
+            NavigateAction(self.standing_position),
+            FaceAtAction(self.target_location),
+            PlaceAction(self.object_designator, self.target_location, self.arm),
+        ]
 
 
-@dataclass
-class MoveAndPickUpAction(ActionDescription):
+@dataclass(eq=False, repr=False)
+class MoveAndPickUpAction(Action):
     """
     Navigate to `standing_position`, then turn towards the object and pick it
     up.
@@ -262,11 +255,9 @@ class MoveAndPickUpAction(ActionDescription):
     """
 
     @property
-    def _action_plan(self) -> PlanNode:
-        return sequential(
-            [
-                NavigateAction(self.standing_position),
-                FaceAtAction(self.object_designator.root.global_pose),
-                PickUpAction(self.object_designator, self.arm, self.grasp_description),
-            ]
-        )
+    def _sub_nodes(self) -> List[ActionLike]:
+        return [
+            NavigateAction(self.standing_position),
+            FaceAtAction(self.object_designator.root.global_pose),
+            PickUpAction(self.object_designator, self.arm, self.grasp_description),
+        ]

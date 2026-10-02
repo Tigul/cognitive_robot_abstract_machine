@@ -11,8 +11,10 @@ from coraplex.datastructures.enums import Arms, ExecutionType
 from coraplex.plans.failures import PlanFailure
 
 if TYPE_CHECKING:
-    from coraplex.plans.designator import Designator
-    from coraplex.robot_plans.actions.base import ActionDescription
+    from coraplex.plans.designator import DesignatorParameters
+    from coraplex.plans.plan import Plan
+    from coraplex.robot_plans.actions.base import Action
+    from cramph.composites import CompositeNodeChoosingItsChild
     from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
     from semantic_digital_twin.world_description.world_entity import (
         KinematicStructureEntity,
@@ -23,24 +25,41 @@ if TYPE_CHECKING:
 @dataclass
 class ContextIsUnavailable(DataclassException):
     """
-    Raised when an instance that tries to access the context of a plan has no reference
-    to the plan.
-
-    Most likely raised when an action created a subplan without calling
-    `ActionDescription.add_subplan`
+    Raised when a plan is performed that was built without a context.
     """
 
-    instance: Designator
+    instance: Plan
     """
-    The instance where the plan node is None.
+    The plan that has no context.
     """
 
     def error_message(self) -> str:
-        return f"{self.instance} has no plan node."
+        return f"{self.instance} has no context to be performed in."
+
+    def suggest_correction(self) -> str:
+        return "pass the context to the factory that builds the outermost plan."
+
+
+@dataclass
+class NotAnUnderspecifiedNode(DataclassException):
+    """
+    Raised when a node asks for a child to be grounded that carries no underspecified
+    statement.
+    """
+
+    node: CompositeNodeChoosingItsChild
+    """
+    The node that asked.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.node} carries no underspecified statement to ground a child from."
+        )
 
     def suggest_correction(self) -> str:
         return (
-            "did you forget to call `add_subplan` when creating plans inside actions?"
+            "build nodes that choose their child in a plan with `a(...)` or `an(...)`."
         )
 
 
@@ -74,7 +93,7 @@ class MissingWaypoints(DataclassException):
     Raised when a waypoint motion or tool action produced no waypoints to follow.
     """
 
-    instance: Designator
+    instance: DesignatorParameters
     """
     The designator that has no waypoints.
     """
@@ -92,7 +111,7 @@ class WipingTargetMissing(DataclassException):
     Raised when a wiping action is created without a surface to wipe.
     """
 
-    instance: Designator
+    instance: DesignatorParameters
     """
     The wiping action that has no target.
     """
@@ -110,7 +129,7 @@ class PerceptionTargetMissing(DataclassException):
     Raised when an action is asked to perceive before grasping but names no object.
     """
 
-    instance: Designator
+    instance: DesignatorParameters
     """
     The action that has no object to detect.
     """
@@ -149,7 +168,7 @@ class MissingToolFrame(DataclassException):
 class ConditionNotSatisfied(PlanFailure):
 
     pre_condition: bool
-    action: Type[ActionDescription]
+    action: Type[Action]
     condition: ConditionType
 
     def error_message(self) -> str:

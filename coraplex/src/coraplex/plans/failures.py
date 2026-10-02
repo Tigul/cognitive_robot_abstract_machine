@@ -12,7 +12,7 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 if TYPE_CHECKING:
     from coraplex.validation.goal_validator import MultiJointPositionGoalValidator
-    from coraplex.language import LanguageNode
+    from cramph.node import StatechartNode
     from semantic_digital_twin.datastructures.definitions import StaticJointState
 
 
@@ -33,8 +33,19 @@ class PlanFailure(DataclassException):
 @dataclass
 class EmptyUnderspecified(PlanFailure):
     """
-    Raised when a plan is empty.
+    Raised when an underspecified statement yields no action that succeeds.
     """
+
+    node: StatechartNode
+    """
+    The node whose statement ran out of actions.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.node} ran out of actions to try."
+
+    def suggest_correction(self) -> str:
+        return "Widen the domains of the statement, or check why its actions fail."
 
 
 @dataclass
@@ -43,9 +54,9 @@ class RepetitionsExhausted(PlanFailure):
     Thrown when a repeating plan node ran out of attempts.
     """
 
-    language_node: LanguageNode
+    repeated_node: StatechartNode
     """
-    The repeating node whose children never succeeded.
+    The node that never succeeded.
     """
 
     maximum_repetitions: int
@@ -55,7 +66,7 @@ class RepetitionsExhausted(PlanFailure):
 
     def error_message(self) -> str:
         return (
-            f"{self.language_node} attempted its children {self.maximum_repetitions} "
+            f"{self.repeated_node} was attempted {self.maximum_repetitions} "
             f"times without succeeding."
         )
 
@@ -72,13 +83,13 @@ class PlanCancelled(PlanFailure):
     Thrown when a monitor cancelled the plan it was watching.
     """
 
-    language_node: LanguageNode
+    monitor: StatechartNode
     """
-    The node whose monitor cancelled the plan.
+    The monitor that cancelled the plan.
     """
 
     def error_message(self) -> str:
-        return f"The monitor of {self.language_node} cancelled the plan."
+        return f"{self.monitor} cancelled the plan."
 
     def suggest_correction(self) -> str:
         return (

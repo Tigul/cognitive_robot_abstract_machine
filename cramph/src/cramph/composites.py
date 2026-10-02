@@ -1036,6 +1036,12 @@ class ChildChooser(ABC):
         :return: What `node` does next.
         """
 
+    def cleanup(self) -> None:
+        """
+        Releases what the chooser acquired to choose children, once the statechart
+        stopped running.
+        """
+
 
 @dataclass
 class ChildChooserAccess(ContextExtension):
@@ -1048,6 +1054,9 @@ class ChildChooserAccess(ContextExtension):
     """
     The chooser every node choosing its child asks.
     """
+
+    def cleanup(self) -> None:
+        self.chooser.cleanup()
 
 
 @dataclass(eq=False, repr=False)
@@ -1071,6 +1080,13 @@ class CompositeNodeChoosingItsChild(CompositeNode):
     """
     Whether the chooser said that no child is left.
     """
+
+    @property
+    def ran_out_of_children(self) -> bool:
+        """
+        :return: Whether the chooser said that no child is left.
+        """
+        return self._out_of_children
 
     @property
     def latest_child(self) -> Optional[StatechartNode]:

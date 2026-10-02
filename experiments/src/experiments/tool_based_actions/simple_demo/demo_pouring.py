@@ -80,7 +80,7 @@ def main() -> None:
             ),
         ],
         context=context,
-    ).plan
+    )
 
     with simulated_robot:
         plan.perform()

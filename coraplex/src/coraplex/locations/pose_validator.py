@@ -22,7 +22,7 @@ from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.locations.base import PoseValidator
-from coraplex.plans.executables import GiskardExecutable
+from coraplex.execution_environment import ExecutionEnvironment
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -220,7 +220,7 @@ class AreReachableBy(PoseValidator):
 
         msc = Statechart(context=executor.context)
         msc.add_node(sequence_node := Sequence(sequence))
-        if GiskardExecutable.collision_avoidance:
+        if ExecutionEnvironment.current_collision_avoidance:
             msc.add_node(ExternalCollisionAvoidance(cancel_if_collision_violated=False))
             msc.add_node(SelfCollisionAvoidance(cancel_if_collision_violated=False))
             msc.add_nodes(self._gripper_allowance_of_the_reach())
