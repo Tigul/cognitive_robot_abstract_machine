@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import math
 from copy import deepcopy
-from itertools import groupby
 from typing import Union, Iterator
 
 import numpy as np
@@ -38,21 +37,6 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 if TYPE_CHECKING:
     from coraplex.view_manager import CameraDescription
-
-
-def split_list_by_type(
-    flat_list: List[Any], cluster_type: Type[Any]
-) -> List[List[Any]]:
-    """
-    Split a list into consecutive runs that alternate between elements that are
-    instances of ``cluster_type`` and those that are not, preserving order.
-    """
-    return [
-        list(group)
-        for _, group in groupby(
-            flat_list, key=lambda element: isinstance(element, cluster_type)
-        )
-    ]
 
 
 def link_pose_for_joint_config(obj: Body, joint_config: Dict[str, float]) -> Pose:

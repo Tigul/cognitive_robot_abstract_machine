@@ -33,7 +33,6 @@ from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction, ReachAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
-from coraplex.utils import split_list_by_type
 from cramph.composites import (
     CancelledWhenTrue,
     Parallel,
@@ -634,83 +633,3 @@ def test_pick_up_motions_follow_the_object_moved_after_expansion(immutable_model
             position_before + displacement,
             atol=1e-9,
         )
-
-
-# %% splitting helper
-
-
-def _moving_the_milk_to_the_world_root(world) -> MoveBranch:
-    """
-    :return: A node moving the milk under the world root.
-    """
-    return MoveBranch(body=world.get_body_by_name("milk.stl"), new_parent=world.root)
-
-
-def test_split_by_type(immutable_model_world):
-    world, view, context = immutable_model_world
-
-    split_list = [
-        tool_center_point_goal(context, Arms.LEFT),
-        _moving_the_milk_to_the_world_root(world),
-        tool_center_point_goal(context, Arms.RIGHT),
-    ]
-
-    splitted_list = split_list_by_type(split_list, MoveBranch)
-
-    assert len(splitted_list) == 3
-    assert len(splitted_list[0]) == 1
-    assert len(splitted_list[1]) == 1
-    assert len(splitted_list[2]) == 1
-
-
-def test_split_by_type_empty_list():
-    assert split_list_by_type([], MoveBranch) == []
-
-
-def test_split_by_type_without_match_stays_one_group(immutable_model_world):
-    world, view, context = immutable_model_world
-    no_model_change = [
-        tool_center_point_goal(context, Arms.LEFT),
-        tool_center_point_goal(context, Arms.RIGHT),
-    ]
-
-    splitted_list = split_list_by_type(no_model_change, MoveBranch)
-
-    assert len(splitted_list) == 1
-    assert splitted_list[0] == no_model_change
-
-
-def test_split_by_type_groups_consecutive_elements(immutable_model_world):
-    world, view, context = immutable_model_world
-    model_change = _moving_the_milk_to_the_world_root(world)
-
-    split_list = [
-        tool_center_point_goal(context, Arms.LEFT),
-        tool_center_point_goal(context, Arms.RIGHT),
-        model_change,
-        tool_center_point_goal(context, Arms.LEFT),
-    ]
-
-    splitted_list = split_list_by_type(split_list, MoveBranch)
-
-    assert [len(group) for group in splitted_list] == [2, 1, 1]
-    assert splitted_list[1] == [model_change]
-    assert all(not isinstance(element, MoveBranch) for element in splitted_list[0])
-
-
-def test_split_by_type_leading_and_trailing_match(immutable_model_world):
-    world, view, context = immutable_model_world
-    first_model_change = _moving_the_milk_to_the_world_root(world)
-    last_model_change = _moving_the_milk_to_the_world_root(world)
-
-    split_list = [
-        first_model_change,
-        tool_center_point_goal(context, Arms.LEFT),
-        last_model_change,
-    ]
-
-    splitted_list = split_list_by_type(split_list, MoveBranch)
-
-    assert [len(group) for group in splitted_list] == [1, 1, 1]
-    assert splitted_list[0] == [first_model_change]
-    assert splitted_list[2] == [last_model_change]
