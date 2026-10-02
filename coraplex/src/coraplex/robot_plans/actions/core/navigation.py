@@ -7,13 +7,12 @@ from typing_extensions import Optional, Any, Dict, List
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.exceptions import NoFloorBelowRobot, NotOnASingleLevelException
-from coraplex.plans.attachment_nodes import ReAttachNode
-from coraplex.plans.factories import pause_until, sequential
-from coraplex.plans.plan_node import PlanNode
+from coraplex.plans.factories import ActionLike, pause_until
 from cramph.node import StatechartNode
-from coraplex.robot_plans.actions.base import Action, ActionDescription
+from cramph.world_modification_nodes import MoveBranch
+from coraplex.robot_plans.actions.base import Action
 from coraplex.datastructures.enums import ExecutionType
-from coraplex.plans.executables import GiskardExecutable
+from coraplex.execution_environment import ExecutionEnvironment
 from cramph.composites import Parallel
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.monitors.joint_monitors import (
@@ -56,7 +55,7 @@ class DrivesBase(Action, ABC):
             directly, because there is no drive to follow the pose; a real one commands
             the pose and lets the controller drive there.
         """
-        if GiskardExecutable.execution_type == ExecutionType.SIMULATED:
+        if ExecutionEnvironment.current_execution_type == ExecutionType.SIMULATED:
             return SetOdometry(
                 base_pose=target.to_homogeneous_matrix(),
                 odom_connection=self.robot.root.parent_connection,
@@ -266,8 +265,8 @@ class PathPlanningNavigateAction(DrivesBase):
         )
 
 
-@dataclass
-class ElevatorNavigation(ActionDescription):
+@dataclass(eq=False, repr=False)
+class ElevatorNavigation(Action):
     """
     Navigates a robot to another level of a building using an elevator, the robot drives
     in the elevator and waits there until the doors open again and the elevator is at
@@ -296,29 +295,27 @@ class ElevatorNavigation(ActionDescription):
     """
 
     @property
-    def _action_plan(self) -> PlanNode:
-        return sequential(
-            [
-                NavigateAction(self._pose_infront_of_elevator),
-                pause_until(
-                    [
-                        NavigateAction(
-                            Pose.from_xyz_rpy(
-                                z=self._height_in_cabin,
-                                reference_frame=self.elevator.root,
-                            )
+    def _sub_nodes(self) -> List[ActionLike]:
+        return [
+            NavigateAction(self._pose_infront_of_elevator),
+            pause_until(
+                [
+                    NavigateAction(
+                        Pose.from_xyz_rpy(
+                            z=self._height_in_cabin,
+                            reference_frame=self.elevator.root,
                         )
-                    ],
-                    monitor=self._elevator_open_at_floor(self._current_floor),
-                ),
-                ReAttachNode(body=self.robot.root, new_parent=self.elevator.root),
-                pause_until(
-                    [NavigateAction(self._pose_infront_of_elevator)],
-                    monitor=self._elevator_open_at_floor(self.target_floor),
-                ),
-                ReAttachNode(body=self.robot.root, new_parent=self.world.root),
-            ]
-        )
+                    )
+                ],
+                monitor=self._elevator_open_at_floor(self._current_floor),
+            ),
+            MoveBranch(body=self.robot.root, new_parent=self.elevator.root),
+            pause_until(
+                [NavigateAction(self._pose_infront_of_elevator)],
+                monitor=self._elevator_open_at_floor(self.target_floor),
+            ),
+            MoveBranch(body=self.robot.root, new_parent=self.world.root),
+        ]
 
     @property
     def _current_floor(self) -> Level:

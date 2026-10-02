@@ -74,7 +74,7 @@ def main() -> None:
             MixingAction(container=bowl_body, arm=Arms.RIGHT, tool=whisk),
         ],
         context=context,
-    ).plan
+    )
 
     with simulated_robot:
         plan.perform()

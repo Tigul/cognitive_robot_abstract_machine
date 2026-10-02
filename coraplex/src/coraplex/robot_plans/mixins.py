@@ -238,7 +238,7 @@ class MovesGripper:
     """
     Builds the goals that drive an arm's gripper to one of its states.
 
-    Meant to be mixed into an :class:`~coraplex.robot_plans.actions.base.ActionDescription`
+    Meant to be mixed into an :class:`~coraplex.robot_plans.actions.base.Action`
     subclass, whose ``robot`` the method below relies on.
     """
 
@@ -281,8 +281,9 @@ class MovesToolCenterPoint:
     :attr:`~coraplex.datastructures.dataclasses.Context.motion_tolerances` when left
     unset.
 
-    Meant to be mixed into an :class:`~coraplex.robot_plans.actions.base.ActionDescription`
-    subclass, whose ``context`` and ``robot`` the methods below rely on.
+    Meant to be mixed into an :class:`~coraplex.robot_plans.actions.base.Action`
+    subclass, whose ``context``, ``robot`` and ``controlled_root`` the methods below
+    rely on.
     """
 
     position_threshold: Optional[float] = field(default=None, kw_only=True)
@@ -336,7 +337,7 @@ class MovesToolCenterPoint:
             speed caps and collision allowances were asked for.
         """
         end_effector = ViewManager.get_end_effector_view(arm, self.robot)
-        root = self.context.controlled_root
+        root = self.controlled_root
         tip = end_effector.tool_frame
         accompanying: List[MotionStatechartNode] = self._velocity_limits(
             root, tip, movement_type, max_linear_velocity, max_angular_velocity

@@ -387,7 +387,7 @@ def _spawn_robot_and_prepare_pick_up(
             ),
         ],
         context=context,
-    ).plan
+    )
 
     def perform() -> None:
         height_before = world.compute_forward_kinematics(world.root, apple).to_np()[

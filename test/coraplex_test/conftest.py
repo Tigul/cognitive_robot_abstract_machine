@@ -13,8 +13,13 @@ from functools import partial
 
 import pytest
 
+from typing_extensions import List
+
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms
+from coraplex.plans.plan import Plan
+from cramph.node import StatechartNode
+from cramph.statechart import Statechart
 from coraplex.view_manager import ViewManager
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from semantic_digital_twin.predetermined_maps.building_floor import BuildingFloor
@@ -166,35 +171,25 @@ def tool_center_point_goal(
     )
 
 
-def motion_goals_of(plan) -> list:
+def expand(plan: Plan) -> StatechartNode:
+    """
+    Expand `plan` in a statechart of its own, without running it, so a test can read the
+    nodes its steps expand into.
+
+    :param plan: A plan with a context.
+    :return: The root of the plan, expanded.
+    """
+    statechart = Statechart(context=plan.context.create_statechart_context())
+    statechart.add_node(plan.root)
+    return plan.root
+
+
+def motion_nodes_of(plan: Plan) -> List[StatechartNode]:
     """
     :param plan: The plan whose motions to read.
-    :return: The giskard node each of the plan's motions contributes, one per motion and
-        in plan order.
+    :return: Every node the plan's steps expand into, so a test can look for a task
+        without knowing whether the action wrapped it alongside speed caps or collision
+        rules.
     """
-    from coraplex.plans.plan_node import MotionNode
-
-    return [node.motion for node in plan.descendants if isinstance(node, MotionNode)]
-
-
-def motion_nodes_of(plan) -> list:
-    """
-    :param plan: The plan whose motions to read.
-    :return: Every giskard node the plan's motions contribute, including the ones a
-        composite among them holds, so a test can look for a task without knowing
-        whether the action wrapped it alongside speed caps or collision rules.
-    """
-    found = []
-    for goal in motion_goals_of(plan):
-        found.extend(_nodes_below(goal))
-    return found
-
-
-def _nodes_below(node) -> list:
-    """
-    :return: `node` and, recursively, every node it holds.
-    """
-    found = [node]
-    for child in getattr(node, "nodes", []):
-        found.extend(_nodes_below(child))
-    return found
+    root = expand(plan)
+    return [root, *root.descendants]

@@ -6,13 +6,21 @@ import traceback
 from dataclasses import dataclass, field
 from typing import List
 
+import json
+
 import rclpy
 from json_msgs.action import JsonAction
+from std_msgs.msg import String
 from sqlalchemy.orm import sessionmaker
 
 from giskardpy.data_types.exceptions import NoControlledJointsError
 from giskardpy.middleware.ros2 import rospy
 from giskardpy.middleware.ros2.action_server import ActionServerHandler
+from giskardpy.middleware.ros2.child_choices import (
+    ChildChoiceMessage,
+    ChildSentByClient,
+    child_choices_topic,
+)
 from giskardpy.middleware.ros2.control_loop import ControlLoop
 from giskardpy.middleware.ros2.feedback_publisher import ActionFeedbackPublisher
 from giskardpy.middleware.ros2.graceful_shutdown import GracefulShutdownSignals
@@ -48,6 +56,7 @@ from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.world_description.connections import ActiveConnection
 from giskardpy.motion_control import MotionControl
 from giskardpy.motion_statechart.ros_context import RosNodeAccess
+from cramph.composites import ChildChooserAccess
 from cramph.context import StatechartContext
 from cramph.executor import StatechartExecutor
 
@@ -131,6 +140,7 @@ class Giskard:
             world_synchronizer=self.world_synchronizer,
             model_reload_synchronizer=self.model_reload_synchronizer,
         )
+        self.receive_child_choices(world_updates, action_server)
         control_loop = ControlLoop(
             executor=self.executor,
             action_server=action_server,
@@ -150,6 +160,27 @@ class Giskard:
             cycle_counter=cycle_counter,
             idle_frequency=self.server_config.idle_frequency,
             post_goal_plotters=self.create_post_goal_plotters(),
+        )
+
+    def receive_child_choices(
+        self, world_updates: IncomingWorldUpdates, action_server: ActionServerHandler
+    ) -> None:
+        """
+        Let the nodes of a goal that choose their child run the children the client
+        sends for them.
+        """
+        chooser = ChildSentByClient(
+            world_updates=world_updates, action_server=action_server
+        )
+        self.executor.context.add_extension(ChildChooserAccess(chooser=chooser))
+        node = rospy.get_node()
+        node.create_subscription(
+            String,
+            child_choices_topic(node.get_name()),
+            lambda message: chooser.receive(
+                ChildChoiceMessage.from_json(json.loads(message.data))
+            ),
+            10,
         )
 
     def create_post_goal_plotters(self) -> List[PostGoalPlotter]:

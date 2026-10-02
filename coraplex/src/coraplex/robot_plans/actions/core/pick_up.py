@@ -6,8 +6,6 @@ from dataclasses import dataclass
 from typing_extensions import Any, Dict, Optional, List
 
 from coraplex.locations.pose_validator import IsObjectReachableBy
-from coraplex.plans.attachment_nodes import ReAttachNode
-from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.navigation import LookAtAction
 from krrood.entity_query_language.core.variable import Variable
@@ -25,11 +23,13 @@ from coraplex.datastructures.enums import (
     DetectionTechnique,
 )
 from coraplex.datastructures.grasp import GraspDescription
-from coraplex.plans.factories import sequential
+from coraplex.plans.factories import ActionLike
 from coraplex.querying.predicates import GripperIsFree
 from coraplex.exceptions import PerceptionTargetMissing
+from cramph.composites import Sequence
 from cramph.node import StatechartNode
-from coraplex.robot_plans.actions.base import Action, ActionDescription
+from cramph.world_modification_nodes import MoveBranch
+from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.mixins import (
     HasGraspDetectionThreshold,
     MovesGripper,
@@ -48,9 +48,9 @@ from semantic_digital_twin.world_description.world_entity import Body
 logger = logging.getLogger(__name__)
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class ReachAction(
-    ActionDescription,
+    Action,
     ReachTuningParameters,
     HasGraspDetectionThreshold,
     MovesToolCenterPoint,
@@ -100,7 +100,7 @@ class ReachAction(
     """
 
     @property
-    def _action_plan(self) -> PlanNode:
+    def _sub_nodes(self) -> List[ActionLike]:
         if self.perceive_before_grasp and self.object_designator is None:
             raise PerceptionTargetMissing(self)
         object_body = self.object_designator.root if self.object_designator else None
@@ -137,10 +137,7 @@ class ReachAction(
                 max_linear_velocity=self.final_approach_linear_velocity,
             )
         )
-        return sequential(children=children)
-
-    def execute(self) -> Any:
-        self.add_subplan(self.action_plan).perform()
+        return children
 
     @staticmethod
     def pre_condition(
@@ -190,9 +187,9 @@ class ReachAction(
         )
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class PickUpAction(
-    ActionDescription,
+    Action,
     PickUpTuningParameters,
     HasGraspDetectionThreshold,
     MovesToolCenterPoint,
@@ -236,13 +233,14 @@ class PickUpAction(
     :attr:`ReachAction.perceive_before_grasp`.
     """
 
-    def _grasp_attempt_plan(self) -> PlanNode:
+    def _grasp_attempt(self) -> Sequence:
         """
         :return: One reach-and-close attempt at grasping :attr:`object_designator`,
             without lifting it.
         """
-        return sequential(
-            children=[
+        return Sequence(
+            name=f"{self.name}/grasp attempt",
+            nodes=[
                 # defining the target_pose relative to the object ensures it stays correct even if the object pose is
                 # updated after defining the goal
                 ReachAction(
@@ -265,7 +263,7 @@ class PickUpAction(
                     stall_minimum_time=self.grasp_stall_minimum_time,
                     tolerate_stall=self.tolerate_grasp_stall,
                 ),
-                ReAttachNode(
+                MoveBranch(
                     body=self.object_designator.root,
                     new_parent=ViewManager.get_end_effector_view(
                         self.arm, self.robot
@@ -275,22 +273,20 @@ class PickUpAction(
         )
 
     @property
-    def _action_plan(self) -> PlanNode:
+    def _sub_nodes(self) -> List[ActionLike]:
         _, _, lift_to_pose = self.grasp_description.grasp_pose_sequence(
             self.object_designator.root
         )
-        return sequential(
-            children=[
-                self._grasp_attempt_plan(),
-                self.tool_center_point_goal(
-                    lift_to_pose,
-                    self.arm,
-                    allow_gripper_collision=True,
-                    movement_type=MovementType.TRANSLATION,
-                    max_linear_velocity=self.lift_linear_velocity,
-                ),
-            ],
-        )
+        return [
+            self._grasp_attempt(),
+            self.tool_center_point_goal(
+                lift_to_pose,
+                self.arm,
+                allow_gripper_collision=True,
+                movement_type=MovementType.TRANSLATION,
+                max_linear_velocity=self.lift_linear_velocity,
+            ),
+        ]
 
     @staticmethod
     def pre_condition(

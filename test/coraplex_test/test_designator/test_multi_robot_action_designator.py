@@ -559,9 +559,6 @@ def test_pick_up_multi(mutable_multiple_robot_apartment, rclpy_node):
         atol=0.01,
     )
 
-    assert len(root.plan.nodes) == len(root.plan.all_nodes)
-    root.plan.validate()
-
 
 def test_place_multi(mutable_multiple_robot_apartment):
     world, view, context = mutable_multiple_robot_apartment
@@ -611,8 +608,6 @@ def test_place_multi(mutable_multiple_robot_apartment):
     milk_position = milk_body.global_transform.to_position().to_np()
 
     assert milk_position[:3] == pytest.approx([1, -2.2, 0.6], abs=0.01)
-
-    root.plan.validate()
 
 
 def test_look_at(immutable_multiple_robot_apartment):
@@ -778,8 +773,6 @@ def test_transport(mutable_multiple_robot_apartment, rclpy_node):
     dist = np.linalg.norm(milk_position - np.array([3.1, 2.2, 0.95]))
     assert dist <= 0.02
 
-    plan.plan.validate()
-
 
 def test_move_to_reach(immutable_multiple_robot_apartment, rclpy_node):
     world, robot, context = immutable_multiple_robot_apartment
@@ -835,8 +828,6 @@ def test_transport_open_container(mutable_multiple_robot_apartment, rclpy_node):
     spoon_position = world.get_body_by_name("spoon.stl").global_transform.to_np()[:3, 3]
     dist = np.linalg.norm(spoon_position - np.array([5.1, 3.3, 0.75]))
     assert dist <= 0.02
-
-    plan.plan.validate()
 
 
 # %% a location candidate is a heading, not a base pose

@@ -459,7 +459,6 @@ def test_detection_corrects_a_grasp_planned_before_it(immutable_model_world):
         ),
         context=context,
     )
-    plan.notify()
     targets = [
         node.goal_pose
         for node in motion_nodes_of(plan)
@@ -941,14 +940,9 @@ def test_detect_action_takes_the_execution_type_of_the_environment(
     )
 
     with simulated_robot:
-        plan.notify()
-        executable = plan.parse()
-
-    tasks = [
-        node
-        for node in executable.motion_state_chart.nodes
-        if isinstance(node, PerceptionTask)
-    ]
+        tasks = [
+            node for node in motion_nodes_of(plan) if isinstance(node, PerceptionTask)
+        ]
     assert [type(task) for task in tasks] == [PerceptionTask]
     assert tasks[0].execution_type is ExecutionType.SIMULATED
 

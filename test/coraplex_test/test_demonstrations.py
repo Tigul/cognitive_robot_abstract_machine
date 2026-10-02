@@ -13,9 +13,9 @@ import rclpy
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import ExecutionType
-from coraplex.plans.executables import GiskardExecutable
+from coraplex.execution_environment import ExecutionEnvironment
 from coraplex.plans.factories import code
-from coraplex.plans.plan_node import PlanNode
+from coraplex.plans.plan import Plan
 from coraplex.demonstrations import RobotDemonstration, RobotDemonstrationRosSession
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.world import World
@@ -80,7 +80,7 @@ class RecordingDemonstration(RobotDemonstration):
     def build_context(self, world: World) -> Context:
         return Context(world, world.get_semantic_annotations_by_type(MinimalRobot)[0])
 
-    def build_plan(self, context: Context) -> PlanNode:
+    def build_plan(self, context: Context) -> Plan:
         return code(self.run_plan_body, context)
 
     def run_plan_body(self) -> None:
@@ -89,8 +89,10 @@ class RecordingDemonstration(RobotDemonstration):
         """
         if self.fail_the_plan:
             raise PlanDeliberatelyFailed()
-        self.observed_execution_type = GiskardExecutable.execution_type
-        self.observed_collision_avoidance = GiskardExecutable.collision_avoidance
+        self.observed_execution_type = ExecutionEnvironment.current_execution_type
+        self.observed_collision_avoidance = (
+            ExecutionEnvironment.current_collision_avoidance
+        )
 
     def tear_down(self) -> None:
         self.tear_down_calls += 1
@@ -155,7 +157,7 @@ def test_plan_runs_in_the_demonstrations_execution_environment(cylinder_bot_worl
     The plan is what the execution type and collision avoidance settings exist for, so
     they have to be in force while it runs and restored once it is done.
     """
-    previous_execution_type = GiskardExecutable.execution_type
+    previous_execution_type = ExecutionEnvironment.current_execution_type
     demonstration = RecordingDemonstration(
         world=cylinder_bot_world,
         used_robot=MinimalRobot,
@@ -167,8 +169,8 @@ def test_plan_runs_in_the_demonstrations_execution_environment(cylinder_bot_worl
 
     assert demonstration.observed_execution_type is ExecutionType.SIMULATED
     assert demonstration.observed_collision_avoidance is True
-    assert GiskardExecutable.execution_type is previous_execution_type
-    assert GiskardExecutable.collision_avoidance is False
+    assert ExecutionEnvironment.current_execution_type is previous_execution_type
+    assert ExecutionEnvironment.current_collision_avoidance is False
 
 
 def test_run_returns_the_world_it_acted_on(cylinder_bot_world):

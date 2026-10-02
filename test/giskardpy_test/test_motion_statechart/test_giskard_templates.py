@@ -30,7 +30,6 @@ from cramph.nodes_for_testing import (
 from cramph.composites import PausedUntilTrue, PausedWhileTrue, StoppedWhenTrue
 from semantic_digital_twin.world import World
 
-from coraplex.language import TryAllNode, TryInOrderNode
 from giskardpy.motion_control import MotionControl
 from cramph.context import StatechartContext
 from cramph.executor import StatechartExecutor
@@ -108,17 +107,6 @@ def _ticks_until_observed_true(
         if node.observation_state == ObservationStateValues.TRUE:
             return tick
     raise AssertionError(f"{node.name} never observed True within {max_ticks} ticks")
-
-
-# %% wiring
-
-
-def test_language_nodes_use_templates():
-    """
-    The parallel/sequential try-nodes point at the matching statechart templates.
-    """
-    assert TryAllNode.motion_state_chart_template is TryAll
-    assert TryInOrderNode.motion_state_chart_template is TryInOrder
 
 
 # %% TryAll, parallel and succeeding if any child succeeds

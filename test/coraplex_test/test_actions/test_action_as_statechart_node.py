@@ -7,8 +7,6 @@ from typing_extensions import List, Type
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms
-from coraplex.plans.factories import make_node
-from coraplex.plans.plan_node import ActionCompositeNode
 from coraplex.robot_plans.actions.base import Action
 from coraplex.execution_environment import simulated_robot
 from coraplex.datastructures.trajectory import PoseTrajectory
@@ -227,21 +225,6 @@ def test_park_arms_caps_joint_velocity_only_when_asked(immutable_simple_pr2_worl
     assert limit.max_velocity == 0.1
     assert _nodes_of_type(capped, Parallel) != []
     assert _nodes_of_type(uncapped, JointVelocityLimit) == []
-
-
-# %% embedding an action in a plan tree that has not been converted
-
-
-def test_make_node_wraps_an_action_for_a_plan_tree():
-    """
-    An action still reaches a plan tree, so unconverted callers keep working.
-    """
-    action = MoveTorsoAction(TorsoState.HIGH)
-
-    node = make_node(action)
-
-    assert isinstance(node, ActionCompositeNode)
-    assert node.action is action
 
 
 def test_look_at_points_the_default_camera(immutable_simple_pr2_world):

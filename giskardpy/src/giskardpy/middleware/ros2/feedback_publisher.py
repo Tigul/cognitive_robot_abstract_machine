@@ -7,6 +7,7 @@ from typing import Any, Dict
 
 from json_msgs.action import JsonAction
 
+from cramph.composites import CompositeNodeChoosingItsChild
 from cramph.executor import StatechartExecutor
 from giskardpy.middleware.ros2.action_server import ActionServerHandler
 
@@ -39,6 +40,12 @@ class MotionStatechartPayloadKey(StrEnum):
     GOAL_ID = "goal_id"
     """
     The goal the feedback belongs to.
+    """
+
+    WAITING_FOR_CHILD = "waiting_for_child"
+    """
+    The nodes waiting for the client to choose their child, by index, each with the
+    number of children it already holds.
     """
 
 
@@ -106,13 +113,20 @@ class ActionFeedbackPublisher:
     def create_states(self) -> Dict[str, Any]:
         """
         Collect the life cycle, observation and last observation state of the motion
-        statechart.
+        statechart, and the nodes waiting for a child.
         """
         motion_statechart = self.executor.statechart
         return {
             MotionStatechartPayloadKey.LIFE_CYCLE_STATE: motion_statechart.life_cycle_state.to_json(),
             MotionStatechartPayloadKey.OBSERVATION_STATE: motion_statechart.observation_state.to_json(),
             MotionStatechartPayloadKey.LAST_OBSERVATION_STATE: motion_statechart.last_observation_state.to_json(),
+            MotionStatechartPayloadKey.WAITING_FOR_CHILD: {
+                str(node.index): len(node.children)
+                for node in motion_statechart.get_nodes_by_type(
+                    CompositeNodeChoosingItsChild
+                )
+                if node.is_waiting_for_a_child
+            },
         }
 
     def has_state_changed(self) -> bool:

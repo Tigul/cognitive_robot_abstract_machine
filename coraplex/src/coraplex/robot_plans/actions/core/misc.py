@@ -7,11 +7,10 @@ from typing_extensions import Optional, Type, List
 from coraplex.datastructures.enums import DetectionTechnique, DetectionState
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.perception import PerceptionQuery, PerceptionTask
-from coraplex.plans.executables import GiskardExecutable
-from coraplex.plans.factories import sequential
-from coraplex.plans.plan_node import PlanNode
+from coraplex.execution_environment import ExecutionEnvironment
+from coraplex.plans.factories import ActionLike
 from cramph.node import StatechartNode
-from coraplex.robot_plans.actions.base import Action, ActionDescription
+from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import MoveManipulatorAction
 from coraplex.robot_plans.mixins import MovesToolCenterPoint
@@ -90,7 +89,7 @@ class DetectAction(Action):
         return [
             PerceptionTask(
                 query=self._build_query(),
-                execution_type=GiskardExecutable.execution_type,
+                execution_type=ExecutionEnvironment.current_execution_type,
                 accept_first_if_multiple=self.accept_first_if_multiple,
             )
         ]
@@ -132,8 +131,8 @@ class DetectAction(Action):
         )
 
 
-@dataclass
-class MoveToReach(ActionDescription, MovesToolCenterPoint):
+@dataclass(eq=False, repr=False)
+class MoveToReach(Action, MovesToolCenterPoint):
     """
     Let the robot move to a position facing the target and reach with a end_effector.
     """
@@ -161,7 +160,7 @@ class MoveToReach(ActionDescription, MovesToolCenterPoint):
     """
 
     @property
-    def _action_plan(self) -> PlanNode:
+    def _sub_nodes(self) -> List[ActionLike]:
         grasp_orientation = self.grasp_description.grasp_orientation()
         target_pose = Pose(
             self.target_pose_end_effector.to_position(),
@@ -171,18 +170,16 @@ class MoveToReach(ActionDescription, MovesToolCenterPoint):
             ).to_quaternion(),
             self.target_pose_end_effector.reference_frame,
         )
-        return sequential(
-            [
-                NavigateAction(self.standing_pose),
-                MoveManipulatorAction(
-                    target_pose,
-                    self.grasp_description.end_effector,
-                    allow_gripper_collision=False,
-                    position_threshold=self.position_threshold,
-                    orientation_threshold=self.orientation_threshold,
-                ),
-            ]
-        )
+        return [
+            NavigateAction(self.standing_pose),
+            MoveManipulatorAction(
+                target_pose,
+                self.grasp_description.end_effector,
+                allow_gripper_collision=False,
+                position_threshold=self.position_threshold,
+                orientation_threshold=self.orientation_threshold,
+            ),
+        ]
 
     @property
     def standing_pose(self) -> Pose:

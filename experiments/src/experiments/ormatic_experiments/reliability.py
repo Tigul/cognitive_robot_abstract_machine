@@ -21,7 +21,7 @@ from sqlalchemy.orm import sessionmaker
 import coraplex.orm.ormatic_interface  # type: ignore  # noqa: F401
 from coraplex.datastructures.dataclasses import Context
 from coraplex.execution_environment import simulated_robot
-from coraplex.orm.ormatic_interface import Base, PlanMappingDAO  # type: ignore
+from coraplex.orm.ormatic_interface import Base, PlanDAO  # type: ignore
 from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from experiments.experiment_definitions import (
@@ -113,7 +113,7 @@ def create_plan(world: World, ctx: Context, n_actions: int):
     Create a sequential plan with *n_actions* random :class:`NavigateAction` instances.
     """
     actions = [_random_navigate_action(world) for _ in range(n_actions)]
-    return sequential(actions, context=ctx).plan
+    return sequential(actions, context=ctx)
 
 
 @dataclass
@@ -149,7 +149,7 @@ class ORMaticReliabilityExperimentResult(ExperimentResult):
 
     reading_from_database_duration: float
     """
-    Seconds for session.scalars(select(PlanMappingDAO)).one().
+    Seconds for session.scalars(select(PlanDAO)).one().
     """
 
     reconstruction_duration: float
@@ -191,7 +191,7 @@ class ORMaticReliabilityAggregateResult(ExperimentResult):
 
     reading_from_database_duration: MeanAndStandardDeviation
     """
-    Mean and standard deviation of session.scalars(select(PlanMappingDAO)).one() time
+    Mean and standard deviation of session.scalars(select(PlanDAO)).one() time
     (seconds).
     """
 
@@ -239,7 +239,7 @@ def reliability_experiment(
 
     with selectin_loading(session):
         t0 = time.perf_counter()
-        fetched = session.scalars(select(PlanMappingDAO)).one()
+        fetched = session.scalars(select(PlanDAO)).one()
         reading_from_database_duration = time.perf_counter() - t0
 
         t0 = time.perf_counter()

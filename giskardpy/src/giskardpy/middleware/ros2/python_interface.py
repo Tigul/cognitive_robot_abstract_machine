@@ -4,12 +4,18 @@ import json
 from dataclasses import dataclass, field
 from threading import Thread
 from time import sleep
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 import rclpy
 from json_msgs.action import JsonAction
 from json_msgs.action._json_action import JsonAction_Result
+from std_msgs.msg import String
 from giskardpy.middleware.ros2 import rospy
+from cramph.composites import ChildChooser
+from giskardpy.middleware.ros2.child_choices import (
+    ChildChoiceClient,
+    child_choices_topic,
+)
 from giskardpy.middleware.ros2.exceptions import NoActiveGoalToCancelError
 from giskardpy.middleware.ros2.feedback_publisher import MotionStatechartPayloadKey
 from giskardpy.middleware.ros2.motion_goal import MotionGoal
@@ -86,7 +92,11 @@ class GiskardWrapper:
         motion_statechart.sanity_check()
         return self._send_action_goal_async(motion_statechart)
 
-    def execute(self, motion_statechart: Statechart):
+    def execute(
+        self,
+        motion_statechart: Statechart,
+        child_chooser: Optional[ChildChooser] = None,
+    ):
         """
         Executes a Statechart and syncs its state with the result of Giskard.
 
@@ -95,10 +105,50 @@ class GiskardWrapper:
         world model while the motion was running.
 
         :param motion_statechart: statechart to execute
+        :param child_chooser: Chooses the child of every node of the statechart that
+            chooses its child, on `motion_statechart`, while Giskard runs it.
         """
         motion_statechart.sanity_check()
-        result = self._send_action_goal(motion_statechart)
+        if child_chooser is None:
+            result = self._send_action_goal(motion_statechart)
+        else:
+            result = self._send_action_goal_choosing_children(
+                motion_statechart, child_chooser
+            )
         self._take_over_result(result, motion_statechart)
+
+    def _send_action_goal_choosing_children(
+        self, motion_statechart: Statechart, child_chooser: ChildChooser
+    ) -> JsonAction_Result:
+        """
+        Send the goal and answer every node Giskard reports as waiting for a child.
+
+        .. note:: The children are chosen in the thread that receives the feedback.
+
+        :param motion_statechart: statechart to send to Giskard
+        :param child_chooser: chooses the children on `motion_statechart`
+        :return: result of the finished goal
+        """
+        client = ChildChoiceClient(
+            statechart=motion_statechart,
+            chooser=child_chooser,
+            required_position=self.world_updates.required_position(),
+        )
+        publisher = self.node_handle.create_publisher(
+            String, child_choices_topic(self.giskard_node_name), 10
+        )
+
+        def answer(feedback_message) -> None:
+            feedback = json.loads(feedback_message.feedback.feedback)
+            for choice in client.answer(feedback):
+                publisher.publish(String(data=json.dumps(choice.to_json())))
+
+        try:
+            return self._client.send_goal(
+                self._create_goal_message(motion_statechart), feedback_callback=answer
+            )
+        finally:
+            self.node_handle.destroy_publisher(publisher)
 
     def _take_over_result(
         self, result: JsonAction_Result, motion_statechart: Statechart
@@ -116,15 +166,15 @@ class GiskardWrapper:
         self.world_updates.wait_for_the_changes_of_a_goal(result_json)
         parsed_life_cycle_state = LifeCycleState.from_json(
             result_json[MotionStatechartPayloadKey.LIFE_CYCLE_STATE],
-            motion_statechart=motion_statechart,
+            statechart=motion_statechart,
         )
         parsed_observation_state = ObservationState.from_json(
             result_json[MotionStatechartPayloadKey.OBSERVATION_STATE],
-            motion_statechart=motion_statechart,
+            statechart=motion_statechart,
         )
         parsed_last_observation_state = LastObservationState.from_json(
             result_json[MotionStatechartPayloadKey.LAST_OBSERVATION_STATE],
-            motion_statechart=motion_statechart,
+            statechart=motion_statechart,
         )
         motion_statechart.life_cycle_state.data = parsed_life_cycle_state.data
         motion_statechart.observation_state.data = parsed_observation_state.data

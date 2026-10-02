@@ -1,0 +1,323 @@
+"""
+Choosing the child of a node of a running goal on the client.
+
+A node of a goal may choose its child only once it runs, see
+:class:`~cramph.composites.CompositeNodeChoosingItsChild`. What it runs is decided by
+the client, which holds what the choice is made from, so Giskard publishes the nodes
+waiting for a child in its feedback, the client chooses on its copy of the statechart
+and sends the nodes the choice added, and Giskard adds them to the running statechart.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from enum import StrEnum
+from threading import Lock
+
+from typing_extensions import Any, Dict, List, Optional, Self, Set, Tuple
+
+from cramph.composites import (
+    ChildChoice,
+    ChildChooser,
+    ChoicePending,
+    ChosenChild,
+    CompositeNodeChoosingItsChild,
+    NoChildLeft,
+)
+from cramph.context import StatechartContext
+from cramph.statechart import Statechart
+from giskardpy.middleware.ros2.action_server import ActionServerHandler
+from giskardpy.middleware.ros2.exceptions import StatechartOutOfStepError
+from giskardpy.middleware.ros2.feedback_publisher import MotionStatechartPayloadKey
+from giskardpy.middleware.ros2.world_updates import IncomingWorldUpdates
+from krrood.adapters.json_serializer import SubclassJSONSerializer, from_json, to_json
+from semantic_digital_twin.adapters.ros.messages import StreamPosition
+from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
+    WorldEntityWithIDKwargsTracker,
+)
+
+CHILD_CHOICES_TOPIC_SUFFIX = "child_choices"
+"""
+The topic below Giskard's node name a client sends its child choices to.
+"""
+
+
+def child_choices_topic(giskard_node_name: str) -> str:
+    """
+    :param giskard_node_name: The name of Giskard's node.
+    :return: The topic a client sends its child choices to.
+    """
+    return f"{giskard_node_name}/{CHILD_CHOICES_TOPIC_SUFFIX}"
+
+
+# %% what the client sends
+
+
+class ChildChoicePayloadKey(StrEnum):
+    """
+    The keys of a child choice sent to Giskard.
+    """
+
+    GOAL_ID = "goal_id"
+    """
+    The goal the choice belongs to.
+    """
+
+    NODE_INDEX = "node_index"
+    """
+    The node the child was chosen for.
+    """
+
+    FIRST_NODE_INDEX = "first_node_index"
+    """
+    The index the first sent node has in the statechart.
+    """
+
+    NODES = "nodes"
+    """
+    The nodes the choice added, or nothing if no child is left.
+    """
+
+    REQUIRED_POSITION = "required_position"
+    """
+    The change of the client's world the choice was made on.
+    """
+
+
+@dataclass
+class ChildChoiceMessage(SubclassJSONSerializer):
+    """
+    The child a client chose for a node of a running goal.
+    """
+
+    goal_id: int
+    """
+    The goal the choice belongs to.
+    """
+
+    node_index: int
+    """
+    The index of the node the child was chosen for.
+    """
+
+    first_node_index: int
+    """
+    The index the first sent node has in the statechart.
+    """
+
+    nodes: Optional[Dict[str, Any]]
+    """
+    The nodes the choice added, as written by
+    :meth:`~cramph.statechart.Statechart.nodes_from_to_json`, the first of them the
+    child, or ``None`` if no child is left.
+    """
+
+    required_position: Optional[StreamPosition] = field(default=None, kw_only=True)
+    """
+    The position in the client's stream the world has to contain before the nodes are
+    added, ``None`` if there is nothing to wait for.
+    """
+
+    def to_json(self, **kwargs) -> Dict[str, Any]:
+        return {
+            **super().to_json(**kwargs),
+            ChildChoicePayloadKey.GOAL_ID: self.goal_id,
+            ChildChoicePayloadKey.NODE_INDEX: self.node_index,
+            ChildChoicePayloadKey.FIRST_NODE_INDEX: self.first_node_index,
+            ChildChoicePayloadKey.NODES: self.nodes,
+            ChildChoicePayloadKey.REQUIRED_POSITION: (
+                None
+                if self.required_position is None
+                else to_json(self.required_position, **kwargs)
+            ),
+        }
+
+    @classmethod
+    def _from_json(cls, data: Dict[str, Any], **kwargs) -> Self:
+        required_position = data[ChildChoicePayloadKey.REQUIRED_POSITION]
+        return cls(
+            goal_id=data[ChildChoicePayloadKey.GOAL_ID],
+            node_index=data[ChildChoicePayloadKey.NODE_INDEX],
+            first_node_index=data[ChildChoicePayloadKey.FIRST_NODE_INDEX],
+            nodes=data[ChildChoicePayloadKey.NODES],
+            required_position=(
+                None if required_position is None else from_json(required_position)
+            ),
+        )
+
+    def apply_to(self, statechart: Statechart) -> ChildChoice:
+        """
+        Add the sent nodes to `statechart`.
+
+        :return: The choice the sent nodes stand for.
+        :raises StatechartOutOfStepError: If `statechart` does not hold the nodes the
+            client's copy held before the choice.
+        """
+        if self.nodes is None:
+            return NoChildLeft()
+        if self.first_node_index != len(statechart.nodes):
+            raise StatechartOutOfStepError(
+                node_count=len(statechart.nodes),
+                first_sent_node_index=self.first_node_index,
+            )
+        world = statechart.context.world
+        kwargs = WorldEntityWithIDKwargsTracker.from_world(world).create_kwargs()
+        statechart.add_nodes_from_json(self.nodes, world=world, **kwargs)
+        return ChosenChild(node=statechart.get_node_by_index(self.first_node_index))
+
+
+# %% Giskard's side
+
+
+@dataclass
+class ChildSentByClient(ChildChooser):
+    """
+    Lets every node of a running goal run the child the client sent for it, and wait
+    until one arrived.
+    """
+
+    world_updates: IncomingWorldUpdates
+    """
+    Tells whether the world contains the change a choice was made on.
+    """
+
+    action_server: ActionServerHandler
+    """
+    Tells which goal is running.
+    """
+
+    _received: Dict[int, ChildChoiceMessage] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    """
+    The choices received and not yet taken, by the index of their node.
+    """
+
+    _lock: Lock = field(default_factory=Lock, init=False, repr=False)
+    """
+    Guards :attr:`_received`, which the thread receiving messages writes.
+    """
+
+    def receive(self, message: ChildChoiceMessage) -> None:
+        """
+        :param message: A choice the client sent.
+        """
+        with self._lock:
+            self._received[message.node_index] = message
+
+    def choose_child(
+        self, node: CompositeNodeChoosingItsChild, context: StatechartContext
+    ) -> ChildChoice:
+        message = self._take_choice_for(node)
+        if message is None:
+            return ChoicePending()
+        return message.apply_to(node.statechart)
+
+    def _take_choice_for(
+        self, node: CompositeNodeChoosingItsChild
+    ) -> Optional[ChildChoiceMessage]:
+        """
+        :return: The choice received for `node` in the running goal, once the world
+            contains what it was made on, or ``None`` until then. A choice for another
+            goal is dropped.
+        """
+        with self._lock:
+            message = self._received.get(node.index)
+            if message is None:
+                return None
+            if message.goal_id != self.action_server.goal_id:
+                del self._received[node.index]
+                return None
+            if message.required_position is not None and (
+                not self.world_updates.has_applied(message.required_position)
+            ):
+                return None
+            del self._received[node.index]
+            return message
+
+    def cleanup(self) -> None:
+        with self._lock:
+            self._received.clear()
+
+
+# %% the client's side
+
+
+@dataclass
+class ChildChoiceClient:
+    """
+    Answers the nodes a running goal reports as waiting for a child, by choosing on the
+    client's copy of the statechart.
+    """
+
+    statechart: Statechart
+    """
+    The client's copy of the statechart that was sent as the goal.
+    """
+
+    chooser: ChildChooser
+    """
+    Chooses the children.
+    """
+
+    required_position: Optional[StreamPosition] = None
+    """
+    The change of the client's world every choice is made on.
+    """
+
+    _answered: Set[Tuple[int, int, int]] = field(
+        default_factory=set, init=False, repr=False
+    )
+    """
+    Every request answered, as goal, node index and the number of children the node held.
+    """
+
+    def answer(self, feedback: Dict[str, Any]) -> List[ChildChoiceMessage]:
+        """
+        :param feedback: The feedback of the running goal.
+        :return: A choice for every node waiting for a child that was not answered
+            before. A choice that is still pending is asked for again next time.
+        """
+        goal_id = feedback[MotionStatechartPayloadKey.GOAL_ID]
+        messages = []
+        for index, child_count in feedback[
+            MotionStatechartPayloadKey.WAITING_FOR_CHILD
+        ].items():
+            request = (goal_id, int(index), child_count)
+            if request in self._answered:
+                continue
+            message = self._choose(
+                goal_id, self.statechart.get_node_by_index(int(index))
+            )
+            if message is None:
+                continue
+            self._answered.add(request)
+            messages.append(message)
+        return messages
+
+    def _choose(
+        self, goal_id: int, node: CompositeNodeChoosingItsChild
+    ) -> Optional[ChildChoiceMessage]:
+        """
+        Choose the next child of `node` on the client's copy.
+
+        :return: The message telling Giskard about the choice, or ``None`` if it is
+            pending.
+        """
+        first_node_index = len(self.statechart.nodes)
+        choice = self.chooser.choose_child(node, self.statechart.context)
+        if isinstance(choice, ChoicePending):
+            return None
+        choice.apply_to(node)
+        nodes = (
+            self.statechart.nodes_from_to_json(first_node_index)
+            if isinstance(choice, ChosenChild)
+            else None
+        )
+        return ChildChoiceMessage(
+            goal_id=goal_id,
+            node_index=node.index,
+            first_node_index=first_node_index,
+            nodes=nodes,
+            required_position=self.required_position,
+        )

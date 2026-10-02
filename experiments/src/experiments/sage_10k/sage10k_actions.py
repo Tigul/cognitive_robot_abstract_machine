@@ -5,9 +5,10 @@ import rustworkx
 from krrood.entity_query_language.factories import a, an, variable
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
-from coraplex.plans.factories import sequential
-from coraplex.plans.plan_node import PlanNode
-from coraplex.robot_plans.actions.base import ActionDescription
+from typing_extensions import List
+
+from coraplex.plans.factories import ActionLike
+from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.robot_plans.actions.core.misc import MoveToReach
 from semantic_digital_twin.robots.robot_parts import EndEffector
@@ -18,8 +19,8 @@ from semantic_digital_twin.world_description.graph_of_convex_sets.boxes import (
 )
 
 
-@dataclass
-class Sage10kOpenDoor(ActionDescription):
+@dataclass(eq=False, repr=False)
+class Sage10kOpenDoor(Action):
     """
     Open a door.
 
@@ -31,9 +32,9 @@ class Sage10kOpenDoor(ActionDescription):
     door: Door
 
     @property
-    def _action_plan(self) -> PlanNode:
+    def _sub_nodes(self) -> List[ActionLike]:
         """
-        Build the plan for reaching the handle and opening the door.
+        Build the steps for reaching the handle and opening the door.
 
         A navigation map is created around the door handle and used to constrain an
         underspecified reach action, which is sequenced with an opening action.
@@ -95,4 +96,4 @@ class Sage10kOpenDoor(ActionDescription):
 
         open_action = OpenAction(object_designator=self.door.handle.root, arm=arm)
 
-        return sequential([reach_action, open_action])
+        return [reach_action, open_action]

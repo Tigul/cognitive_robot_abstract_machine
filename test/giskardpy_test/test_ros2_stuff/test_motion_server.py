@@ -333,7 +333,7 @@ def create_error_holding_a_variable() -> SelfInStartConditionError:
     :return: The error of a node that waits for itself, which holds the observation
         variable of that node and therefore cannot be serialized.
     """
-    motion_statechart = Statechart()
+    motion_statechart = Statechart(context=StatechartContext(world=World()))
     motion_statechart.add_node(node := ConstTrueNode(name="waits for itself"))
     with pytest.raises(SelfInStartConditionError) as error:
         node.start_condition = node.observes_true
@@ -525,7 +525,7 @@ def create_goal_json(
     """
     Build the json of a goal whose motion ends after the given simulated time.
     """
-    motion_statechart = Statechart()
+    motion_statechart = Statechart(context=StatechartContext(world=World()))
     motion_statechart.add_node(counter := CountSimulationTimeSeconds(seconds=seconds))
     motion_statechart.add_node(EndMotion.when_true(counter))
     goal = MotionGoal.for_motion_statechart(
@@ -781,7 +781,7 @@ class TestGoalResult:
         assert (
             LastObservationState.from_json(
                 result[MotionStatechartPayloadKey.LAST_OBSERVATION_STATE],
-                motion_statechart=motion_statechart,
+                statechart=motion_statechart,
             )
             == motion_statechart.last_observation_state
         )
