@@ -37,11 +37,19 @@ retire-plan-layer into this item in plan.yaml; roadmap entry.
 - Fixes found on the way: DesignatorParameters eq=False; extensions hold still
   before a node chooses; tick budget counts sequence steps.
 
+- daa4ea57c: motion server tests build statecharts with a context; server
+  parses goals with the executor context; client reads results with statechart=.
+- a87ef641a: split_list_by_type removed (user OK).
+- b544b929f Phase 4: child_choices (ChildChoiceMessage, ChildSentByClient,
+  ChildChoiceClient), feedback lists waiting nodes, GiskardWrapper.execute(..,
+  child_chooser), PlanExecution REAL hands UnderspecifiedChildChooser;
+  UnderspecifiedNode sent as CompositeNodeChoosingItsChild; Action._body serialized.
+- plan.yaml/roadmap updated: convert-imperative-actions and retire-plan-layer
+  folded into this item.
+
 ## Next
-- Waiting on user: may I fix test_motion_server.py's Statechart() helper
-  (34 tests already fail on the base)? Real-stretch process test fails on the
-  same missing context in MotionServer.compile_goal.
-- Phase 4 (giskard extend-running-goal protocol).
-- Ask: split_list_by_type only used in tests - remove?
-- At the end: plan.yaml (fold convert-imperative-actions, retire-plan-layer),
-  roadmap entry.
+- Open the draft PR once the gh token works (into plan-cramp-second-iter).
+- Known, not fixed (separate root causes, told user): giskardpy MoveGripper does
+  not survive a JSON round trip (blocks real-stretch cross-process test);
+  ~70 Statechart() calls without context in giskardpy ROS 2 integration tests
+  and test_motion_goal.py.
