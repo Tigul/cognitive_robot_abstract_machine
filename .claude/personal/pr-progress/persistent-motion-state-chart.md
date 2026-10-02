@@ -29,18 +29,19 @@ retire-plan-layer into this item in plan.yaml; roadmap entry.
 - Plan approved; branch up to date with origin/plan-cramp-second-iter.
 - Phase 1 committed (dc331c495): CompositeNodeChoosingItsChild, partial JSON,
   deserialized nodes keep their id.
-- Phase 2+3 written, uncommitted (one commit, since tests on the deleted classes
-  had to go with it): Plan(root, context) + PlanExecution; factories build cramph
-  composites; UnderspecifiedNode chart node + UnderspecifiedChildChooser +
-  ActionTrial; 15 ActionDescriptions -> Action; plan layer, language.py,
-  executables deleted; ORM regenerated; tests ported/rewritten.
-- Fixes found on the way: DesignatorParameters eq=False (all actions compared
-  equal); extensions hold still (before_recompile) before a node chooses, else
-  grounding/trials copy a moving world; tick budget counts sequence steps.
+- Phase 2+3 committed and pushed (859e9abf9): Plan(root, context) +
+  PlanExecution; factories build cramph composites; UnderspecifiedNode chart
+  node + chooser + ActionTrial; 15 actions -> Action; plan layer deleted; ORM
+  regenerated (Action's DesignatorParameters base moved last for ORMatic);
+  training env keeps tried_actions. cramph 606 / coraplex 441 green.
+- Fixes found on the way: DesignatorParameters eq=False; extensions hold still
+  before a node chooses; tick budget counts sequence steps.
 
 ## Next
-- Wait for full coraplex suite, fix failures, format docstrings, commit 2+3.
-- Ask user: test_motion_server.py helper builds Statechart() without context,
-  34 tests fail on the base already; may I fix the helper before Phase 4?
+- Waiting on user: may I fix test_motion_server.py's Statechart() helper
+  (34 tests already fail on the base)? Real-stretch process test fails on the
+  same missing context in MotionServer.compile_goal.
 - Phase 4 (giskard extend-running-goal protocol).
-- Mention to user: split_list_by_type only used in tests.
+- Ask: split_list_by_type only used in tests - remove?
+- At the end: plan.yaml (fold convert-imperative-actions, retire-plan-layer),
+  roadmap entry.
