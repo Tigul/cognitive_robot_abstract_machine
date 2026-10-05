@@ -6,6 +6,9 @@ A node of a goal may choose its child only once it runs, see
 the client, which holds what the choice is made from, so Giskard publishes the nodes
 waiting for a child in its feedback, the client chooses on its copy of the statechart
 and sends the nodes the choice added, and Giskard adds them to the running statechart.
+
+.. note:: This is an interim way of getting a client's choices into a running goal,
+    meant to be replaced by a proper interface between client and Giskard.
 """
 
 from __future__ import annotations
