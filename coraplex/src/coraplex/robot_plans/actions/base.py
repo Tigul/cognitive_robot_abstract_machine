@@ -54,7 +54,7 @@ class Action(CompositeNode, DesignatorParameters, ABC):
     success_decided_by = SuccessDecider.ITSELF
     fails_when_observing_false = True
 
-    _body: Optional[Sequence] = field(
+    _action_body: Optional[Sequence] = field(
         init=False,
         default=None,
         repr=False,
@@ -111,11 +111,11 @@ class Action(CompositeNode, DesignatorParameters, ABC):
         """
         Puts the nodes this action is made of into one sequence below it.
         """
-        self._body = Sequence(
+        self._action_body = Sequence(
             name=f"{self.name}/body",
             nodes=[as_statechart_node(step) for step in self._sub_nodes],
         )
-        self._add_child_to_statechart(self._body)
+        self._add_child_to_statechart(self._action_body)
 
     def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         """
@@ -124,7 +124,7 @@ class Action(CompositeNode, DesignatorParameters, ABC):
         It is read through its last observation, which outlasts it, because a node that
         ended observes nothing any more.
         """
-        return NodeArtifacts(observation=Scalar(self._body.last_observation))
+        return NodeArtifacts(observation=Scalar(self._action_body.last_observation))
 
     def find_earlier_action(
         self, action_type: Type[EarlierAction]
