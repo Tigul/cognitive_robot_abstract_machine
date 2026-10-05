@@ -971,69 +971,27 @@ class CancelledWhenTrue(StoppedWhenTrue):
 
 
 @dataclass
-class ChildChoice(ABC):
-    """
-    What a :class:`ChildChooser` answers a node asking for its next child.
-    """
-
-    @abstractmethod
-    def apply_to(self, node: CompositeNodeChoosingItsChild) -> None:
-        """
-        Change `node` the way this answer says.
-
-        :param node: The node that asked.
-        """
-
-
-@dataclass
-class ChosenChild(ChildChoice):
-    """
-    The node runs `node` next.
-    """
-
-    node: StatechartNode
-    """
-    The child the node runs next.
-    """
-
-    def apply_to(self, node: CompositeNodeChoosingItsChild) -> None:
-        node.adopt_chosen_child(self.node)
-
-
-@dataclass
-class NoChildLeft(ChildChoice):
-    """
-    There is nothing left to run, so the node fails.
-    """
-
-    def apply_to(self, node: CompositeNodeChoosingItsChild) -> None:
-        node.give_up()
-
-
-@dataclass
-class ChoicePending(ChildChoice):
-    """
-    The child is not known yet, so the node asks again on the next tick.
-    """
-
-    def apply_to(self, node: CompositeNodeChoosingItsChild) -> None:
-        pass
-
-
-@dataclass
 class ChildChooser(ABC):
     """
     Decides which child a :class:`CompositeNodeChoosingItsChild` runs next.
     """
 
+    def has_choice_for(self, node: CompositeNodeChoosingItsChild) -> bool:
+        """
+        :param node: The node asking for its next child.
+        :return: Whether :meth:`choose_child` can answer `node` now; if not, `node`
+            asks again on the next tick.
+        """
+        return True
+
     @abstractmethod
     def choose_child(
         self, node: CompositeNodeChoosingItsChild, context: StatechartContext
-    ) -> ChildChoice:
+    ) -> Optional[StatechartNode]:
         """
         :param node: The node asking for its next child.
         :param context: The context the statechart runs in.
-        :return: What `node` does next.
+        :return: The child `node` runs next, or None if no child is left.
         """
 
     def cleanup(self) -> None:
@@ -1116,8 +1074,28 @@ class CompositeNodeChoosingItsChild(CompositeNode):
         """
         Ask the chooser of `context` for the next child and follow its answer.
         """
-        chooser = context.require_extension(ChildChooserAccess).chooser
-        chooser.choose_child(self, context).apply_to(self)
+        self.choose_child_with(
+            context.require_extension(ChildChooserAccess).chooser, context
+        )
+
+    def choose_child_with(
+        self, chooser: ChildChooser, context: StatechartContext
+    ) -> bool:
+        """
+        Run the child `chooser` chooses next, or fail if it has no child left.
+
+        :param chooser: The chooser to ask.
+        :param context: The context the statechart runs in.
+        :return: Whether `chooser` answered, rather than having no choice yet.
+        """
+        if not chooser.has_choice_for(self):
+            return False
+        child = chooser.choose_child(self, context)
+        if child is None:
+            self.give_up()
+            return True
+        self.adopt_chosen_child(child)
+        return True
 
     def adopt_chosen_child(self, child: StatechartNode) -> None:
         """

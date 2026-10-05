@@ -2,16 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from typing_extensions import List
+from typing_extensions import List, Optional
 
 from cramph.composites import (
-    ChildChoice,
     ChildChooser,
     ChildChooserAccess,
-    ChoicePending,
-    ChosenChild,
     CompositeNodeChoosingItsChild,
-    NoChildLeft,
 )
 from cramph.data_types import LifeCycleValues, ObservationStateValues
 from cramph.executor import ExecutorExtension, StatechartExecutor
@@ -29,12 +25,18 @@ from cramph.statechart import Statechart
 @dataclass
 class ChooserAnsweringInTurn(ChildChooser):
     """
-    Gives the prepared answers one after another, then says no child is left.
+    Has no choice for the first few questions, then gives the prepared children one
+    after another, then says no child is left.
     """
 
-    answers: List[ChildChoice]
+    children: List[Optional[StatechartNode]]
     """
-    The answers still to give, in order.
+    The children still to give, in order, None for no child left.
+    """
+
+    unanswered_questions: int = 0
+    """
+    How many questions are still answered with having no choice yet.
     """
 
     asked_nodes: List[CompositeNodeChoosingItsChild] = field(default_factory=list)
@@ -42,11 +44,19 @@ class ChooserAnsweringInTurn(ChildChooser):
     Every node that asked, once per question.
     """
 
-    def choose_child(self, node: CompositeNodeChoosingItsChild, context) -> ChildChoice:
+    def has_choice_for(self, node: CompositeNodeChoosingItsChild) -> bool:
         self.asked_nodes.append(node)
-        if not self.answers:
-            return NoChildLeft()
-        return self.answers.pop(0)
+        if self.unanswered_questions == 0:
+            return True
+        self.unanswered_questions -= 1
+        return False
+
+    def choose_child(
+        self, node: CompositeNodeChoosingItsChild, context
+    ) -> Optional[StatechartNode]:
+        if not self.children:
+            return None
+        return self.children.pop(0)
 
 
 @dataclass
@@ -114,7 +124,7 @@ def test_the_node_succeeds_with_the_child_it_chose(
     child = _succeeding_child("child")
 
     choosing_node = _run_choosing_node(
-        statechart_executor, ChooserAnsweringInTurn([ChosenChild(node=child)])
+        statechart_executor, ChooserAnsweringInTurn([child])
     )
 
     assert choosing_node.children == [child]
@@ -130,9 +140,7 @@ def test_a_failed_child_makes_the_node_choose_again(
 
     choosing_node = _run_choosing_node(
         statechart_executor,
-        ChooserAnsweringInTurn(
-            [ChosenChild(node=failing), ChosenChild(node=succeeding)]
-        ),
+        ChooserAnsweringInTurn([failing, succeeding]),
     )
 
     assert choosing_node.children == [failing, succeeding]
@@ -155,9 +163,7 @@ def test_a_pending_choice_is_asked_again_on_the_next_tick(
     statechart_executor: StatechartExecutor,
 ):
     child = _succeeding_child("child")
-    chooser = ChooserAnsweringInTurn(
-        [ChoicePending(), ChoicePending(), ChosenChild(node=child)]
-    )
+    chooser = ChooserAnsweringInTurn([child], unanswered_questions=2)
 
     choosing_node = _run_choosing_node(statechart_executor, chooser)
 
@@ -168,7 +174,7 @@ def test_a_pending_choice_is_asked_again_on_the_next_tick(
 def test_a_node_that_is_not_running_is_not_asked(
     statechart_executor: StatechartExecutor,
 ):
-    chooser = ChooserAnsweringInTurn([ChosenChild(node=_succeeding_child("child"))])
+    chooser = ChooserAnsweringInTurn([_succeeding_child("child")])
     statechart_executor.context.add_extension(ChildChooserAccess(chooser=chooser))
     statechart = Statechart(context=statechart_executor.context)
     never_true = ConstFalseNode(name="never true")
@@ -187,7 +193,7 @@ def test_a_node_that_is_not_running_is_not_asked(
 def test_choosing_keeps_the_state_and_history_of_the_nodes_already_there(
     statechart_executor: StatechartExecutor,
 ):
-    chooser = ChooserAnsweringInTurn([ChosenChild(node=_succeeding_child("child"))])
+    chooser = ChooserAnsweringInTurn([_succeeding_child("child")])
     statechart_executor.context.add_extension(ChildChooserAccess(chooser=chooser))
     statechart = Statechart(context=statechart_executor.context)
     earlier = _succeeding_child("earlier")
@@ -216,7 +222,7 @@ def test_a_choice_compiles_the_statechart_once(
     executor = StatechartExecutor(context=statechart_context, extensions=[counting])
     child = _succeeding_child("child")
     executor.context.add_extension(
-        ChildChooserAccess(chooser=ChooserAnsweringInTurn([ChosenChild(node=child)]))
+        ChildChooserAccess(chooser=ChooserAnsweringInTurn([child]))
     )
     statechart = Statechart(context=executor.context)
     choosing_node = CompositeNodeChoosingItsChild(name="choosing")
@@ -234,7 +240,7 @@ def test_the_node_observes_what_its_latest_child_observed(
     child: StatechartNode = _succeeding_child("child")
 
     choosing_node = _run_choosing_node(
-        statechart_executor, ChooserAnsweringInTurn([ChosenChild(node=child)])
+        statechart_executor, ChooserAnsweringInTurn([child])
     )
 
     assert choosing_node.last_observation_state == ObservationStateValues.TRUE
@@ -276,9 +282,11 @@ class ChooserNotingWhetherTheExtensionHeldStill(ChildChooser):
     Whether the extension held still, once per question.
     """
 
-    def choose_child(self, node: CompositeNodeChoosingItsChild, context) -> ChildChoice:
+    def choose_child(
+        self, node: CompositeNodeChoosingItsChild, context
+    ) -> Optional[StatechartNode]:
         self.held_still_when_asked.append(self.extension.is_holding_still)
-        return ChosenChild(node=self.child)
+        return self.child
 
 
 def test_the_extensions_hold_still_before_a_node_chooses(statechart_context):

@@ -16,15 +16,9 @@ from threading import Lock
 
 from typing_extensions import Any, Dict, List, Optional, Self, Set, Tuple
 
-from cramph.composites import (
-    ChildChoice,
-    ChildChooser,
-    ChoicePending,
-    ChosenChild,
-    CompositeNodeChoosingItsChild,
-    NoChildLeft,
-)
+from cramph.composites import ChildChooser, CompositeNodeChoosingItsChild
 from cramph.context import StatechartContext
+from cramph.node import StatechartNode
 from cramph.statechart import Statechart
 from giskardpy.middleware.ros2.action_server import ActionServerHandler
 from giskardpy.middleware.ros2.exceptions import StatechartOutOfStepError
@@ -145,16 +139,16 @@ class ChildChoiceMessage(SubclassJSONSerializer):
             ),
         )
 
-    def apply_to(self, statechart: Statechart) -> ChildChoice:
+    def apply_to(self, statechart: Statechart) -> Optional[StatechartNode]:
         """
         Add the sent nodes to `statechart`.
 
-        :return: The choice the sent nodes stand for.
+        :return: The chosen child, or ``None`` if no child is left.
         :raises StatechartOutOfStepError: If `statechart` does not hold the nodes the
             client's copy held before the choice.
         """
         if self.nodes is None:
-            return NoChildLeft()
+            return None
         if self.first_node_index != len(statechart.nodes):
             raise StatechartOutOfStepError(
                 node_count=len(statechart.nodes),
@@ -163,7 +157,7 @@ class ChildChoiceMessage(SubclassJSONSerializer):
         world = statechart.context.world
         kwargs = WorldEntityWithIDKwargsTracker.from_world(world).create_kwargs()
         statechart.add_nodes_from_json(self.nodes, world=world, **kwargs)
-        return ChosenChild(node=statechart.get_node_by_index(self.first_node_index))
+        return statechart.get_node_by_index(self.first_node_index)
 
 
 # %% Giskard's side
@@ -205,35 +199,33 @@ class ChildSentByClient(ChildChooser):
         with self._lock:
             self._received[message.node_index] = message
 
-    def choose_child(
-        self, node: CompositeNodeChoosingItsChild, context: StatechartContext
-    ) -> ChildChoice:
-        message = self._take_choice_for(node)
-        if message is None:
-            return ChoicePending()
-        return message.apply_to(node.statechart)
-
-    def _take_choice_for(
-        self, node: CompositeNodeChoosingItsChild
-    ) -> Optional[ChildChoiceMessage]:
+    def has_choice_for(self, node: CompositeNodeChoosingItsChild) -> bool:
         """
-        :return: The choice received for `node` in the running goal, once the world
-            contains what it was made on, or ``None`` until then. A choice for another
-            goal is dropped.
+        A choice for another goal is dropped.
+
+        :return: Whether a choice for `node` in the running goal was received, and the
+            world contains what it was made on.
         """
         with self._lock:
             message = self._received.get(node.index)
             if message is None:
-                return None
+                return False
             if message.goal_id != self.action_server.goal_id:
                 del self._received[node.index]
-                return None
-            if message.required_position is not None and (
-                not self.world_updates.has_applied(message.required_position)
-            ):
-                return None
-            del self._received[node.index]
-            return message
+                return False
+            return message.required_position is None or (
+                self.world_updates.has_applied(message.required_position)
+            )
+
+    def choose_child(
+        self, node: CompositeNodeChoosingItsChild, context: StatechartContext
+    ) -> Optional[StatechartNode]:
+        """
+        Add the nodes the client sent for `node`.
+        """
+        with self._lock:
+            message = self._received.pop(node.index)
+        return message.apply_to(node.statechart)
 
     def cleanup(self) -> None:
         with self._lock:
@@ -305,14 +297,12 @@ class ChildChoiceClient:
             pending.
         """
         first_node_index = len(self.statechart.nodes)
-        choice = self.chooser.choose_child(node, self.statechart.context)
-        if isinstance(choice, ChoicePending):
+        if not node.choose_child_with(self.chooser, self.statechart.context):
             return None
-        choice.apply_to(node)
         nodes = (
-            self.statechart.nodes_from_to_json(first_node_index)
-            if isinstance(choice, ChosenChild)
-            else None
+            None
+            if node.ran_out_of_children
+            else self.statechart.nodes_from_to_json(first_node_index)
         )
         return ChildChoiceMessage(
             goal_id=goal_id,

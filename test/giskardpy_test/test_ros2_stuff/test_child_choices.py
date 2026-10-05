@@ -10,16 +10,14 @@ import pytest
 from typing_extensions import List, Optional
 
 from cramph.composites import (
-    ChildChoice,
     ChildChooser,
     ChildChooserAccess,
-    ChosenChild,
     CompositeNodeChoosingItsChild,
-    NoChildLeft,
 )
 from cramph.context import StatechartContext
 from cramph.data_types import LifeCycleValues
 from cramph.monitors import CountSimulationTimeSeconds
+from cramph.node import StatechartNode
 from cramph.statechart import Statechart
 from giskardpy.middleware.ros2.action_server import GoalOutcome
 from giskardpy.middleware.ros2.child_choices import (
@@ -50,20 +48,20 @@ from .test_motion_server import (
 @dataclass
 class ChooserAnsweringInTurn(ChildChooser):
     """
-    Gives the prepared answers one after another, then says no child is left.
+    Gives the prepared children one after another, then says no child is left.
     """
 
-    answers: List[ChildChoice]
+    children: List[Optional[StatechartNode]]
     """
-    The answers still to give, in order.
+    The children still to give, in order, None for no child left.
     """
 
     def choose_child(
         self, node: CompositeNodeChoosingItsChild, context: StatechartContext
-    ) -> ChildChoice:
-        if not self.answers:
-            return NoChildLeft()
-        return self.answers.pop(0)
+    ) -> Optional[StatechartNode]:
+        if not self.children:
+            return None
+        return self.children.pop(0)
 
 
 @dataclass
@@ -150,7 +148,9 @@ def _server_chooser(motion_server: MotionServerFixture) -> ChildSentByClient:
 
 
 def _client_answering(
-    motion_server: MotionServerFixture, goal: ChoosingGoal, answers: List[ChildChoice]
+    motion_server: MotionServerFixture,
+    goal: ChoosingGoal,
+    children: List[Optional[StatechartNode]],
 ) -> ClientAnsweringFromTheControlLoop:
     """
     Let a client answer the running goal from inside the control loop.
@@ -158,7 +158,7 @@ def _client_answering(
     answering = ClientAnsweringFromTheControlLoop(
         world=motion_server.executor.context.world,
         client=ChildChoiceClient(
-            statechart=goal.statechart, chooser=ChooserAnsweringInTurn(answers)
+            statechart=goal.statechart, chooser=ChooserAnsweringInTurn(children)
         ),
         action_server=motion_server.action_server,
         server_chooser=_server_chooser(motion_server),
@@ -212,7 +212,7 @@ def test_a_child_the_client_chooses_runs_and_the_goal_succeeds(
     server = choosing_motion_server
     goal = ChoosingGoal.ending_when(EndMotion.when_true)
     child = CountSimulationTimeSeconds(seconds=0.1)
-    _client_answering(server, goal, [ChosenChild(node=child)])
+    _client_answering(server, goal, [child])
     server.action_server.goal_json = goal.goal_json()
 
     server.motion_server.run_idle_cycle()
@@ -242,7 +242,7 @@ def test_the_feedback_names_the_nodes_waiting_for_a_child(
 def test_no_child_left_fails_the_node(choosing_motion_server: MotionServerFixture):
     server = choosing_motion_server
     goal = ChoosingGoal.ending_when(EndMotion.when_failed)
-    _client_answering(server, goal, [NoChildLeft()])
+    _client_answering(server, goal, [None])
     server.action_server.goal_json = goal.goal_json()
 
     server.motion_server.run_idle_cycle()
@@ -308,9 +308,7 @@ def test_the_client_answers_a_waiting_node_once_per_child_it_holds():
     goal = ChoosingGoal.ending_when(EndMotion.when_true)
     client = ChildChoiceClient(
         statechart=goal.statechart,
-        chooser=ChooserAnsweringInTurn(
-            [ChosenChild(node=CountSimulationTimeSeconds(seconds=0.1))]
-        ),
+        chooser=ChooserAnsweringInTurn([CountSimulationTimeSeconds(seconds=0.1)]),
     )
     feedback = {
         MotionStatechartPayloadKey.GOAL_ID: 3,

@@ -20,12 +20,9 @@ from coraplex.plans.underspecified import UnderspecifiedNode
 from cramph.candidate_generator import CandidateGenerator
 from cramph.composites import (
     Sequence,
-    ChildChoice,
     ChildChooser,
     ChildChooserAccess,
-    ChosenChild,
     CompositeNodeChoosingItsChild,
-    NoChildLeft,
 )
 from cramph.context import StatechartContext
 from cramph.data_types import LifeCycleValues
@@ -392,7 +389,7 @@ class UnderspecifiedChildChooser(ChildChooser):
 
     def choose_child(
         self, node: CompositeNodeChoosingItsChild, context: StatechartContext
-    ) -> ChildChoice:
+    ) -> Optional[StatechartNode]:
         """
         :raises NotAnUnderspecifiedNode: If `node` carries no statement to ground.
         """
@@ -400,9 +397,9 @@ class UnderspecifiedChildChooser(ChildChooser):
             raise NotAnUnderspecifiedNode(node=node)
         candidates = self._candidates_of(node)
         if candidates.advance():
-            return ChosenChild(node=candidates.current_candidate)
+            return candidates.current_candidate
         candidates.stop_generating()
-        return NoChildLeft()
+        return None
 
     def _candidates_of(self, node: UnderspecifiedNode) -> UnderspecifiedCandidates:
         """
