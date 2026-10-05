@@ -1,7 +1,6 @@
 # persistent-motion-state-chart
 
-No pull request yet: creating one failed on the gh token (cram2 org lifetime
-policy / 403); the user said to go ahead without it.
+Draft PR: Tigul#10 (https://github.com/Tigul/cognitive_robot_abstract_machine/pull/10).
 
 ## Plan (approved 2026-10-01, replaces the segment plan)
 The statechart IS the plan: no parsing, no execution boundaries, plan layer
@@ -47,8 +46,16 @@ retire-plan-layer into this item in plan.yaml; roadmap entry.
 - plan.yaml/roadmap updated: convert-imperative-actions and retire-plan-layer
   folded into this item.
 
+## Review round 1 (2026-10-05), plan ~/.claude/plans/i-added-some-comments-effervescent-barto.md
+One commit each, then push, reply on threads, back to draft, update description.
+1. Action._body -> _action_body
+2. find_earlier_action -> Statechart.get_preceding_node_by_type
+3. ChildChooser returns Optional[node] + has_choice_for; delete ChildChoice family
+4. _joins_a_compiled_node uses node.parent_node (register first inside modify)
+5. note in child_choices.py: interim mechanism
+6. "WorldUpdates?": reply only (why the chooser waits on world updates)
+
 ## Next
-- Open the draft PR once the gh token works (into plan-cramp-second-iter).
 - Known, not fixed (separate root causes, told user): giskardpy MoveGripper does
   not survive a JSON round trip (blocks real-stretch cross-process test);
   ~70 Statechart() calls without context in giskardpy ROS 2 integration tests
