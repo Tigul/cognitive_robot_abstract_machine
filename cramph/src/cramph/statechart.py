@@ -1603,30 +1603,20 @@ class Statechart(SubclassJSONSerializer):
         outermost :meth:`modify` block around the addition ends.
 
         :param node: The node to add.
-        :raises StatechartAlreadyCompiledError: If `node` would become the child of a
-            node that is compiled already, whose wiring over its children is fixed.
         :raises PrerequisiteNotExpandedError: If `node` is a composite node that reads
             a composite node which has not joined this statechart yet.
         """
-        if self._joins_a_compiled_node(node):
-            raise StatechartAlreadyCompiledError()
         with self.modify():
             self._register_node(node)
             if isinstance(node, CompositeNode):
                 self._expand(node)
 
-    def _joins_a_compiled_node(self, node: StatechartNode) -> bool:
+    def latest_compile_covers(self, node: StatechartNode) -> bool:
         """
-        :param node: The node joining this statechart.
-        :return: Whether `node` becomes the child of a node the latest compile covered.
+        :param node: A node of this statechart.
+        :return: Whether the latest compile covered `node`, which fixed its wiring.
         """
-        return (
-            node.parent_node_index is not None
-            and node.parent_node_index < self._compiled_node_count
-            and not self.get_node_by_index(
-                node.parent_node_index
-            ).accepts_children_after_compile
-        )
+        return node.index < self._compiled_node_count
 
     def _drop_nodes_from(self, first_dropped_index: int) -> None:
         """

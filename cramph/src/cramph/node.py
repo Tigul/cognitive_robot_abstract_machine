@@ -47,6 +47,7 @@ from cramph.exceptions import (
     UnknownConditionVariableError,
     UnsupportedConditionSyntaxError,
     NodeStateVariableNotSerializableError,
+    StatechartAlreadyCompiledError,
 )
 from cramph.plotters.plot_specs import NodePlotSpec, plot_specification_field
 from krrood.adapters.deserialized_object_tracker import DeserializedObjectTracker
@@ -1990,12 +1991,26 @@ class CompositeNode(StatechartNode):
         without touching :attr:`nodes`.
 
         :param node: The node that becomes a child of this node.
+        :raises StatechartAlreadyCompiledError: If this node accepts no children any
+            more, see :meth:`_check_accepts_children`.
         """
         self._add_node_sanity_check(node)
         if node._statechart is self.statechart:
             return
+        self._check_accepts_children()
         node.parent_node = self
         self.statechart.add_node(node)
+
+    def _check_accepts_children(self) -> None:
+        """
+        :raises StatechartAlreadyCompiledError: If the latest compile covered this
+            node, which fixed its wiring over its children, and it accepts no children
+            after that.
+        """
+        if self.accepts_children_after_compile:
+            return
+        if self.statechart.latest_compile_covers(self):
+            raise StatechartAlreadyCompiledError()
 
     def _add_node_sanity_check(self, node: StatechartNode) -> None:
         """

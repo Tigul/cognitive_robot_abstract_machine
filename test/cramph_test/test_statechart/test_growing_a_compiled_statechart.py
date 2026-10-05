@@ -235,3 +235,19 @@ def test_a_compiled_composite_node_still_rejects_new_children(
 
     with pytest.raises(StatechartAlreadyCompiledError):
         sequence.add_node(_node_arriving_at_once("second"))
+
+
+def test_a_child_a_compiled_composite_node_rejects_does_not_join_the_statechart(
+    statechart_executor: StatechartExecutor,
+):
+    statechart = Statechart(context=statechart_executor.context)
+    statechart.add_node(sequence := Sequence(nodes=[_node_arriving_at_once("first")]))
+    statechart_executor.compile(statechart)
+    nodes_before = list(statechart.nodes)
+    rejected = _node_arriving_at_once("rejected")
+
+    with pytest.raises(StatechartAlreadyCompiledError):
+        sequence.add_node(rejected)
+
+    assert statechart.nodes == nodes_before
+    assert not rejected.belongs_to_statechart()
