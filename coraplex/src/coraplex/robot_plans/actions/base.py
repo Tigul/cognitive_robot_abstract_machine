@@ -9,8 +9,6 @@ from typing_extensions import (
     Dict,
     List,
     Optional,
-    Type,
-    TypeVar,
 )
 
 from coraplex.datastructures.dataclasses import Context, PlanContextExtension
@@ -31,8 +29,6 @@ from semantic_digital_twin.world_description.world_entity import (
 )
 
 logger = logging.getLogger(__name__)
-
-EarlierAction = TypeVar("EarlierAction", bound="Action")
 
 
 @dataclass(eq=False, repr=False)
@@ -125,21 +121,6 @@ class Action(CompositeNode, DesignatorParameters, ABC):
         ended observes nothing any more.
         """
         return NodeArtifacts(observation=Scalar(self._action_body.last_observation))
-
-    def find_earlier_action(
-        self, action_type: Type[EarlierAction]
-    ) -> Optional[EarlierAction]:
-        """
-        :param action_type: The type of action to look for.
-        :return: The closest action of `action_type` that runs before this one in its
-            statechart, or None if there is none.
-        """
-        for node in [self, *self.path]:
-            for sibling in reversed(node.left_siblings):
-                for earlier in reversed([sibling, *sibling.descendants]):
-                    if isinstance(earlier, action_type):
-                        return earlier
-        return None
 
     @staticmethod
     def pre_condition(

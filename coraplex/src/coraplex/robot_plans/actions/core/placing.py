@@ -111,7 +111,7 @@ class PlaceAction(
                 end_effector, self.object_designator
             )
 
-        previous_pick = self.find_earlier_action(PickUpAction)
+        previous_pick = self.statechart.get_preceding_node_by_type(self, PickUpAction)
         if previous_pick is None:
             raise BodyIsNotHeld(self.object_designator, end_effector)
         return previous_pick.grasp_description

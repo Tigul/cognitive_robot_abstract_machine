@@ -161,7 +161,7 @@ def test_a_place_finds_the_grasp_of_the_pick_up_before_it(mutable_model_world):
 
     statechart.add_node(sequential([pick_up, place]).root)
 
-    assert place.find_earlier_action(PickUpAction) is pick_up
+    assert statechart.get_preceding_node_by_type(place, PickUpAction) is pick_up
 
 
 # %% running on the robot

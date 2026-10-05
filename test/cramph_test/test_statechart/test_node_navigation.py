@@ -225,6 +225,45 @@ def test_the_rightmost_node_has_no_right_neighbour(nested_statechart: Statechart
     assert last.right_neighbour is None
 
 
+# %% the closest node of a type that runs before a node
+
+
+def test_the_closest_preceding_node_is_the_last_in_a_left_siblings_subtree(
+    nested_statechart: Statechart,
+):
+    last = node_named(nested_statechart, "last")
+
+    assert nested_statechart.get_preceding_node_by_type(
+        last, ConstTrueNode
+    ) is node_named(nested_statechart, "inner_last")
+
+
+def test_a_preceding_node_is_found_left_of_an_ancestor(
+    nested_statechart: Statechart,
+):
+    inner_first = node_named(nested_statechart, "inner_first")
+
+    assert nested_statechart.get_preceding_node_by_type(
+        inner_first, ConstTrueNode
+    ) is node_named(nested_statechart, "first")
+
+
+def test_a_left_sibling_itself_precedes_a_node(nested_statechart: Statechart):
+    last = node_named(nested_statechart, "last")
+
+    assert nested_statechart.get_preceding_node_by_type(last, Parallel) is node_named(
+        nested_statechart, "middle"
+    )
+
+
+def test_an_ancestor_does_not_precede_its_descendants(
+    nested_statechart: Statechart,
+):
+    inner_last = node_named(nested_statechart, "inner_last")
+
+    assert nested_statechart.get_preceding_node_by_type(inner_last, Parallel) is None
+
+
 # %% a goal that wraps its children
 
 
