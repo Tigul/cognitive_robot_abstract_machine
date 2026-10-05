@@ -46,16 +46,17 @@ retire-plan-layer into this item in plan.yaml; roadmap entry.
 - plan.yaml/roadmap updated: convert-imperative-actions and retire-plan-layer
   folded into this item.
 
-## Review round 1 (2026-10-05), plan ~/.claude/plans/i-added-some-comments-effervescent-barto.md
-One commit each, then push, reply on threads, back to draft, update description.
-1. Action._body -> _action_body
-2. find_earlier_action -> Statechart.get_preceding_node_by_type
-3. ChildChooser returns Optional[node] + has_choice_for; delete ChildChoice family
-4. _joins_a_compiled_node uses node.parent_node (register first inside modify)
-5. note in child_choices.py: interim mechanism
-6. "WorldUpdates?": reply only (why the chooser waits on world updates)
+## Review round 1 (2026-10-05) - done, pushed
+- 9079406ae _action_body; ea5efedd9 Statechart.get_preceding_node_by_type;
+  5150b826e chooser returns Optional[node] + has_choice_for (ChildChoice family gone);
+  e6279ef0f parent rejects child itself (_check_accepts_children, latest_compile_covers);
+  8b6bbe875 interim note in child_choices.py.
+- Replied on all 6 threads, resolved 5; "WorldUpdates?" left open with a question.
+- PR back to draft, description written. cramph 611 green; coraplex plan/actions/
+  designator + giskard child_choices/motion_server 278 green.
 
 ## Next
+- Wait for the reviewer's answer on the "WorldUpdates?" thread.
 - Known, not fixed (separate root causes, told user): giskardpy MoveGripper does
   not survive a JSON round trip (blocks real-stretch cross-process test);
   ~70 Statechart() calls without context in giskardpy ROS 2 integration tests
