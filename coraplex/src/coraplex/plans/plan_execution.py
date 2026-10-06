@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from copy import deepcopy
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
 
 from typing_extensions import Dict, Iterator, Optional, Tuple
@@ -11,6 +12,7 @@ from coraplex.datastructures.enums import ExecutionType
 from coraplex.exceptions import (
     MotionDidNotFinish,
     NotAnUnderspecifiedNode,
+    PlanNotCompiled,
     UnknownExecutionType,
 )
 from coraplex.execution_environment import ExecutionEnvironment
@@ -41,24 +43,71 @@ from giskardpy.qp.qp_controller_config import QPControllerConfig
 logger = logging.getLogger(__name__)
 
 
-# %% running the statechart of a plan
+# %% compiling and executing a plan
 
 
 @dataclass
-class PlanExecution:
+class PlanExecutor:
     """
-    Runs a plan as one statechart, in the way the current
-    :class:`~coraplex.execution_environment.ExecutionEnvironment` asks for.
+    Compiles a plan into one statechart and executes it, in the way the
+    :class:`~coraplex.execution_environment.ExecutionEnvironment` in force at
+    :meth:`compile` asks for.
 
-    The statechart holds the plan's root, the collision avoidance when the environment
-    asks for it, and one :class:`~giskardpy.motion_statechart.graph_node.EndMotion`
-    once the root succeeded. Underspecified actions are grounded while it runs, see
+    A plan is any statechart node, usually a cramph composite holding actions. The
+    statechart holds the plan, the collision avoidance when the environment asks for it,
+    and one :class:`~giskardpy.motion_statechart.graph_node.EndMotion` once the plan
+    succeeded. Underspecified actions are grounded while it runs, see
     :class:`UnderspecifiedChildChooser`.
     """
 
-    root: StatechartNode
+    context: Context
     """
-    The node the plan consists of.
+    The context plans are compiled and executed in.
+    """
+
+    _run: Optional[PlanRun] = field(default=None, init=False, repr=False)
+    """
+    The run of the plan compiled last.
+    """
+
+    def compile(self, plan: StatechartNode) -> None:
+        """
+        Build the statechart running `plan` and compile it, so that :meth:`execute` can
+        run it.
+
+        :param plan: The node to execute.
+        :raises UnknownExecutionType: If no environment says how to execute.
+        """
+        self._run = PlanRun.for_execution_type(
+            ExecutionEnvironment.current_execution_type,
+            plan=plan,
+            context=self.context,
+        )
+        self._run.compile()
+
+    def execute(self) -> None:
+        """
+        Run the compiled plan until it succeeded.
+
+        :raises PlanNotCompiled: If no plan was compiled.
+        :raises MotionDidNotFinish: If the plan did not succeed.
+        :raises EmptyUnderspecified: If an underspecified action ran out of actions to
+            try.
+        """
+        if self._run is None:
+            raise PlanNotCompiled()
+        self._run.execute()
+
+
+@dataclass
+class PlanRun(ABC):
+    """
+    One plan, compiled and executed in one way.
+    """
+
+    plan: StatechartNode
+    """
+    The node to execute.
     """
 
     context: Context
@@ -66,23 +115,83 @@ class PlanExecution:
     The context the plan is executed in.
     """
 
-    def run(self) -> None:
+    @staticmethod
+    def for_execution_type(
+        execution_type: ExecutionType, plan: StatechartNode, context: Context
+    ) -> PlanRun:
         """
-        Run the plan until its root succeeded.
-
-        :raises MotionDidNotFinish: If the root did not succeed.
-        :raises UnknownExecutionType: If no environment says how to execute.
+        :param execution_type: How the plan is to be executed.
+        :param plan: The node to execute.
+        :param context: The context the plan is executed in.
+        :return: The run executing `plan` that way.
+        :raises UnknownExecutionType: If `execution_type` has no run.
         """
-        execution_type = ExecutionEnvironment.current_execution_type
         match execution_type:
             case ExecutionType.NO_EXECUTION:
-                return
+                return SkippedPlanRun(plan=plan, context=context)
             case ExecutionType.SIMULATED:
-                self._run_in_simulation()
+                return SimulatedPlanRun(plan=plan, context=context)
             case ExecutionType.REAL:
-                self._run_on_the_robot()
+                return RobotPlanRun(plan=plan, context=context)
             case _:
                 raise UnknownExecutionType(execution_type)
+
+    def create_statechart(self, statechart_context: StatechartContext) -> Statechart:
+        """
+        :param statechart_context: The context the statechart is built in.
+        :return: The statechart running the plan, ending once the plan succeeded.
+        """
+        statechart = Statechart(context=statechart_context)
+        statechart.add_node(self.plan)
+        if ExecutionEnvironment.current_collision_avoidance:
+            statechart.add_node(ExternalCollisionAvoidance())
+            statechart.add_node(SelfCollisionAvoidance())
+        statechart.add_node(EndMotion.when_true(self.plan))
+        return statechart
+
+    @abstractmethod
+    def compile(self) -> None:
+        """
+        Build the statechart running the plan and prepare it for :meth:`execute`.
+        """
+
+    @abstractmethod
+    def execute(self) -> None:
+        """
+        Run the plan until it succeeded.
+        """
+
+
+@dataclass
+class SkippedPlanRun(PlanRun):
+    """
+    Leaves the plan alone, for an environment that asks for nothing to be executed.
+    """
+
+    def compile(self) -> None:
+        """
+        Build nothing, since nothing runs.
+        """
+
+    def execute(self) -> None:
+        """
+        Run nothing.
+        """
+
+
+@dataclass
+class SimulatedPlanRun(PlanRun):
+    """
+    Ticks the plan's statechart in the world of the context.
+    """
+
+    executor: StatechartExecutor = field(init=False)
+    """
+    The executor ticking the statechart.
+    """
+
+    def __post_init__(self):
+        self.executor = self.create_executor(self.context)
 
     @staticmethod
     def create_executor(context: Context) -> StatechartExecutor:
@@ -106,38 +215,31 @@ class PlanExecution:
         )
         return executor
 
-    def create_statechart(self, statechart_context: StatechartContext) -> Statechart:
+    def compile(self) -> None:
         """
-        :param statechart_context: The context the statechart is built in.
-        :return: The statechart running the plan, ending once its root succeeded.
+        Compile the statechart against the executor, which ticks it once.
         """
-        statechart = Statechart(context=statechart_context)
-        statechart.add_node(self.root)
-        if ExecutionEnvironment.current_collision_avoidance:
-            statechart.add_node(ExternalCollisionAvoidance())
-            statechart.add_node(SelfCollisionAvoidance())
-        statechart.add_node(EndMotion.when_true(self.root))
-        return statechart
+        self.executor.compile(self.create_statechart(self.executor.context))
 
-    def _run_in_simulation(self) -> None:
+    def execute(self) -> None:
         """
-        Tick the statechart in the world of the context until it ended, its root ended
-        without succeeding, or the tick budget ran out.
+        Tick the statechart until it ended, the plan ended without succeeding, or the
+        tick budget ran out.
 
         :raises MotionDidNotFinish: If the statechart did not end.
         """
-        executor = self.create_executor(self.context)
-        statechart = self.create_statechart(executor.context)
+        statechart = self.executor.statechart
         try:
-            executor.compile(statechart)
             while not self._is_over(statechart) and (
-                executor.tick_count < self._tick_budget()
+                self.executor.tick_count < self._tick_budget()
             ):
-                executor.tick()
+                self.executor.tick()
         finally:
-            MotionControl.set_velocity_acceleration_jerk_to_zero(executor.context.world)
+            MotionControl.set_velocity_acceleration_jerk_to_zero(
+                self.executor.context.world
+            )
             statechart.cleanup_nodes()
-            executor.context.cleanup()
+            self.executor.context.cleanup()
         if statechart.is_ended():
             return
         self._raise_if_out_of_actions(statechart)
@@ -164,9 +266,9 @@ class PlanExecution:
 
     def _is_over(self, statechart: Statechart) -> bool:
         """
-        :return: Whether the statechart ended or its root can no longer succeed.
+        :return: Whether the statechart ended or the plan can no longer succeed.
         """
-        return statechart.is_ended() or self.root.life_cycle_state in (
+        return statechart.is_ended() or self.plan.life_cycle_state in (
             LifeCycleValues.FAILED,
             LifeCycleValues.INTERRUPTED,
         )
@@ -182,7 +284,7 @@ class PlanExecution:
         motion_count = len(
             [
                 node
-                for node in [self.root, *self.root.descendants]
+                for node in [self.plan, *self.plan.descendants]
                 if self._is_motion(node)
             ]
         )
@@ -201,14 +303,33 @@ class PlanExecution:
             node, (DesignatorParameters, Sequence, CompositeNodeChoosingItsChild)
         )
 
-    def _run_on_the_robot(self) -> None:
+
+@dataclass
+class RobotPlanRun(PlanRun):
+    """
+    Sends the plan's statechart to giskard, grounding every underspecified action
+    giskard reaches against the world as it is then.
+    """
+
+    statechart: Optional[Statechart] = field(default=None, init=False)
+    """
+    The statechart sent to giskard, set by :meth:`compile`.
+    """
+
+    def compile(self) -> None:
         """
-        Send the statechart to giskard and wait until it ended, grounding every
-        underspecified action giskard reaches against the world as it is then.
+        Build the statechart; giskard compiles it once it receives it.
         """
-        statechart_context = self.context.create_statechart_context()
+        self.statechart = self.create_statechart(
+            self.context.create_statechart_context()
+        )
+
+    def execute(self) -> None:
+        """
+        Send the statechart to giskard and wait until it ended.
+        """
         self.context.giskard_wrapper.execute(
-            self.create_statechart(statechart_context),
+            self.statechart,
             child_chooser=UnderspecifiedChildChooser(context=self.context),
         )
 
@@ -285,7 +406,9 @@ class ActionTrial:
             ),
         ):
             try:
-                PlanExecution(root=candidate, context=context).run()
+                executor = PlanExecutor(context)
+                executor.compile(candidate)
+                executor.execute()
                 return True
             except PlanFailure as failure:
                 logger.info("%s failed its trial: %s", action, failure)

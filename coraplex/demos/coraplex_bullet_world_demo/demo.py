@@ -5,7 +5,6 @@ from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlign
 from coraplex.datastructures.grasp import GraspDescription
 
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 
@@ -27,6 +26,8 @@ from semantic_digital_twin.spatial_types import (
 )
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import FixedConnection
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 world = setup_world()
 
@@ -92,22 +93,30 @@ with world.modify_world():
 
 context.evaluate_conditions = False
 
-plan = sequential(
+plan = Sequence(
     [
         ParkArmsAction(Arms.BOTH),
         MoveTorsoAction(TorsoState.HIGH),
         TransportAction(
-            next(an(entity(variable(Milk, domain=world.semantic_annotations))).evaluate()),
+            next(
+                an(entity(variable(Milk, domain=world.semantic_annotations))).evaluate()
+            ),
             Pose.from_xyz_rpy(4.9, 3.3, 0.8, yaw=1.57, reference_frame=world.root),
             Arms.LEFT,
         ),
         TransportAction(
-            next(an(entity(variable(Bowl, domain=world.semantic_annotations))).evaluate()),
+            next(
+                an(entity(variable(Bowl, domain=world.semantic_annotations))).evaluate()
+            ),
             Pose.from_xyz_rpy(5, 3.3, 0.75, yaw=1.57, reference_frame=world.root),
             Arms.LEFT,
         ),
         TransportAction(
-            next(an(entity(variable(Spoon, domain=world.semantic_annotations))).evaluate()),
+            next(
+                an(
+                    entity(variable(Spoon, domain=world.semantic_annotations))
+                ).evaluate()
+            ),
             Pose.from_xyz_rpy(5.1, 3.3, 0.75, yaw=1.57, reference_frame=world.root),
             Arms.LEFT,
             GraspDescription(
@@ -116,9 +125,10 @@ plan = sequential(
                 pr2.left_arm.end_effector,
             ),
         ),
-    ],
-    context=context,
-).plan
+    ]
+)
 
+executor = PlanExecutor(context)
 with simulated_robot:
-    plan.perform()
+    executor.compile(plan)
+    executor.execute()

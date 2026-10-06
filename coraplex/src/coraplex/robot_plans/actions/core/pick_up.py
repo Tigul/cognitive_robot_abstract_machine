@@ -23,7 +23,6 @@ from coraplex.datastructures.enums import (
     DetectionTechnique,
 )
 from coraplex.datastructures.grasp import GraspDescription
-from coraplex.plans.factories import ActionLike
 from coraplex.querying.predicates import GripperIsFree
 from coraplex.exceptions import PerceptionTargetMissing
 from cramph.composites import Sequence
@@ -100,7 +99,7 @@ class ReachAction(
     """
 
     @property
-    def _sub_nodes(self) -> List[ActionLike]:
+    def _sub_nodes(self) -> List[StatechartNode]:
         if self.perceive_before_grasp and self.object_designator is None:
             raise PerceptionTargetMissing(self)
         object_body = self.object_designator.root if self.object_designator else None
@@ -273,7 +272,7 @@ class PickUpAction(
         )
 
     @property
-    def _sub_nodes(self) -> List[ActionLike]:
+    def _sub_nodes(self) -> List[StatechartNode]:
         _, _, lift_to_pose = self.grasp_description.grasp_pose_sequence(
             self.object_designator.root
         )

@@ -12,8 +12,8 @@ replaced by the motion / executable / execution-environment model described here
 
 ## Motions
 
-A motion is a giskard node, built by the action that wants it and mounted in the plan as a
-{class}`~coraplex.plans.plan_node.MotionNode`. Actions build them straight from the tasks and goals in
+A motion is a giskard node, built by the action that wants it as one of the statechart nodes the action expands
+into. Actions build them straight from the tasks and goals in
 {mod}`giskardpy.motion_statechart` (for example {class}`~giskardpy.motion_statechart.tasks.joint_tasks.JointPositionList`
 to move a joint, or {class}`~giskardpy.motion_statechart.goals.gripper.MoveGripper` to open a gripper).
 
@@ -23,34 +23,33 @@ back to {attr}`~coraplex.datastructures.dataclasses.Context.motion_tolerances`, 
 expressed relative to comes from {attr}`~coraplex.datastructures.dataclasses.Context.controlled_root`. The mixins in
 {mod}`coraplex.robot_plans.mixins` do this for the goals several actions share.
 
-## Executables
+## The Plan Executor
 
-The motions of a plan are collected into a {class}`~coraplex.plans.executables.GiskardExecutable`, which assembles
-them into a single {class}`~cramph.statechart.Statechart`. While building the chart it also:
-
-- wires the tasks into an interruptible, pausable sequence,
-- adds optional pre- and post-condition monitors that gate the start and successful end of the motion,
-- adds an {class}`~giskardpy.motion_statechart.goals.collision_avoidance.ExternalCollisionAvoidance` goal when
-  collision avoidance is enabled.
-
-Calling {meth}`~coraplex.plans.executables.GiskardExecutable.execute` builds the chart and runs it according to the
-active execution type.
+A {class}`~coraplex.plans.plan_execution.PlanExecutor` runs a whole plan as one {class}`~cramph.statechart.Statechart`.
+{meth}`~coraplex.plans.plan_execution.PlanExecutor.compile` builds that chart from the plan, adding the collision
+avoidance goals when collision avoidance is enabled and an end motion once the plan succeeded, and
+{meth}`~coraplex.plans.plan_execution.PlanExecutor.execute` runs it according to the execution type that was active
+when the plan was compiled.
 
 ## Choosing Between Simulated and Real Execution
 
 The execution context is selected with the {class}`~coraplex.execution_environment.ExecutionEnvironment` context
-managers. Entering an environment sets the class-level `execution_type` and `collision_avoidance` on
-{class}`~coraplex.plans.executables.GiskardExecutable`; leaving it restores the previous values, so environments can be
-nested safely.
+managers. Entering an environment sets the current execution type and collision avoidance; leaving it restores the
+previous values, so environments can be nested safely.
 
 ```python
 from coraplex.execution_environment import simulated_robot, real_robot
+from coraplex.plans.plan_execution import PlanExecutor
+
+executor = PlanExecutor(context)
 
 with simulated_robot:
-    plan.perform()
+    executor.compile(plan)
+    executor.execute()
 
 with real_robot:
-    plan.perform()
+    executor.compile(plan)
+    executor.execute()
 ```
 
 Four pre-built environments are provided in {mod}`coraplex.execution_environment`: `simulated_robot`, `real_robot`,
@@ -61,17 +60,20 @@ Collision avoidance can be toggled per environment:
 
 ```python
 with simulated_robot(collision_avoidance=True):
-    plan.perform()
+    executor.compile(plan)
+    executor.execute()
 ```
 
 ## What happens for each execution type
 
-{meth}`~coraplex.plans.executables.GiskardExecutable.execute` dispatches on the active execution type:
+{class}`~coraplex.plans.plan_execution.PlanExecutor` dispatches on the execution type active at
+{meth}`~coraplex.plans.plan_execution.PlanExecutor.compile`:
 
 - `SIMULATED`: the chart is compiled and ticked against the world of the context until it reports an end motion. If
   it does not finish within the tick budget a {class}`~coraplex.exceptions.MotionDidNotFinish` exception is raised.
-- `REAL`: the chart is sent to giskard via the `GiskardWrapper` while a watcher thread monitors for interrupts.
-- `NO_EXECUTION`: the chart is built but not run, which is useful for inspecting or validating a plan.
+- `REAL`: the chart is sent to giskard via the `GiskardWrapper`, which grounds underspecified actions while giskard
+  runs it.
+- `NO_EXECUTION`: nothing is built or run.
 
 ## Robot-Specific Motions
 
@@ -86,6 +88,6 @@ overrides are being rebuilt on top of the giskard goals.
 ## Key takeaways
 
 - Actions build giskard goals directly; plans never execute them one at a time.
-- A {class}`~coraplex.plans.executables.GiskardExecutable` assembles the motions into one motion state chart and runs it.
+- A {class}`~coraplex.plans.plan_execution.PlanExecutor` compiles a plan into one motion state chart and executes it.
 - {class}`~coraplex.execution_environment.ExecutionEnvironment` context managers choose simulated, real, semi-real or
   no execution, and toggle collision avoidance.

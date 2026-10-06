@@ -23,14 +23,15 @@ from probabilistic_model.probabilistic_circuit.rx.probabilistic_circuit import (
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import execute_single
 from coraplex.plans.failures import (
     PlanFailure,
     EmptyUnderspecified,
 )
-from coraplex.plans.plan import Plan
+from coraplex.plans.plan_execution import PlanExecutor
+from coraplex.plans.underspecified import UnderspecifiedNode
 from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.actions.core.misc import MoveToReach
+from cramph.node import StatechartNode
 from random_events.interval import closed
 from random_events.product_algebra import SimpleEvent
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
@@ -53,6 +54,23 @@ from semantic_digital_twin.world_description.world_entity import Body
 
 
 @dataclass
+class TrainingEpisode:
+    """
+    The plan one episode of training executes, and the context it is executed in.
+    """
+
+    plan: StatechartNode
+    """
+    The plan whose underspecified actions generate the variants of the episode.
+    """
+
+    context: Context
+    """
+    The context the plan is executed in, holding the world built for the episode.
+    """
+
+
+@dataclass
 class TrainingEnvironment(ABC):
     """
     A training environment for generating data for the parameterization of actions.
@@ -63,7 +81,7 @@ class TrainingEnvironment(ABC):
     The type of action that is trained.
     """
 
-    executed_plans: list[Plan] = field(default_factory=list)
+    executed_plans: list[StatechartNode] = field(default_factory=list)
     """
     The executed plans during training.
     """
@@ -85,14 +103,14 @@ class TrainingEnvironment(ABC):
         """
 
     @abstractmethod
-    def setup_plan(self, limit: int = 10, **kwargs) -> Plan:
+    def setup_episode(self, limit: int = 10, **kwargs) -> TrainingEpisode:
         """
-        Create a plan with an underspecified node as a root.
+        Create a plan with an underspecified node as a root, in a world of its own.
 
         This plan is used to generate variants of the actions.
 
         :param limit: The maximum number of actions that should be executed.
-        :return: The plan
+        :return: The plan and the context it is executed in.
         """
 
     def generate_episodes(self, number_of_actions: int = 10):
@@ -115,26 +133,29 @@ class TrainingEnvironment(ABC):
         :param limit: The maximum number of actions that should be executed.
         :return: The number of actions executed in the episode.
         """
-        plan = self.setup_plan(limit)
+        episode = self.setup_episode(limit)
+        plan = episode.plan
 
         if self.visualize:
             import rclpy
 
             pub = VizMarkerPublisher(
-                _world=plan.context.world,
+                _world=episode.context.world,
                 node=rclpy.create_node("test_node"),
             )
 
+        executor = PlanExecutor(episode.context)
         with simulated_robot:
             try:
-                plan.perform()
+                executor.compile(plan)
+                executor.execute()
             except EmptyUnderspecified:
                 # No working solution found in this episode
                 pass
             self.executed_plans.append(plan)
 
-        self.tried_actions.extend(plan.root.children)
-        number_of_executed_variants = len(plan.root.children)
+        self.tried_actions.extend(plan.children)
+        number_of_executed_variants = len(plan.children)
 
         if self.visualize:
             pub.stop()
@@ -185,7 +206,7 @@ class MoveToReachTrainingEnvironment(TrainingEnvironment):
 
         return world_with_urdf
 
-    def setup_plan(self, limit: int = 10, **kwargs) -> Plan:
+    def setup_episode(self, limit: int = 10, **kwargs) -> TrainingEpisode:
 
         world = self.setup_world()
         [robot] = world.get_semantic_annotations_by_type(AbstractRobot)
@@ -220,7 +241,9 @@ class MoveToReachTrainingEnvironment(TrainingEnvironment):
 
         context = Context(world=world, robot=robot, query_backend=query_backend)
 
-        return execute_single(move_to_reach, context=context)
+        return TrainingEpisode(
+            plan=UnderspecifiedNode(statement=move_to_reach), context=context
+        )
 
     def setup_backend(self, underspecified_action: Match) -> ProbabilisticBackend:
         """

@@ -1,4 +1,4 @@
-from coraplex.plans.plan import Plan---
+---
 jupyter:
   jupytext:
     text_representation:
@@ -12,15 +12,12 @@ jupyter:
     name: python3
 ---
 # Introduction to Plans
-Plans in CoraPlex refer to a sequence of actions that are executed by the robot. Plans are created using the language 
-expressions introduced in the [Language](language.md) section. Plans can be executed in a simulated environment or on a 
-real robot. 
+A plan in CoraPlex is a statechart node that describes what the robot does, usually a cramph composite such as
+`Sequence`, `Parallel` or `TryInOrder` holding actions. Plans are built from the constructs introduced in the
+[Language](language.md) section, independently of the world they run in. A `PlanExecutor` then compiles the plan into
+one statechart and executes it, in a simulated environment or on a real robot.
 
-A plan consists of nodes these are either LanguageNodes which shape the control flow of the plan or DesignatorNodes 
-are associated with a designator and can be performed by the robot.
-
-We will now go through a simple example of how to create a plan using the CoraPlex language. To create a plan you always 
-need a language expression.
+We will now go through a simple example of how to create and execute a plan.
 
 # Setup a World
 
@@ -43,63 +40,43 @@ context = Context(world, pr2)
 ```python
 from coraplex.robot_plans import *
 from coraplex.datastructures.enums import Arms
-from coraplex.plans.factories import *
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
+from cramph.composites import Sequence
 
 navigate = NavigateAction(Pose.from_xyz_quaternion(1, 1, 0, reference_frame=world.root))
 park = ParkArmsAction(Arms.BOTH)
 
-plan = sequential([navigate, park], context=context).plan
+plan = Sequence([navigate, park])
 ```
 
-This will create a simple plan which has a SequentialNode as its root and two DesignatorNodes as its children. You can 
-open an interactive, real-time visualization of the plan using the `visualize` method.
-
-```python
-plan.visualize()
-```
-
-## Arguments of Nodes
-
-Nodes hava a number of arguments that provide information about the designator associated with the node and the current 
-state of execution. Arguments of nodes include:
-
-* status: The current status of the node including CREATED, RUNNING, SUCCEEDED, FAILED
-* start_time/end_time: The time when the node started and ended execution
-* reason: The reason for the failure during execution
-* plan: A reference to the plan this node belongs to
-
-Reasons for failure propagate upwards, meaning that if a child node fails the parent will also contain the same reason.
-
-Now let's take a look at the arguments of the plan we just created.
-
-```python
-print(plan.root.status)
-print(plan.root.start_time)
-print(plan.root.reason)
-```
+This creates a plan with a `Sequence` as its root and the two actions as its children.
 
 ## Plan Execution
-Plans can be executed using the `perform` method. This method will execute the plan and also perform all the resolution
-of Action Designators.
+A `PlanExecutor` executes plans in a context. `compile` builds the statechart running the plan, in the way the
+execution environment in force asks for, and `execute` runs it until the plan succeeded. Underspecified actions are
+grounded while the plan runs.
 
 ```python
+from coraplex.plans.plan_execution import PlanExecutor
 
+executor = PlanExecutor(context)
 with simulated_robot:
-    plan.perform()
+    executor.compile(plan)
+    executor.execute()
 ```
 
 This will execute the plan in a simulated environment.
 
 ### Collision Avoidance
-The execution environments accept a `collision_avoidance` flag. When set to `True`, an
-`ExternalCollisionAvoidance` goal is added to every motion state chart created within the
-environment, keeping the robot from colliding with the rest of the world while the motions run.
+The execution environments accept a `collision_avoidance` flag. When set to `True`, collision avoidance goals are added
+to the statechart a plan is compiled into, keeping the robot from colliding with the rest of the world while the
+motions run.
 
 ```python
 with simulated_robot(collision_avoidance=True):
-    plan.perform()
+    executor.compile(plan)
+    executor.execute()
 ```
 
 The flag also works when constructing an environment directly, and is restored correctly for
@@ -110,15 +87,26 @@ from coraplex.datastructures.enums import ExecutionType
 from coraplex.execution_environment import ExecutionEnvironment
 
 with ExecutionEnvironment(ExecutionType.SIMULATED, collision_avoidance=True):
-    plan.perform()
+    executor.compile(plan)
+    executor.execute()
 ```
 
-Now we can take a look at the arguments of the plan after execution.
+## Inspecting a Plan
+
+Every node of an executed plan reports how its run went:
+
+* life_cycle_state: Whether the node has not started, is running or paused, or succeeded, failed or was interrupted
+* start_time/end_time: When the node started and ended
 
 ```python
-print(plan.root.status)
-print(plan.root.children[0].status)
-print(plan.root.start_time)
-print(plan.root.end_time)
-print(plan.root.reason)
+print(plan.life_cycle_state)
+print(plan.children[0].life_cycle_state)
+print(plan.start_time)
+print(plan.end_time)
+```
+
+You can open an interactive visualization of the statechart the plan ran in using its `visualize` method.
+
+```python
+plan.statechart.visualize()
 ```

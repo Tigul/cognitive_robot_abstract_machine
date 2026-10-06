@@ -23,7 +23,6 @@ from semantic_digital_twin.world_description.world_entity import (
 )
 
 if TYPE_CHECKING:
-    from coraplex.plans.plan import Plan
     from semantic_digital_twin.world import World
     from coraplex.alternative_motion_mapping import AlternativeMotion
 
@@ -197,33 +196,27 @@ class Context:
     def from_world(
         cls,
         world: World,
-        plan: Plan = None,
         query_backend: Optional[QueryBackend] = None,
         alternative_motion_mappings: Optional[List[Type[AlternativeMotion]]] = None,
     ):
         """
         Create a context from a world by getting the first robot in the world.
 
-        There is no super plan in this case.
         :param world: The world for which to create the context
-        :param plan: The plan that manages this context
         :param query_backend: The query backend to use for answering queries
         :param alternative_motion_mappings: The alternative motion mappings used to
             resolve motions
-        :return: A context with the first robot in the world and no super plan
+        :return: A context with the first robot in the world
         """
         if query_backend is None:
             query_backend = EntityQueryLanguageGenerativeBackend()
 
-        result = cls(
+        return cls(
             world=world,
             robot=world.get_semantic_annotations_by_type(AbstractRobot)[0],
             query_backend=query_backend,
             alternative_motion_mappings=alternative_motion_mappings or [],
         )
-        if plan:
-            plan.add_plan_entity(result)
-        return result
 
 
 # %% reaching the plan context from inside a statechart

@@ -15,7 +15,8 @@ from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlign
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.locations.base import DeferredLocation
 from coraplex.locations.factories import reachability_location
-from coraplex.plans.factories import ActionLike
+from coraplex.plans.underspecified import UnderspecifiedNode
+from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.actions.composite.facing import FaceAtAction
 from coraplex.robot_plans.actions.core.container import OpenAction
@@ -84,17 +85,19 @@ class TransportAction(Action):
         handle = drawer_annotation[0].handle.root
 
         return [
-            a(NavigateAction)(
-                target_location=variable(
-                    Pose,
-                    domain=reachability_location(handle, self.context, self.arm),
-                ),
+            UnderspecifiedNode(
+                statement=a(NavigateAction)(
+                    target_location=variable(
+                        Pose,
+                        domain=reachability_location(handle, self.context, self.arm),
+                    ),
+                )
             ),
             OpenAction(handle, self.arm),
         ]
 
     @property
-    def _sub_nodes(self) -> List[ActionLike]:
+    def _sub_nodes(self) -> List[StatechartNode]:
         self.grasp_description = self.grasp_description or GraspDescription(
             ApproachDirection.FRONT,
             VerticalAlignment.NoAlignment,
@@ -109,31 +112,37 @@ class TransportAction(Action):
             [
                 ParkArmsAction(Arms.BOTH),
                 # Tries to find a pick-up position for the robot that uses the given arm
-                a(NavigateAction)(
-                    target_location=variable(
-                        Pose,
-                        domain=DeferredLocation(
-                            lambda: reachability_location(
-                                self.object_designator.root,
-                                self.context,
-                                self.arm,
-                                self.grasp_description,
-                            )
+                UnderspecifiedNode(
+                    statement=a(NavigateAction)(
+                        target_location=variable(
+                            Pose,
+                            domain=DeferredLocation(
+                                lambda: reachability_location(
+                                    self.object_designator.root,
+                                    self.context,
+                                    self.arm,
+                                    self.grasp_description,
+                                )
+                            ),
                         ),
-                    ),
+                    )
                 ),
-                a(PickUpAction)(
-                    object_designator=self.object_designator,
-                    arm=self.arm,
-                    grasp_description=self.grasp_description,
+                UnderspecifiedNode(
+                    statement=a(PickUpAction)(
+                        object_designator=self.object_designator,
+                        arm=self.arm,
+                        grasp_description=self.grasp_description,
+                    )
                 ),
                 ParkArmsAction(Arms.BOTH),
                 MoveTorsoAction(TorsoState.HIGH),
                 self._make_navigate_action_for_placing(self.grasp_description),
-                a(PlaceAction)(
-                    object_designator=self.object_designator.root,
-                    target_location=self.target_location,
-                    arm=self.arm,
+                UnderspecifiedNode(
+                    statement=a(PlaceAction)(
+                        object_designator=self.object_designator.root,
+                        target_location=self.target_location,
+                        arm=self.arm,
+                    )
                 ),
                 ParkArmsAction(Arms.BOTH),
             ]
@@ -141,18 +150,22 @@ class TransportAction(Action):
 
         return children
 
-    def _make_navigate_action_for_placing(self, grasp_description: GraspDescription):
+    def _make_navigate_action_for_placing(
+        self, grasp_description: GraspDescription
+    ) -> UnderspecifiedNode:
         """
         :param grasp_description: The grasp description that should be used for placing the object.
         :return: The navigate action that will be used to place the object.
         """
-        return a(NavigateAction)(
-            target_location=variable(
-                Pose,
-                domain=reachability_location(
-                    self.target_location, self.context, self.arm, grasp_description
+        return UnderspecifiedNode(
+            statement=a(NavigateAction)(
+                target_location=variable(
+                    Pose,
+                    domain=reachability_location(
+                        self.target_location, self.context, self.arm, grasp_description
+                    ),
                 ),
-            ),
+            )
         )
 
 
@@ -183,7 +196,7 @@ class PickAndPlaceAction(Action):
     """
 
     @property
-    def _sub_nodes(self) -> List[ActionLike]:
+    def _sub_nodes(self) -> List[StatechartNode]:
         return [
             ParkArmsAction(Arms.BOTH),
             PickUpAction(
@@ -222,7 +235,7 @@ class MoveAndPlaceAction(Action):
     """
 
     @property
-    def _sub_nodes(self) -> List[ActionLike]:
+    def _sub_nodes(self) -> List[StatechartNode]:
         return [
             NavigateAction(self.standing_position),
             FaceAtAction(self.target_location),
@@ -255,7 +268,7 @@ class MoveAndPickUpAction(Action):
     """
 
     @property
-    def _sub_nodes(self) -> List[ActionLike]:
+    def _sub_nodes(self) -> List[StatechartNode]:
         return [
             NavigateAction(self.standing_position),
             FaceAtAction(self.object_designator.root.global_pose),

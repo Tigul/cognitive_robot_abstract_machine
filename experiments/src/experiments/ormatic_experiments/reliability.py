@@ -21,8 +21,9 @@ from sqlalchemy.orm import sessionmaker
 import coraplex.orm.ormatic_interface  # type: ignore  # noqa: F401
 from coraplex.datastructures.dataclasses import Context
 from coraplex.execution_environment import simulated_robot
-from coraplex.orm.ormatic_interface import Base, PlanDAO  # type: ignore
-from coraplex.plans.factories import sequential
+from coraplex.orm.ormatic_interface import Base  # type: ignore
+from coraplex.plans.plan_execution import PlanExecutor
+from coraplex.plans.underspecified import UnderspecifiedNode
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from experiments.experiment_definitions import (
     ExperimentResult,
@@ -46,6 +47,8 @@ from semantic_digital_twin.world_description.connections import (
     OmniDrive,
 )
 from semantic_digital_twin.world_description.world_entity import Body
+from cramph.composites import Sequence
+from cramph.orm.ormatic_interface import SequenceDAO  # type: ignore
 
 _REPO_ROOT = pathlib.Path(__file__).parents[4]
 _APARTMENT_URDF = _REPO_ROOT / "coraplex" / "resources" / "worlds" / "apartment.urdf"
@@ -108,12 +111,16 @@ def _random_navigate_action(world: World):
     return action
 
 
-def create_plan(world: World, ctx: Context, n_actions: int):
+def create_plan(world: World, n_actions: int) -> Sequence:
     """
     Create a sequential plan with *n_actions* random :class:`NavigateAction` instances.
     """
-    actions = [_random_navigate_action(world) for _ in range(n_actions)]
-    return sequential(actions, context=ctx)
+    return Sequence(
+        [
+            UnderspecifiedNode(statement=_random_navigate_action(world))
+            for _ in range(n_actions)
+        ]
+    )
 
 
 @dataclass
@@ -149,7 +156,7 @@ class ORMaticReliabilityExperimentResult(ExperimentResult):
 
     reading_from_database_duration: float
     """
-    Seconds for session.scalars(select(PlanDAO)).one().
+    Seconds for reading the stored plan back with session.scalars(...).one().
     """
 
     reconstruction_duration: float
@@ -191,8 +198,7 @@ class ORMaticReliabilityAggregateResult(ExperimentResult):
 
     reading_from_database_duration: MeanAndStandardDeviation
     """
-    Mean and standard deviation of session.scalars(select(PlanDAO)).one() time
-    (seconds).
+    Mean and standard deviation of the time reading the stored plan back (seconds).
     """
 
     reconstruction_duration: MeanAndStandardDeviation
@@ -217,11 +223,13 @@ def reliability_experiment(
     :param world_building_duration: Pre-measured world building time (s).
     :return: Timing breakdown for this single run.
     """
-    plan = create_plan(world, context, plan_size)
+    plan = create_plan(world, plan_size)
 
     t0 = time.perf_counter()
+    executor = PlanExecutor(context)
     with simulated_robot:
-        plan.perform()
+        executor.compile(plan)
+        executor.execute()
     plan_execution_duration = time.perf_counter() - t0
 
     t0 = time.perf_counter()
@@ -239,7 +247,9 @@ def reliability_experiment(
 
     with selectin_loading(session):
         t0 = time.perf_counter()
-        fetched = session.scalars(select(PlanDAO)).one()
+        fetched = session.scalars(
+            select(SequenceDAO).where(SequenceDAO.database_id == dao.database_id)
+        ).one()
         reading_from_database_duration = time.perf_counter() - t0
 
         t0 = time.perf_counter()

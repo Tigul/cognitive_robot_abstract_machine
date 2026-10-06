@@ -113,11 +113,11 @@ from semantic_digital_twin.datastructures.definitions import TorsoState
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
-from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
+from cramph.composites import Sequence
 
 context = Context(world, PR2.from_world(world))
 milk_body = world.get_body_by_name("milk.stl")
@@ -127,8 +127,7 @@ with world.modify_world():
     milk = Milk(root=milk_body)
     world.add_semantic_annotation(milk)
 
-plan = sequential(
-    [
+plan = Sequence([
         ParkArmsAction(Arms.BOTH),
         MoveTorsoAction(TorsoState.HIGH),
         NavigateAction(Pose.from_xyz_rpy(2.0, 2.0, 0.0, reference_frame=world.root)),
@@ -147,26 +146,27 @@ plan = sequential(
             target_location=Pose.from_xyz_rpy(4.2, 4.0, 1.0, reference_frame=world.root),
             arm=Arms.RIGHT,
         ),
-    ],
-    context=context,
-).plan
+    ])
 ```
 
 What did we just do here?
 We first created a context which holds the world as well as the semantic description of the PR2 robot in that world.
-This context is used by the plan to determine in which world and by which robot the plan should be executed.
+This context determines in which world and by which robot the plan is executed.
 Next, we retrieved the milk bottle body from the world to use it in the pick-up and place actions.
-Finally, we built a plan from the {func}`~coraplex.plans.factories.sequential` factory, meaning all actions will be
-executed one after another in the order they are defined. The factory returns a node whose `.plan` attribute is the
-runnable plan.
+Finally, we built a plan as a {class}`~cramph.composites.Sequence`, meaning all actions will be executed one after
+another in the order they are defined.
 
-To execute the plan, we need to determine if it should be run in simulation or on a real robot and then call perform.
+To execute the plan, we need to determine if it should be run in simulation or on a real robot, and then compile and
+execute it with a {class}`~coraplex.plans.plan_execution.PlanExecutor` for the context.
 
 ```python
 from coraplex.execution_environment import simulated_robot
+from coraplex.plans.plan_execution import PlanExecutor
 
 with simulated_robot:
-    plan.perform()
+    executor = PlanExecutor(context)
+    executor.compile(plan)
+    executor.execute()
 ```
 
 Congratulations!🎉 You have just written and executed your first plan in CoraPlex.

@@ -16,19 +16,8 @@ from coraplex.datastructures.grasp import GraspDescription
 from coraplex.exceptions import PerceptionTargetMissing
 from coraplex.execution_environment import simulated_robot
 from coraplex.perception import PerceptionQuery, PerceptionTask
-from coraplex.plans.factories import (
-    cancel_when,
-    execute_single,
-    parallel,
-    pause_until,
-    pause_while,
-    repeat,
-    sequential,
-    try_all,
-    try_in_order,
-)
-from coraplex.plans.plan import Plan
-from coraplex.plans.plan_execution import PlanExecution
+from coraplex.datastructures.dataclasses import Context
+from coraplex.plans.plan_execution import PlanExecutor, SimulatedPlanRun
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction, ReachAction
@@ -43,14 +32,11 @@ from cramph.composites import (
     TryInOrder,
 )
 from cramph.data_types import LifeCycleValues
-from cramph.monitors import CountNodeResets
 from cramph.node import CancelStatechart, StatechartNode
 from cramph.nodes_for_testing import ConstFalseNode
 from cramph.statechart import Statechart
 from cramph.world_modification_nodes import MoveBranch
 from giskardpy.motion_statechart.goals.gripper import MoveGripper
-from giskardpy.motion_statechart.goals.templates import RepeatOnStall
-from giskardpy.motion_statechart.monitors.progress_monitors import Stalled
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPose,
     CartesianPosition,
@@ -63,22 +49,22 @@ from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
 from semantic_digital_twin.world_description.geometry import VolumetricBoundingBox
 
 from ..conftest import expand, motion_nodes_of, tool_center_point_goal
+from coraplex.plans.failures import PlanCancelled
 
 # %% helpers
 
 
-def _compile(plan: Plan) -> Statechart:
+def _compile(plan: StatechartNode, context: Context) -> Statechart:
     """
-    Build the statechart that performing `plan` runs, and compile it without ticking.
+    Build the statechart that executing `plan` runs, and compile it without ticking.
 
     Compiling is what validates the scopes of every transition condition.
 
     :return: The compiled statechart.
     """
-    execution = PlanExecution(root=plan.root, context=plan.context)
-    executor = execution.create_executor(plan.context)
+    run = SimulatedPlanRun(plan=plan, context=context)
     with simulated_robot:
-        statechart = execution.create_statechart(executor.context)
+        statechart = run.create_statechart(run.executor.context)
     statechart.compile()
     return statechart
 
@@ -96,49 +82,22 @@ def _nodes_of_type(root: StatechartNode, node_type: type) -> List[StatechartNode
 def test_an_action_expands_into_its_motion(immutable_model_world):
     world, view, context = immutable_model_world
 
-    root = expand(execute_single(MoveTorsoAction(TorsoState.HIGH), context=context))
+    root = expand(MoveTorsoAction(TorsoState.HIGH), context)
 
     assert [type(node) for node in _nodes_of_type(root, JointPositionList)] == [
         JointPositionList
     ]
 
 
-# %% the factories build the composite of their construct
-
-
-@pytest.mark.parametrize(
-    "factory, composite",
-    [
-        (sequential, Sequence),
-        (parallel, Parallel),
-        (try_all, TryAll),
-        (try_in_order, TryInOrder),
-    ],
-)
-def test_a_factory_builds_the_composite_of_its_construct(
-    immutable_model_world, factory, composite
-):
-    """
-    Each factory makes its steps the children of the composite that gives them their
-    sequential, parallel or try semantics.
-    """
-    world, view, context = immutable_model_world
-    steps = [MoveTorsoAction(TorsoState.LOW), MoveTorsoAction(TorsoState.HIGH)]
-
-    plan = factory(steps, context=context)
-
-    assert type(plan.root) is composite
-    assert plan.root.nodes == steps
+# %% a sequence holds its steps
 
 
 def test_a_sequence_holds_each_action_with_its_own_motion(immutable_model_world):
     world, view, context = immutable_model_world
 
     root = expand(
-        sequential(
-            [MoveTorsoAction(TorsoState.LOW), MoveTorsoAction(TorsoState.HIGH)],
-            context=context,
-        )
+        Sequence([MoveTorsoAction(TorsoState.LOW), MoveTorsoAction(TorsoState.HIGH)]),
+        context,
     )
 
     assert [type(step) for step in root.nodes] == [MoveTorsoAction, MoveTorsoAction]
@@ -146,15 +105,6 @@ def test_a_sequence_holds_each_action_with_its_own_motion(immutable_model_world)
         1,
         1,
     ]
-
-
-def test_a_nested_plan_runs_as_a_step_of_the_plan_around_it(immutable_model_world):
-    world, view, context = immutable_model_world
-    inner = sequential([MoveTorsoAction(TorsoState.HIGH)])
-
-    plan = sequential([MoveTorsoAction(TorsoState.LOW), inner], context=context)
-
-    assert plan.root.nodes[1] is inner.root
 
 
 # %% monitored subtrees
@@ -168,12 +118,12 @@ def test_pause_monitor_pauses_the_children_goal(immutable_model_world, rclpy_nod
     world, view, context = immutable_model_world
     monitor = ConstFalseNode(name="never")
 
-    plan = pause_while(
-        [MoveTorsoAction(TorsoState.HIGH)], monitor=monitor, context=context
+    plan = PausedWhileTrue(
+        monitor=monitor, monitored_node=Sequence([MoveTorsoAction(TorsoState.HIGH)])
     )
-    _compile(plan)
+    _compile(plan, context)
 
-    monitored_goal = plan.root
+    monitored_goal = plan
     assert type(monitored_goal) is PausedWhileTrue
     assert monitored_goal.nodes == [monitor, monitored_goal.monitored_node]
     assert monitored_goal.monitored_node.pause_condition.free_variables() == [
@@ -191,12 +141,12 @@ def test_pause_until_monitor_pauses_the_children_goal(
     world, view, context = immutable_model_world
     monitor = ConstFalseNode(name="never")
 
-    plan = pause_until(
-        [MoveTorsoAction(TorsoState.HIGH)], monitor=monitor, context=context
+    plan = PausedUntilTrue(
+        monitor=monitor, monitored_node=Sequence([MoveTorsoAction(TorsoState.HIGH)])
     )
-    _compile(plan)
+    _compile(plan, context)
 
-    monitored_goal = plan.root
+    monitored_goal = plan
     assert type(monitored_goal) is PausedUntilTrue
     assert monitored_goal.nodes == [monitor, monitored_goal.monitored_node]
     assert monitored_goal.monitored_node.pause_condition.free_variables() == [
@@ -208,12 +158,14 @@ def test_cancel_monitor_ends_the_children_goal(immutable_model_world, rclpy_node
     world, view, context = immutable_model_world
     monitor = ConstFalseNode(name="never")
 
-    plan = cancel_when(
-        [MoveTorsoAction(TorsoState.HIGH)], monitor=monitor, context=context
+    plan = CancelledWhenTrue(
+        monitor=monitor,
+        monitored_node=Sequence([MoveTorsoAction(TorsoState.HIGH)]),
+        exception=PlanCancelled(monitor=monitor),
     )
-    _compile(plan)
+    _compile(plan, context)
 
-    monitored_goal = plan.root
+    monitored_goal = plan
     assert type(monitored_goal) is CancelledWhenTrue
     assert monitored_goal.nodes[:2] == [monitor, monitored_goal.monitored_node]
     # The children's goal already ends itself once it succeeds, so the monitor firing is
@@ -234,12 +186,14 @@ def test_cancel_monitor_ends_the_motion_when_the_monitor_fires(
     world, view, context = immutable_model_world
     monitor = ConstFalseNode(name="never")
 
-    plan = cancel_when(
-        [MoveTorsoAction(TorsoState.HIGH)], monitor=monitor, context=context
+    plan = CancelledWhenTrue(
+        monitor=monitor,
+        monitored_node=Sequence([MoveTorsoAction(TorsoState.HIGH)]),
+        exception=PlanCancelled(monitor=monitor),
     )
-    _compile(plan)
+    _compile(plan, context)
 
-    monitored_goal = plan.root
+    monitored_goal = plan
     [cancelled] = [
         node for node in monitored_goal.nodes if isinstance(node, CancelStatechart)
     ]
@@ -258,75 +212,21 @@ def test_monitored_subtree_nested_in_a_sequence_compiles(
     """
     world, view, context = immutable_model_world
 
-    plan = sequential(
-        [
-            MoveTorsoAction(TorsoState.LOW),
-            cancel_when(
-                [MoveTorsoAction(TorsoState.HIGH)], monitor=ConstFalseNode(name="never")
-            ),
-        ],
-        context=context,
-    )
-    statechart = _compile(plan)
-
-    assert len(statechart.get_nodes_by_type(CancelledWhenTrue)) == 1
-
-
-# %% repeating a subtree
-
-
-def test_repeat_wraps_its_children_in_a_repeating_goal(
-    immutable_model_world, rclpy_node
-):
-    """
-    A repeat builds a goal that holds the children, the attempt counter and the node
-    that reports running out of attempts, all as siblings so the wiring between them is
-    legal.
-    """
-    world, view, context = immutable_model_world
-
-    plan = repeat(
-        [MoveTorsoAction(TorsoState.HIGH)], maximum_repetitions=3, context=context
-    )
-    _compile(plan)
-
-    loop = plan.root
-    assert type(loop) is RepeatOnStall
-    assert loop.task in loop.nodes
-    [counter] = [node for node in loop.nodes if isinstance(node, CountNodeResets)]
-    assert counter.target == 3
-    assert counter is loop.stop_retry_monitor
-    [exhausted] = [node for node in loop.nodes if isinstance(node, CancelStatechart)]
-    assert exhausted.start_condition.free_variables() == [counter.last_observed_true]
-
-
-def test_repeat_with_failure_monitor_gives_the_stall_template_one_attempt(
-    immutable_model_world, rclpy_node
-):
-    """
-    A failure monitor and the default stall template share one attempt around the
-    children, which gives up on whichever of the two fires first.
-    """
-    world, view, context = immutable_model_world
     never = ConstFalseNode(name="never")
 
-    plan = repeat(
-        [MoveTorsoAction(TorsoState.HIGH)],
-        maximum_repetitions=3,
-        failure_monitor=never,
-        context=context,
+    plan = Sequence(
+        [
+            MoveTorsoAction(TorsoState.LOW),
+            CancelledWhenTrue(
+                monitor=never,
+                monitored_node=Sequence([MoveTorsoAction(TorsoState.HIGH)]),
+                exception=PlanCancelled(monitor=never),
+            ),
+        ]
     )
-    _compile(plan)
+    statechart = _compile(plan, context)
 
-    loop = plan.root
-    assert type(loop) is RepeatOnStall
-    assert never in loop.task.failure_monitors
-    stall_monitors = [
-        monitor
-        for monitor in loop.task.failure_monitors
-        if isinstance(monitor, Stalled)
-    ]
-    assert len(stall_monitors) == 1
+    assert len(statechart.get_nodes_by_type(CancelledWhenTrue)) == 1
 
 
 # %% running actions
@@ -351,7 +251,9 @@ def test_a_reach_runs_to_its_target(immutable_model_world, rclpy_node):
     )
 
     with simulated_robot:
-        execute_single(reach, context=context).perform()
+        executor = PlanExecutor(context)
+        executor.compile(reach)
+        executor.execute()
 
     assert reach.life_cycle_state == LifeCycleValues.SUCCEEDED
 
@@ -366,18 +268,16 @@ def test_a_pick_up_moves_the_object_to_the_gripper_between_closing_and_lifting(
     world, view, context = immutable_model_world
 
     root = expand(
-        execute_single(
-            PickUpAction(
-                world.get_semantic_annotations_by_type(Milk)[0],
-                Arms.RIGHT,
-                GraspDescription(
-                    ApproachDirection.FRONT,
-                    VerticalAlignment.NoAlignment,
-                    view.right_arm.end_effector,
-                ),
+        PickUpAction(
+            world.get_semantic_annotations_by_type(Milk)[0],
+            Arms.RIGHT,
+            GraspDescription(
+                ApproachDirection.FRONT,
+                VerticalAlignment.NoAlignment,
+                view.right_arm.end_effector,
             ),
-            context=context,
-        )
+        ),
+        context,
     )
 
     steps = [
@@ -394,7 +294,7 @@ def test_a_transport_runs_with_its_underspecified_steps(
 ):
     world, view, context = mutable_model_world
 
-    plan = sequential(
+    plan = Sequence(
         [
             MoveTorsoAction(TorsoState.HIGH),
             ParkArmsAction(Arms.BOTH),
@@ -403,14 +303,15 @@ def test_a_transport_runs_with_its_underspecified_steps(
                 Pose.from_xyz_rpy(2.37, 2.5, 1.05, reference_frame=world.root),
                 Arms.RIGHT,
             ),
-        ],
-        context=context,
+        ]
     )
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
-    assert plan.root.life_cycle_state == LifeCycleValues.SUCCEEDED
+    assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
 
 
 # %% perception
@@ -438,14 +339,14 @@ def test_perceiving_runs_between_the_motions_around_it(immutable_model_world):
     )
 
     root = expand(
-        sequential(
+        Sequence(
             [
                 tool_center_point_goal(context, Arms.LEFT),
                 PerceptionTask(query=query, execution_type=None),
                 tool_center_point_goal(context, Arms.RIGHT),
-            ],
-            context=context,
-        )
+            ]
+        ),
+        context,
     )
 
     assert [
@@ -461,10 +362,7 @@ def test_a_detect_action_expands_into_a_perception_task(immutable_model_world):
     world, view, context = immutable_model_world
 
     root = expand(
-        execute_single(
-            DetectAction(DetectionTechnique.TYPES, object_sem_annotation=Milk),
-            context=context,
-        )
+        DetectAction(DetectionTechnique.TYPES, object_sem_annotation=Milk), context
     )
 
     assert [type(node) for node in _nodes_of_type(root, PerceptionTask)] == [
@@ -475,12 +373,17 @@ def test_a_detect_action_expands_into_a_perception_task(immutable_model_world):
 # %% perceiving before the grasp
 
 
-def detect_actions_of(plan: Plan) -> List[DetectAction]:
+def detect_actions_of(plan: StatechartNode, context: Context) -> List[DetectAction]:
     """
     :param plan: The plan to search.
+    :param context: The context the plan is expanded in.
     :return: The detections the plan performs, in no particular order.
     """
-    return [node for node in motion_nodes_of(plan) if isinstance(node, DetectAction)]
+    return [
+        node
+        for node in motion_nodes_of(plan, context)
+        if isinstance(node, DetectAction)
+    ]
 
 
 def reach_action(milk: Milk, view, **kwargs) -> ReachAction:
@@ -511,9 +414,9 @@ def test_a_reach_does_not_perceive_by_default(immutable_model_world):
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
-    plan = execute_single(reach_action(milk, view), context=context)
+    plan = reach_action(milk, view)
 
-    assert detect_actions_of(plan) == []
+    assert detect_actions_of(plan, context) == []
 
 
 def test_perceiving_before_the_grasp_detects_the_object_being_reached_for(
@@ -526,11 +429,9 @@ def test_perceiving_before_the_grasp_detects_the_object_being_reached_for(
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
-    plan = execute_single(
-        reach_action(milk, view, perceive_before_grasp=True), context=context
-    )
+    plan = reach_action(milk, view, perceive_before_grasp=True)
 
-    [detection] = detect_actions_of(plan)
+    [detection] = detect_actions_of(plan, context)
     assert detection.object_sem_annotation is type(milk)
 
 
@@ -542,21 +443,18 @@ def test_a_pick_up_passes_perceiving_on_to_its_reach(immutable_model_world):
     world, view, context = immutable_model_world
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
-    plan = execute_single(
-        PickUpAction(
-            milk,
-            Arms.RIGHT,
-            GraspDescription(
-                ApproachDirection.FRONT,
-                VerticalAlignment.NoAlignment,
-                view.right_arm.end_effector,
-            ),
-            perceive_before_grasp=True,
+    plan = PickUpAction(
+        milk,
+        Arms.RIGHT,
+        GraspDescription(
+            ApproachDirection.FRONT,
+            VerticalAlignment.NoAlignment,
+            view.right_arm.end_effector,
         ),
-        context=context,
+        perceive_before_grasp=True,
     )
 
-    [detection] = detect_actions_of(plan)
+    [detection] = detect_actions_of(plan, context)
     assert detection.object_sem_annotation is type(milk)
 
 
@@ -579,7 +477,7 @@ def test_perceiving_without_an_object_to_detect_is_rejected(immutable_model_worl
     )
 
     with pytest.raises(PerceptionTargetMissing):
-        expand(execute_single(reach, context=context))
+        expand(reach, context)
 
 
 # %% expansion-time pose capture
@@ -597,21 +495,18 @@ def test_pick_up_motions_follow_the_object_moved_after_expansion(immutable_model
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     milk_body = milk.root
 
-    plan = execute_single(
-        PickUpAction(
-            milk,
-            Arms.RIGHT,
-            GraspDescription(
-                ApproachDirection.FRONT,
-                VerticalAlignment.NoAlignment,
-                view.right_arm.end_effector,
-            ),
+    plan = PickUpAction(
+        milk,
+        Arms.RIGHT,
+        GraspDescription(
+            ApproachDirection.FRONT,
+            VerticalAlignment.NoAlignment,
+            view.right_arm.end_effector,
         ),
-        context=context,
     )
     targets = [
         node.goal_pose
-        for node in motion_nodes_of(plan)
+        for node in motion_nodes_of(plan, context)
         if isinstance(node, CartesianPose)
     ]
     positions_before = [

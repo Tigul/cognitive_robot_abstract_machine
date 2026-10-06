@@ -84,14 +84,17 @@ PR2 will be set to 0.2 since otherwise the arms of the robot will be too low to 
 
 ```python
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import *
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from coraplex.datastructures.enums import Arms
 from semantic_digital_twin.datastructures.definitions import TorsoState
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 with simulated_robot:
-    sequential([ParkArmsAction(Arms.BOTH),
-                MoveTorsoAction(TorsoState.HIGH)], context=context).perform()
+    executor = PlanExecutor(context)
+    executor.compile(Sequence([ParkArmsAction(Arms.BOTH),
+                MoveTorsoAction(TorsoState.HIGH)]))
+    executor.execute()
 
 ```
 
@@ -99,13 +102,16 @@ with simulated_robot:
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.execution_environment import simulated_robot
 from coraplex.locations.factories import reachability_location
+from coraplex.plans.plan_execution import PlanExecutor
 
 location = reachability_location(world.get_body_by_name("milk.stl"), context=context, arm=Arms.LEFT)
 
-plan = execute_single(NavigateAction(next(iter(location))), context=context)
+plan = NavigateAction(next(iter(location)))
 
 with simulated_robot:
-    plan.perform()
+    executor = PlanExecutor(context)
+    executor.compile(plan)
+    executor.execute()
 
 pr2_view.root.parent_connection.origin = origin_pose.to_homogeneous_matrix()
 ```
@@ -125,13 +131,16 @@ designator you can spawn them with the following cell.
 ```python
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Point3
 from coraplex.locations.factories import visibility_location
+from coraplex.plans.plan_execution import PlanExecutor
 
 location = visibility_location(world.get_body_by_name("milk.stl"), context=context)
 
-plan = execute_single(NavigateAction(next(iter(location))), context=context)
+plan = NavigateAction(next(iter(location)))
 
 with simulated_robot:
-    plan.perform()
+    executor = PlanExecutor(context)
+    executor.compile(plan)
+    executor.execute()
 
 pr2_view.root.parent_connection.origin = origin_pose.to_homogeneous_matrix()
 ```

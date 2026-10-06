@@ -8,7 +8,6 @@ from coraplex.datastructures.enums import DetectionTechnique, DetectionState
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.perception import PerceptionQuery, PerceptionTask
 from coraplex.execution_environment import ExecutionEnvironment
-from coraplex.plans.factories import ActionLike
 from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
@@ -160,7 +159,7 @@ class MoveToReach(Action, MovesToolCenterPoint):
     """
 
     @property
-    def _sub_nodes(self) -> List[ActionLike]:
+    def _sub_nodes(self) -> List[StatechartNode]:
         grasp_orientation = self.grasp_description.grasp_orientation()
         target_pose = Pose(
             self.target_pose_end_effector.to_position(),

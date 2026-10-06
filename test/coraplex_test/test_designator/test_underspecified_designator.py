@@ -7,8 +7,10 @@ from krrood.entity_query_language.backends import (
     EntityQueryLanguageGenerativeBackend,
     ProbabilisticBackend,
 )
-from krrood.entity_query_language.factories import a, an, variable_from
+from krrood.entity_query_language.factories import a, variable_from
+from cramph.composites import Sequence
 from cramph.data_types import LifeCycleValues
+from cramph.node import StatechartNode
 
 from coraplex.datastructures.enums import (
     Arms,
@@ -18,16 +20,16 @@ from coraplex.datastructures.enums import (
 from coraplex.datastructures.grasp import GraspDescription
 
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import ActionLike, sequential, execute_single
 from coraplex.plans.failures import PlanFailure
 from coraplex.plans.function_call import FunctionCall
-from coraplex.plans.plan import Plan
 from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
+from coraplex.plans.plan_execution import PlanExecutor
+from coraplex.plans.underspecified import UnderspecifiedNode
 
 # %% mimics for testing candidate trials without depending on real motion physics
 
@@ -109,7 +111,7 @@ class RecordingAction(Action):
     """
 
     @property
-    def _sub_nodes(self) -> List[ActionLike]:
+    def _sub_nodes(self) -> List[StatechartNode]:
         return [FunctionCall(function=self._record_attempt)]
 
     def _record_attempt(self) -> None:
@@ -146,12 +148,14 @@ def test_underspecified_action(apartment_world_pr2_copy_with_context):
         ),
     )
 
-    plan = execute_single(action_like=action, context=context)
+    plan = UnderspecifiedNode(statement=action)
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
-    assert plan.root.life_cycle_state == LifeCycleValues.SUCCEEDED
-    assert isinstance(plan.root.latest_child, NavigateAction)
+    assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
+    assert isinstance(plan.latest_child, NavigateAction)
 
 
 def test_underspecified_action_with_ellipsis(apartment_world_pr2_copy_with_context):
@@ -173,12 +177,14 @@ def test_underspecified_action_with_ellipsis(apartment_world_pr2_copy_with_conte
         ),
     )
 
-    plan = execute_single(action_like=action, context=context)
+    plan = UnderspecifiedNode(statement=action)
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
-    assert plan.root.life_cycle_state == LifeCycleValues.SUCCEEDED
-    assert isinstance(plan.root.latest_child, NavigateAction)
+    assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
+    assert isinstance(plan.latest_child, NavigateAction)
 
 
 def test_underspecified_language(apartment_world_pr2_copy_with_context):
@@ -191,8 +197,8 @@ def test_underspecified_language(apartment_world_pr2_copy_with_context):
         VerticalAlignment.NoAlignment,
         robot.left_arm.end_effector,
     )
-    plan_generator = an(sequential, target_type=Plan)(
-        children=[
+    plan_generator = a(Sequence)(
+        nodes=[
             a(NavigateAction)(
                 target_location=(
                     target_locations := variable_from(
@@ -213,7 +219,6 @@ def test_underspecified_language(apartment_world_pr2_copy_with_context):
                 object_designator=world.get_body_by_name("milk.stl"),
             ),
         ],
-        context=context,
     )
     plans = list(EntityQueryLanguageGenerativeBackend().evaluate(plan_generator))
     assert len(plans) == len(list(target_locations._domain_)) * len(list(Arms))
@@ -239,13 +244,15 @@ def test_isolation_rejected_candidate_never_touches_real_world(
         dof_id=dof.id,
         fail_on_attempt_number=variable_from([1, None]),
     )
-    plan = execute_single(action_like=action, context=context)
+    plan = UnderspecifiedNode(statement=action)
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
-    assert plan.root.life_cycle_state == LifeCycleValues.SUCCEEDED
-    assert len(plan.root.children) == 1
-    assert plan.root.children[0].fail_on_attempt_number is None
+    assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
+    assert len(plan.children) == 1
+    assert plan.children[0].fail_on_attempt_number is None
 
     probe = _registered_probes[probe_key]
     assert len(probe.calls) == 3
@@ -280,9 +287,11 @@ def test_rejected_candidates_are_tried_against_one_copy(
         dof_id=dof.id,
         fail_on_attempt_number=variable_from([1, 2, None]),
     )
-    plan = execute_single(action_like=action, context=context)
+    plan = UnderspecifiedNode(statement=action)
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     probe = _registered_probes[probe_key]
     # every call but the last is a trial; the last is the accepted candidate's real
@@ -312,14 +321,16 @@ def test_real_failure_keeps_state_and_next_trial_reflects_it(
         dof_id=dof.id,
         fail_on_attempt_number=variable_from([2, None]),
     )
-    plan = execute_single(action_like=action, context=context)
+    plan = UnderspecifiedNode(statement=action)
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
-    assert plan.root.life_cycle_state == LifeCycleValues.SUCCEEDED
+    assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
     # Both the failed and the accepted candidate are attached to the tree - a real
     # failure is not undone, only worked around by trying the next candidate.
-    assert [child.fail_on_attempt_number for child in plan.root.children] == [
+    assert [child.fail_on_attempt_number for child in plan.children] == [
         2,
         None,
     ]

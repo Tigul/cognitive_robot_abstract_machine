@@ -9,10 +9,11 @@ from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlign
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.exceptions import ConditionNotSatisfied, MotionDidNotFinish
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 
 def _construct_and_evaluate_condition(action, action_condition, context):
@@ -83,7 +84,7 @@ def test_pick_up_pre_conditions(mutable_model_world):
         ),
     )
 
-    plan = sequential([pick_action], context)
+    plan = Sequence([pick_action])
 
     with pytest.raises(ConditionNotSatisfied):
         _construct_and_evaluate_condition(
@@ -115,7 +116,9 @@ def test_pick_up_pre_conditions(mutable_model_world):
     assert evaluate_condition(pre_condition) == True
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     assert evaluate_condition(pre_condition) == False
     _construct_and_evaluate_condition(pick_action, pick_action.post_condition, context)
@@ -140,14 +143,16 @@ def test_pick_up_post_condition(mutable_model_world):
         1.9, 1.4, 0
     )
 
-    plan = sequential([pick_action], context)
+    plan = Sequence([pick_action])
 
     assert _construct_and_evaluate_condition(
         pick_action, pick_action.pre_condition, context
     )
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     assert world.get_body_by_name(
         "milk.stl"

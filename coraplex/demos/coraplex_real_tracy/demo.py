@@ -16,7 +16,6 @@ from coraplex.datastructures.enums import (
 )
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import real_robot, ExecutionEnvironment
-from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
@@ -37,6 +36,8 @@ from semantic_digital_twin.world_description.geometry import Box, Scale, Color
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.world_description.world_entity import Body
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 giskard_process = subprocess.Popen(
     ["ros2", "launch", "giskardpy_ros", "giskardpy_tracy_standalone.launch.py"],
@@ -147,7 +148,7 @@ context = Context(
     evaluate_conditions=False,
 )
 
-plan = sequential(
+plan = Sequence(
     [
         # Stack Box 2
         ParkArmsAction(Arms.BOTH),
@@ -181,13 +182,14 @@ plan = sequential(
             Pose.from_xyz_rpy(0.8, 0.0, 1.12, yaw=0, reference_frame=world.root),
             Arms.RIGHT,
         ),
-    ],
-    context=context,
+    ]
 )
 try:
     print("Perform Plan")
     with ExecutionEnvironment(execution_type=execition_mode, collision_avoidance=False):
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 finally:
     os.killpg(os.getpgid(giskard_process.pid), signal.SIGTERM)
     giskard_process.wait()
