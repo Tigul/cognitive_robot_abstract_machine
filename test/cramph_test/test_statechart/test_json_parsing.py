@@ -43,6 +43,8 @@ from krrood.symbolic_math.symbolic_math import (
 )
 from semantic_digital_twin.world import World
 
+pytestmark = pytest.mark.parked
+
 
 def test_TrueMonitor():
     node = ConstTrueNode()

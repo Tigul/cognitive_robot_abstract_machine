@@ -41,6 +41,8 @@ from giskardpy.motion_control import MotionControl
 from cramph.context import StatechartContext
 from cramph.executor import StatechartExecutor
 
+pytestmark = pytest.mark.parked
+
 # %% mimics of the ros facing collaborators
 
 

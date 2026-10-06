@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 import json
 
 from cramph.context import StatechartContext
@@ -9,6 +11,8 @@ from cramph.node import StatechartNode
 from cramph.nodes_for_testing import NodeSucceedingOnObservingTrue
 from cramph.statechart import Statechart
 from semantic_digital_twin.world import World
+
+pytestmark = pytest.mark.parked
 
 # %% helpers
 

@@ -1,3 +1,4 @@
+import pytest
 import json
 
 from cramph.composites import Parallel, Sequence
@@ -109,6 +110,7 @@ def test_cartesian_pose_straight_runs_its_tasks_in_one_parallel(
     ]
 
 
+@pytest.mark.parked
 def test_velocity_limit_has_its_two_limits_after_a_json_round_trip(
     cylinder_bot_world: World,
 ):

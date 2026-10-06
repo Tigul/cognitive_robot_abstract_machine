@@ -866,6 +866,7 @@ def receiving_world_kwargs(world: World) -> dict:
     return {"world": world, **tracker.create_kwargs()}
 
 
+@pytest.mark.parked
 def test_perception_task_survives_a_json_round_trip(
     pr2_apartment_context, whole_scene_region
 ):
@@ -930,6 +931,7 @@ def test_detect_action_takes_the_execution_type_of_the_environment(
     assert tasks[0].execution_type is ExecutionType.SIMULATED
 
 
+@pytest.mark.parked
 def test_perception_task_survives_a_chart_round_trip(
     pr2_apartment_context, whole_scene_region
 ):

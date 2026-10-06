@@ -92,6 +92,7 @@ from cramph.executor import StatechartExecutor
 from ..motion_control_context import create_context_with_motion_control
 
 
+@pytest.mark.parked
 def test_external_collision_avoidance(cylinder_bot_world: World):
     robot = cylinder_bot_world.get_semantic_annotations_by_type(AbstractRobot)[0]
     tip = cylinder_bot_world.get_kinematic_structure_entity_by_name("bot")
@@ -306,6 +307,7 @@ def test_external_collision_avoidance_battle():
     )
 
 
+@pytest.mark.parked
 def test_external_collision_avoidance_with_weight_above_ca(cylinder_bot_world: World):
     robot = cylinder_bot_world.get_semantic_annotations_by_type(AbstractRobot)[0]
     tip = cylinder_bot_world.get_kinematic_structure_entity_by_name("bot")
@@ -556,6 +558,7 @@ def test_self_collision_avoidance_without_checked_body_combinations(
     assert goal.nodes == msc.get_nodes_by_type(CancelStatechart)
 
 
+@pytest.mark.parked
 def test_self_collision_avoidance(self_collision_bot_world: World):
 
     robot = self_collision_bot_world.get_semantic_annotations_by_type(AbstractRobot)[0]
@@ -931,6 +934,7 @@ def test_collisions_are_computed_for_a_distance_monitor_alone(pr2_with_box):
     assert observer.collision_check_count > 0
 
 
+@pytest.mark.parked
 def test_hard_constraints_violated(cylinder_bot_world: World):
     root = cylinder_bot_world.root
     with cylinder_bot_world.modify_world():

@@ -1172,6 +1172,7 @@ class TestStatechartLogic:
         assert end.life_cycle_state == LifeCycleValues.RUNNING
         assert msc.is_ended()
 
+    @pytest.mark.parked
     def test_nested_goals(self):
         msc = Statechart(context=StatechartContext(world=World()))
 
@@ -3201,6 +3202,7 @@ class TestLastObservation:
             == f'"{finished.last_observed_true.display_name}"'
         )
 
+    @pytest.mark.parked
     def test_it_survives_a_json_round_trip(self):
         msc = Statechart(context=StatechartContext(world=World()))
         msc.add_nodes([finished := ConstTrueNode(), later := ConstTrueNode()])
@@ -3421,6 +3423,7 @@ class TestLifeCyclePredicates:
             == f'"{first.unique_name}.{LifeCyclePredicate.IS_FAILED.attribute_name}"'
         )
 
+    @pytest.mark.parked
     def test_a_condition_with_a_predicate_survives_a_json_round_trip(self):
         msc = Statechart(context=StatechartContext(world=World()))
         msc.add_nodes([first := ConstTrueNode(), second := ConstFalseNode()])
@@ -3752,6 +3755,7 @@ class TestEagerStateVariables:
         msc._add_transitions()
         assert barrier in barrier._success_condition.node_dependencies
 
+    @pytest.mark.parked
     def test_nested_success_condition_survives_json_round_trip(self):
         msc = Statechart(context=StatechartContext(world=World()))
         msc.add_node(

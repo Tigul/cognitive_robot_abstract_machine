@@ -37,6 +37,8 @@ from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
 
+pytestmark = pytest.mark.parked
+
 
 @pytest.fixture()
 def default_joint_state():

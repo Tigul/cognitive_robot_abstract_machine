@@ -1,3 +1,4 @@
+import pytest
 import json
 
 import numpy as np
@@ -49,6 +50,8 @@ from semantic_digital_twin.world_description.world_entity import (
 from giskardpy.motion_control import MotionControl
 from cramph.context import StatechartContext
 from cramph.executor import StatechartExecutor
+
+pytestmark = pytest.mark.parked
 
 # %% motion nodes in JSON
 

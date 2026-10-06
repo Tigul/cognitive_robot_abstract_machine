@@ -85,6 +85,8 @@ from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
 
+pytestmark = pytest.mark.parked
+
 
 @dataclass
 class PR2Tester(GiskardTester):

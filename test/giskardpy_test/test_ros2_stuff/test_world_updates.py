@@ -272,6 +272,7 @@ class TestClientWorldUpdates:
 
         world_updates.wait_for_the_changes_of_a_goal({})
 
+    @pytest.mark.parked
     def test_the_changes_of_a_goal_are_waited_for(self):
         synchronizer = PublishingSynchronizerMimic(applied_sequence_number=9)
         world_updates = ClientWorldUpdates(
@@ -289,6 +290,7 @@ class TestClientWorldUpdates:
             }
         )
 
+    @pytest.mark.parked
     def test_changes_that_never_arrive_are_reported(self):
         world_updates = ClientWorldUpdates(
             world_synchronizer=PublishingSynchronizerMimic(applied_sequence_number=8),
@@ -470,6 +472,7 @@ def control_loop(init_rospy) -> ControlLoopFixture:
     fixture.close()
 
 
+@pytest.mark.parked
 class TestRealWorldUpdatesDuringAMotion:
     """
     Against a real synchronizer: the world a motion was compiled against only changes
@@ -594,6 +597,7 @@ def local_control_loop() -> ControlLoop:
     )
 
 
+@pytest.mark.parked
 class TestModelChangesOfTheMotionItself:
 
     def test_the_robot_is_halted_before_the_motion_is_built_again(

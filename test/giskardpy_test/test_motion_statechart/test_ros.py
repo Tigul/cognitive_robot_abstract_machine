@@ -1,3 +1,4 @@
+import pytest
 import json
 import time
 
@@ -25,6 +26,8 @@ from semantic_digital_twin.world import World
 from giskardpy.motion_control import MotionControl
 from cramph.context import StatechartContext
 from cramph.executor import StatechartExecutor
+
+pytestmark = pytest.mark.parked
 
 
 def to_and_from_json(

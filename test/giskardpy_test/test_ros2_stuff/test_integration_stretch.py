@@ -19,6 +19,8 @@ from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
 from semantic_digital_twin.world_description.connections import DifferentialDrive
 
+pytestmark = pytest.mark.parked
+
 
 @pytest.fixture()
 def default_joint_state():

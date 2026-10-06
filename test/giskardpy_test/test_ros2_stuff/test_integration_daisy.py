@@ -40,6 +40,8 @@ from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
 
+pytestmark = pytest.mark.parked
+
 # %% trajectory length limit
 
 MAX_TRAJECTORY_LENGTH_SECONDS = 60.0

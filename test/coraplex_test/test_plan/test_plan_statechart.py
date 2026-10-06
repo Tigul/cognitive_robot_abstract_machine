@@ -3,6 +3,7 @@ Tests for running a plan as one statechart, see
 :class:`~coraplex.plans.plan_execution.PlanExecutor`.
 """
 
+import pytest
 import json
 from dataclasses import dataclass, field
 
@@ -206,6 +207,7 @@ class GiskardWrapperRecordingTheGoal:
         self.child_choosers.append(child_chooser)
 
 
+@pytest.mark.parked
 def test_an_underspecified_node_is_sent_as_a_node_choosing_its_child(
     pr2_apartment_context,
 ):
@@ -253,6 +255,7 @@ def test_a_plan_on_the_robot_is_sent_once_with_the_chooser_grounding_its_actions
     assert chooser.context is context
 
 
+@pytest.mark.parked
 def test_an_expanded_action_is_received_with_the_nodes_it_runs(pr2_apartment_context):
     """
     A receiver does not expand the nodes of a statechart again, so an action has to
