@@ -17,8 +17,12 @@ Done (uncommitted):
 - docs: examples/{plan,language,action_designator,...}.md, doc/source/{plan,
   quickstart,process_modules,troubleshooting}.md
 
-Next: full coraplex + experiments suites green, commit, push to origin
-(Tigul), draft PR into plan-cramp-second-iter, set PR number in plan.yaml.
+Committed d5b518c60, pushed to origin/retire-plan-wrapper. Suites: coraplex
+437 passed/7 skipped; experiments 183 passed, 1 failed (known MoveGripper JSON
+round trip in test_real_stretch_demo_process_boundary, from #10).
+PR NOT opened: gh token 403 (cram2 lifetime policy for gh pr create, REST
+403 too). PR body ready in session scratchpad; user opens it by hand as a
+draft into plan-cramp-second-iter, then set pull_request_number in plan.yaml.
 
 Open questions for the user: force_torque_sensor.human_touch_monitoring is dead
 and calls plan.root.resume() (no such method) - left untouched.
