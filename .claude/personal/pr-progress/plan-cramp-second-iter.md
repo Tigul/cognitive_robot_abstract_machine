@@ -32,7 +32,21 @@ Done (unstaged):
   visualization, plan callbacks replace test_execution_observers;
   test_plan_failure_persistence dropped - no plan-node failure fields).
 
-Next: port cramera tests (test/cramera_test/*, dataset/motion_execution.py use
-MotionStatechart/Plan); delete files in scratchpad deleted.txt via git rm and
-`git add -A` the rest; regenerate ORM; run cramph, giskardpy statechart,
-segmind, coraplex, cramera suites (serially) and fix; then commit the merge.
+- cramera tests ported; everything staged once (later fixes unstaged).
+- Fixes found by the suites: a simulated run now stops on the tick its plan
+  ends (plan on_end == run end, so recordings keep the final chart);
+  ChartObserver refreshes its structure when the edge count changes (compile);
+  trial failure log formats eagerly (LogRecord kept the trial world alive);
+  TrainingEnvironment records plan.chosen_actions (children are Attempts);
+  DeferredLocation gone upstream -> test uses a Location subclass; GCS floor
+  test expects the raise at expansion; cramera mimics: designator nodes are
+  dataclasses, motions carry no designator, TransitionKind.END -> SUCCEED.
+- Env: `pip install -e cramera --no-deps` + rapidfuzz into the cram env.
+- format_docstrings.py run over all 660 changed .py files.
+
+Suites: cramph 618, segmind 96, giskardpy statechart green earlier; cramera
+932 passed; coraplex: final rerun pending (was 551/7 failed before fixes).
+
+Next: confirm coraplex rerun, `git add -A` (not .living_worlds_tally/,
+ganttchart.pdf, random_events/src/random-events-lib/), commit the merge only
+when the user asks (author = user, no Co-Authored-By).
