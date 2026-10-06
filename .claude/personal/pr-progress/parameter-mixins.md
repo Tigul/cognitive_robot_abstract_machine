@@ -17,7 +17,10 @@ Done:
 - codemod: positional ctor args -> keywords (293 calls, src/tests/demos/docs)
 - test_parameter_mixins.py rewritten for the new API (10 pass)
 
+- affected test modules run serially: all pass except DAiSy fixture errors
+  (environment: daisy.py collision SRDF names a link missing from the installed
+  URDF; not touched by either branch); ORM errors fixed by regenerate_all_orm.py
+- formatted; merge committed locally as 41579d52e8 (not pushed)
+
 Next:
-- run affected coraplex test modules serially, fix failures
-- run scripts/format_docstrings.py on changed files
-- conclude merge commit (only when user asks)
+- push when the user asks
