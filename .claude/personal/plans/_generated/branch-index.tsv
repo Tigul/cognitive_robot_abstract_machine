@@ -7,3 +7,4 @@ retire-language-nodes	statechart-unification
 growable-statechart	statechart-unification
 reattach-statechart-node	statechart-unification
 persistent-motion-state-chart	statechart-unification
+retire-plan-wrapper	statechart-unification

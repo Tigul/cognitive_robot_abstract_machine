@@ -239,10 +239,10 @@ items:
   - id: persistent-motion-state-chart
     title: "Run a plan as one statechart, without a plan tree"
     branch: persistent-motion-state-chart
-    pull_request_number: null
+    pull_request_number: 10
     track: plan-layer-retirement
     depends_on: [growable-statechart, reattach-statechart-node]
-    status: in_progress
+    status: done
     session: https://claude.ai/code/session_019VXxvYLMiZn4gXYXsa6ngX
     notes: >
       Rescoped on 2026-10-01 with the user: no parsing at all, the statechart is
@@ -253,10 +253,28 @@ items:
       deleted), daa4ea57c (motion server parses goals with a context),
       a87ef641a (split_list_by_type removed), b544b929f (client chooses children
       while Giskard runs the goal, child_choices topic). cramph, coraplex and the
-      giskard ROS 2 and statechart suites are green. No pull request yet.
-    blockers:
-      - "No pull request: creating one failed on the gh token (cram2 org lifetime policy / 403)."
-      - "The real-stretch cross-process demo still fails: a giskardpy MoveGripper does not survive a JSON round trip (pre-existing, separate root cause)."
+      giskard ROS 2 and statechart suites are green. Merged as Tigul#10 on
+      2026-10-06. Still open, with a separate, pre-existing root cause: the
+      real-stretch cross-process demo fails because a giskardpy MoveGripper
+      does not survive a JSON round trip.
+
+  - id: retire-plan-wrapper
+    title: "Retire the Plan wrapper and the coraplex factories for cramph composites and a PlanExecutor"
+    branch: retire-plan-wrapper
+    pull_request_number: null
+    track: plan-layer-retirement
+    depends_on: [persistent-motion-state-chart]
+    status: in_progress
+    session: https://claude.ai/code/session_019VXxvYLMiZn4gXYXsa6ngX
+    notes: >
+      Agreed with the user on 2026-10-06. Plans are built independently out of
+      cramph composites (Sequence, Parallel, TryInOrder, ...); a(...) stays an
+      explicit UnderspecifiedNode. Plan and coraplex/plans/factories.py are
+      deleted, the coraplex repeat layer is dropped for cramph's RepeatUntil,
+      and PlanExecution becomes PlanExecutor(context) with compile(plan) and
+      execute(), mirroring how Giskard builds a statechart against its
+      executor's context and compiles it. Where a Plan was persisted, its root
+      node is stored instead (PlanDAO was already gone).
   - id: statechart-compile-performance
     title: "Make compiling and extending a statechart cheap enough for a control loop"
     branch: null

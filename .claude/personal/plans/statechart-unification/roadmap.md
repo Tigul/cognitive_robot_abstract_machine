@@ -438,3 +438,18 @@ Settled 2026-10-01 with the user, in plan mode, replacing the segment design abo
   dataclass), `Action` had to list `DesignatorParameters` last for ORMatic, an action's
   expanded body has to be serialized, and the motion server parsed goals without a context.
 
+
+### Retiring the Plan wrapper (`retire-plan-wrapper`)
+
+Settled 2026-10-06 with the user, in plan mode, after Tigul#10 merged.
+
+- **A plan is a cramph node, built on its own.** `Plan` and the factories in
+  `coraplex/plans/factories.py` go: callers write `Sequence`, `Parallel`, `TryInOrder`,
+  `TryAll`, `PausedWhileTrue`, `PausedUntilTrue`, `CancelledWhenTrue` and `FunctionCall`
+  directly. `a(...)` stays an explicit `UnderspecifiedNode(statement=...)` for now.
+- **The coraplex repeat layer is dropped**; cramph's `RepeatUntil` templates handle it.
+- **An executor compiles and executes it, like Giskard's.** `PlanExecution` becomes
+  `PlanExecutor(context)`: `compile(plan)` builds the statechart against the executor's
+  context (as `MotionServer.compile_goal` does), `execute()` runs it in simulation or
+  through Giskard and reports `MotionDidNotFinish` / `EmptyUnderspecified`.
+- Where a plan was persisted, its root node is stored; `PlanDAO` was already gone.
