@@ -5,7 +5,6 @@ from krrood.entity_query_language.factories import entity, an, variable, count
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 
@@ -26,6 +25,8 @@ from semantic_digital_twin.world_description.connections import (
 )
 import coraplex
 from test.conftest import world_with_urdf_factory
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 # %% Environment Setup
 environment_path = os.path.join("package://iai_apartment/urdf/apartment.urdf")
@@ -80,7 +81,6 @@ milk_place_pose = Pose(Point3(x=2.2, y=7.6, z=0.865), reference_frame=world.root
 
 # print(number_of_arms)
 with simulated_robot:
-    sequential(
-        [ParkArmsAction(arm=Arms.BOTH)],
-        context,
-    ).perform()
+    executor = PlanExecutor(context)
+    executor.compile(Sequence([ParkArmsAction(arm=Arms.BOTH)]))
+    executor.execute()

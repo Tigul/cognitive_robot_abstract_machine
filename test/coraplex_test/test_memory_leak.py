@@ -7,7 +7,6 @@ from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
@@ -18,6 +17,8 @@ from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 
 def test_ref_chain_after_copy(immutable_model_world):
@@ -37,13 +38,14 @@ def test_ref_chain_after_copy_with_execute(immutable_model_world):
         copy_world, copy_world.get_semantic_annotation_by_id(view.id)
     )
 
-    plan = sequential(
-        [NavigateAction(Pose.from_xyz_rpy(1, -1, 0, reference_frame=copy_world.root))],
-        copy_context,
+    plan = Sequence(
+        [NavigateAction(Pose.from_xyz_rpy(1, -1, 0, reference_frame=copy_world.root))]
     )
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(copy_context)
+        executor.compile(plan)
+        executor.execute()
 
     gc.collect()
     chain = objgraph.find_ref_chain(world, lambda x: x is copy_world)
@@ -69,9 +71,11 @@ def test_ref_chain_after_copy_with_execute_complex_plan(mutable_model_world):
             copy_robot.right_arm.end_effector,
         ),
     )
-    plan = sequential([MoveTorsoAction(TorsoState.HIGH), description], copy_context)
+    plan = Sequence([MoveTorsoAction(TorsoState.HIGH), description])
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(copy_context)
+        executor.compile(plan)
+        executor.execute()
 
     gc.collect()
     chain = objgraph.find_ref_chain(world, lambda x: x is copy_world)

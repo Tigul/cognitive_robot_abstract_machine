@@ -6,7 +6,7 @@ import numpy as np
 
 from typing_extensions import List
 
-from coraplex.plans.factories import ActionLike
+from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.actions.core.navigation import NavigateAction, LookAtAction
 from semantic_digital_twin.spatial_types import (
@@ -28,7 +28,7 @@ class FaceAtAction(Action):
     """
 
     @property
-    def _sub_nodes(self) -> List[ActionLike]:
+    def _sub_nodes(self) -> List[StatechartNode]:
         # get the robot position
         robot_position = self.robot.root.global_transform
 

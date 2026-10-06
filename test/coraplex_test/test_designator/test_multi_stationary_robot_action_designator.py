@@ -11,7 +11,6 @@ from coraplex.datastructures.grasp import GraspDescription
 from coraplex.datastructures.trajectory import PoseTrajectory
 
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import execute_single, sequential
 from coraplex.robot_plans.actions.core.pick_up import (
     ReachAction,
     GraspingAction,
@@ -42,6 +41,8 @@ from semantic_digital_twin.world_description.shape_collection import ShapeCollec
 from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 
 @pytest.fixture(
@@ -147,9 +148,11 @@ def test_park_arms_multi(immutable_stationary_block_world):
     world, view, context = immutable_stationary_block_world
 
     description = ParkArmsAction(Arms.BOTH)
-    plan = execute_single(description, context=context)
+    plan = description
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     joints = []
     states = []
@@ -180,7 +183,7 @@ def test_reach_action_multi(immutable_stationary_block_world):
     box = graspable_annotation(world, box_body)
     position = box_body.global_pose.position.to_np()
 
-    plan = sequential(
+    plan = Sequence(
         [
             ParkArmsAction(Arms.BOTH),
             ReachAction(
@@ -191,12 +194,13 @@ def test_reach_action_multi(immutable_stationary_block_world):
                 arm=Arms.LEFT,
                 grasp_description=grasp_description,
             ),
-        ],
-        context=context,
+        ]
     )
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     end_effector_pose = left_arm.end_effector.tool_frame.global_transform
     end_effector_position = end_effector_pose.to_position().to_np()
@@ -213,12 +217,12 @@ def test_reach_action_multi(immutable_stationary_block_world):
 def test_move_gripper_multi(immutable_stationary_block_world):
     world, view, context = immutable_stationary_block_world
 
-    plan = execute_single(
-        SetGripperAction(Arms.LEFT, GripperState.OPEN), context=context
-    )
+    plan = SetGripperAction(Arms.LEFT, GripperState.OPEN)
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     arm = view.get_arms()[0]
     open_state = arm.end_effector.get_joint_state_by_type(GripperState.OPEN)
@@ -227,12 +231,12 @@ def test_move_gripper_multi(immutable_stationary_block_world):
     for connection, target in open_state.items():
         assert connection.position == pytest.approx(target, abs=0.01)
 
-    plan = execute_single(
-        SetGripperAction(Arms.LEFT, GripperState.CLOSE), context=context
-    )
+    plan = SetGripperAction(Arms.LEFT, GripperState.CLOSE)
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     for connection, target in close_state.items():
         assert connection.position == pytest.approx(target, abs=0.01)
@@ -250,12 +254,11 @@ def test_grasping(immutable_stationary_block_world):
     description = GraspingAction(
         world.get_body_by_name("box1"), Arms.LEFT, grasp_description
     )
-    plan = sequential(
-        [ParkArmsAction(Arms.BOTH), description],
-        context=context,
-    )
+    plan = Sequence([ParkArmsAction(Arms.BOTH), description])
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
     dist = np.linalg.norm(
         world.get_body_by_name("box1").global_transform.to_np()[3, :3]
     )
@@ -271,7 +274,7 @@ def test_pick_up_multi(mutable_stationary_block_world):
         VerticalAlignment.TOP,
         left_arm.end_effector,
     )
-    plan = sequential(
+    plan = Sequence(
         [
             ParkArmsAction(Arms.BOTH),
             PickUpAction(
@@ -279,12 +282,13 @@ def test_pick_up_multi(mutable_stationary_block_world):
                 Arms.LEFT,
                 grasp_description,
             ),
-        ],
-        context=context,
+        ]
     )
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     assert (
         world.get_connection(
@@ -316,7 +320,7 @@ def test_place_multi(mutable_stationary_block_world, place_position):
         left_arm.end_effector,
     )
 
-    plan = sequential(
+    plan = Sequence(
         [
             ParkArmsAction(Arms.BOTH),
             PickUpAction(
@@ -329,12 +333,13 @@ def test_place_multi(mutable_stationary_block_world, place_position):
                 Pose(place_position, reference_frame=world.root),
                 Arms.LEFT,
             ),
-        ],
-        context=context,
+        ]
     )
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     with pytest.raises(NoEdgeBetweenNodes):
         world.get_connection(
@@ -374,12 +379,11 @@ def test_move_tcp_follows_sine_waypoints(
     target_pose = (anchor_T @ offset_T).to_pose()
     waypoints = PoseTrajectory(_make_sine_scan_poses(target_pose, lane_axis="z"))
 
-    plan = execute_single(
-        FollowToolCenterPointPathAction(target_locations=waypoints, arm=Arms.RIGHT),
-        context=context,
-    )
+    plan = FollowToolCenterPointPathAction(target_locations=waypoints, arm=Arms.RIGHT)
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     tip_pose = right_arm.end_effector.tool_frame.global_transform
     expected = waypoints.poses[-1]

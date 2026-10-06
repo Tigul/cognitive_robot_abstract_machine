@@ -6,7 +6,6 @@ import pytest
 import experiments.orm.ormatic_interface  # type: ignore
 from coraplex.datastructures.dataclasses import Context
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import execute_single
 from experiments.sage_10k.sage10k_actions import Sage10kOpenDoor
 from krrood.entity_query_language.backends import ProbabilisticBackend
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
@@ -23,6 +22,7 @@ from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedomLimits,
 )
 from semantic_digital_twin.world_description.geometry import Color, Scale
+from coraplex.plans.plan_execution import PlanExecutor
 
 
 @pytest.fixture
@@ -96,7 +96,9 @@ def test_door_opening(wall_door_handle_world, _hsr_world_setup, rclpy_node):
     context = Context.from_world(world, query_backend=ProbabilisticBackend())
 
     with simulated_robot:
-        execute_single(Sage10kOpenDoor(door), context=context).perform()
+        executor = PlanExecutor(context)
+        executor.compile(Sage10kOpenDoor(door))
+        executor.execute()
 
     assert np.isclose(
         door.mechanical_joint.root.parent_connection.position, np.pi / 2, atol=2e-2

@@ -14,8 +14,6 @@ from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import sequential
-from coraplex.plans.plan import Plan
 from giskardpy.motion_statechart.tasks.joint_tasks import (
     JointPositionList,
     JointState,
@@ -38,6 +36,8 @@ from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.geometry import Color, Scale
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 # %% where everything stands in the warehouse
 
@@ -148,7 +148,7 @@ def standing_pose_in_front_of(pose: Pose, world: World) -> Pose:
     )
 
 
-def build_plan(world: World, robot: UnitreeG1) -> Plan:
+def build_plan(world: World, robot: UnitreeG1) -> Sequence:
     """
     :param world: The world the plan acts in.
     :param robot: The robot carrying out the plan.
@@ -167,7 +167,6 @@ def build_plan(world: World, robot: UnitreeG1) -> Plan:
         VerticalAlignment.NoAlignment,
         ViewManager.get_end_effector_view(Arms.LEFT, robot),
     )
-    context = Context(world=world, robot=robot, evaluate_conditions=False)
     place_pose = Pose(
         PLACE_POSE.to_position(), PLACE_POSE.to_quaternion(), reference_frame=world.root
     )
@@ -175,7 +174,7 @@ def build_plan(world: World, robot: UnitreeG1) -> Plan:
         PICK_POSE.to_position(), PICK_POSE.to_quaternion(), reference_frame=world.root
     )
 
-    return sequential(
+    return Sequence(
         [
             # %% bring to place pose
             ParkArmsAction(Arms.BOTH),
@@ -188,12 +187,11 @@ def build_plan(world: World, robot: UnitreeG1) -> Plan:
             PlaceAction(parcel, place_pose, Arms.LEFT),
             ParkArmsAction(Arms.BOTH),
             straighten_torso(robot),
-        ],
-        context=context,
-    ).plan
+        ]
+    )
 
 
-def build_plan2(world: World, robot: UnitreeG1) -> Plan:
+def build_plan2(world: World, robot: UnitreeG1) -> Sequence:
     """
     :param world: The world the plan acts in.
     :param robot: The robot carrying out the plan.
@@ -212,7 +210,6 @@ def build_plan2(world: World, robot: UnitreeG1) -> Plan:
         VerticalAlignment.NoAlignment,
         ViewManager.get_end_effector_view(Arms.LEFT, robot),
     )
-    context = Context(world=world, robot=robot, evaluate_conditions=False)
     place_pose = Pose(
         PLACE_POSE.to_position(), PLACE_POSE.to_quaternion(), reference_frame=world.root
     )
@@ -220,7 +217,7 @@ def build_plan2(world: World, robot: UnitreeG1) -> Plan:
         PICK_POSE.to_position(), PICK_POSE.to_quaternion(), reference_frame=world.root
     )
 
-    return sequential(
+    return Sequence(
         [
             # %% bring to place pose
             ParkArmsAction(Arms.BOTH),
@@ -233,9 +230,8 @@ def build_plan2(world: World, robot: UnitreeG1) -> Plan:
             PlaceAction(parcel, pick_pose, Arms.LEFT),
             ParkArmsAction(Arms.BOTH),
             straighten_torso(robot),
-        ],
-        context=context,
-    ).plan
+        ]
+    )
 
 
 def lowest_collision_point_of(robot: UnitreeG1, world: World) -> float:
@@ -264,11 +260,14 @@ assert abs(lowest_collision_point_of(robot, world)) < 1e-3
 
 start_visualization(world)
 
+executor = PlanExecutor(Context(world=world, robot=robot, evaluate_conditions=False))
 with simulated_robot:
     for _ in range(10):
-        build_plan(world, robot).perform()
-        build_plan2(world, robot).perform()
-    build_plan(world, robot).perform()
+        for plan in (build_plan(world, robot), build_plan2(world, robot)):
+            executor.compile(plan)
+            executor.execute()
+    executor.compile(build_plan(world, robot))
+    executor.execute()
 
 parcel_position = world.get_body_by_name("parcel").global_pose
 print(f"parcel delivered to {np.round(parcel_position.to_position(), 3)}")

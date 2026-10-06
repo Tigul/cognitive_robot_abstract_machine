@@ -48,7 +48,6 @@ from coraplex.perception import (
     RoboKudoPerception,
     WorldPerception,
 )
-from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.perception import PerceptionTask
@@ -447,21 +446,18 @@ def test_detection_corrects_a_grasp_planned_before_it(immutable_model_world):
         *wrong_prior, reference_frame=world.root
     )
 
-    plan = execute_single(
-        PickUpAction(
-            milk,
-            Arms.RIGHT,
-            GraspDescription(
-                ApproachDirection.FRONT,
-                VerticalAlignment.NoAlignment,
-                view.right_arm.end_effector,
-            ),
+    plan = PickUpAction(
+        milk,
+        Arms.RIGHT,
+        GraspDescription(
+            ApproachDirection.FRONT,
+            VerticalAlignment.NoAlignment,
+            view.right_arm.end_effector,
         ),
-        context=context,
     )
     targets = [
         node.goal_pose
-        for node in motion_nodes_of(plan)
+        for node in motion_nodes_of(plan, context)
         if isinstance(node, CartesianPose)
     ]
 
@@ -934,14 +930,13 @@ def test_detect_action_takes_the_execution_type_of_the_environment(
     decided by the environment executing the plan rather than by the plan itself.
     """
     world, view, context = immutable_model_world
-    plan = execute_single(
-        DetectAction(DetectionTechnique.TYPES, object_sem_annotation=Milk),
-        context=context,
-    )
+    plan = DetectAction(DetectionTechnique.TYPES, object_sem_annotation=Milk)
 
     with simulated_robot:
         tasks = [
-            node for node in motion_nodes_of(plan) if isinstance(node, PerceptionTask)
+            node
+            for node in motion_nodes_of(plan, context)
+            if isinstance(node, PerceptionTask)
         ]
     assert [type(task) for task in tasks] == [PerceptionTask]
     assert tasks[0].execution_type is ExecutionType.SIMULATED

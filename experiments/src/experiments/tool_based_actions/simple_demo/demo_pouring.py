@@ -23,7 +23,6 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.composite.tool_based import PouringAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import (
@@ -32,6 +31,8 @@ from coraplex.robot_plans.actions.core.robot_body import (
     SetGripperAction,
 )
 from coraplex.testing import attach_tool, setup_world, start_visualization
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 
 def main() -> None:
@@ -67,7 +68,7 @@ def main() -> None:
 
     context.evaluate_conditions = False
 
-    plan = sequential(
+    plan = Sequence(
         [
             SetGripperAction(Arms.RIGHT, GripperState.CLOSE),
             ParkArmsAction(Arms.BOTH),
@@ -78,12 +79,13 @@ def main() -> None:
             PouringAction(
                 target_container=bowl_body, source_container=cup, arm=Arms.RIGHT
             ),
-        ],
-        context=context,
+        ]
     )
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
 
 if __name__ == "__main__":

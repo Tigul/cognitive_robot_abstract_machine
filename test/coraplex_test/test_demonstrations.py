@@ -14,11 +14,10 @@ import rclpy
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import ExecutionType
 from coraplex.execution_environment import ExecutionEnvironment
-from coraplex.plans.factories import code
-from coraplex.plans.plan import Plan
 from coraplex.demonstrations import RobotDemonstration, RobotDemonstrationRosSession
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.world import World
+from coraplex.plans.function_call import FunctionCall
 
 
 class PlanDeliberatelyFailed(Exception):
@@ -80,8 +79,8 @@ class RecordingDemonstration(RobotDemonstration):
     def build_context(self, world: World) -> Context:
         return Context(world, world.get_semantic_annotations_by_type(MinimalRobot)[0])
 
-    def build_plan(self, context: Context) -> Plan:
-        return code(self.run_plan_body, context)
+    def build_plan(self, context: Context) -> FunctionCall:
+        return FunctionCall(function=self.run_plan_body)
 
     def run_plan_body(self) -> None:
         """

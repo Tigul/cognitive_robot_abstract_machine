@@ -43,11 +43,12 @@ from coraplex.robot_plans import *
 from coraplex.execution_environment import simulated_robot
 from coraplex.robot_plans.actions.composite.transporting import TransportAction, MoveTorsoAction
 from coraplex.datastructures.enums import Arms, Grasp
-from coraplex.plans.factories import *
 from coraplex.testing import setup_world
 from semantic_digital_twin.robots.pr2 import PR2, TorsoState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from coraplex.datastructures.dataclasses import Context
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 world = setup_world()
 pr2_view = PR2.from_world(world)
@@ -57,10 +58,12 @@ description = TransportAction(world.get_semantic_annotations_by_type(Milk)[0],
                               Pose.from_xyz_quaternion(2.4, 2.8, 1,
                                                        0.0, 0.0, 0.0, 1.0, reference_frame=world.root),
                               Arms.LEFT)
-plan = sequential([MoveTorsoAction(TorsoState.HIGH),
-                   description], context=context).plan
+plan = Sequence([MoveTorsoAction(TorsoState.HIGH),
+                   description])
 with simulated_robot:
-    plan.perform()
+    executor = PlanExecutor(context)
+    executor.compile(plan)
+    executor.execute()
 ```
 
 The data obtained throughout the plan execution, including robot states, poses, action descriptions and more will be

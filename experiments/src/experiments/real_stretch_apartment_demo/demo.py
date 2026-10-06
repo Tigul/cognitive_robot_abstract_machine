@@ -43,8 +43,6 @@ from coraplex.datastructures.enums import (
 )
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.demonstrations import RobotDemonstration
-from coraplex.plans.factories import sequential
-from coraplex.plans.plan import Plan
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.navigation import LookAtAction, NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
@@ -70,6 +68,8 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Chee
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
+from coraplex.plans.underspecified import UnderspecifiedNode
+from cramph.composites import Sequence
 
 CEREAL_NAME = "cheeze_it.obj"
 """
@@ -160,7 +160,7 @@ class StretchApartmentDemonstration(RobotDemonstration):
             alternative_motion_mappings=self.alternative_motion_mappings,
         )
 
-    def build_plan(self, context: Context) -> Plan:
+    def build_plan(self, context: Context) -> Sequence:
         """
         Carry the cereal box from its shelf to the bedside table and back again.
         """
@@ -178,7 +178,7 @@ class StretchApartmentDemonstration(RobotDemonstration):
         bedside_table_body = world.get_body_by_name("bedside_table.dae")
         CEREAL_SHELF_LAYER_T_CEREAL.reference_frame = shelf_layer_body
 
-        plan = sequential(
+        plan = Sequence(
             [
                 ParkArmsAction(Arms.BOTH),
                 SetGripperAction(Arms.BOTH, motion=GripperState.CLOSE),
@@ -188,9 +188,11 @@ class StretchApartmentDemonstration(RobotDemonstration):
                     )
                 ),
                 LookAtAction(Pose.from_xyz_rpy(reference_frame=shelf_layer_body)),
-                a(NavigateAction)(
-                    target_location=Pose.from_xyz_rpy(
-                        0.8, 0.6, 0, yaw=-np.pi / 2, reference_frame=world.root
+                UnderspecifiedNode(
+                    statement=a(NavigateAction)(
+                        target_location=Pose.from_xyz_rpy(
+                            0.8, 0.6, 0, yaw=-np.pi / 2, reference_frame=world.root
+                        )
                     )
                 ),
                 LookAtAction(Pose.from_xyz_rpy(reference_frame=shelf_layer_body)),
@@ -227,9 +229,11 @@ class StretchApartmentDemonstration(RobotDemonstration):
                     )
                 ),
                 LookAtAction(Pose.from_xyz_rpy(reference_frame=shelf_layer_body)),
-                a(NavigateAction)(
-                    target_location=Pose.from_xyz_rpy(
-                        0.8, 0, 0, yaw=np.pi, reference_frame=bedside_table_body
+                UnderspecifiedNode(
+                    statement=a(NavigateAction)(
+                        target_location=Pose.from_xyz_rpy(
+                            0.8, 0, 0, yaw=np.pi, reference_frame=bedside_table_body
+                        )
                     )
                 ),
                 LookAtAction(Pose.from_xyz_rpy(reference_frame=bedside_table_body)),
@@ -239,11 +243,13 @@ class StretchApartmentDemonstration(RobotDemonstration):
                     trust_detected_orientation=False,
                     accept_first_if_multiple=True,
                 ),
-                a(PickUpAction)(
-                    object_designator=cereal,
-                    arm=Arms.LEFT,
-                    grasp_description=grasp_description,
-                    perceive_before_grasp=True,
+                UnderspecifiedNode(
+                    statement=a(PickUpAction)(
+                        object_designator=cereal,
+                        arm=Arms.LEFT,
+                        grasp_description=grasp_description,
+                        perceive_before_grasp=True,
+                    )
                 ),
                 ParkArmsAction(Arms.BOTH),
                 NavigateAction(
@@ -251,15 +257,16 @@ class StretchApartmentDemonstration(RobotDemonstration):
                         0.8, 0.6, 0, yaw=-np.pi / 2, reference_frame=world.root
                     )
                 ),
-                a(PlaceAction)(
-                    object_designator=cereal_body,
-                    target_location=CEREAL_SHELF_LAYER_T_CEREAL.to_pose(),
-                    arm=Arms.LEFT,
+                UnderspecifiedNode(
+                    statement=a(PlaceAction)(
+                        object_designator=cereal_body,
+                        target_location=CEREAL_SHELF_LAYER_T_CEREAL.to_pose(),
+                        arm=Arms.LEFT,
+                    )
                 ),
                 ParkArmsAction(Arms.BOTH),
                 SetGripperAction(Arms.BOTH, motion=GripperState.CLOSE),
-            ],
-            context=context,
+            ]
         )
 
         return plan

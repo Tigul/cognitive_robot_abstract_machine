@@ -13,14 +13,13 @@ from coraplex.datastructures.grasp import GraspDescription
 from coraplex.datastructures.dataclasses import Context
 from coraplex.execution_environment import real_robot, simulated_robot
 from coraplex.locations.base import DeferredLocation
-from coraplex.plans.factories import sequential
-from coraplex.plans.plan_execution import UnderspecifiedChildChooser
+from coraplex.plans.plan_execution import PlanExecutor, UnderspecifiedChildChooser
 from coraplex.plans.underspecified import UnderspecifiedNode
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
-from cramph.composites import ChildChooser, CompositeNodeChoosingItsChild
+from cramph.composites import ChildChooser, CompositeNodeChoosingItsChild, Sequence
 from cramph.data_types import LifeCycleValues
 from cramph.statechart import Statechart
 from cramph.world_modification_nodes import MoveBranch
@@ -55,28 +54,31 @@ def test_a_plan_grounding_an_action_mid_sequence_runs_as_one_statechart(
 ):
     world, robot, context = immutable_model_world
     torso = MoveTorsoAction(TorsoState.HIGH)
-    plan = sequential(
+    plan = Sequence(
         [
             torso,
-            a(NavigateAction)(
-                target_location=variable(
-                    Pose, domain=[_pose_in_front_of_the_robot(world, robot)]
+            UnderspecifiedNode(
+                statement=a(NavigateAction)(
+                    target_location=variable(
+                        Pose, domain=[_pose_in_front_of_the_robot(world, robot)]
+                    )
                 )
             ),
-        ],
-        context,
+        ]
     )
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
-    statechart: Statechart = plan.root.statechart
-    navigate = plan.root.nodes[1].latest_child
+    statechart: Statechart = plan.statechart
+    navigate = plan.nodes[1].latest_child
     assert isinstance(navigate, NavigateAction)
     assert navigate.statechart is statechart
     assert torso.statechart is statechart
     assert len(statechart.get_nodes_by_type(EndMotion)) == 1
-    assert plan.root.life_cycle_state == LifeCycleValues.SUCCEEDED
+    assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
 
 
 def test_an_underspecified_action_is_grounded_against_the_world_the_steps_before_left(
@@ -91,20 +93,23 @@ def test_an_underspecified_action_is_grounded_against_the_world_the_steps_before
         torso_high_when_grounded.append(torso_high.is_achieved())
         return [_pose_in_front_of_the_robot(world, robot)]
 
-    plan = sequential(
+    plan = Sequence(
         [
             MoveTorsoAction(TorsoState.HIGH),
-            a(NavigateAction)(
-                target_location=variable(
-                    Pose, domain=DeferredLocation(poses_in_front_of_the_robot)
+            UnderspecifiedNode(
+                statement=a(NavigateAction)(
+                    target_location=variable(
+                        Pose, domain=DeferredLocation(poses_in_front_of_the_robot)
+                    )
                 )
             ),
-        ],
-        context,
+        ]
     )
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     assert torso_high_when_grounded == [True]
 
@@ -115,16 +120,17 @@ def test_a_branch_moved_mid_plan_follows_its_new_parent(mutable_model_world):
     tool_frame = robot.left_arm.end_effector.tool_frame
     height_before = milk.global_pose.z
 
-    plan = sequential(
+    plan = Sequence(
         [
             MoveTorsoAction(TorsoState.LOW),
             MoveBranch(body=milk, new_parent=tool_frame),
             MoveTorsoAction(TorsoState.HIGH),
-        ],
-        context,
+        ]
     )
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     assert milk.parent_connection.parent is tool_frame
     assert milk.global_pose.z > height_before
@@ -159,7 +165,7 @@ def test_a_place_finds_the_grasp_of_the_pick_up_before_it(mutable_model_world):
     )
     statechart = Statechart(context=context.create_statechart_context())
 
-    statechart.add_node(sequential([pick_up, place]).root)
+    statechart.add_node(Sequence([pick_up, place]))
 
     assert statechart.get_preceding_node_by_type(place, PickUpAction) is pick_up
 
@@ -210,23 +216,26 @@ def test_a_plan_on_the_robot_is_sent_once_with_the_chooser_grounding_its_actions
     world, robot, context = immutable_model_world
     giskard = GiskardWrapperRecordingTheGoal()
     monkeypatch.setattr(Context, "giskard_wrapper", property(lambda self: giskard))
-    plan = sequential(
+    plan = Sequence(
         [
             MoveTorsoAction(TorsoState.HIGH),
-            a(NavigateAction)(
-                target_location=variable(
-                    Pose, domain=[_pose_in_front_of_the_robot(world, robot)]
+            UnderspecifiedNode(
+                statement=a(NavigateAction)(
+                    target_location=variable(
+                        Pose, domain=[_pose_in_front_of_the_robot(world, robot)]
+                    )
                 )
             ),
-        ],
-        context,
+        ]
     )
 
     with real_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     [statechart] = giskard.executed
-    assert plan.root.statechart is statechart
+    assert plan.statechart is statechart
     [chooser] = giskard.child_choosers
     assert isinstance(chooser, UnderspecifiedChildChooser)
     assert chooser.context is context

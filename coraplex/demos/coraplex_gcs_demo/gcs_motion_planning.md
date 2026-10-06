@@ -62,11 +62,13 @@ giskard_wrapper.execute()
 
 ```python
 from coraplex.datastructures.enums import Arms
+from coraplex.plans.plan_execution import PlanExecutor
+from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
+
+executor = PlanExecutor(context)
 with real_robot:
-    try:
-        ParkArmsActionDescription([Arms.BOTH]).resolve().perform()
-    except:
-        pass
+    executor.compile(ParkArmsAction(Arms.BOTH))
+    executor.execute()
 ```
 
 Now, we define a search space for the GCS algorithm around the open drawer and the robot, and calculate the connectivity graph.
@@ -105,8 +107,8 @@ For the path that we provide here the first value is skipped as that is equal to
 
 ```python
 print('move along path to goal pose...')
-from coraplex.plans.factories import execute_single
 from coraplex.view_manager import ViewManager
+from coraplex.plans.plan_execution import PlanExecutor
 
 
 def follow_path(waypoints):
@@ -124,7 +126,9 @@ def follow_path(waypoints):
 
 
 with real_robot:
-    execute_single(follow_path(path[1:]), context=context).perform()
+    executor = PlanExecutor(context)
+    executor.compile(follow_path(path[1:]))
+    executor.execute()
 ```
 
 Alternatively, before executing the planned path the path could be further improved by postprocessing the output from the GCS path finding algorithm.
@@ -154,7 +158,10 @@ print(len(new_path))
 ```
 
 ```python
+from coraplex.plans.plan_execution import PlanExecutor
 print('move along path to goal pose...')
 with real_robot:
-    execute_single(follow_path(filter_path(path)), context=context).perform()
+    executor = PlanExecutor(context)
+    executor.compile(follow_path(filter_path(path)))
+    executor.execute()
 ```

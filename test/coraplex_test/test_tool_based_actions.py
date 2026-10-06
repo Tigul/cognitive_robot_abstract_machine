@@ -7,7 +7,6 @@ from scipy.spatial.transform import Rotation
 
 from coraplex.datastructures.enums import Arms, CuttingTechnique
 from coraplex.exceptions import WipingTargetMissing
-from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.composite.tool_based import (
     CuttingAction,
     MixingAction,
@@ -74,7 +73,7 @@ def _tool_path_goals(action, context):
     :return: The steps the action expanded into that follow its tool path, one per tool
         motion.
     """
-    expand(execute_single(action, context))
+    expand(action, context)
     return [
         step for step in action.children[0].nodes if _trajectory_of(step) is not None
     ]
@@ -204,7 +203,7 @@ def test_pouring_action_poses_tilt_and_mirror(tool_action_world):
         source_container=cup,
         arm=Arms.RIGHT,
     )
-    expand(execute_single(right_action, context))
+    expand(right_action, context)
     right_pre_pose, right_pour_pose = right_action._pour_poses()
 
     pre_rotation = Rotation.from_quat(
@@ -224,7 +223,7 @@ def test_pouring_action_poses_tilt_and_mirror(tool_action_world):
         arm=Arms.RIGHT,
         pour_side=Arms.LEFT,
     )
-    expand(execute_single(left_action, context))
+    expand(left_action, context)
     left_pre_pose, _ = left_action._pour_poses()
 
     container_position = np.array(
@@ -275,7 +274,7 @@ def test_pouring_action_pour_point_lands_on_target_container_center(
     action = PouringAction(
         target_container=container, source_container=cup, arm=Arms.RIGHT
     )
-    expand(execute_single(action, context))
+    expand(action, context)
     _, pour_pose = action._pour_poses()
 
     tool_frame = ViewManager.get_end_effector_view(Arms.RIGHT, robot).tool_frame
@@ -292,7 +291,7 @@ def test_mixing_action_orm_roundtrip(tool_action_world, coraplex_testing_session
     whisk = Whisk(root=tool_body)
 
     action = MixingAction(container=container, arm=Arms.RIGHT, tool=whisk)
-    expand(execute_single(action, context))
+    expand(action, context)
 
     dao = to_dao(action)
     coraplex_testing_session.add(dao)

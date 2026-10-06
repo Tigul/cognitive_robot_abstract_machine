@@ -42,7 +42,6 @@ from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import sequential
 from coraplex.plans.failures import PlanFailure
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.robot_body import (
@@ -65,6 +64,8 @@ from semantic_digital_twin.spatial_types.spatial_types import (
 )
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import OmniDrive
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 try:
     import rclpy
@@ -372,7 +373,7 @@ def _spawn_robot_and_prepare_pick_up(
 
     apple = world.get_body_by_name(apple_name)
     apple_annotation = world.get_semantic_annotations_by_type(Apple)[0]
-    plan = sequential(
+    plan = Sequence(
         [
             ParkArmsAction(Arms.BOTH),
             MoveTorsoAction(TorsoState.HIGH),
@@ -385,8 +386,7 @@ def _spawn_robot_and_prepare_pick_up(
                     pr2.right_arm.end_effector,
                 ),
             ),
-        ],
-        context=context,
+        ]
     )
 
     def perform() -> None:
@@ -396,7 +396,9 @@ def _spawn_robot_and_prepare_pick_up(
         logger.info("Spawned PR2; parking arms, raising torso, picking up an apple ...")
         try:
             with simulated_robot:
-                plan.perform()
+                executor = PlanExecutor(context)
+                executor.compile(plan)
+                executor.execute()
         except PlanFailure as failure:
             logger.warning("Robot could not complete the pick-up: %s", failure)
             return

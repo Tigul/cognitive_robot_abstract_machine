@@ -6,9 +6,9 @@ from krrood.entity_query_language.factories import a, an, variable
 from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
 from coraplex.datastructures.grasp import GraspDescription
 from typing_extensions import List
-
-from coraplex.plans.factories import ActionLike
+from coraplex.plans.underspecified import UnderspecifiedNode
 from coraplex.robot_plans.actions.base import Action
+from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.robot_plans.actions.core.misc import MoveToReach
 from semantic_digital_twin.robots.robot_parts import EndEffector
@@ -32,7 +32,7 @@ class Sage10kOpenDoor(Action):
     door: Door
 
     @property
-    def _sub_nodes(self) -> List[ActionLike]:
+    def _sub_nodes(self) -> List[StatechartNode]:
         """
         Build the steps for reaching the handle and opening the door.
 
@@ -92,7 +92,7 @@ class Sage10kOpenDoor(Action):
             reach_query.expression.target_pose_offset_robot
         )
         reach_query._where_conditions_.append(free_space_condition)
-        reach_action = reach_query
+        reach_action = UnderspecifiedNode(statement=reach_query)
 
         open_action = OpenAction(object_designator=self.door.handle.root, arm=arm)
 

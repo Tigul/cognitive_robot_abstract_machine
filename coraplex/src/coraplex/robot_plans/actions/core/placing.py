@@ -16,7 +16,7 @@ from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.exceptions import BodyIsNotHeld
-from coraplex.plans.factories import ActionLike
+from cramph.node import StatechartNode
 from coraplex.querying.predicates import GripperIsFree
 from coraplex.robot_plans.actions.base import Action
 from cramph.composites import Sequence
@@ -117,7 +117,7 @@ class PlaceAction(
         return previous_pick.grasp_description
 
     @property
-    def _sub_nodes(self) -> List[ActionLike]:
+    def _sub_nodes(self) -> List[StatechartNode]:
         end_effector = ViewManager.get_arm_view(self.arm, self.robot).end_effector
         grasp_description = self._grasp_description(end_effector)
         transport_pose, placing_pose, retract_pose = grasp_description.pose_sequence(

@@ -35,9 +35,11 @@ the [Action Designator Example](https://cram2.github.io/cognitive_robot_abstract
 
 ```python
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
+from coraplex.plans.plan_execution import PlanExecutor
 
 with simulated_robot:
-   execute_single(NavigateAction(target_location=pose), context=context).perform()
+   executor = PlanExecutor(context)
+   executor.compile(NavigateAction(target_location=pose))
+   executor.execute()
 ```

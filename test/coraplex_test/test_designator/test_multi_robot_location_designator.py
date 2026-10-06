@@ -18,7 +18,6 @@ from coraplex.locations.factories import (
 from krrood.entity_query_language.factories import variable
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import TorsoState
@@ -40,6 +39,8 @@ from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
 )
 from semantic_digital_twin.world import World
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 # No alternative motion mappings: they are being redesigned on top of the giskard goals
 # that replaced the motion designators, so there are none to resolve for now.
@@ -212,12 +213,11 @@ def test_new_reachability_location_pose(
 ):
     world, robot, context = immutable_multiple_robot_simple_apartment
 
-    plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
-        context,
-    )
+    plan = Sequence([ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)])
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
         world.notify_state_change()
 
@@ -235,12 +235,11 @@ def test_new_reachability_location_body(
 ):
     world, robot, context = immutable_multiple_robot_simple_apartment
 
-    plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
-        context,
-    )
+    plan = Sequence([ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)])
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
         world.notify_state_change()
 
@@ -256,12 +255,11 @@ def test_new_reachability_location_body(
 def test_merge_reachability_location(immutable_multiple_robot_simple_apartment):
     world, robot, context = immutable_multiple_robot_simple_apartment
 
-    plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
-        context,
-    )
+    plan = Sequence([ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)])
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
         world.notify_state_change()
 
@@ -283,12 +281,11 @@ def test_merge_reachability_location(immutable_multiple_robot_simple_apartment):
 def test_visibility_location_pose(immutable_multiple_robot_simple_apartment):
     world, robot, context = immutable_multiple_robot_simple_apartment
 
-    plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
-        context,
-    )
+    plan = Sequence([ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)])
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
         world.notify_state_change()
 
@@ -305,12 +302,11 @@ def test_visibility_location_pose(immutable_multiple_robot_simple_apartment):
 def test_visibility_location_body(immutable_multiple_robot_simple_apartment):
     world, robot, context = immutable_multiple_robot_simple_apartment
 
-    plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
-        context,
-    )
+    plan = Sequence([ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)])
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
         world.notify_state_change()
 
@@ -325,13 +321,12 @@ def test_visibility_location_body(immutable_multiple_robot_simple_apartment):
 def test_visibility_reachability_merge(immutable_multiple_robot_simple_apartment):
     world, robot, context = immutable_multiple_robot_simple_apartment
 
-    plan = sequential(
-        [ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)],
-        context,
-    )
+    plan = Sequence([ParkArmsAction(Arms.BOTH), MoveTorsoAction(TorsoState.HIGH)])
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
         world.notify_state_change()
 
@@ -353,15 +348,16 @@ def test_visibility_reachability_merge(immutable_multiple_robot_simple_apartment
 
 def test_accessing_location_pose(immutable_model_world):
     world, robot, context = immutable_model_world
-    plan = sequential(
+    plan = Sequence(
         [
             ParkArmsAction(Arms.BOTH),
             MoveTorsoAction(TorsoState.HIGH),
-        ],
-        context,
+        ]
     )
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     with world.modify_world():
         world.add_semantic_annotation_recursively(
@@ -381,16 +377,17 @@ def test_accessing_location_pose(immutable_model_world):
 
 def test_giskard_location_pose(immutable_multiple_robot_simple_apartment):
     world, robot, context = immutable_multiple_robot_simple_apartment
-    plan = sequential(
+    plan = Sequence(
         [
             ParkArmsAction(Arms.BOTH),
             MoveTorsoAction(TorsoState.HIGH),
-        ],
-        context,
+        ]
     )
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
         world.notify_state_change()
 

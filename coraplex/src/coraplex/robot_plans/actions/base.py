@@ -13,7 +13,6 @@ from typing_extensions import (
 
 from coraplex.datastructures.dataclasses import Context, PlanContextExtension
 from coraplex.plans.designator import DesignatorParameters
-from coraplex.plans.factories import ActionLike, as_statechart_node
 from cramph.composites import Sequence
 from cramph.context import StatechartContext
 from cramph.data_types import SuccessDecider
@@ -65,7 +64,7 @@ class Action(CompositeNode, DesignatorParameters, ABC):
 
     @property
     @abstractmethod
-    def _sub_nodes(self) -> List[ActionLike]:
+    def _sub_nodes(self) -> List[StatechartNode]:
         """
         :return: The steps this action runs, in the order they run in.
         """
@@ -109,7 +108,7 @@ class Action(CompositeNode, DesignatorParameters, ABC):
         """
         self._action_body = Sequence(
             name=f"{self.name}/body",
-            nodes=[as_statechart_node(step) for step in self._sub_nodes],
+            nodes=list(self._sub_nodes),
         )
         self._add_child_to_statechart(self._action_body)
 

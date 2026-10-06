@@ -35,7 +35,7 @@ from coraplex.exceptions import (
     MissingWaypoints,
     WipingTargetMissing,
 )
-from coraplex.plans.factories import ActionLike
+from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.mixins import MovesToolCenterPoint
 from cramph.composites import Parallel, TryAll
@@ -154,7 +154,7 @@ class ToolMotionAction(FullBodyControlledAction, ABC, MovesToolCenterPoint):
         return self.tool.tool_alignment(target)
 
     @property
-    def _sub_nodes(self) -> List[ActionLike]:
+    def _sub_nodes(self) -> List[StatechartNode]:
         """
         :return: The goal moving the tool along the sampled waypoints while keeping it
             aligned with its target.
@@ -403,7 +403,7 @@ class WipingAction(ToolMotionAction):
         return self.target_pose
 
     @property
-    def _sub_nodes(self) -> List[ActionLike]:
+    def _sub_nodes(self) -> List[StatechartNode]:
         """
         :return: The goal moving the tool along the sampled waypoints, which also
             counts as done once the tool reached the final waypoint, since the last
@@ -609,7 +609,7 @@ class PouringAction(FullBodyControlledAction, MovesToolCenterPoint):
         )
 
     @property
-    def _sub_nodes(self) -> List[ActionLike]:
+    def _sub_nodes(self) -> List[StatechartNode]:
         """
         :return: The goals moving the source container to the pre-pour pose and then
             tilting it into the pouring pose.

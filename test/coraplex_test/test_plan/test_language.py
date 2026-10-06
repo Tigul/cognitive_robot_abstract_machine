@@ -1,6 +1,5 @@
 import threading
 from datetime import timedelta
-from functools import partial
 
 import numpy as np
 import pytest
@@ -18,25 +17,19 @@ from cramph.composites import (
     TryInOrder,
 )
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import (
-    sequential,
-    parallel,
-    try_in_order,
-    try_all,
-    cancel_when,
-    repeat,
-    code,
-)
 from coraplex.datastructures.enums import Arms
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from ..conftest import tool_center_point_goal
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
 from giskardpy.motion_statechart.goals.templates import RepeatOnStall
+from cramph.monitors import CountNodeResets
 from cramph.nodes_for_testing import ConstFalseNode, ConstTrueNode
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.spatial_types import Pose
 from semantic_digital_twin.robots.pr2 import PR2Joint
+from coraplex.plans.function_call import FunctionCall
+from coraplex.plans.plan_execution import PlanExecutor
 
 
 def test_factory_construction():
@@ -44,7 +37,7 @@ def test_factory_construction():
     act2 = MoveTorsoAction(TorsoState.HIGH)
     act3 = DetectAction(DetectionTechnique.TYPES)
 
-    root = sequential([act, act2, act3]).root
+    root = Sequence([act, act2, act3])
     assert isinstance(root, Sequence)
     assert len(root.children) == 3
 
@@ -54,9 +47,7 @@ def test_parallel_construction():
     act2 = MoveTorsoAction(TorsoState.HIGH)
     act3 = DetectAction(DetectionTechnique.TYPES)
 
-    root = parallel(
-        [act, act2, act3],
-    ).root
+    root = Parallel([act, act2, act3])
     assert isinstance(root, Parallel)
     assert len(root.children) == 3
 
@@ -66,7 +57,7 @@ def test_try_in_order_construction():
     act2 = MoveTorsoAction(TorsoState.HIGH)
     act3 = DetectAction(DetectionTechnique.TYPES)
 
-    root = try_in_order([act, act2, act3]).root
+    root = TryInOrder([act, act2, act3])
     assert isinstance(root, TryInOrder)
     assert len(root.children) == 3
 
@@ -76,7 +67,7 @@ def test_try_all_construction():
     act2 = MoveTorsoAction(TorsoState.HIGH)
     act3 = DetectAction(DetectionTechnique.TYPES)
 
-    root = try_all([act, act2, act3]).root
+    root = TryAll([act, act2, act3])
     assert isinstance(root, TryAll)
     assert len(root.children) == 3
 
@@ -85,19 +76,11 @@ def test_combination_construction():
     act = NavigateAction(Pose())
     act2 = MoveTorsoAction(TorsoState.HIGH)
     act3 = DetectAction(DetectionTechnique.TYPES)
-    root = parallel([sequential([act, act2]), act3]).root
+    root = Parallel([Sequence([act, act2]), act3])
     assert isinstance(root, Parallel)
     assert len(root.children) == 2
     assert isinstance(root.children[0], Sequence)
     assert len(root.children[0].children) == 2
-
-
-def test_repeat_construction():
-    act = ParkArmsAction(Arms.BOTH)
-    act2 = MoveTorsoAction(TorsoState.HIGH)
-
-    root = repeat([act, act2], maximum_repetitions=10).root
-    assert root.task.task.nodes == [act, act2]
 
 
 def test_perform_execute_single(immutable_model_world):
@@ -106,9 +89,11 @@ def test_perform_execute_single(immutable_model_world):
     act2 = MoveTorsoAction(TorsoState.HIGH)
     act3 = ParkArmsAction(Arms.BOTH)
 
-    plan = sequential([act, act2, act3], context)
+    plan = Sequence([act, act2, act3])
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
     np.testing.assert_almost_equal(
         robot_view.root.global_transform.to_np()[:3, 3], [0.3, -1.3, 0], decimal=1
     )
@@ -120,9 +105,11 @@ def test_perform_execute_single(immutable_model_world):
 def test_perform_single_designator(immutable_model_world):
     world, robot_view, context = immutable_model_world
 
-    plan = sequential([MoveTorsoAction(TorsoState.HIGH)], context)
+    plan = Sequence([MoveTorsoAction(TorsoState.HIGH)])
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     assert world.state[
         world.get_degree_of_freedom_by_name(PR2Joint.TORSO_LIFT).id
@@ -136,17 +123,36 @@ def test_perform_parallel(immutable_model_world):
         assert main_id != threading.get_ident()
 
     main_thread_id = threading.get_ident()
-    act = code(lambda: check_thread_id(main_thread_id), context=context)
-    act2 = code(lambda: check_thread_id(main_thread_id), context=context)
-    act3 = code(lambda: check_thread_id(main_thread_id), context=context)
+    act = FunctionCall(function=lambda: check_thread_id(main_thread_id))
+    act2 = FunctionCall(function=lambda: check_thread_id(main_thread_id))
+    act3 = FunctionCall(function=lambda: check_thread_id(main_thread_id))
 
-    plan = parallel([act, act2, act3], context)
+    plan = Parallel([act, act2, act3])
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
-    assert [node.life_cycle_state for node in plan.root.children] == [
+    assert [node.life_cycle_state for node in plan.children] == [
         LifeCycleValues.SUCCEEDED
     ] * 3
+
+
+def _repeat_on_stall(
+    task: Sequence, maximum_repetitions: int, **settings
+) -> RepeatOnStall:
+    """
+    :return: `task` attempted until it succeeds, at most `maximum_repetitions` times,
+        raising :class:`RepetitionsExhausted` once the attempts run out.
+    """
+    return RepeatOnStall(
+        task=task,
+        stop_retry_monitor=CountNodeResets(node=task, target=maximum_repetitions),
+        exception=RepetitionsExhausted(
+            repeated_node=task, maximum_repetitions=maximum_repetitions
+        ),
+        **settings,
+    )
 
 
 def test_perform_repeat_runs_a_succeeding_motion_once(immutable_model_world):
@@ -156,16 +162,16 @@ def test_perform_repeat_runs_a_succeeding_motion_once(immutable_model_world):
     """
     world, robot_view, context = immutable_model_world
 
-    plan = repeat(
-        [MoveTorsoAction(TorsoState.HIGH)], maximum_repetitions=3, context=context
-    )
+    plan = _repeat_on_stall(Sequence([MoveTorsoAction(TorsoState.HIGH)]), 3)
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     assert world.state[
         world.get_degree_of_freedom_by_name("torso_lift_joint").id
     ].position == pytest.approx(0.3, abs=0.05)
-    assert plan.root.life_cycle_state == LifeCycleValues.SUCCEEDED
+    assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
 
 
 def test_repeat_does_not_give_up_on_a_child_that_starts_at_its_goal(
@@ -177,21 +183,23 @@ def test_repeat_does_not_give_up_on_a_child_that_starts_at_its_goal(
     """
     world, robot_view, context = immutable_model_world
     with simulated_robot:
-        sequential([MoveTorsoAction(TorsoState.HIGH)], context).perform()
+        executor = PlanExecutor(context)
+        executor.compile(Sequence([MoveTorsoAction(TorsoState.HIGH)]))
+        executor.execute()
 
-    plan = repeat(
-        [MoveTorsoAction(TorsoState.HIGH), MoveTorsoAction(TorsoState.LOW)],
-        maximum_repetitions=3,
-        context=context,
+    plan = _repeat_on_stall(
+        Sequence([MoveTorsoAction(TorsoState.HIGH), MoveTorsoAction(TorsoState.LOW)]), 3
     )
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     [torso_down] = (
         robot_view.get_torso().get_joint_state_by_type(TorsoState.LOW).target_values
     )
     assert _torso_position(world) == pytest.approx(torso_down, abs=0.05)
-    assert plan.root.life_cycle_state == LifeCycleValues.SUCCEEDED
+    assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
 
 
 def test_exception_sequential(immutable_model_world):
@@ -201,21 +209,20 @@ def test_exception_sequential(immutable_model_world):
         raise PlanFailure()
 
     act = NavigateAction(Pose.from_xyz_rpy(1, -1, reference_frame=world.root))
-    act2 = code(raise_except)
+    act2 = FunctionCall(function=raise_except)
 
-    plan = sequential(
-        [act, act2],
-        context,
-    )
+    plan = Sequence([act, act2])
 
     def perform_plan():
         with simulated_robot:
-            _ = plan.perform()
+            executor = PlanExecutor(context)
+            executor.compile(plan)
+            executor.execute()
 
     with pytest.raises(PlanFailure):
         perform_plan()
-    assert len(plan.root.children) == 2
-    assert plan.root.life_cycle_state == LifeCycleValues.FAILED
+    assert len(plan.children) == 2
+    assert plan.life_cycle_state == LifeCycleValues.FAILED
 
 
 def test_exception_try_in_order(immutable_model_world):
@@ -225,13 +232,15 @@ def test_exception_try_in_order(immutable_model_world):
         raise PlanFailure()
 
     act = NavigateAction(Pose.from_xyz_rpy(1, -1, reference_frame=world.root))
-    act2 = code(raise_except)
+    act2 = FunctionCall(function=raise_except)
 
-    plan = try_in_order([act, act2], context)
+    plan = TryInOrder([act, act2])
     with simulated_robot:
-        _ = plan.perform()
-    assert len(plan.root.children) == 2
-    assert plan.root.life_cycle_state == LifeCycleValues.SUCCEEDED
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
+    assert len(plan.children) == 2
+    assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
 
 
 def test_exception_try_all(immutable_model_world):
@@ -241,14 +250,16 @@ def test_exception_try_all(immutable_model_world):
         raise PlanFailure()
 
     act = NavigateAction(Pose.from_xyz_rpy(x=-2, reference_frame=world.root))
-    act2 = code(raise_except)
+    act2 = FunctionCall(function=raise_except)
 
-    plan = try_all([act, act2], context)
+    plan = TryAll([act, act2])
     with simulated_robot:
-        _ = plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
-    assert type(plan.root) is TryAll
-    assert plan.root.life_cycle_state == LifeCycleValues.SUCCEEDED
+    assert type(plan) is TryAll
+    assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
 
 
 # %% children run only as part of the chart
@@ -263,15 +274,19 @@ def test_try_in_order_recovers_from_a_failing_code_step(immutable_model_world):
     def raise_except():
         raise PlanFailure()
 
-    plan = try_in_order([code(raise_except), MoveTorsoAction(TorsoState.HIGH)], context)
+    plan = TryInOrder(
+        [FunctionCall(function=raise_except), MoveTorsoAction(TorsoState.HIGH)]
+    )
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     [torso_up] = (
         robot_view.get_torso().get_joint_state_by_type(TorsoState.HIGH).target_values
     )
     assert _torso_position(world) == pytest.approx(torso_up, abs=0.05)
-    assert plan.root.life_cycle_state == LifeCycleValues.SUCCEEDED
+    assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
 
 
 def test_children_report_the_outcome_of_the_chart_they_ran_in(immutable_model_world):
@@ -280,13 +295,13 @@ def test_children_report_the_outcome_of_the_chart_they_ran_in(immutable_model_wo
     """
     world, robot_view, context = immutable_model_world
 
-    root = sequential(
-        [MoveTorsoAction(TorsoState.HIGH), ParkArmsAction(Arms.BOTH)], context
-    )
+    root = Sequence([MoveTorsoAction(TorsoState.HIGH), ParkArmsAction(Arms.BOTH)])
     with simulated_robot:
-        root.perform()
+        executor = PlanExecutor(context)
+        executor.compile(root)
+        executor.execute()
 
-    assert [child.life_cycle_state for child in root.root.children] == [
+    assert [child.life_cycle_state for child in root.children] == [
         LifeCycleValues.SUCCEEDED,
         LifeCycleValues.SUCCEEDED,
     ]
@@ -299,7 +314,13 @@ def test_cancel_monitor_construction():
     act = ParkArmsAction(Arms.BOTH)
     act2 = MoveTorsoAction(TorsoState.HIGH)
 
-    root = cancel_when([act, act2], monitor=ConstFalseNode(name="never")).root
+    never = ConstFalseNode(name="never")
+
+    root = CancelledWhenTrue(
+        monitor=never,
+        monitored_node=Sequence([act, act2]),
+        exception=PlanCancelled(monitor=never),
+    )
     assert isinstance(root, CancelledWhenTrue)
     assert root.monitored_node.nodes == [act, act2]
 
@@ -317,14 +338,18 @@ def test_cancel_monitor_stops_the_motion_it_wraps(immutable_model_world):
     world, robot_view, context = immutable_model_world
     start_position = _torso_position(world)
 
-    plan = cancel_when(
-        [MoveTorsoAction(TorsoState.HIGH)],
-        monitor=ConstTrueNode(name="always"),
-        context=context,
+    always = ConstTrueNode(name="always")
+
+    plan = CancelledWhenTrue(
+        monitor=always,
+        monitored_node=Sequence([MoveTorsoAction(TorsoState.HIGH)]),
+        exception=PlanCancelled(monitor=always),
     )
     with pytest.raises(PlanCancelled):
         with simulated_robot:
-            plan.perform()
+            executor = PlanExecutor(context)
+            executor.compile(plan)
+            executor.execute()
 
     assert _torso_position(world) == pytest.approx(start_position, abs=0.05)
 
@@ -337,19 +362,23 @@ def test_cancel_monitor_gives_up_on_the_plan_instead_of_stalling(immutable_model
     """
     world, robot_view, context = immutable_model_world
 
-    plan = sequential(
+    always = ConstTrueNode(name="always")
+
+    plan = Sequence(
         [
-            cancel_when(
-                [MoveTorsoAction(TorsoState.HIGH)],
-                monitor=ConstTrueNode(name="always"),
+            CancelledWhenTrue(
+                monitor=always,
+                monitored_node=Sequence([MoveTorsoAction(TorsoState.HIGH)]),
+                exception=PlanCancelled(monitor=always),
             ),
             MoveTorsoAction(TorsoState.LOW),
-        ],
-        context=context,
+        ]
     )
     with pytest.raises(PlanCancelled):
         with simulated_robot:
-            plan.perform()
+            executor = PlanExecutor(context)
+            executor.compile(plan)
+            executor.execute()
 
 
 def test_never_firing_cancel_monitor_leaves_the_motion_alone(immutable_model_world):
@@ -359,16 +388,20 @@ def test_never_firing_cancel_monitor_leaves_the_motion_alone(immutable_model_wor
     """
     world, robot_view, context = immutable_model_world
 
-    plan = cancel_when(
-        [MoveTorsoAction(TorsoState.HIGH)],
-        monitor=ConstFalseNode(name="never"),
-        context=context,
+    never = ConstFalseNode(name="never")
+
+    plan = CancelledWhenTrue(
+        monitor=never,
+        monitored_node=Sequence([MoveTorsoAction(TorsoState.HIGH)]),
+        exception=PlanCancelled(monitor=never),
     )
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     assert _torso_position(world) == pytest.approx(0.3, abs=0.05)
-    assert plan.root.last_observation_state == ObservationStateValues.TRUE
+    assert plan.last_observation_state == ObservationStateValues.TRUE
 
 
 def test_repeat_raises_when_it_runs_out_of_attempts(immutable_model_world):
@@ -380,16 +413,17 @@ def test_repeat_raises_when_it_runs_out_of_attempts(immutable_model_world):
     world, robot_view, context = immutable_model_world
     unreachable = Pose.from_xyz_rpy(5, 0, 0, reference_frame=world.root)
 
-    plan = repeat(
-        [tool_center_point_goal(context, Arms.RIGHT, unreachable)],
-        maximum_repetitions=2,
-        context=context,
-        repeat_template=partial(RepeatOnStall, timeout=timedelta(seconds=1)),
+    plan = _repeat_on_stall(
+        Sequence([tool_center_point_goal(context, Arms.RIGHT, unreachable)]),
+        2,
+        timeout=timedelta(seconds=1),
     )
 
     with pytest.raises(RepetitionsExhausted):
         with simulated_robot:
-            plan.perform()
+            executor = PlanExecutor(context)
+            executor.compile(plan)
+            executor.execute()
 
 
 def test_repeat_of_a_non_converging_motion_is_attempted(immutable_model_world):
@@ -400,11 +434,13 @@ def test_repeat_of_a_non_converging_motion_is_attempted(immutable_model_world):
     world, robot_view, context = immutable_model_world
     target = Pose.from_xyz_rpy(1, -1, reference_frame=world.root)
 
-    plan = repeat([NavigateAction(target)], maximum_repetitions=2, context=context)
+    plan = _repeat_on_stall(Sequence([NavigateAction(target)]), 2)
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
-    assert plan.root.life_cycle_state == LifeCycleValues.SUCCEEDED
+    assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
     np.testing.assert_almost_equal(
         robot_view.root.global_transform.to_np()[:3, 3], [1, -1, 0], decimal=1
     )

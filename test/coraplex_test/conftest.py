@@ -17,7 +17,6 @@ from typing_extensions import List
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms
-from coraplex.plans.plan import Plan
 from cramph.node import StatechartNode
 from cramph.statechart import Statechart
 from coraplex.view_manager import ViewManager
@@ -171,25 +170,27 @@ def tool_center_point_goal(
     )
 
 
-def expand(plan: Plan) -> StatechartNode:
+def expand(plan: StatechartNode, context: Context) -> StatechartNode:
     """
     Expand `plan` in a statechart of its own, without running it, so a test can read the
     nodes its steps expand into.
 
-    :param plan: A plan with a context.
-    :return: The root of the plan, expanded.
+    :param plan: The plan to expand.
+    :param context: The context the plan is expanded in.
+    :return: The plan, expanded.
     """
-    statechart = Statechart(context=plan.context.create_statechart_context())
-    statechart.add_node(plan.root)
-    return plan.root
+    statechart = Statechart(context=context.create_statechart_context())
+    statechart.add_node(plan)
+    return plan
 
 
-def motion_nodes_of(plan: Plan) -> List[StatechartNode]:
+def motion_nodes_of(plan: StatechartNode, context: Context) -> List[StatechartNode]:
     """
     :param plan: The plan whose motions to read.
+    :param context: The context the plan is expanded in.
     :return: Every node the plan's steps expand into, so a test can look for a task
         without knowing whether the action wrapped it alongside speed caps or collision
         rules.
     """
-    root = expand(plan)
+    root = expand(plan, context)
     return [root, *root.descendants]

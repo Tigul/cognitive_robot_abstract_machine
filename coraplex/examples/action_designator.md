@@ -73,28 +73,27 @@ world in which the designator are executed as well as the robot which executes t
 
 ```python
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
-from coraplex.plans.factories import sequential, execute_single
 
 pose = Pose.from_xyz_quaternion(1.3, 2, 0, 0, 0, 0, 1, reference_frame=world.root)
 
 # This is the Designator Description
-navigate_description = NavigateAction(target_location=pose)
-
-# The plan containing the navigation designator
-plan = execute_single(navigate_description, context=context).plan
+plan = NavigateAction(target_location=pose)
 ```
 
 What we now did was: create the pose where we want to move the robot, create a description describing a navigation with
 a list of possible poses (in this case the list contains only one pose) and create plan from the
 description.
 
-To execute the created plan just call perform on it.
+To execute the created plan, compile and execute it with a `PlanExecutor` for the context.
 
 ```python
 from coraplex.execution_environment import simulated_robot
+from coraplex.plans.plan_execution import PlanExecutor
 
 with simulated_robot:
-    plan.perform()
+    executor = PlanExecutor(context)
+    executor.compile(plan)
+    executor.execute()
 ```
 
 Every designator that is performed needs to be in an environment that specifies where to perform the designator either
@@ -115,15 +114,16 @@ a {meth}`~coraplex.process_module.simulated_robot` environment.
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
 from coraplex.execution_environment import simulated_robot
 from semantic_digital_twin.datastructures.definitions import TorsoState
+from coraplex.plans.plan_execution import PlanExecutor
 
 torso_pose = TorsoState.HIGH
 
-torso_desig = MoveTorsoAction(torso_pose)
-
-plan = execute_single(torso_desig, context=context).plan
+plan = MoveTorsoAction(torso_pose)
 
 with simulated_robot:
-    plan.perform()
+    executor = PlanExecutor(context)
+    executor.compile(plan)
+    executor.execute()
 ```
 
 ## Set Gripper
@@ -137,12 +137,15 @@ from coraplex.execution_environment import simulated_robot
 from coraplex.robot_plans.actions.core.robot_body import SetGripperAction
 from coraplex.datastructures.enums import Arms
 from semantic_digital_twin.datastructures.definitions import GripperState
+from coraplex.plans.plan_execution import PlanExecutor
 
 gripper = Arms.RIGHT
 motion = GripperState.OPEN
 
 with simulated_robot:
-    execute_single(SetGripperAction(gripper=gripper, motion=motion), context=context).perform()
+    executor = PlanExecutor(context)
+    executor.compile(SetGripperAction(gripper=gripper, motion=motion))
+    executor.execute()
 ```
 
 ## Park Arms
@@ -153,9 +156,12 @@ Park arms is used to move one or both arms into the default parking position.
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from coraplex.execution_environment import simulated_robot
 from coraplex.datastructures.enums import Arms
+from coraplex.plans.plan_execution import PlanExecutor
 
 with simulated_robot:
-    execute_single(ParkArmsAction(Arms.BOTH), context=context).perform()
+    executor = PlanExecutor(context)
+    executor.compile(ParkArmsAction(Arms.BOTH))
+    executor.execute()
 ```
 
 ## Pick Up and Place
@@ -179,12 +185,14 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
 import rclpy
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import VizMarkerPublisher
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 arm = Arms.RIGHT
 
 with simulated_robot:
-    sequential(
-        [ParkArmsAction(Arms.BOTH),
+    executor = PlanExecutor(context)
+    executor.compile(Sequence([ParkArmsAction(Arms.BOTH),
          MoveTorsoAction(TorsoState.HIGH),
          NavigateAction(
              Pose.from_xyz_rpy(1.5, 2.4, 0.0, reference_frame=world.root)
@@ -202,9 +210,8 @@ with simulated_robot:
              object_designator=world.get_body_by_name("milk.stl"),
              target_location=Pose.from_xyz_rpy(2.4, 2.2, 1, reference_frame=world.root),
              arm=arm,
-         )],
-        context=context,
-    ).perform()
+         )]))
+    executor.execute()
 ```
 
 ## Look At
@@ -214,10 +221,13 @@ Look at lets the robot look at a specific point, for example if it should look a
 ```python
 from coraplex.robot_plans.actions.core.navigation import LookAtAction
 from coraplex.execution_environment import simulated_robot
+from coraplex.plans.plan_execution import PlanExecutor
 
 target_location = Pose.from_xyz_rpy(3, 2, 1, reference_frame=world.root)
 with simulated_robot:
-    execute_single(LookAtAction(target=target_location), context=context).perform()
+    executor = PlanExecutor(context)
+    executor.compile(LookAtAction(target=target_location))
+    executor.execute()
 ```
 
 ## Detect
@@ -263,14 +273,18 @@ from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.datastructures.enums import Arms
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 description = TransportAction(world.get_semantic_annotations_by_type(Milk)[0],
                               Pose.from_xyz_quaternion(2.9, 2.2, 0.99,
                                                        0.0, 0.0, 1.0, 0.0, reference_frame=world.root),
                               Arms.LEFT)
 with simulated_robot:
-    sequential([MoveTorsoAction(TorsoState.HIGH),
-                description], context=context).perform()
+    executor = PlanExecutor(context)
+    executor.compile(Sequence([MoveTorsoAction(TorsoState.HIGH),
+                description]))
+    executor.execute()
 ```
 
 ## Opening
@@ -287,15 +301,19 @@ from coraplex.datastructures.enums import Arms
 from coraplex.execution_environment import simulated_robot
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from coraplex.robot_plans.actions.core.container import OpenAction
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 with simulated_robot:
-    sequential([
+    executor = PlanExecutor(context)
+    executor.compile(Sequence([
         MoveTorsoAction(TorsoState.HIGH),
         ParkArmsAction(Arms.BOTH),
         NavigateAction(Pose.from_xyz_quaternion(1.7074915981292725, 2.6873629093170166, 0.0,
                                                 -0.0, 0.0, 0.5253598267689507, -0.850880163370435,
                                                 reference_frame=world.root)),
-        OpenAction(world.get_body_by_name("handle_cab10_t"), Arms.RIGHT)], context=context).perform()
+        OpenAction(world.get_body_by_name("handle_cab10_t"), Arms.RIGHT)]))
+    executor.execute()
 ```
 
 ## Closing
@@ -310,13 +328,17 @@ the apartment. Additionally, we open the drawer such that we can close it with t
 from coraplex.robot_plans.actions.core.container import CloseAction
 from coraplex.datastructures.enums import Arms
 from coraplex.execution_environment import simulated_robot
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 with simulated_robot:
-    sequential([
+    executor = PlanExecutor(context)
+    executor.compile(Sequence([
         MoveTorsoAction(TorsoState.HIGH),
         ParkArmsAction(Arms.BOTH),
         NavigateAction(Pose.from_xyz_quaternion(1.72, 2.65, 0.0,
                                                 -0.0, 0.0, 0.5253598267689507, -0.850880163370435,
                                                 reference_frame=world.root)),
-        CloseAction(world.get_body_by_name("handle_cab10_t"), Arms.RIGHT)], context=context).perform()
+        CloseAction(world.get_body_by_name("handle_cab10_t"), Arms.RIGHT)]))
+    executor.execute()
 ```

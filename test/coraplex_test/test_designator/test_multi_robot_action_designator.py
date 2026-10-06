@@ -19,7 +19,6 @@ from coraplex.datastructures.trajectory import PoseTrajectory
 from coraplex.exceptions import NoFloorBelowRobot
 from coraplex.execution_environment import simulated_robot
 from coraplex.locations.base import Location, PoseGeneratorBackend, PoseValidator
-from coraplex.plans.factories import sequential, execute_single
 from cramph.statechart import Statechart
 from coraplex.robot_plans.actions.composite.facing import FaceAtAction
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
@@ -81,6 +80,8 @@ from semantic_digital_twin.spatial_types import (
 )
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Pose2D
 from semantic_digital_twin.world import World
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.composites import Sequence
 
 # No alternative motion mappings: they are being redesigned on top of the giskard goals
 # that replaced the motion designators, so there are none to resolve for now.
@@ -282,9 +283,11 @@ def mutable_multiple_robot_apartment(setup_multi_robot_apartment):
 
 def test_move_torso_multi(immutable_multiple_robot_apartment):
     world, view, context = immutable_multiple_robot_apartment
-    plan = execute_single(MoveTorsoAction(TorsoState.HIGH), context=context)
+    plan = MoveTorsoAction(TorsoState.HIGH)
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     joint_state = view.get_torso().get_joint_state_by_type(TorsoState.HIGH)
 
@@ -296,15 +299,14 @@ def test_navigate_multi(immutable_multiple_robot_apartment, rclpy_node):
     world, view, context = immutable_multiple_robot_apartment
     target_position = [5, 2, 0]
 
-    plan = execute_single(
-        NavigateAction(
-            Pose(Point3.from_iterable(target_position), reference_frame=world.root)
-        ),
-        context=context,
+    plan = NavigateAction(
+        Pose(Point3.from_iterable(target_position), reference_frame=world.root)
     )
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     robot_base_position = view.root.global_transform.to_position().to_np()
     # An identity heading points the robot's front along the world's x-axis, whatever
@@ -319,10 +321,12 @@ def test_navigate_multi(immutable_multiple_robot_apartment, rclpy_node):
 def test_move_gripper_multi(immutable_multiple_robot_apartment):
     world, view, context = immutable_multiple_robot_apartment
 
-    plan = execute_single(SetGripperAction(Arms.LEFT, GripperState.OPEN), context)
+    plan = SetGripperAction(Arms.LEFT, GripperState.OPEN)
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     arm = view.get_arms()[0]
     open_state = arm.end_effector.get_joint_state_by_type(GripperState.OPEN)
@@ -331,10 +335,12 @@ def test_move_gripper_multi(immutable_multiple_robot_apartment):
     for connection, target in open_state.items():
         assert connection.position == pytest.approx(target, abs=0.02)
 
-    plan = execute_single(SetGripperAction(Arms.LEFT, GripperState.CLOSE), context)
+    plan = SetGripperAction(Arms.LEFT, GripperState.CLOSE)
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     for connection, target in close_state.items():
         assert connection.position == pytest.approx(target, abs=0.02)
@@ -343,10 +349,12 @@ def test_move_gripper_multi(immutable_multiple_robot_apartment):
 def test_park_arms_multi(immutable_multiple_robot_apartment):
     world, robot, context = immutable_multiple_robot_apartment
     description = ParkArmsAction(Arms.BOTH)
-    plan = execute_single(description, context)
+    plan = description
     assert description.arm == Arms.BOTH
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     joints = []
     states = []
@@ -384,7 +392,7 @@ def test_reach_action_multi(immutable_multiple_robot_apartment):
     )
     world.notify_state_change()
 
-    plan = sequential(
+    plan = Sequence(
         [
             ParkArmsAction(Arms.BOTH),
             ReachAction(
@@ -395,12 +403,13 @@ def test_reach_action_multi(immutable_multiple_robot_apartment):
                 arm=Arms.LEFT,
                 grasp_description=grasp_description,
             ),
-        ],
-        context=context,
+        ]
     )
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     end_effector_pose = left_arm.end_effector.tool_frame.global_transform
     end_effector_position = end_effector_pose.to_position().to_np()
@@ -456,16 +465,17 @@ def test_follow_tcp_path_multi(immutable_multiple_robot_apartment):
         target_pose = pose
 
     waypoints = PoseTrajectory([target_pose])
-    plan = sequential(
+    plan = Sequence(
         [
             MoveTorsoAction(TorsoState.HIGH),
             ParkArmsAction(Arms.BOTH),
             FollowToolCenterPointPathAction(arm=Arms.LEFT, target_locations=waypoints),
-        ],
-        context,
+        ]
     )
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     tip_pose = left_arm.end_effector.tool_frame.global_transform
     dist = np.linalg.norm(tip_pose.to_position() - np.array(target_pose.to_position()))
@@ -494,15 +504,16 @@ def test_grasping(immutable_multiple_robot_apartment):
     )
     world.notify_state_change()
 
-    plan = sequential(
+    plan = Sequence(
         [
             ParkArmsAction(Arms.BOTH),
             grasping_action,
-        ],
-        context,
+        ]
     )
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
     dist = np.linalg.norm(
         world.get_body_by_name("milk.stl").global_transform.to_np()[3, :3]
     )
@@ -530,7 +541,7 @@ def test_pick_up_multi(mutable_multiple_robot_apartment, rclpy_node):
     )
     world.notify_state_change()
 
-    root = sequential(
+    root = Sequence(
         [
             ParkArmsAction(Arms.BOTH),
             PickUpAction(
@@ -538,12 +549,13 @@ def test_pick_up_multi(mutable_multiple_robot_apartment, rclpy_node):
                 Arms.LEFT,
                 grasp_description,
             ),
-        ],
-        context,
+        ]
     )
 
     with simulated_robot:
-        root.perform()
+        executor = PlanExecutor(context)
+        executor.compile(root)
+        executor.execute()
 
     assert (
         world.get_connection(
@@ -579,7 +591,7 @@ def test_place_multi(mutable_multiple_robot_apartment):
     )
     world.notify_state_change()
 
-    root = sequential(
+    root = Sequence(
         [
             ParkArmsAction(Arms.BOTH),
             PickUpAction(
@@ -592,12 +604,13 @@ def test_place_multi(mutable_multiple_robot_apartment):
                 Pose(Point3.from_iterable([1, -2.2, 0.6]), reference_frame=world.root),
                 Arms.LEFT,
             ),
-        ],
-        context,
+        ]
     )
 
     with simulated_robot:
-        root.perform()
+        executor = PlanExecutor(context)
+        executor.compile(root)
+        executor.execute()
 
     with pytest.raises(NoEdgeBetweenNodes):
         world.get_connection(
@@ -621,9 +634,11 @@ def test_look_at(immutable_multiple_robot_apartment):
         atol=1e-3,
     )
 
-    plan = execute_single(description, context)
+    plan = description
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
 
 def test_detect(immutable_multiple_robot_apartment):
@@ -645,9 +660,11 @@ def test_detect(immutable_multiple_robot_apartment):
         technique=DetectionTechnique.TYPES,
         object_sem_annotation=Milk,
     )
-    plan = execute_single(description, context)
+    plan = description
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     # Detection returns no value; it writes what it saw into the world by moving the
     # perceived annotation's body to the detected pose.
@@ -665,7 +682,7 @@ def test_detect(immutable_multiple_robot_apartment):
 def test_open(immutable_multiple_robot_apartment):
     world, robot, context = immutable_multiple_robot_apartment
 
-    plan = sequential(
+    plan = Sequence(
         [
             MoveTorsoAction(TorsoState.HIGH),
             ParkArmsAction(Arms.BOTH),
@@ -677,11 +694,12 @@ def test_open(immutable_multiple_robot_apartment):
                 )
             ),
             OpenAction(world.get_body_by_name("handle_cab10_m"), Arms.LEFT),
-        ],
-        context,
+        ]
     )
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
     assert world.get_connection_by_name(
         "cabinet10_drawer_middle_joint"
     ).position == pytest.approx(0.45, abs=0.1)
@@ -698,7 +716,7 @@ def test_close(immutable_multiple_robot_apartment, rclpy_node):
         [1.5, 1.85, 0] if isinstance(robot, (Tiago, Stretch)) else [1.65, 2.0, 0]
     )
 
-    plan = sequential(
+    plan = Sequence(
         [
             MoveTorsoAction(TorsoState.HIGH),
             ParkArmsAction(Arms.BOTH),
@@ -710,11 +728,12 @@ def test_close(immutable_multiple_robot_apartment, rclpy_node):
                 )
             ),
             CloseAction(handle, Arms.LEFT),
-        ],
-        context,
+        ]
     )
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
     assert world.get_connection_by_name(
         "cabinet10_drawer_middle_joint"
     ).position == pytest.approx(0, abs=0.1)
@@ -725,8 +744,10 @@ def test_facing(immutable_multiple_robot_apartment):
 
     with simulated_robot:
         milk_pose = world.get_body_by_name("milk.stl").global_pose
-        plan = execute_single(FaceAtAction(milk_pose), context)
-        plan.perform()
+        plan = FaceAtAction(milk_pose)
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
         milk_in_base_frame = world.transform(
             world.get_body_by_name("milk.stl").global_transform,
             robot.mobile_base.root,
@@ -766,9 +787,11 @@ def test_transport(mutable_multiple_robot_apartment, rclpy_node):
             ViewManager.get_end_effector_view(Arms.RIGHT, robot),
         ),
     )
-    plan = sequential([MoveTorsoAction(TorsoState.HIGH), description], context)
+    plan = Sequence([MoveTorsoAction(TorsoState.HIGH), description])
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
     milk_position = world.get_body_by_name("milk.stl").global_transform.to_np()[:3, 3]
     dist = np.linalg.norm(milk_position - np.array([3.1, 2.2, 0.95]))
     assert dist <= 0.02
@@ -790,9 +813,11 @@ def test_move_to_reach(immutable_multiple_robot_apartment, rclpy_node):
         ),
     )
 
-    plan = execute_single(move_to_reach, context=context)
+    plan = move_to_reach
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
 
 def test_transport_open_container(mutable_multiple_robot_apartment, rclpy_node):
@@ -819,12 +844,13 @@ def test_transport_open_container(mutable_multiple_robot_apartment, rclpy_node):
             ViewManager.get_end_effector_view(Arms.RIGHT, robot),
         ),
     )
-    plan = sequential(
-        [MoveTorsoAction(TorsoState.HIGH), ParkArmsAction(Arms.BOTH), description],
-        context,
+    plan = Sequence(
+        [MoveTorsoAction(TorsoState.HIGH), ParkArmsAction(Arms.BOTH), description]
     )
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
     spoon_position = world.get_body_by_name("spoon.stl").global_transform.to_np()[:3, 3]
     dist = np.linalg.norm(spoon_position - np.array([5.1, 3.3, 0.75]))
     assert dist <= 0.02
@@ -908,15 +934,14 @@ def test_multi_robot_gcs_navigation(immutable_multiple_robot_apartment, rclpy_no
     world, robot, context = immutable_multiple_robot_apartment
     target_position = [5, 1]
 
-    plan = execute_single(
-        PathPlanningNavigateAction(
-            Pose.from_xyz_rpy(*target_position, 0, reference_frame=world.root)
-        ),
-        context=context,
+    plan = PathPlanningNavigateAction(
+        Pose.from_xyz_rpy(*target_position, 0, reference_frame=world.root)
     )
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     robot_base_position = robot.global_transform.to_position().to_np().flatten()
 
@@ -1091,14 +1116,16 @@ def test_elevator_navigation(mutable_multiple_robot_apartment, rclpy_node):
         _world=world, elevator=elevator, floor=first_floor, robot=robot
     )
     action = ElevatorNavigation(elevator, first_floor)
-    plan = execute_single(action, context=context)
+    plan = action
 
     robot.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         1, -5, 0, reference_frame=world.root
     )
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     cabin_position = elevator.root.global_transform.to_position().to_np().flatten()
 

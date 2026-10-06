@@ -12,7 +12,6 @@ from coraplex.plans.failures import PlanFailure
 
 if TYPE_CHECKING:
     from coraplex.plans.designator import DesignatorParameters
-    from coraplex.plans.plan import Plan
     from coraplex.robot_plans.actions.base import Action
     from cramph.composites import CompositeNodeChoosingItsChild
     from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
@@ -23,21 +22,16 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class ContextIsUnavailable(DataclassException):
+class PlanNotCompiled(DataclassException):
     """
-    Raised when a plan is performed that was built without a context.
-    """
-
-    instance: Plan
-    """
-    The plan that has no context.
+    Raised when a plan executor is asked to execute before it compiled a plan.
     """
 
     def error_message(self) -> str:
-        return f"{self.instance} has no context to be performed in."
+        return "No plan was compiled to execute."
 
     def suggest_correction(self) -> str:
-        return "pass the context to the factory that builds the outermost plan."
+        return "call compile with the plan before calling execute."
 
 
 @dataclass

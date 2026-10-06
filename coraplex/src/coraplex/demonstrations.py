@@ -22,7 +22,8 @@ from coraplex.alternative_motion_mapping import AlternativeMotion
 from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import ExecutionType
 from coraplex.execution_environment import ExecutionEnvironment
-from coraplex.plans.plan import Plan
+from coraplex.plans.plan_execution import PlanExecutor
+from cramph.node import StatechartNode
 from semantic_digital_twin.adapters.ros.visualization.viz_marker import (
     VizMarkerPublisher,
 )
@@ -202,7 +203,7 @@ class RobotDemonstration(ABC):
         """
 
     @abstractmethod
-    def build_plan(self, context: Context) -> Plan:
+    def build_plan(self, context: Context) -> StatechartNode:
         """
         Build the plan this demonstration performs.
         """
@@ -253,12 +254,15 @@ class RobotDemonstration(ABC):
             if not self.is_scene_populated(world):
                 self.populate_scene(world)
             for _ in range(self.repetitions):
-                plan = self.build_plan(self.build_context(world))
+                context = self.build_context(world)
+                plan = self.build_plan(context)
+                executor = PlanExecutor(context)
                 with ExecutionEnvironment(
                     execution_type=self.execution_type,
                     collision_avoidance=self.collision_avoidance,
                 ):
-                    plan.perform()
+                    executor.compile(plan)
+                    executor.execute()
         finally:
             self.tear_down()
         return world

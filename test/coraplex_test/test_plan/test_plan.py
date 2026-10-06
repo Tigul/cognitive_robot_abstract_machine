@@ -11,14 +11,13 @@ from coraplex.datastructures.enums import (
 )
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.factories import sequential, execute_single
 from coraplex.plans.failures import EmptyUnderspecified
-from coraplex.plans.plan import Plan
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
-from cramph.node import CompositeNode
+from cramph.node import CompositeNode, StatechartNode
+from coraplex.datastructures.dataclasses import Context
 from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPose,
@@ -46,6 +45,9 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Pose
 
 from ..conftest import expand
+from coraplex.plans.plan_execution import PlanExecutor
+from coraplex.plans.underspecified import UnderspecifiedNode
+from cramph.composites import Sequence
 
 
 def _torso_position(world):
@@ -64,19 +66,18 @@ def test_sequence_runs_all_motions(immutable_model_world):
     """
     world, robot_view, context = immutable_model_world
 
-    plan = sequential(
-        [MoveTorsoAction(TorsoState.LOW), MoveTorsoAction(TorsoState.HIGH)],
-        context=context,
-    )
+    plan = Sequence([MoveTorsoAction(TorsoState.LOW), MoveTorsoAction(TorsoState.HIGH)])
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
     assert _torso_position(world) == pytest.approx(0.3, abs=0.05)
 
 
 def test_algebra_sequential_plan(apartment_world_pr2_copy_with_context):
     """
-    Parameterize a SequentialPlan using krrood parameterizer, create a fully- factorized
+    Parameterize a sequence using krrood parameterizer, create a fully- factorized
     distribution and assert the correctness of sampled values after conditioning and
     truncation.
     """
@@ -99,13 +100,17 @@ def test_algebra_sequential_plan(apartment_world_pr2_copy_with_context):
     )
 
     # resolved_navigate = next(pm_backend.evaluate(navigate_action))
-    plan = sequential([MoveTorsoAction(TorsoState.LOW), navigate_action], context)
+    plan = Sequence(
+        [MoveTorsoAction(TorsoState.LOW), UnderspecifiedNode(statement=navigate_action)]
+    )
 
     with simulated_robot:
-        plan.perform()
+        executor = PlanExecutor(context)
+        executor.compile(plan)
+        executor.execute()
 
-    assert isinstance(plan.root.nodes[1].latest_child, NavigateAction)
-    assert len(plan.root.nodes[1].children) == 1
+    assert isinstance(plan.nodes[1].latest_child, NavigateAction)
+    assert len(plan.nodes[1].children) == 1
 
 
 def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
@@ -145,11 +150,13 @@ def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
         model_registry=FullyFactorizedRegistry()
     )
 
-    plan = execute_single(pick_up_description, context)
+    plan = UnderspecifiedNode(statement=pick_up_description)
 
     with simulated_robot:
         try:
-            plan.perform()
+            executor = PlanExecutor(context)
+            executor.compile(plan)
+            executor.execute()
         except EmptyUnderspecified:
             pass
 
@@ -174,18 +181,17 @@ def test_motion_order_pick_up(mutable_model_world):
     )
     world.notify_state_change()
 
-    root = sequential(
+    root = Sequence(
         [
             PickUpAction(
                 world.get_semantic_annotations_by_type(Milk)[0],
                 Arms.LEFT,
                 grasp_description,
             ),
-        ],
-        context,
+        ]
     )
 
-    performed_motions = _motions_of(root)
+    performed_motions = _motions_of(root, context)
 
     assert performed_motions == [
         CartesianPose,
@@ -218,18 +224,17 @@ def test_motion_order_place(mutable_model_world):
     )
     world.notify_state_change()
 
-    root = sequential(
+    root = Sequence(
         [
             PlaceAction(
                 world.get_body_by_name("milk.stl"),
                 Pose.from_xyz_rpy(0.8, -1.9, 0.7, reference_frame=world.root),
                 Arms.LEFT,
             ),
-        ],
-        context,
+        ]
     )
 
-    performed_motions = _motions_of(root)
+    performed_motions = _motions_of(root, context)
 
     assert performed_motions == [
         CartesianPose,
@@ -242,14 +247,14 @@ def test_motion_order_place(mutable_model_world):
 # %% reading back what a plan moves
 
 
-def _motions_of(plan: Plan) -> list:
+def _motions_of(plan: StatechartNode, context: Context) -> list:
     """
-    Expand `plan` and report what it moves, in the order it runs.
+    Expand `plan` in `context` and report what it moves, in the order it runs.
 
     :return: One entry per motion: the gripper state a gripper motion commands, or the
         type of the Cartesian task any other motion is built around.
     """
-    return _motions_below(expand(plan))
+    return _motions_below(expand(plan, context))
 
 
 def _motions_below(goal) -> list:

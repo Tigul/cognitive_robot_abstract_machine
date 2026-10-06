@@ -7,13 +7,12 @@ from typing_extensions import Optional, Any, Dict, List
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.exceptions import NoFloorBelowRobot, NotOnASingleLevelException
-from coraplex.plans.factories import ActionLike, pause_until
 from cramph.node import StatechartNode
 from cramph.world_modification_nodes import MoveBranch
 from coraplex.robot_plans.actions.base import Action
 from coraplex.datastructures.enums import ExecutionType
 from coraplex.execution_environment import ExecutionEnvironment
-from cramph.composites import Parallel
+from cramph.composites import Parallel, PausedUntilTrue
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.monitors.joint_monitors import (
     JointPositionReached,
@@ -295,24 +294,22 @@ class ElevatorNavigation(Action):
     """
 
     @property
-    def _sub_nodes(self) -> List[ActionLike]:
+    def _sub_nodes(self) -> List[StatechartNode]:
         return [
             NavigateAction(self._pose_infront_of_elevator),
-            pause_until(
-                [
-                    NavigateAction(
-                        Pose.from_xyz_rpy(
-                            z=self._height_in_cabin,
-                            reference_frame=self.elevator.root,
-                        )
-                    )
-                ],
+            PausedUntilTrue(
                 monitor=self._elevator_open_at_floor(self._current_floor),
+                monitored_node=NavigateAction(
+                    Pose.from_xyz_rpy(
+                        z=self._height_in_cabin,
+                        reference_frame=self.elevator.root,
+                    )
+                ),
             ),
             MoveBranch(body=self.robot.root, new_parent=self.elevator.root),
-            pause_until(
-                [NavigateAction(self._pose_infront_of_elevator)],
+            PausedUntilTrue(
                 monitor=self._elevator_open_at_floor(self.target_floor),
+                monitored_node=NavigateAction(self._pose_infront_of_elevator),
             ),
             MoveBranch(body=self.robot.root, new_parent=self.world.root),
         ]
