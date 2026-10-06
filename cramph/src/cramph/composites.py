@@ -1,4 +1,4 @@
-from __future__ import division
+from __future__ import annotations, division
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -7,7 +7,7 @@ from typing import List
 
 from typing_extensions import Optional
 
-from cramph.context import StatechartContext
+from cramph.context import ContextExtension, StatechartContext
 from cramph.data_types import (
     LifeCyclePredicate,
     LifeCycleValues,
@@ -965,3 +965,162 @@ class CancelledWhenTrue(StoppedWhenTrue):
         )
         self._add_child_to_statechart(cancelled)
         cancelled.start_condition = self.monitor.last_observed_true
+
+
+# %% choosing a child while running
+
+
+@dataclass
+class ChildChooser(ABC):
+    """
+    Decides which child a :class:`CompositeNodeChoosingItsChild` runs next.
+    """
+
+    def has_choice_for(self, node: CompositeNodeChoosingItsChild) -> bool:
+        """
+        :param node: The node asking for its next child.
+        :return: Whether :meth:`choose_child` can answer `node` now; if not, `node`
+            asks again on the next tick.
+        """
+        return True
+
+    @abstractmethod
+    def choose_child(
+        self, node: CompositeNodeChoosingItsChild, context: StatechartContext
+    ) -> Optional[StatechartNode]:
+        """
+        :param node: The node asking for its next child.
+        :param context: The context the statechart runs in.
+        :return: The child `node` runs next, or None if no child is left.
+        """
+
+    def cleanup(self) -> None:
+        """
+        Releases what the chooser acquired to choose children, once the statechart
+        stopped running.
+        """
+
+
+@dataclass
+class ChildChooserAccess(ContextExtension):
+    """
+    Gives every :class:`CompositeNodeChoosingItsChild` of a statechart the chooser it
+    asks.
+    """
+
+    chooser: ChildChooser
+    """
+    The chooser every node choosing its child asks.
+    """
+
+    def cleanup(self) -> None:
+        self.chooser.cleanup()
+
+
+@dataclass(eq=False, repr=False)
+class CompositeNodeChoosingItsChild(CompositeNode):
+    """
+    Runs a child that is only chosen once this node runs, against the world as the nodes
+    before it left it.
+
+    It asks the :class:`ChildChooser` of its context when it starts, and again whenever
+    its latest child ended without succeeding. It succeeds with the first child that
+    succeeds, and fails once the chooser has no child left.
+
+    .. note:: A chosen child joins the statechart after it compiled, which compiles it
+        again, see :meth:`~cramph.statechart.Statechart.modify`.
+    """
+
+    success_decided_by = SuccessDecider.ITSELF
+    accepts_children_after_compile = True
+
+    _out_of_children: bool = field(default=False, init=False, repr=False)
+    """
+    Whether the chooser said that no child is left.
+    """
+
+    @property
+    def ran_out_of_children(self) -> bool:
+        """
+        :return: Whether the chooser said that no child is left.
+        """
+        return self._out_of_children
+
+    @property
+    def latest_child(self) -> Optional[StatechartNode]:
+        """
+        :return: The child chosen last, or None before the first choice.
+        """
+        if not self.nodes:
+            return None
+        return self.nodes[-1]
+
+    @property
+    def is_waiting_for_a_child(self) -> bool:
+        """
+        :return: Whether this node runs without a child that could still succeed.
+        """
+        if self._out_of_children:
+            return False
+        if self.life_cycle_state != LifeCycleValues.RUNNING:
+            return False
+        latest_child = self.latest_child
+        return latest_child is None or latest_child.life_cycle_state in (
+            LifeCycleValues.FAILED,
+            LifeCycleValues.INTERRUPTED,
+        )
+
+    def choose_child(self, context: StatechartContext) -> None:
+        """
+        Ask the chooser of `context` for the next child and follow its answer.
+        """
+        self.choose_child_with(
+            context.require_extension(ChildChooserAccess).chooser, context
+        )
+
+    def choose_child_with(
+        self, chooser: ChildChooser, context: StatechartContext
+    ) -> bool:
+        """
+        Run the child `chooser` chooses next, or fail if it has no child left.
+
+        :param chooser: The chooser to ask.
+        :param context: The context the statechart runs in.
+        :return: Whether `chooser` answered, rather than having no choice yet.
+        """
+        if not chooser.has_choice_for(self):
+            return False
+        child = chooser.choose_child(self, context)
+        if child is None:
+            self.give_up()
+            return True
+        self.adopt_chosen_child(child)
+        return True
+
+    def adopt_chosen_child(self, child: StatechartNode) -> None:
+        """
+        Run `child` next, succeeding once it succeeds.
+        """
+        self._add_child_to_statechart(child)
+        self.success_condition = logic_or(self.success_condition, child.is_succeeded)
+        self.statechart.request_rebuild(self)
+
+    def give_up(self) -> None:
+        """
+        Fail, because no child is left to run.
+        """
+        self._out_of_children = True
+        self.fail_condition = Scalar.const_true()
+        self.statechart.request_rebuild(self)
+
+    def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
+        """
+        Report what the latest child observed last, which outlasts it, because a node
+        that ended observes nothing any more.
+        """
+        latest_child = self.latest_child
+        if latest_child is None:
+            return NodeArtifacts(
+                observation=Scalar(float(ObservationStateValues.UNKNOWN))
+            )
+        return NodeArtifacts(observation=Scalar(latest_child.last_observation))

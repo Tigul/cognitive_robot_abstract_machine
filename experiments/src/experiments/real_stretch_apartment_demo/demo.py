@@ -44,7 +44,7 @@ from coraplex.datastructures.enums import (
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.demonstrations import RobotDemonstration
 from coraplex.plans.factories import sequential
-from coraplex.plans.plan_node import PlanNode
+from coraplex.plans.plan import Plan
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.navigation import LookAtAction, NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
@@ -160,7 +160,7 @@ class StretchApartmentDemonstration(RobotDemonstration):
             alternative_motion_mappings=self.alternative_motion_mappings,
         )
 
-    def build_plan(self, context: Context) -> PlanNode:
+    def build_plan(self, context: Context) -> Plan:
         """
         Carry the cereal box from its shelf to the bedside table and back again.
         """

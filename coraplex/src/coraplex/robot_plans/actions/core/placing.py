@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from typing_extensions import Any, Dict, TYPE_CHECKING
+from typing_extensions import Any, Dict, List, TYPE_CHECKING
 
-from coraplex.plans.attachment_nodes import ReAttachNode
-from coraplex.plans.plan_node import PlanNode
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import (
     or_,
@@ -18,9 +16,11 @@ from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import Arms
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.exceptions import BodyIsNotHeld
-from coraplex.plans.factories import sequential
+from coraplex.plans.factories import ActionLike
 from coraplex.querying.predicates import GripperIsFree
-from coraplex.robot_plans.actions.base import ActionDescription
+from coraplex.robot_plans.actions.base import Action
+from cramph.composites import Sequence
+from cramph.world_modification_nodes import MoveBranch
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.mixins import (
     HasGraspDetectionThreshold,
@@ -39,9 +39,9 @@ if TYPE_CHECKING:
     from semantic_digital_twin.robots.robot_parts import EndEffector
 
 
-@dataclass
+@dataclass(eq=False, repr=False)
 class PlaceAction(
-    ActionDescription,
+    Action,
     PlaceTuningParameters,
     HasGraspDetectionThreshold,
     MovesToolCenterPoint,
@@ -53,8 +53,9 @@ class PlaceAction(
 
     object_designator: Body
     """
-    Object designator_description describing the object that should be place
+    Object designator_description describing the object that should be place.
     """
+
     target_location: Pose
     """
     Pose in the world at which the object should be placed.
@@ -62,7 +63,7 @@ class PlaceAction(
 
     arm: Arms
     """
-    Arm that is currently holding the object
+    Arm that is currently holding the object.
     """
 
     grasp_release_threshold: float = field(default=0.1, kw_only=True)
@@ -72,14 +73,15 @@ class PlaceAction(
     :func:`~semantic_digital_twin.reasoning.robot_predicates.is_body_gripped`).
     """
 
-    def _retract_plan(self, retract_pose: Pose) -> PlanNode:
+    def _retract(self, retract_pose: Pose) -> Sequence:
         """
-        :return: The plan that re-parents the placed object back to the world and
-            retracts the end effector away from it.
+        :return: The steps that re-parent the placed object back to the world and
+            retract the end effector away from it.
         """
-        return sequential(
-            [
-                ReAttachNode(body=self.object_designator, new_parent=self.world.root),
+        return Sequence(
+            name=f"{self.name}/retract",
+            nodes=[
+                MoveBranch(body=self.object_designator, new_parent=self.world.root),
                 self.tool_center_point_goal(
                     retract_pose,
                     self.arm,
@@ -109,45 +111,40 @@ class PlaceAction(
                 end_effector, self.object_designator
             )
 
-        previous_pick = self.plan_node.get_previous_node_by_designator_type(
-            PickUpAction
-        )
+        previous_pick = self.statechart.get_preceding_node_by_type(self, PickUpAction)
         if previous_pick is None:
             raise BodyIsNotHeld(self.object_designator, end_effector)
-        return previous_pick.designator.grasp_description
+        return previous_pick.grasp_description
 
     @property
-    def _action_plan(self) -> PlanNode:
+    def _sub_nodes(self) -> List[ActionLike]:
         end_effector = ViewManager.get_arm_view(self.arm, self.robot).end_effector
         grasp_description = self._grasp_description(end_effector)
         transport_pose, placing_pose, retract_pose = grasp_description.pose_sequence(
             self.target_location, self.object_designator, reverse=True
         )
 
-        return sequential(
-            [
-                self.tool_center_point_goal(
-                    transport_pose,
-                    self.arm,
-                    allow_gripper_collision=True,
-                    max_linear_velocity=self.transport_linear_velocity,
-                ),
-                self.tool_center_point_goal(
-                    placing_pose,
-                    self.arm,
-                    allow_gripper_collision=True,
-                    max_linear_velocity=self.placing_linear_velocity,
-                ),
-                self.gripper_goal(
-                    GripperState.OPEN,
-                    self.arm,
-                    allow_gripper_collision=True,
-                    finger_velocity=self.release_opening_velocity,
-                ),
-                self._retract_plan(retract_pose),
-            ],
-            self.context,
-        )
+        return [
+            self.tool_center_point_goal(
+                transport_pose,
+                self.arm,
+                allow_gripper_collision=True,
+                max_linear_velocity=self.transport_linear_velocity,
+            ),
+            self.tool_center_point_goal(
+                placing_pose,
+                self.arm,
+                allow_gripper_collision=True,
+                max_linear_velocity=self.placing_linear_velocity,
+            ),
+            self.gripper_goal(
+                GripperState.OPEN,
+                self.arm,
+                allow_gripper_collision=True,
+                finger_velocity=self.release_opening_velocity,
+            ),
+            self._retract(retract_pose),
+        ]
 
     @staticmethod
     def pre_condition(

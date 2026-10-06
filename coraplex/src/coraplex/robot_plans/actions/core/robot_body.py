@@ -168,7 +168,7 @@ class FollowToolCenterPointPathAction(Action, MovesToolCenterPoint):
         if self.orientation_threshold is not None:
             thresholds["orientation_threshold"] = self.orientation_threshold
         return CartesianPose(
-            root_link=self.context.controlled_root,
+            root_link=self.controlled_root,
             tip_link=ViewManager.get_end_effector_view(self.arm, self.robot).tool_frame,
             goal_pose=target,
             **thresholds,
@@ -206,7 +206,7 @@ class MoveManipulatorAction(Action, MovesToolCenterPoint):
     @property
     def _sub_nodes(self) -> List[StatechartNode]:
         goal = CartesianPose(
-            root_link=self.context.controlled_root,
+            root_link=self.controlled_root,
             tip_link=self.end_effector.tool_frame,
             goal_pose=self.target_pose,
             translation_threshold=self.resolved_position_threshold(),

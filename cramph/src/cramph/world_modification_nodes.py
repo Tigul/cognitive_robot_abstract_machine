@@ -6,7 +6,9 @@ import krrood.symbolic_math.symbolic_math as sm
 from cramph.context import StatechartContext
 from cramph.data_types import SuccessDecider
 from cramph.node import NodeArtifacts, StatechartNode
-from semantic_digital_twin.world_description.world_entity import Body
+from semantic_digital_twin.world_description.world_entity import (
+    KinematicStructureEntity,
+)
 
 # %% changing the kinematic structure
 
@@ -23,12 +25,12 @@ class MoveBranch(StatechartNode):
 
     success_decided_by = SuccessDecider.ITSELF
 
-    body: Body = field(kw_only=True)
+    body: KinematicStructureEntity = field(kw_only=True)
     """
     The root of the branch that is moved.
     """
 
-    new_parent: Body = field(kw_only=True)
+    new_parent: KinematicStructureEntity = field(kw_only=True)
     """
     The body the branch is moved under.
     """

@@ -20,7 +20,7 @@ from krrood.ormatic.data_access_objects.base import HasGeneric
 from krrood.ormatic.utils import classes_of_package
 from krrood.utils import recursive_subclasses
 from .datastructures.enums import ExecutionType
-from .plans.executables import GiskardExecutable
+from coraplex.execution_environment import ExecutionEnvironment
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 
 if TYPE_CHECKING:
@@ -65,7 +65,7 @@ class AlternativeMotion(HasGeneric[AbstractRobotType], ABC):
             if (
                 issubclass(alternative, motion)
                 and alternative.original_class() == robot_view.__class__
-                and GiskardExecutable.execution_type
+                and ExecutionEnvironment.current_execution_type
                 in (
                     alternative.execution_type
                     if isinstance(alternative.execution_type, list_like_classes)
@@ -81,9 +81,9 @@ class AlternativeMotion(HasGeneric[AbstractRobotType], ABC):
         Discover every concrete :class:`AlternativeMotion` for every robot.
 
         Importing ``coraplex.alternative_motion_mappings`` walks and imports its
-        submodules, registering their :class:`AlternativeMotion` subclasses.
-        Mainly a helper to pass to the context of a demo to make it robot agnostic with regards to the alternative
-        motion mappings.
+        submodules, registering their :class:`AlternativeMotion` subclasses. Mainly a
+        helper to pass to the context of a demo to make it robot agnostic with regards
+        to the alternative motion mappings.
 
         :return: Every concrete alternative motion known to coraplex.
         """

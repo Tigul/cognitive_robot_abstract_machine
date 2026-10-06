@@ -170,8 +170,8 @@ class ExecutorExtension:
 
     def before_recompile(self, executor: StatechartExecutor) -> None:
         """
-        Called before a statechart that already compiled compiles again, which blocks
-        the tick until :meth:`after_compile` is called.
+        Called before a statechart that already compiled compiles again, or before a
+        node of it chooses its child, either of which blocks the tick.
 
         :param executor: The executor this extension belongs to.
         """

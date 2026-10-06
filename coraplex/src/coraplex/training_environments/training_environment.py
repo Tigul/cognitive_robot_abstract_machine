@@ -29,8 +29,7 @@ from coraplex.plans.failures import (
     EmptyUnderspecified,
 )
 from coraplex.plans.plan import Plan
-from coraplex.plans.underspecified import UnderspecifiedNode
-from coraplex.robot_plans.actions.base import ActionDescription
+from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.actions.core.misc import MoveToReach
 from random_events.interval import closed
 from random_events.product_algebra import SimpleEvent
@@ -59,7 +58,7 @@ class TrainingEnvironment(ABC):
     A training environment for generating data for the parameterization of actions.
     """
 
-    action_type: ClassVar[type[ActionDescription]]
+    action_type: ClassVar[type[Action]]
     """
     The type of action that is trained.
     """
@@ -67,6 +66,11 @@ class TrainingEnvironment(ABC):
     executed_plans: list[Plan] = field(default_factory=list)
     """
     The executed plans during training.
+    """
+
+    tried_actions: list[Action] = field(default_factory=list)
+    """
+    Every action the executed plans tried, whether it succeeded or not.
     """
 
     visualize: bool = False
@@ -129,6 +133,7 @@ class TrainingEnvironment(ABC):
                 pass
             self.executed_plans.append(plan)
 
+        self.tried_actions.extend(plan.root.children)
         number_of_executed_variants = len(plan.root.children)
 
         if self.visualize:
@@ -180,7 +185,7 @@ class MoveToReachTrainingEnvironment(TrainingEnvironment):
 
         return world_with_urdf
 
-    def setup_plan(self, limit: int = 10, **kwargs) -> UnderspecifiedNode:
+    def setup_plan(self, limit: int = 10, **kwargs) -> Plan:
 
         world = self.setup_world()
         [robot] = world.get_semantic_annotations_by_type(AbstractRobot)
@@ -215,7 +220,7 @@ class MoveToReachTrainingEnvironment(TrainingEnvironment):
 
         context = Context(world=world, robot=robot, query_backend=query_backend)
 
-        return execute_single(move_to_reach, context=context).plan
+        return execute_single(move_to_reach, context=context)
 
     def setup_backend(self, underspecified_action: Match) -> ProbabilisticBackend:
         """

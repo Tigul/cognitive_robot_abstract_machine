@@ -11,6 +11,7 @@ from coraplex.plans.plan import Plan
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
+from cramph.composites import Sequence
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
@@ -31,59 +32,40 @@ def simple_plan(immutable_model_world):
             ParkArmsAction(Arms.BOTH),
         ],
         context=context,
-    ).plan
+    )
     return plan
 
 
-@pytest.mark.skip("Execution Data is not recorded right now")
-def test_plan_serialization(coraplex_testing_session, simple_plan):
-    session = coraplex_testing_session
+def _stored_and_loaded(session, plan: Plan) -> Plan:
+    """
+    :return: `plan`, written to the database and read back.
+    """
+    session.add(to_dao(plan))
+    session.commit()
+    return session.scalars(select(PlanDAO)).one().from_dao()
 
+
+def test_a_performed_plan_is_read_back_with_its_steps(
+    coraplex_testing_session, simple_plan
+):
     with simulated_robot:
         simple_plan.perform()
 
-    dao = to_dao(simple_plan)
-    session.add(dao)
-    session.commit()
+    recreated_plan = _stored_and_loaded(coraplex_testing_session, simple_plan)
 
-    result = session.scalars(
-        select(ActionNodeDAO).join(NavigateActionDAO, ActionNodeDAO.designator)
-    ).all()
-    assert all(
-        [
-            r.execution_data.execution_start_pose is not None
-            and r.execution_data.execution_end_pose is not None
-            for r in result
-        ]
+    assert type(recreated_plan.root) is Sequence
+    assert [type(step) for step in recreated_plan.root.nodes] == [
+        type(step) for step in simple_plan.root.nodes
+    ]
+    assert (
+        recreated_plan.root.nodes[1].torso_state
+        == simple_plan.root.nodes[1].torso_state
     )
-
-    motions = session.scalars(select(MotionNodeDAO)).all()
-    assert len(motions) == 3
-
-
-def test_replay_simple_plan(coraplex_testing_session, simple_plan):
-
-    with simulated_robot:
-        simple_plan.perform()
-
-    session = coraplex_testing_session
-
-    dao = to_dao(simple_plan)
-    session.add(dao)
-    session.commit()
-
-    fetched_plan = session.scalars(select(PlanMappingDAO)).one()
-    recreated_plan: Plan = fetched_plan.from_dao()
-
-    # TODO: this does not work yet as semantic annotations cannot be copied.
-    # recreated_plan.prepare_for_replay()
-    # recreated_plan.replay()
 
 
 @pytest.fixture
 def complex_plan(mutable_model_world):
     world, robot_view, context = mutable_model_world
-    context.evaluate_conditions = False
 
     plan = execute_single(
         TransportAction(
@@ -99,48 +81,17 @@ def complex_plan(mutable_model_world):
             ),
         ),
         context=context,
-    ).plan
+    )
 
     return plan
 
 
-@pytest.mark.skip("Execution Data is not recorded right now")
-def test_execution_data_of_complex_plan(coraplex_testing_session, complex_plan):
+def test_a_performed_transport_is_read_back(coraplex_testing_session, complex_plan):
 
     with simulated_robot:
         complex_plan.perform()
 
-    session = coraplex_testing_session
-    plan = complex_plan
-    dao = to_dao(plan)
-    session.add(dao)
-    session.commit()
+    recreated_plan = _stored_and_loaded(coraplex_testing_session, complex_plan)
 
-    pick_up_node = session.scalars(
-        select(ActionNodeDAO).join(PickUpActionDAO, ActionNodeDAO.designator)
-    ).one()
-    place_node = session.scalars(
-        select(ActionNodeDAO).join(PlaceActionDAO, ActionNodeDAO.designator)
-    ).one()
-
-    assert plan.initial_world is not None
-    assert pick_up_node.execution_data is not None
-    assert place_node.execution_data is not None
-
-
-def test_replay_complex_plan_from_db(coraplex_testing_session, complex_plan):
-
-    with simulated_robot:
-        complex_plan.perform()
-
-    complex_plan.initial_world = None
-    session = coraplex_testing_session
-
-    plan = complex_plan
-    dao = to_dao(plan)
-    session.add(dao)
-    session.commit()
-
-    fetched_plan = session.scalars(select(PlanMappingDAO)).one()
-
-    recreated_plan = fetched_plan.from_dao()
+    assert type(recreated_plan.root) is TransportAction
+    assert recreated_plan.root.arm == complex_plan.root.arm

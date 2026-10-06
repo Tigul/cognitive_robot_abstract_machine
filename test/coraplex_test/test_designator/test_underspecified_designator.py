@@ -17,13 +17,12 @@ from coraplex.datastructures.enums import (
 )
 from coraplex.datastructures.grasp import GraspDescription
 
-from coraplex.language import SequentialNode
 from coraplex.execution_environment import simulated_robot
-from coraplex.plans.executables import Executable
-from coraplex.plans.factories import sequential, execute_single
+from coraplex.plans.factories import ActionLike, sequential, execute_single
 from coraplex.plans.failures import PlanFailure
-from coraplex.plans.plan_node import ExecutionBoundaryNode, PlanNode
-from coraplex.robot_plans.actions.base import ActionDescription
+from coraplex.plans.function_call import FunctionCall
+from coraplex.plans.plan import Plan
+from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
@@ -85,22 +84,22 @@ def register_probe() -> UUID:
 
 
 @dataclass(eq=False, repr=False)
-class RecordingExecutionNode(ExecutionBoundaryNode):
+class RecordingAction(Action):
     """
-    A leaf plan node whose parsed executable records the world it ran against and
-    mutates a probed degree of freedom, failing once a configured number of attempts
-    have been recorded.
+    An action whose execution deterministically records itself and can be made to fail
+    on a specific attempt, for testing the trial-then-real handling of an underspecified
+    node's candidates without depending on real motion physics.
     """
 
     probe_key: UUID = field(kw_only=True)
     """
-    Id of the `TrialProbe` this node's attempts are recorded to.
+    Id of the `TrialProbe` this action's attempts are recorded to.
     """
 
     dof_id: UUID = field(kw_only=True)
     """
-    Id of the degree of freedom this node mutates on every attempt, to make world state
-    changes observable.
+    Id of the degree of freedom this action mutates on every attempt, to make world
+    state changes observable.
     """
 
     fail_on_attempt_number: Optional[int] = field(kw_only=True, default=None)
@@ -109,72 +108,33 @@ class RecordingExecutionNode(ExecutionBoundaryNode):
     None.
     """
 
-    def notify(self):
-        pass
+    @property
+    def _sub_nodes(self) -> List[ActionLike]:
+        return [FunctionCall(function=self._record_attempt)]
 
-    def parse(self) -> Executable:
-        return RecordingExecutable(
-            context=self.context,
-            probe_key=self.probe_key,
-            dof_id=self.dof_id,
-            fail_on_attempt_number=self.fail_on_attempt_number,
-        )
-
-
-@dataclass
-class RecordingExecutable(Executable):
-    """
-    Executable half of `RecordingExecutionNode`; see its docstring.
-    """
-
-    probe_key: UUID = field(kw_only=True)
-    dof_id: UUID = field(kw_only=True)
-    fail_on_attempt_number: Optional[int] = field(kw_only=True)
-
-    def execute(self) -> None:
+    def _record_attempt(self) -> None:
+        """
+        Record the world this attempt runs against and mutate the probed degree of
+        freedom, failing on the configured attempt.
+        """
+        world = self.world
         probe = _registered_probes[self.probe_key]
         probe.calls.append(
             TrialCall(
-                world=self.context.world,
-                position_at_entry=self.context.world.state[self.dof_id].position,
+                world=world,
+                position_at_entry=world.state[self.dof_id].position,
             )
         )
-        self.context.world.state[self.dof_id].position = len(probe.calls)
-        self.context.world.notify_state_change()
+        world.state[self.dof_id].position = len(probe.calls)
+        world.notify_state_change()
         if len(probe.calls) == self.fail_on_attempt_number:
             raise PlanFailure()
 
 
-@dataclass
-class RecordingAction(ActionDescription):
-    """
-    An action whose execution deterministically records itself and can be made to fail
-    on a specific attempt, for testing `UnderspecifiedNode`'s trial-then-real candidate
-    handling without depending on real motion physics.
-    """
-
-    probe_key: UUID = field(kw_only=True)
-    dof_id: UUID = field(kw_only=True)
-    fail_on_attempt_number: Optional[int] = field(kw_only=True, default=None)
-
-    @property
-    def _action_plan(self) -> PlanNode:
-        return execute_single(
-            RecordingExecutionNode(
-                probe_key=self.probe_key,
-                dof_id=self.dof_id,
-                fail_on_attempt_number=self.fail_on_attempt_number,
-            )
-        )
-
-
 def test_underspecified_action(apartment_world_pr2_copy_with_context):
     """
-    Test that an underspecified action resolves to a concrete candidate and parses into
-    an executable.
-
-    Execution is deferred to parse().execute(), so performing the node only expands it;
-    the resolved candidate is not performed here.
+    Test that an underspecified action resolves to a concrete candidate, which runs as
+    the node's child.
     """
     world, robot, context = apartment_world_pr2_copy_with_context
     action = a(NavigateAction)(
@@ -186,28 +146,18 @@ def test_underspecified_action(apartment_world_pr2_copy_with_context):
         ),
     )
 
-    plan = execute_single(action_like=action, context=context).plan
+    plan = execute_single(action_like=action, context=context)
     with simulated_robot:
         plan.perform()
 
-    assert plan.root.status == LifeCycleValues.SUCCEEDED
-    candidate = plan.root.children[0]
-    assert isinstance(candidate.action, NavigateAction)
-    assert plan.root.parse() is not None
-    assert plan.root._proposals is None, (
-        "the action iterator must be released once grounding succeeds, so any resources a "
-        "candidate generator only holds to validate against (for example a location's "
-        "deep-copied test world) are not retained for the node's whole lifetime"
-    )
+    assert plan.root.life_cycle_state == LifeCycleValues.SUCCEEDED
+    assert isinstance(plan.root.latest_child, NavigateAction)
 
 
 def test_underspecified_action_with_ellipsis(apartment_world_pr2_copy_with_context):
     """
-    Test that an underspecified action resolves and parses when a factory for a spatial
-    type is used with ellipsis.
-
-    Execution is deferred to parse().execute(), so performing the node only expands it;
-    the resolved candidate is not performed here.
+    Test that an underspecified action resolves when a factory for a spatial type is
+    used with ellipsis.
     """
     world, robot, context = apartment_world_pr2_copy_with_context
     context.query_backend = ProbabilisticBackend()
@@ -223,14 +173,12 @@ def test_underspecified_action_with_ellipsis(apartment_world_pr2_copy_with_conte
         ),
     )
 
-    plan = execute_single(action_like=action, context=context).plan
+    plan = execute_single(action_like=action, context=context)
     with simulated_robot:
         plan.perform()
 
-    assert plan.root.status == LifeCycleValues.SUCCEEDED
-    candidate = plan.root.children[-1]
-    assert isinstance(candidate.action, NavigateAction)
-    assert plan.root.parse() is not None
+    assert plan.root.life_cycle_state == LifeCycleValues.SUCCEEDED
+    assert isinstance(plan.root.latest_child, NavigateAction)
 
 
 def test_underspecified_language(apartment_world_pr2_copy_with_context):
@@ -243,7 +191,7 @@ def test_underspecified_language(apartment_world_pr2_copy_with_context):
         VerticalAlignment.NoAlignment,
         robot.left_arm.end_effector,
     )
-    plan_generator = an(sequential, target_type=SequentialNode)(
+    plan_generator = an(sequential, target_type=Plan)(
         children=[
             a(NavigateAction)(
                 target_location=(
@@ -291,13 +239,13 @@ def test_isolation_rejected_candidate_never_touches_real_world(
         dof_id=dof.id,
         fail_on_attempt_number=variable_from([1, None]),
     )
-    plan = execute_single(action_like=action, context=context).plan
+    plan = execute_single(action_like=action, context=context)
     with simulated_robot:
         plan.perform()
 
-    assert plan.root.status == LifeCycleValues.SUCCEEDED
+    assert plan.root.life_cycle_state == LifeCycleValues.SUCCEEDED
     assert len(plan.root.children) == 1
-    assert plan.root.children[0].designator.fail_on_attempt_number is None
+    assert plan.root.children[0].fail_on_attempt_number is None
 
     probe = _registered_probes[probe_key]
     assert len(probe.calls) == 3
@@ -332,7 +280,7 @@ def test_rejected_candidates_are_tried_against_one_copy(
         dof_id=dof.id,
         fail_on_attempt_number=variable_from([1, 2, None]),
     )
-    plan = execute_single(action_like=action, context=context).plan
+    plan = execute_single(action_like=action, context=context)
     with simulated_robot:
         plan.perform()
 
@@ -364,16 +312,14 @@ def test_real_failure_keeps_state_and_next_trial_reflects_it(
         dof_id=dof.id,
         fail_on_attempt_number=variable_from([2, None]),
     )
-    plan = execute_single(action_like=action, context=context).plan
+    plan = execute_single(action_like=action, context=context)
     with simulated_robot:
         plan.perform()
 
-    assert plan.root.status == LifeCycleValues.SUCCEEDED
+    assert plan.root.life_cycle_state == LifeCycleValues.SUCCEEDED
     # Both the failed and the accepted candidate are attached to the tree - a real
     # failure is not undone, only worked around by trying the next candidate.
-    assert [
-        child.designator.fail_on_attempt_number for child in plan.root.children
-    ] == [
+    assert [child.fail_on_attempt_number for child in plan.root.children] == [
         2,
         None,
     ]

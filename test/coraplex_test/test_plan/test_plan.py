@@ -1,14 +1,9 @@
-import os
+"""
+Tests for performing plans and for what their actions move.
+"""
 
 import pytest
 
-from cramph.data_types import LifeCycleValues
-from krrood.rustworkx_utils.graph_visualizer_base import (
-    GraphLayout,
-    GraphVisualizerBackend,
-)
-
-from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
     ApproachDirection,
     VerticalAlignment,
@@ -16,25 +11,19 @@ from coraplex.datastructures.enums import (
 )
 from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot
-from coraplex.orm.ormatic_interface import *  # type: ignore
-from coraplex.plans.condition_nodes import ConditionNode
-from coraplex.plans.executables import GiskardExecutable
+from coraplex.plans.factories import sequential, execute_single
+from coraplex.plans.failures import EmptyUnderspecified
+from coraplex.plans.plan import Plan
+from coraplex.robot_plans.actions.core.navigation import NavigateAction
+from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.placing import PlaceAction
+from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
 from cramph.node import CompositeNode
 from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPose,
     CartesianPosition,
 )
-from semantic_digital_twin.datastructures.definitions import GripperState
-from coraplex.plans.factories import sequential, execute_single
-from coraplex.plans.failures import EmptyUnderspecified
-from coraplex.plans.plan import Plan
-from coraplex.plans.plan_node import PlanNode, ActionNode
-from coraplex.robot_plans.actions.core.navigation import NavigateAction
-from .test_language import ActionBuiltAsAPlanTree
-from coraplex.robot_plans.actions.core.pick_up import PickUpAction
-from coraplex.robot_plans.actions.core.placing import PlaceAction
-from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
 from krrood.entity_query_language.backends import ProbabilisticBackend
 from krrood.entity_query_language.factories import (
     variable_from,
@@ -45,354 +34,18 @@ from krrood.parametrization.model_registries import (
     FullyFactorizedRegistry,
 )
 from krrood.parametrization.parameterizer import UnderspecifiedParameters
-from semantic_digital_twin.adapters.urdf import URDFParser
-from semantic_digital_twin.datastructures.definitions import TorsoState
+from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
 from semantic_digital_twin.orm.model import (
     Point3Mapping,
     QuaternionMapping,
     PoseMapping,
 )
-from semantic_digital_twin.robots.robot_parts import (
-    EndEffector,
-)
-from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Pose
 from semantic_digital_twin.robots.pr2 import PR2Joint
+from semantic_digital_twin.robots.robot_parts import EndEffector
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
+from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Pose
 
-
-@pytest.fixture(scope="session")
-def urdf_context():
-    """
-    Build a fresh URDF-based world and context for plan graph unit tests.
-    """
-    Plan.current_plan = None
-    world = URDFParser.from_file(
-        os.path.join(
-            os.path.dirname(__file__),
-            "../../../..",
-            "..",
-            "coraplex",
-            "resources",
-            "robots",
-            "pr2.urdf",
-        )
-    ).parse()
-    context = Context(world, None, None)
-    return world, context
-
-
-# ---- Plan graph tests (no robot/world side effects needed) ----
-
-
-def test_plan_construction():
-    node = PlanNode()
-    plan = Plan()
-    plan.add_node(node)
-    assert node == plan.root
-    assert len(plan.edges) == 0
-    assert len(plan.nodes) == 1
-    assert plan == node.plan
-
-
-def test_add_edge():
-    node = PlanNode()
-    plan = Plan()
-    plan.add_node(node)
-    node2 = PlanNode()
-    plan.add_edge(node, node2)
-    assert node == plan.root
-    assert node in plan.nodes
-    assert len(plan.nodes) == 2
-    assert len(plan.edges) == 1
-    assert node2 in plan.nodes
-    assert plan is node2.plan
-
-
-def test_add_node():
-    plan = Plan()
-    node = PlanNode()
-    node2 = PlanNode()
-    plan.add_node(node)
-    plan.add_node(node2)
-    assert node in plan.all_nodes
-    assert node2 in plan.all_nodes
-    assert (node, node2) not in plan.edges
-    assert plan is node2.plan
-
-
-def test_add_edge_with_layer_index():
-    """
-    Test that the layer index is correctly set when adding an edge.
-    """
-    root = PlanNode()
-    plan = Plan()
-    plan.add_node(root)
-    child1 = PlanNode()
-    child2 = PlanNode()
-    plan.add_edge(root, child1)
-    plan.add_edge(root, child2)
-
-    child3 = PlanNode()
-    plan.add_edge(root, child3, 1)
-    assert root.layer_index == 0
-    assert child1.layer_index == 0
-    assert child2.layer_index == 2
-    assert child3.layer_index == 1
-
-
-def test_neighbours_at_edges_return_none():
-    """
-    The outermost siblings have no neighbour on the outer side, which must be reported
-    as ``None`` rather than raising ``IndexError``.
-    """
-    root = PlanNode()
-    plan = Plan()
-    plan.add_node(root)
-    left_child = PlanNode()
-    right_child = PlanNode()
-    plan.add_edge(root, left_child)
-    plan.add_edge(root, right_child)
-
-    assert left_child.left_neighbour is None
-    assert right_child.right_neighbour is None
-    assert left_child.right_neighbour is right_child
-    assert right_child.left_neighbour is left_child
-
-
-def test_simplify_keeps_designators_with_different_parameters():
-    """
-    ``DesignatorNode.simplify`` may only merge a child whose designator has the same
-    type *and* the same parameters; differing parameters must be preserved.
-    """
-    plan = Plan()
-    parent = ActionNode(designator=MoveTorsoAction(TorsoState.HIGH))
-    different_child = ActionNode(designator=MoveTorsoAction(TorsoState.LOW))
-    plan.add_node(parent)
-    plan.add_edge(parent, different_child)
-
-    parent.simplify()
-
-    assert different_child in parent.children
-
-    equal_child = ActionNode(designator=MoveTorsoAction(TorsoState.HIGH))
-    plan.add_edge(parent, equal_child)
-    parent.simplify()
-
-    assert equal_child not in parent.children
-
-
-def test_plan_all_parents():
-    plan = Plan()
-    node = PlanNode()
-    node2 = PlanNode()
-    plan.add_edge(node, node2)
-    node3 = PlanNode()
-    plan.add_edge(node2, node3)
-
-    assert node.path == []
-    assert node2.path == [node]
-    assert node3.path == [node2, node]
-
-
-def test_path_after_node_removal():
-    """
-    Removing a node leaves a hole in the rustworkx index space, so a remaining node can
-    end up with an index that is no longer smaller than the node count.
-
-    ``path``/``depth`` must keep working in that case (they previously relied on
-    ``rx.all_shortest_paths``, which panics on non-contiguous indices).
-    """
-
-    class _Node(PlanNode):
-        def notify(self):
-            pass
-
-    plan = Plan()
-    root = _Node()
-    # A removable leaf that takes a low index, so removing it leaves a hole
-    # below the index of the deeper chain nodes.
-    removable = _Node()
-    n2 = _Node()
-    n3 = _Node()
-    n4 = _Node()
-
-    plan.add_edge(root, removable)
-    plan.add_edge(root, n2)
-    plan.add_edge(n2, n3)
-    plan.add_edge(n3, n4)
-
-    plan.remove_node(removable)
-
-    # The deepest node's index now exceeds the remaining node count.
-    assert n4.index >= len(plan.all_nodes)
-
-    assert n4.path == [n3, n2, root]
-    assert n4.depth == 3
-    assert root.path == []
-    assert root.depth == 0
-
-
-def test_plan_node_children():
-
-    plan = Plan()
-    node = PlanNode()
-    plan.add_node(node)
-    assert [] == node.children
-
-    node2 = PlanNode()
-    plan.add_edge(node, node2)
-    assert [node2] == node.children
-
-    node3 = PlanNode()
-    plan.add_edge(node, node3)
-    assert [node2, node3] == node.children
-
-
-def test_plan_node_recursive_children():
-    node = PlanNode()
-    plan = Plan()
-    plan.add_node(node)
-
-    assert [] == node.descendants
-
-    node2 = PlanNode()
-    plan.add_edge(node, node2)
-    assert [node2] == node.descendants
-
-    node3 = PlanNode()
-    plan.add_edge(node2, node3)
-    assert [node2, node3] == node.descendants
-
-
-def test_plan_node_is_leaf():
-    node = PlanNode()
-    plan = Plan()
-    node2 = PlanNode()
-    plan.add_edge(node, node2)
-
-    assert not node.is_leaf
-    assert node2.is_leaf
-
-
-def test_plan_node_subtree():
-    node = PlanNode()
-    node2 = PlanNode()
-    node3 = PlanNode()
-    plan = Plan()
-    plan.add_edge(node, node2)
-    plan.add_edge(node2, node3)
-
-    assert node.descendants == [node2, node3]
-    assert node2.descendants == [node3]
-
-
-def test_plan_layers():
-
-    node = PlanNode()
-    node1 = PlanNode()
-    node2 = PlanNode()
-    node3 = PlanNode()
-    plan = Plan()
-    plan.add_edge(node, node1)
-    plan.add_edge(node, node2)
-    plan.add_edge(node2, node3)
-
-    layers = plan.layers
-    assert len(layers) == 3
-    assert node in layers[0]
-    assert node2 in layers[1]
-    assert node3 in layers[2]
-
-    assert layers[0] == [node]
-    assert layers[1] == [node1, node2]
-    assert layers[2] == [node3]
-
-
-def test_depth_first_nodes_order():
-
-    root = PlanNode()
-    node1 = PlanNode()
-    node2 = PlanNode()
-    node3 = PlanNode()
-    node4 = PlanNode()
-
-    plan = Plan()
-
-    plan.add_edge(root, node1)
-    plan.add_edge(root, node3)
-    plan.add_edge(node1, node2)
-    plan.add_edge(node3, node4)
-
-    assert len(plan.nodes) == 5
-
-    assert plan.nodes == [root, node1, node2, node3, node4]
-
-
-def test_layer_position():
-
-    root = PlanNode()
-    node1 = PlanNode()
-    node2 = PlanNode()
-    node3 = PlanNode()
-    node4 = PlanNode()
-    node5 = PlanNode()
-
-    plan = Plan()
-    plan.add_edge(root, node1)
-    plan.add_edge(node1, node2)
-    plan.add_edge(root, node3)
-    plan.add_edge(node3, node4)
-    plan.add_edge(node3, node5)
-
-    assert root.layer_index == 0
-    assert node1.layer_index == 0
-    assert node3.layer_index == 1
-    assert node2.layer_index == 0
-    assert node4.layer_index == 0
-    assert node5.layer_index == 1
-
-
-def test_set_layer_index_insert_before():
-
-    root = PlanNode()
-    node1 = PlanNode()
-    node2 = PlanNode()
-    node3 = PlanNode()
-    node4 = PlanNode()
-
-    plan = Plan()
-    plan.add_edge(root, node1)
-    plan.add_edge(root, node2)
-    plan.add_edge(root, node3)
-
-    plan.add_edge(root, node4, node2.layer_index)
-    assert node1.layer_index == 0
-    assert node2.layer_index == 2
-    assert node3.layer_index == 3
-    assert node4.layer_index == 1
-
-
-def test_get_previous_nodes():
-
-    root = PlanNode()
-    node1 = PlanNode()
-    node2 = PlanNode()
-    node3 = PlanNode()
-    node4 = PlanNode()
-    node5 = PlanNode()
-
-    plan = Plan()
-    plan.add_edge(root, node1)
-    plan.add_edge(node1, node2)
-    plan.add_edge(root, node3)
-    plan.add_edge(node3, node4)
-    plan.add_edge(node3, node5)
-
-    assert node1.left_siblings == []
-    assert node1.right_siblings == [node3]
-
-
-# ---- Tests interacting with simulated robot/world ----
+from ..conftest import expand
 
 
 def _torso_position(world):
@@ -414,7 +67,7 @@ def test_sequence_runs_all_motions(immutable_model_world):
     plan = sequential(
         [MoveTorsoAction(TorsoState.LOW), MoveTorsoAction(TorsoState.HIGH)],
         context=context,
-    ).plan
+    )
     with simulated_robot:
         plan.perform()
 
@@ -446,13 +99,13 @@ def test_algebra_sequential_plan(apartment_world_pr2_copy_with_context):
     )
 
     # resolved_navigate = next(pm_backend.evaluate(navigate_action))
-    plan = sequential([MoveTorsoAction(TorsoState.LOW), navigate_action], context).plan
+    plan = sequential([MoveTorsoAction(TorsoState.LOW), navigate_action], context)
 
     with simulated_robot:
         plan.perform()
 
-    assert isinstance(plan.root.children[1].children[0].action, NavigateAction)
-    assert len(plan.root.children[1].children) == 1
+    assert isinstance(plan.root.nodes[1].latest_child, NavigateAction)
+    assert len(plan.root.nodes[1].children) == 1
 
 
 def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
@@ -501,31 +154,6 @@ def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
             pass
 
 
-def test_conditions_reference_surviving_action_node_after_merge(immutable_model_world):
-    """
-    Expanding an action mounts a fresh action node whose conditions reference it, and
-    simplification merges that node into the equivalent node already in the plan.
-
-    After the merge every condition must reference the surviving node, not the discarded
-    one, otherwise the dangling node leaks into serialization.
-    """
-    world, robot_view, context = immutable_model_world
-
-    plan = sequential(
-        [ActionBuiltAsAPlanTree("navigating")],
-        context=context,
-    ).plan
-    plan.root.notify()
-
-    live_node_indices = {node.index for node in [plan.root, *plan.root.descendants]}
-    condition_nodes = [
-        node for node in plan.root.descendants if isinstance(node, ConditionNode)
-    ]
-    assert condition_nodes
-    for condition_node in condition_nodes:
-        assert condition_node.action_node.index in live_node_indices
-
-
 def test_motion_order_pick_up(mutable_model_world):
     world, robot_view, context = mutable_model_world
 
@@ -557,7 +185,7 @@ def test_motion_order_pick_up(mutable_model_world):
         context,
     )
 
-    performed_motions = _motions_of_every_executed_chart(root)
+    performed_motions = _motions_of(root)
 
     assert performed_motions == [
         CartesianPose,
@@ -601,7 +229,7 @@ def test_motion_order_place(mutable_model_world):
         context,
     )
 
-    performed_motions = _motions_of_every_executed_chart(root)
+    performed_motions = _motions_of(root)
 
     assert performed_motions == [
         CartesianPose,
@@ -611,137 +239,17 @@ def test_motion_order_place(mutable_model_world):
     ]
 
 
-def test_node_expansion(immutable_model_world):
-    world, view, context = immutable_model_world
-
-    plan = sequential(
-        [
-            PickUpAction(
-                object_designator=world.get_semantic_annotations_by_type(Milk)[0],
-                arm=Arms.RIGHT,
-                grasp_description=GraspDescription(
-                    ApproachDirection.FRONT,
-                    vertical_alignment=VerticalAlignment.NoAlignment,
-                    end_effector=view.right_arm.end_effector,
-                ),
-            )
-        ],
-        context=context,
-    )
-
-    pick_node = plan.children[0]
-    pick_node.notify()
-
-    expanded_children = pick_node.children
-    assert len(expanded_children) == 3
-    assert len(expanded_children[1].children) == 4
+# %% reading back what a plan moves
 
 
-def test_expanding_an_action_mounts_its_conditions_around_its_body(
-    immutable_model_world,
-):
-    world, view, context = immutable_model_world
-    plan = sequential([ActionBuiltAsAPlanTree("navigating")], context=context)
-
-    plan.notify()
-
-    node = plan.plan.get_nodes_by_designator_type(ActionBuiltAsAPlanTree)[0]
-
-    assert len(node.children) == 3
-
-
-def test_context_back_reference(immutable_model_world):
-    world, view, context = immutable_model_world
-
-    plan = sequential(
-        [
-            MoveTorsoAction(TorsoState.HIGH),
-            PickUpAction(
-                world.get_semantic_annotations_by_type(Milk)[0],
-                Arms.RIGHT,
-                GraspDescription(
-                    ApproachDirection.FRONT,
-                    VerticalAlignment.NoAlignment,
-                    view.right_arm.end_effector,
-                ),
-            ),
-        ],
-        context=context,
-    )
-
-    plan.notify()
-
-    assert plan.plan.context == context
-
-
-def test_action_nodes_unequal(immutable_model_world):
-    world, view, context = immutable_model_world
-
-    plan = sequential(
-        [
-            ParkArmsAction(Arms.LEFT),
-            PickUpAction(
-                world.get_semantic_annotations_by_type(Milk)[0],
-                Arms.LEFT,
-                GraspDescription(
-                    ApproachDirection.FRONT,
-                    VerticalAlignment.NoAlignment,
-                    view.right_arm.end_effector,
-                ),
-            ),
-        ],
-        context=context,
-    )
-
-    park_node = plan.children[0]
-    pick_node = plan.children[1]
-
-    assert not park_node == pick_node
-
-
-# %% how a plan is drawn
-
-
-def test_a_plan_node_is_drawn_in_the_color_of_its_state():
+def _motions_of(plan: Plan) -> list:
     """
-    A plan is drawn in the same colors the motion statechart plots use, because both
-    read them off the state itself.
-    """
-    node = PlanNode()
-    plan = Plan()
-    plan.add_node(node)
-    node.status = LifeCycleValues.FAILED
-
-    visualizer = plan._create_visualizer(
-        backend=GraphVisualizerBackend.CYTOSCAPE, layout=GraphLayout.LAYERED
-    )
-
-    assert visualizer.node_color(node.index) == LifeCycleValues.FAILED.color.to_hex()
-
-
-# %% reading back what a performed plan actually moved
-
-
-def _motions_of_every_executed_chart(root) -> list:
-    """
-    Perform `root` and report what each chart it built moves, in order.
+    Expand `plan` and report what it moves, in the order it runs.
 
     :return: One entry per motion: the gripper state a gripper motion commands, or the
         type of the Cartesian task any other motion is built around.
     """
-    performed = []
-
-    def record_instead_of_executing(giskard_executable):
-        performed.extend(_motions_below(giskard_executable.root_node))
-
-    original_execute = GiskardExecutable.execute
-    GiskardExecutable.execute = record_instead_of_executing
-    try:
-        with simulated_robot:
-            root.perform()
-    finally:
-        GiskardExecutable.execute = original_execute
-    return performed
+    return _motions_below(expand(plan))
 
 
 def _motions_below(goal) -> list:
@@ -749,7 +257,7 @@ def _motions_below(goal) -> list:
     :return: What every motion below `goal` moves, in the order the chart runs them.
     """
     found = []
-    for node in goal.nodes:
+    for node in goal.children:
         if isinstance(node, MoveGripper):
             found.append(node.state)
         elif isinstance(node, (CartesianPose, CartesianPosition)):

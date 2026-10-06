@@ -10,7 +10,6 @@ from typing_extensions import (
     Type,
 )
 
-from coraplex.plans.plan_entity import PlanEntity
 from cramph.context import ContextExtension, StatechartContext
 from krrood.entity_query_language.backends import (
     QueryBackend,
@@ -64,7 +63,7 @@ class MotionToleranceConfig:
 
 
 @dataclass(eq=False)
-class Context(PlanEntity):
+class Context:
     """
     A dataclass for storing the context of a plan.
     """

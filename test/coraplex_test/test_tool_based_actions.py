@@ -7,14 +7,14 @@ from scipy.spatial.transform import Rotation
 
 from coraplex.datastructures.enums import Arms, CuttingTechnique
 from coraplex.exceptions import WipingTargetMissing
-from coraplex.plans.factories import sequential
-from coraplex.plans.plan_node import MotionNode
+from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.composite.tool_based import (
     CuttingAction,
     MixingAction,
     PouringAction,
     WipingAction,
 )
+from giskardpy.motion_statechart.monitors.cartesian_monitors import PositionReached
 from giskardpy.motion_statechart.tasks.align_planes import AlignPlanes
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPositionTrajectory,
@@ -34,6 +34,8 @@ from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.world_description.geometry import Box, Scale
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import Body
+
+from .conftest import expand
 
 
 def _add_box_body(world, name, size, position):
@@ -69,14 +71,12 @@ def tool_action_world(mutable_model_world):
 
 def _tool_path_goals(action, context):
     """
-    :return: The goals the action built to follow its tool path, one per tool motion.
+    :return: The steps the action expanded into that follow its tool path, one per tool
+        motion.
     """
-    sequential([action], context)
-    action.expand()
+    expand(execute_single(action, context))
     return [
-        node.motion
-        for node in action.plan.all_nodes
-        if isinstance(node, MotionNode) and _trajectory_of(node.motion) is not None
+        step for step in action.children[0].nodes if _trajectory_of(step) is not None
     ]
 
 
@@ -204,7 +204,7 @@ def test_pouring_action_poses_tilt_and_mirror(tool_action_world):
         source_container=cup,
         arm=Arms.RIGHT,
     )
-    sequential([right_action], context)
+    expand(execute_single(right_action, context))
     right_pre_pose, right_pour_pose = right_action._pour_poses()
 
     pre_rotation = Rotation.from_quat(
@@ -224,7 +224,7 @@ def test_pouring_action_poses_tilt_and_mirror(tool_action_world):
         arm=Arms.RIGHT,
         pour_side=Arms.LEFT,
     )
-    sequential([left_action], context)
+    expand(execute_single(left_action, context))
     left_pre_pose, _ = left_action._pour_poses()
 
     container_position = np.array(
@@ -275,7 +275,7 @@ def test_pouring_action_pour_point_lands_on_target_container_center(
     action = PouringAction(
         target_container=container, source_container=cup, arm=Arms.RIGHT
     )
-    sequential([action], context)
+    expand(execute_single(action, context))
     _, pour_pose = action._pour_poses()
 
     tool_frame = ViewManager.get_end_effector_view(Arms.RIGHT, robot).tool_frame
@@ -292,11 +292,54 @@ def test_mixing_action_orm_roundtrip(tool_action_world, coraplex_testing_session
     whisk = Whisk(root=tool_body)
 
     action = MixingAction(container=container, arm=Arms.RIGHT, tool=whisk)
-    sequential([action], context)
-    action.expand()
+    expand(execute_single(action, context))
 
     dao = to_dao(action)
     coraplex_testing_session.add(dao)
     coraplex_testing_session.commit()
 
     assert dao.database_id is not None
+
+
+# %% full body control
+
+
+def test_a_tool_motion_moves_the_tool_relative_to_the_world(tool_action_world):
+    """
+    The base supports the arm during a tool motion, which only works if the tool path is
+    expressed relative to the world rather than to the robot.
+    """
+    world, robot, context, container, tool_body = tool_action_world
+    full_body_controlled = robot.mobile_base.full_body_controlled
+    action = MixingAction(
+        container=container, arm=Arms.RIGHT, tool=Whisk(root=tool_body)
+    )
+
+    goal = _tool_path_goals(action, context)[0]
+
+    assert _trajectory_of(goal).root_link is world.root
+    assert robot.mobile_base.full_body_controlled == full_body_controlled
+
+
+# %% wiping
+
+
+def test_a_wipe_counts_as_done_once_the_tool_reached_its_final_waypoint(
+    tool_action_world,
+):
+    world, robot, context, container, tool_body = tool_action_world
+    sponge = Sponge(root=tool_body)
+    action = WipingAction(
+        arm=Arms.RIGHT,
+        tool=sponge,
+        target_pose=Pose.from_xyz_rpy(x=2.4, y=2.2, z=1.0, reference_frame=world.root),
+    )
+
+    goal = _tool_path_goals(action, context)[0]
+
+    [final_waypoint_reached] = [
+        node for node in _nodes_below(goal) if isinstance(node, PositionReached)
+    ]
+    assert final_waypoint_reached.tip_link is tool_body
+    assert final_waypoint_reached.goal_point is action._waypoints[-1]
+    assert final_waypoint_reached.threshold == action.final_waypoint_success_tolerance
