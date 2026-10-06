@@ -26,7 +26,6 @@ from coraplex.robot_plans import (
     MoveGripperMotion,
 )
 from coraplex.robot_plans.motions.base import AlternativeMotion
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.robots.stretch import Stretch
@@ -52,8 +51,8 @@ class StretchMoveToolCenterPoint(MoveToolCenterPointMotion, AlternativeMotion[St
 
     @property
     def _motion_chart(self) -> Sequence:
-        tip = ViewManager().get_end_effector_view(self.arm, self.robot).tool_frame
-        goal_copy = deepcopy(self.target_pose)
+        tip = self.arm.end_effector.tool_frame
+        goal_copy = deepcopy(self.target)
         goal_copy = self.world.transform(goal_copy, self.world.root)
         goal_point = goal_copy.to_position()
         goal_point.z = 0
@@ -72,7 +71,7 @@ class StretchMoveToolCenterPoint(MoveToolCenterPointMotion, AlternativeMotion[St
                         CartesianPoseStraight(
                             root_link=self.world.root,
                             tip_link=tip,
-                            goal_pose=self.target_pose,
+                            goal_pose=self.target,
                         ),
                         LocalMinimumReached(joint_convergence_threshold=0.025),
                     ],
@@ -95,7 +94,7 @@ class StretchMoveSim(MoveMotion, AlternativeMotion[Stretch]):
 
     @property
     def _motion_chart(self):
-        return DifferentialDriveBaseGoal(goal_pose=self.target_location, threshold=0.01)
+        return DifferentialDriveBaseGoal(goal_pose=self.target, threshold=0.01)
 
 
 class StretchMoveReal(MoveMotion, AlternativeMotion[Stretch]):
@@ -111,10 +110,10 @@ class StretchMoveReal(MoveMotion, AlternativeMotion[Stretch]):
 
     @property
     def _motion_chart(self) -> DifferentialDriveBaseGoal:
-        return DifferentialDriveBaseGoal(goal_pose=self.target_location, threshold=0.1)
+        return DifferentialDriveBaseGoal(goal_pose=self.target, threshold=0.1)
         # Commented out for now since we use the giskard goal which also works for smaller distances
         # return NavigateActionServerTask(
-        #     target_pose=self.target_location,
+        #     target_pose=self.target,
         #     base_link=self.robot.root,
         #     action_topic="/navigate_to_pose",
         #     message_type=NavigateToPose,
@@ -136,20 +135,20 @@ class StretchClose(ClosingMotion, AlternativeMotion[Stretch]):
 
     @property
     def _motion_chart(self):
-        tip = ViewManager().get_end_effector_view(self.arm, self.robot).tool_frame
+        tip = self.arm.end_effector.tool_frame
         cart = CartesianPose(
             name="Keep holding handle",
-            root_link=self.handle.root,
+            root_link=self.object_part,
             tip_link=tip,
             goal_pose=Pose(reference_frame=tip),
         )
         align = AlignPlanes(
             root_link=self.world.root,
             tip_link=self.robot.root,
-            goal_normal=Vector3(1, 0, 0, reference_frame=self.handle.root),
+            goal_normal=Vector3(1, 0, 0, reference_frame=self.object_part),
             tip_normal=Vector3(0, -1, 0, self.robot.root),
         )
-        close = Close(tip_link=tip, environment_link=self.handle.root)
+        close = Close(tip_link=tip, environment_link=self.object_part)
         return Parallel([cart, align, close])
 
 
@@ -166,12 +165,10 @@ class StretchMoveGripperMotion(MoveGripperMotion, AlternativeMotion[Stretch]):
 
     @property
     def _motion_chart(self):
-        arm = ViewManager().get_end_effector_view(self.arm, self.robot)
-
         return Parallel(
             [
                 JointPositionList(
-                    goal_state=arm.get_joint_state_by_type(self.motion),
+                    goal_state=self.gripper.get_joint_state_by_type(self.motion),
                     name=(
                         "OpenGripper"
                         if self.motion == GripperState.OPEN

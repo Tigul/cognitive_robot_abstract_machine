@@ -5,7 +5,6 @@ from dataclasses import dataclass
 from typing_extensions import Optional, Type
 
 from coraplex.datastructures.enums import DetectionTechnique, DetectionState
-from coraplex.datastructures.grasp import GraspDescription
 from coraplex.perception import PerceptionQuery
 from coraplex.plans.factories import sequential, execute_single
 from coraplex.plans.plan_node import PlanNode
@@ -13,8 +12,9 @@ from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import MoveManipulatorAction
 from coraplex.robot_plans.mixins import (
+    HasApproachesGraspPoses,
     ToolCenterPointGoalThresholds,
-    UsedGraspDescription,
+    UsedEndEffector,
 )
 from coraplex.robot_plans.motions.misc import DetectingMotion
 from semantic_digital_twin.spatial_types import (
@@ -134,7 +134,10 @@ class DetectAction(ActionDescription):
 
 @dataclass
 class MoveToReach(
-    ActionDescription, UsedGraspDescription, ToolCenterPointGoalThresholds
+    ActionDescription,
+    UsedEndEffector,
+    HasApproachesGraspPoses,
+    ToolCenterPointGoalThresholds,
 ):
     """
     Let the robot move to a position facing the target and reach with a end_effector.
@@ -152,28 +155,21 @@ class MoveToReach(
     Additional yaw applied to the orientation facing the target directly.
     """
 
-    target_pose_end_effector: Pose
+    reference_T_grasp: Pose
     """
-    Pose that should be reached by the end_effector.
+    The grasp frame the end effector is to reach.
     """
 
     @property
     def _action_plan(self) -> PlanNode:
-        grasp_orientation = self.grasp_description.grasp_orientation()
-        target_pose = Pose(
-            self.target_pose_end_effector.to_position(),
-            (
-                self.target_pose_end_effector.to_rotation_matrix()
-                @ grasp_orientation.to_rotation_matrix()
-            ).to_quaternion(),
-            self.target_pose_end_effector.reference_frame,
-        )
         return sequential(
             [
                 NavigateAction(target_location=self.standing_pose),
                 MoveManipulatorAction(
-                    target_pose=target_pose,
-                    end_effector=self.grasp_description.end_effector,
+                    target_pose=self.end_effector.tool_frame_goal(
+                        self.reference_T_grasp
+                    ),
+                    end_effector=self.end_effector,
                     allow_gripper_collision=False,
                     position_threshold=self.position_threshold,
                     orientation_threshold=self.orientation_threshold,
@@ -188,7 +184,7 @@ class MoveToReach(
 
         :return: The calculated standing pose on the floor.
         """
-        reference_T_target = self.target_pose_end_effector.to_homogeneous_matrix()
+        reference_T_target = self.reference_T_grasp.to_homogeneous_matrix()
         target_V_robot = -Vector3(
             x=self.target_pose_offset_robot.x, y=self.target_pose_offset_robot.y
         )
@@ -204,7 +200,7 @@ class MoveToReach(
                 y=self.target_pose_offset_robot.y,
             ),
             rotation_matrix=target_R_robot_pointing_to_target,
-            reference_frame=self.target_pose_end_effector.reference_frame,
+            reference_frame=self.reference_T_grasp.reference_frame,
         )
         reference_T_robot = reference_T_target @ target_T_robot
         world_T_robot = self.world.transform(

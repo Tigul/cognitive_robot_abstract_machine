@@ -1,64 +1,29 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from datetime import timedelta
+from dataclasses import dataclass
 
-import numpy as np
-from typing_extensions import Optional, Any
-
-from coraplex.config.action_conf import ActionConfig
 from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
-from coraplex.robot_plans.actions.core.navigation import NavigateAction, LookAtAction
-from coraplex.robot_plans.mixins import JointStatesKept, TargetLookedAt
-from semantic_digital_twin.spatial_types import (
-    Quaternion,
-)
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from coraplex.robot_plans.actions.core.navigation import FaceAtAction, LookAtAction
 
 
 @dataclass
-class FaceAtAction(ActionDescription, TargetLookedAt, JointStatesKept):
+class FaceAndLookAtAction(ActionDescription):
     """
-    Turn the robot chassis such that is faces the ``look_at_target`` and after that
-    perform a look at action.
+    Turns the robot's base towards a target, then looks at it.
     """
 
-    keep_joint_states: bool = field(
-        default=ActionConfig.face_at_keep_joint_states, kw_only=True
-    )
+    face_at: FaceAtAction
     """
-    Keep the joint states of the robot the same during the navigation.
+    The turn of the base towards the target.
+    """
+
+    look_at: LookAtAction
+    """
+    The look at the target once the base faces it.
     """
 
     @property
     def _action_plan(self) -> PlanNode:
-        # get the robot position
-        robot_position = self.robot.root.global_transform
-
-        # calculate orientation for robot to face the object
-        angle = (
-            np.arctan2(
-                robot_position.y - self.look_at_target.y,
-                robot_position.x - self.look_at_target.x,
-            )
-            + np.pi
-        )
-
-        # create new robot pose
-        new_robot_pose = Pose(
-            robot_position.to_position(),
-            Quaternion.from_rpy(0, 0, angle),
-            reference_frame=self.world.root,
-        )
-
-        return sequential(
-            [
-                NavigateAction(
-                    target_location=new_robot_pose,
-                    keep_joint_states=self.keep_joint_states,
-                ),  # turn robot
-                LookAtAction(look_at_target=self.look_at_target),  # look at the target
-            ]
-        )
+        return sequential([self.face_at, self.look_at])

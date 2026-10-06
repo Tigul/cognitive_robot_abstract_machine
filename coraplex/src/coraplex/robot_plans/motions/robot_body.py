@@ -16,9 +16,7 @@ from coraplex.robot_plans.mixins import (
     LinkAlignmentApplied,
 )
 from coraplex.robot_plans.motions.base import BaseMotion
-from semantic_digital_twin.robots.robot_parts import Camera
 from semantic_digital_twin.spatial_types import Vector3
-from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 
 @dataclass
@@ -83,6 +81,6 @@ class LookingMotion(BaseMotion, CameraTargetParameters):
         return Pointing(
             root_link=self.robot.get_torso().root,
             tip_link=self.camera.root,
-            goal_point=self.look_at_target.to_position(),
+            goal_point=self.target.to_position(),
             pointing_axis=self.camera.forward_facing_axis,
         )

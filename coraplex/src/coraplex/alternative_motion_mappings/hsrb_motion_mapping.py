@@ -7,7 +7,6 @@ from giskardpy.motion_statechart.ros2_nodes.ros_tasks import (
 )
 from semantic_digital_twin.robots.hsrb import HSRB
 from coraplex.datastructures.enums import ExecutionType
-from coraplex.view_manager import ViewManager
 from coraplex.robot_plans import MoveMotion, MoveToolCenterPointMotion, LookingMotion
 
 from coraplex.robot_plans.motions.base import AlternativeMotion
@@ -26,7 +25,7 @@ class HSRBMoveMotion(MoveMotion, AlternativeMotion[HSRB]):
     @property
     def _motion_chart(self) -> NavigateActionServerTask:
         return NavigateActionServerTask(
-            target_pose=self.target_location,
+            target_pose=self.target,
             base_link=self.robot.root,
             action_topic="/hsrb/move_base",
             message_type=NavigateToPose,

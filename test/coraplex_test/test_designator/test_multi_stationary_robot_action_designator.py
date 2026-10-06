@@ -1,13 +1,9 @@
-from copy import deepcopy
-
 import numpy as np
 import pytest
 from rustworkx import NoEdgeBetweenNodes
 
 from giskardpy.utils.utils_for_tests import compare_axis_angle, compare_orientations
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
-from coraplex.datastructures.grasp import GraspDescription
 from coraplex.datastructures.trajectory import PoseTrajectory
 
 from coraplex.execution_environment import simulated_robot
@@ -24,7 +20,6 @@ from coraplex.robot_plans.actions.core.robot_body import (
     FollowToolCenterPointPathAction,
 )
 from coraplex.testing import _make_sine_scan_poses
-from coraplex.view_manager import ViewManager
 from krrood.entity_query_language.factories import an, entity, variable
 
 from semantic_digital_twin.datastructures.definitions import (
@@ -34,17 +29,21 @@ from semantic_digital_twin.datastructures.definitions import (
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.robots.daisy import DAiSy
 from semantic_digital_twin.robots.tracy import Tracy
-from semantic_digital_twin.semantic_annotations.semantic_annotations import (
-    GraspableObject,
-)
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Point3
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.connections import Connection6DoF
 from semantic_digital_twin.world_description.geometry import Box, Scale
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
-from semantic_digital_twin.semantic_annotations.mixins import IsGraspable
+from semantic_digital_twin.grasping.grasp_candidates import (
+    GraspCandidate,
+    HasGraspCandidates,
+)
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
+
+from ...conftest import SAMPLING_SEED
+from ..conftest import left_or_only_arm, right_or_only_arm
+from ..world_snapshot import WorldSnapshot
 
 
 @pytest.fixture(
@@ -108,57 +107,52 @@ def robot_setup(request):
         # The boxes stand in for any graspable object; the plans only need an annotation
         # to name them by, not a particular kind of object.
         world.add_semantic_annotations(
-            [GraspableObject(root=box1), GraspableObject(root=box2)]
+            [HasGraspCandidates(root=box1), HasGraspCandidates(root=box2)]
         )
     return world, request.param[1]
 
 
-def graspable_annotation(world: World, body: Body) -> IsGraspable:
+def graspable_annotation(world: World, body: Body) -> HasGraspCandidates:
     """
     The annotation naming ``body`` for the actions that take one rather than a body.
 
     :param world: The world holding the annotations.
     :param body: The body the annotation is rooted at.
-    :return: The graspable annotation rooted at ``body``.
+    :return: The annotation rooted at ``body``.
     """
     return an(
         entity(
             semantic_annotation := variable(
-                IsGraspable, domain=world.semantic_annotations
+                HasGraspCandidates, domain=world.semantic_annotations
             )
         ).where(semantic_annotation.root == body)
     ).first()
 
 
 @pytest.fixture
-def immutable_stationary_block_world(robot_setup):
+def stationary_block_context(robot_setup):
+    """
+    The shared block world with one stationary robot, the robot and a context for both,
+    returned to its initial model and state after the test.
+    """
     block_world, robot_class = robot_setup
-    state = deepcopy(block_world.state._data)
+    snapshot = WorldSnapshot.capture(block_world)
     view = block_world.get_semantic_annotations_by_type(robot_class)[0]
-    yield block_world, view, Context(block_world, view)
-    block_world.state._data[:] = state
-    block_world.notify_state_change()
+    yield block_world, view, Context(block_world, view, sampling_seed=SAMPLING_SEED)
+    snapshot.restore()
 
 
-@pytest.fixture
-def mutable_stationary_block_world(robot_setup):
-    block_world, robot_class = robot_setup
-    copy_world = deepcopy(block_world)
-    copy_view = copy_world.get_semantic_annotations_by_type(robot_class)[0]
-    return copy_world, copy_view, Context(copy_world, copy_view)
+def test_park_arms_multi(stationary_block_context):
+    world, view, context = stationary_block_context
 
-
-def test_park_arms_multi(immutable_stationary_block_world):
-    world, view, context = immutable_stationary_block_world
-
-    description = ParkArmsAction(arm=Arms.BOTH)
+    description = ParkArmsAction(context.robot.all_arms)
     plan = execute_single(description, context=context).plan
     with simulated_robot:
         plan.perform()
 
     joints = []
     states = []
-    for arm in view.get_arms():
+    for arm in view.all_arms:
         joint_state = arm.get_joint_state_by_type(StaticJointState.PARK)
         joints.extend(joint_state.connections)
         states.extend(joint_state.target_values)
@@ -172,29 +166,21 @@ def test_park_arms_multi(immutable_stationary_block_world):
         )
 
 
-def test_reach_action_multi(immutable_stationary_block_world):
-    world, view, context = immutable_stationary_block_world
-    left_arm = ViewManager.get_arm_view(Arms.LEFT, view)
+def test_reach_action_multi(stationary_block_context):
+    world, view, context = stationary_block_context
+    left_arm = left_or_only_arm(context.robot)
 
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.TOP,
-        left_arm.end_effector,
-    )
     box_body = world.get_body_by_name("box1")
     box = graspable_annotation(world, box_body)
     position = box_body.global_pose.position.to_np()
+    grasp_pose = Pose.from_xyz_rpy(pitch=np.pi / 2, reference_frame=box_body)
 
     plan = sequential(
         [
-            ParkArmsAction(arm=Arms.BOTH),
+            ParkArmsAction(context.robot.all_arms),
             ReachAction(
-                target_pose=Pose(
-                    Point3.from_iterable(position), reference_frame=world.root
-                ),
-                target_object=box,
-                arm=Arms.LEFT,
-                grasp_description=grasp_description,
+                grasp=GraspCandidate(box, grasp_pose),
+                arm=left_or_only_arm(context.robot),
             ),
         ],
         context=context,
@@ -207,7 +193,9 @@ def test_reach_action_multi(immutable_stationary_block_world):
     end_effector_position = end_effector_pose.to_position().to_np()
     end_effector_orientation = end_effector_pose.to_quaternion().to_np()
 
-    target_orientation = grasp_description.grasp_orientation()
+    target_orientation = left_arm.end_effector.tool_frame_goal(
+        grasp_pose
+    ).to_quaternion()
 
     assert end_effector_position[:3] == pytest.approx(position[:3], abs=0.01)
     compare_orientations(
@@ -215,17 +203,21 @@ def test_reach_action_multi(immutable_stationary_block_world):
     )
 
 
-def test_move_gripper_multi(immutable_stationary_block_world):
-    world, view, context = immutable_stationary_block_world
+def test_move_gripper_multi(stationary_block_context):
+    world, view, context = stationary_block_context
 
     plan = execute_single(
-        SetGripperAction(arm=Arms.LEFT, motion=GripperState.OPEN), context=context
+        SetGripperAction(
+            gripper=left_or_only_arm(context.robot).end_effector,
+            motion=GripperState.OPEN,
+        ),
+        context=context,
     ).plan
 
     with simulated_robot:
         plan.perform()
 
-    arm = view.get_arms()[0]
+    arm = view.all_arms[0]
     open_state = arm.end_effector.get_joint_state_by_type(GripperState.OPEN)
     close_state = arm.end_effector.get_joint_state_by_type(GripperState.CLOSE)
 
@@ -233,7 +225,11 @@ def test_move_gripper_multi(immutable_stationary_block_world):
         assert connection.position == pytest.approx(target, abs=0.01)
 
     plan = execute_single(
-        SetGripperAction(arm=Arms.LEFT, motion=GripperState.CLOSE), context=context
+        SetGripperAction(
+            gripper=left_or_only_arm(context.robot).end_effector,
+            motion=GripperState.CLOSE,
+        ),
+        context=context,
     ).plan
 
     with simulated_robot:
@@ -243,50 +239,44 @@ def test_move_gripper_multi(immutable_stationary_block_world):
         assert connection.position == pytest.approx(target, abs=0.01)
 
 
-def test_grasping(immutable_stationary_block_world):
-    world, robot_view, context = immutable_stationary_block_world
-    left_arm = ViewManager.get_arm_view(Arms.LEFT, robot_view)
+def test_grasping(stationary_block_context):
+    world, robot_view, context = stationary_block_context
+    left_arm = left_or_only_arm(context.robot)
 
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.TOP,
-        left_arm.end_effector,
-    )
+    box_body = world.get_body_by_name("box1")
     description = GraspingAction(
-        target_object=graspable_annotation(world, world.get_body_by_name("box1")),
-        arm=Arms.LEFT,
-        grasp_description=grasp_description,
+        grasp=GraspCandidate(
+            graspable_annotation(world, box_body),
+            Pose.from_xyz_rpy(pitch=np.pi / 2, reference_frame=box_body),
+        ),
+        arm=left_or_only_arm(context.robot),
     )
     plan = sequential(
-        [ParkArmsAction(arm=Arms.BOTH), description],
+        [ParkArmsAction(context.robot.all_arms), description],
         context=context,
     ).plan
     with simulated_robot:
         plan.perform()
-    dist = np.linalg.norm(
-        world.get_body_by_name("box1").global_transform.to_np()[3, :3]
+
+    # The grasp sits at the box's own origin, so that is where the tool frame ends up.
+    assert np.allclose(
+        box_body.global_pose.to_position().to_np(),
+        left_arm.end_effector.tool_frame.global_pose.to_position().to_np(),
+        atol=0.01,
     )
-    assert dist < 0.01
 
 
-def test_pick_up_multi(mutable_stationary_block_world):
-    world, view, context = mutable_stationary_block_world
+def test_pick_up_multi(stationary_block_context):
+    world, view, context = stationary_block_context
 
-    left_arm = ViewManager.get_arm_view(Arms.LEFT, view)
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.TOP,
-        left_arm.end_effector,
-    )
+    left_arm = left_or_only_arm(context.robot)
+    box_body = world.get_body_by_name("box1")
     plan = sequential(
         [
-            ParkArmsAction(arm=Arms.BOTH),
+            ParkArmsAction(context.robot.all_arms),
             PickUpAction(
-                target_object=graspable_annotation(
-                    world, world.get_body_by_name("box1")
-                ),
-                arm=Arms.LEFT,
-                grasp_description=grasp_description,
+                grasp=graspable_annotation(world, box_body).grasp_candidates()[0],
+                arm=left_or_only_arm(context.robot),
             ),
         ],
         context=context,
@@ -317,32 +307,22 @@ def place_position(robot_setup) -> Point3:
         raise ValueError(f"Unsupported robot class: {robot_class}")
 
 
-def test_place_multi(mutable_stationary_block_world, place_position):
-    world, view, context = mutable_stationary_block_world
+def test_place_multi(stationary_block_context, place_position):
+    world, view, context = stationary_block_context
 
-    left_arm = ViewManager.get_arm_view(Arms.LEFT, view)
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.TOP,
-        left_arm.end_effector,
-    )
+    left_arm = left_or_only_arm(context.robot)
+    box_body = world.get_body_by_name("box1")
 
     plan = sequential(
         [
-            ParkArmsAction(arm=Arms.BOTH),
+            ParkArmsAction(context.robot.all_arms),
             PickUpAction(
-                target_object=graspable_annotation(
-                    world, world.get_body_by_name("box1")
-                ),
-                arm=Arms.LEFT,
-                grasp_description=grasp_description,
+                grasp=graspable_annotation(world, box_body).grasp_candidates()[0],
+                arm=left_or_only_arm(context.robot),
             ),
             PlaceAction(
-                target_object=graspable_annotation(
-                    world, world.get_body_by_name("box1")
-                ),
+                object_designator=graspable_annotation(world, box_body),
                 target_location=Pose(place_position, reference_frame=world.root),
-                arm=Arms.LEFT,
             ),
         ],
         context=context,
@@ -374,11 +354,9 @@ def anchor_position(robot_setup) -> Point3:
         raise ValueError(f"Unsupported robot class: {robot_class}")
 
 
-def test_move_tcp_follows_sine_waypoints(
-    immutable_stationary_block_world, anchor_position
-):
-    world, view, context = immutable_stationary_block_world
-    right_arm = ViewManager.get_arm_view(Arms.RIGHT, view)
+def test_move_tcp_follows_sine_waypoints(stationary_block_context, anchor_position):
+    world, view, context = stationary_block_context
+    right_arm = right_or_only_arm(context.robot)
     anchor = Pose(anchor_position, reference_frame=world.root)
     anchor_T = anchor.to_homogeneous_matrix()
     offset_T = HomogeneousTransformationMatrix.from_xyz_axis_angle(
@@ -391,7 +369,9 @@ def test_move_tcp_follows_sine_waypoints(
     waypoints = PoseTrajectory(_make_sine_scan_poses(target_pose, lane_axis="z"))
 
     plan = execute_single(
-        FollowToolCenterPointPathAction(target_locations=waypoints, arm=Arms.RIGHT),
+        FollowToolCenterPointPathAction(
+            target_locations=waypoints, arm=right_or_only_arm(context.robot)
+        ),
         context=context,
     )
     with simulated_robot:

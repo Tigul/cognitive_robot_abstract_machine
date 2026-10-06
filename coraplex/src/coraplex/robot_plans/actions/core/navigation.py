@@ -2,22 +2,21 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from typing_extensions import Optional, Any, Dict
+from typing_extensions import Any, Dict
 
-from coraplex.config.action_conf import ActionConfig
 from coraplex.datastructures.dataclasses import Context
 from coraplex.exceptions import NoFloorBelowRobot, NotOnASingleLevelException
 from coraplex.plans.attachment_nodes import ReAttachNode
 from coraplex.plans.factories import execute_single, pause_until, sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
-from coraplex.robot_plans.motions.navigation import MoveMotion
-from coraplex.robot_plans.motions.robot_body import LookingMotion
 from coraplex.robot_plans.mixins import (
     CameraTargetParameters,
-    NavigationParameters,
     TargetLocationMovedTo,
+    TargetLookedAt,
 )
+from coraplex.robot_plans.motions.navigation import MoveMotion, TurnMotion
+from coraplex.robot_plans.motions.robot_body import LookingMotion
 from giskardpy.motion_statechart.goals.templates import Parallel
 from giskardpy.motion_statechart.monitors.joint_monitors import (
     JointPositionReached,
@@ -26,7 +25,6 @@ from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import variable_from, and_, ConditionType
 from semantic_digital_twin.reasoning.predicates import allclose, InsideOf
 from semantic_digital_twin.reasoning.robot_predicates import is_pose_free_for_robot
-from semantic_digital_twin.robots.robot_parts import Camera
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Level,
     Elevator,
@@ -44,27 +42,15 @@ from semantic_digital_twin.world_description.geometry import VolumetricBoundingB
 
 
 @dataclass
-class NavigateAction(ActionDescription, NavigationParameters):
+class NavigateAction(ActionDescription, TargetLocationMovedTo):
     """
     Navigates the Robot to a position.
-    """
-
-    keep_joint_states: bool = field(
-        default=ActionConfig.navigate_keep_joint_states, kw_only=True
-    )
-    """
-    Keep the joint states of the robot the same during the navigation.
     """
 
     @property
     def _action_plan(self) -> PlanNode:
         return execute_single(
-            MoveMotion(
-                target_location=self.robot.mobile_base.pose_facing(
-                    self.target_location
-                ),
-                keep_joint_states=self.keep_joint_states,
-            )
+            MoveMotion(self.robot.mobile_base.pose_facing(self.target_location))
         )
 
     @staticmethod
@@ -104,28 +90,40 @@ class LookAtAction(ActionDescription, CameraTargetParameters):
     @property
     def _action_plan(self) -> PlanNode:
         camera = self.camera or self.robot.get_default_camera()
-        return execute_single(
-            LookingMotion(look_at_target=self.look_at_target, camera=camera)
-        )
+        return execute_single(LookingMotion(target=self.target, camera=camera))
 
 
 @dataclass
-class PathPlanningNavigateAction(ActionDescription, TargetLocationMovedTo):
+class FaceAtAction(ActionDescription, TargetLookedAt):
+    """
+    Turns the robot's base on the spot until its front faces a target.
+    """
+
+    @property
+    def _action_plan(self) -> PlanNode:
+        return execute_single(TurnMotion(self.target))
+
+
+@dataclass
+class PathPlanningNavigateAction(ActionDescription):
     """
     Navigates the robot to a pose along a path through the environment's free space.
 
     The free space is decomposed into a graph of convex sets, so the robot drives around
     the furniture and walls between it and the target instead of straight at them.
 
-     This works for obstacles which are known in the environment beforehand, not for
-    such that are added during navigation.
+    This works for obstacles which are known in the environment beforehand, not for
+    those added during navigation.
+    """
+
+    target: Pose
+    """
+    Where the robot should stand at the end of the path, with its base.
     """
 
     @property
     def _action_plan(self) -> PlanNode:
-        return sequential(
-            [MoveMotion(target_location=waypoint) for waypoint in self._path()]
-        )
+        return sequential([MoveMotion(waypoint) for waypoint in self._path()])
 
     @property
     def _floor(self) -> Floor:
@@ -208,7 +206,7 @@ class PathPlanningNavigateAction(ActionDescription, TargetLocationMovedTo):
             ).to_pose()
             for waypoint, next_waypoint in zip(waypoints[1:], waypoints[2:])
         ]
-        return poses + [self.target_location]
+        return poses + [self.target]
 
     def _waypoints(self) -> list[Point2]:
         """
@@ -225,7 +223,7 @@ class PathPlanningNavigateAction(ActionDescription, TargetLocationMovedTo):
             bloat_obstacles=self.robot.mobile_base.base_radius,
         )
         return free_space.path_from_to(
-            Point2.from_pose(base_pose), Point2.from_pose(self.target_location)
+            Point2.from_pose(base_pose), Point2.from_pose(self.target)
         )
 
 

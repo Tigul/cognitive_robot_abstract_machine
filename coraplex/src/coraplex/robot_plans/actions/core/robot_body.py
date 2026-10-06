@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import timedelta
 from typing import Tuple, List
 
@@ -11,23 +11,19 @@ from krrood.entity_query_language.core.base_expressions import SymbolicExpressio
 from krrood.entity_query_language.core.variable import Variable
 from coraplex.datastructures.dataclasses import Context
 from coraplex.robot_plans import MoveManipulatorMotion
-from krrood.entity_query_language.factories import variable_from, ConditionType
+from krrood.entity_query_language.factories import variable_from
 from semantic_digital_twin.reasoning.predicates import allclose
-from semantic_digital_twin.robots.robot_parts import EndEffector
-from semantic_digital_twin.spatial_types.spatial_types import Pose, Vector3
-from coraplex.datastructures.enums import AxisIdentifier, Arms
+from semantic_digital_twin.robots.robot_parts import Arm
 
 from coraplex.datastructures.trajectory import PoseTrajectory
-from coraplex.plans.factories import execute_single, sequential
+from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.base import ActionDescription, DescriptionType
 from coraplex.robot_plans.mixins import (
     ArmDrivenToGoal,
     EndEffectorPoseParameters,
     GripperActuationParameters,
     HasMaxJointVelocity,
-    LinkAlignmentApplied,
     TorsoStateSet,
-    UsedArm,
 )
 from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
@@ -35,10 +31,7 @@ from coraplex.robot_plans.motions.gripper import (
 )
 from coraplex.robot_plans.motions.robot_body import MoveJointsMotion
 from coraplex.validation.goal_validator import create_multiple_joint_goal_validator
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import (
-    TorsoState,
-    GripperState,
     StaticJointState,
 )
 
@@ -80,16 +73,20 @@ class SetGripperAction(ActionDescription, GripperActuationParameters):
 
     @property
     def _action_plan(self) -> PlanNode:
-        arms = [Arms.LEFT, Arms.RIGHT] if self.arm == Arms.BOTH else [self.arm]
-        return sequential(
-            [MoveGripperMotion(arm=arm, motion=self.motion) for arm in arms]
+        return execute_single(
+            MoveGripperMotion(gripper=self.gripper, motion=self.motion)
         )
 
 
 @dataclass
-class ParkArmsAction(ActionDescription, UsedArm, HasMaxJointVelocity):
+class ParkArmsAction(ActionDescription, HasMaxJointVelocity):
     """
     Park the arms of the robot.
+    """
+
+    arms: List[Arm]
+    """
+    The arms that should be parked.
     """
 
     @property
@@ -108,80 +105,13 @@ class ParkArmsAction(ActionDescription, UsedArm, HasMaxJointVelocity):
         """
         :return: The joint positions that should be set for the arm to be in the park position.
         """
-        arm_chain = ViewManager().get_all_arm_views(self.arm, self.robot)
         names = []
         values = []
-        for arm in arm_chain:
+        for arm in self.arms:
             joint_state = arm.get_joint_state_by_type(StaticJointState.PARK)
             names.extend([c.name.name for c in joint_state.connections])
             values.extend(joint_state.target_values)
         return names, values
-
-
-@dataclass
-class CarryAction(ActionDescription, UsedArm, LinkAlignmentApplied):
-    """
-    Parks the robot's arms.
-
-    And align the arm with the given Axis of a frame.
-    """
-
-    tip_axis: Optional[AxisIdentifier] = field(default=None, kw_only=True)
-    """
-    Tip axis of the tip link, that should be aligned.
-    """
-
-    root_axis: Optional[AxisIdentifier] = field(default=None, kw_only=True)
-    """
-    Goal axis of the root link, that should be used to align with.
-    """
-
-    def execute(self) -> None:
-        joint_poses = self.get_joint_poses()
-        tip_normal = self.axis_to_vector3_stamped(self.tip_axis, link=self.tip_link)
-        root_normal = self.axis_to_vector3_stamped(self.root_axis, link=self.root_link)
-
-        self.add_subplan(
-            execute_single(
-                MoveJointsMotion(
-                    names=list(joint_poses.keys()),
-                    positions=list(joint_poses.values()),
-                    align=self.align,
-                    tip_link=self.tip_link,
-                    tip_normal=tip_normal,
-                    root_link=self.root_link,
-                    root_normal=root_normal,
-                )
-            )
-        ).perform()
-
-    def get_joint_poses(self) -> Dict[str, float]:
-        """
-        :return: The joint positions that should be set for the arm to be in the park position.
-        """
-        joint_poses = {}
-        arm_chains = RobotDescription.current_robot_description.get_arm_chain(self.arm)
-        if type(arm_chains) is not list:
-            joint_poses = arm_chains.get_static_joint_states(StaticJointState.Park)
-        else:
-            for arm_chain in RobotDescription.current_robot_description.get_arm_chain(
-                self.arm
-            ):
-                joint_poses.update(
-                    arm_chain.get_static_joint_states(StaticJointState.Park)
-                )
-        return joint_poses
-
-    def axis_to_vector3_stamped(
-        self, axis: AxisIdentifier, link: str = "base_link"
-    ) -> Vector3:
-        v = {
-            AxisIdentifier.X: Vector3(x=1.0, y=0.0, z=0.0),
-            AxisIdentifier.Y: Vector3(x=0.0, y=1.0, z=0.0),
-            AxisIdentifier.Z: Vector3(x=0.0, y=0.0, z=1.0),
-        }[axis]
-        v.frame_id = link
-        return v
 
 
 @dataclass
@@ -228,7 +158,7 @@ class MoveManipulatorAction(ActionDescription, EndEffectorPoseParameters):
     def _action_plan(self) -> PlanNode:
         return execute_single(
             MoveManipulatorMotion(
-                target_pose=self.target_pose,
+                self.target_pose,
                 end_effector=self.end_effector,
                 allow_gripper_collision=self.allow_gripper_collision,
                 position_threshold=self.position_threshold,
@@ -239,7 +169,7 @@ class MoveManipulatorAction(ActionDescription, EndEffectorPoseParameters):
     @staticmethod
     def post_condition(
         variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
-    ) -> ConditionType:
+    ) -> SymbolicExpression:
         end_effector = variables["end_effector"]
         target_pose = variables["target_pose"]
         return allclose(

@@ -1,41 +1,49 @@
 from dataclasses import dataclass
 
 from giskardpy.motion_statechart.goals.open_close import Open, Close
-from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
+from semantic_digital_twin.world_description.world_entity import Body
 
+from coraplex.robot_plans.mixins import UsedArm
 from coraplex.robot_plans.motions.base import BaseMotion
-from coraplex.robot_plans.mixins import HandleOperationParameters
-from coraplex.datastructures.enums import Arms
-from coraplex.view_manager import ViewManager
 
 
 @dataclass
-class OpeningMotion(BaseMotion, HandleOperationParameters):
+class OpeningMotion(BaseMotion, UsedArm):
     """
     Designator for opening container.
     """
 
+    object_part: Body
+    """
+    Object designator for the drawer handle
+    """
+
     def perform(self):
         return
 
     @property
     def _motion_chart(self):
-        tip = ViewManager().get_end_effector_view(self.arm, self.robot).tool_frame
-        return Open(tip_link=tip, environment_link=self.handle.root)
+        tip = self.arm.end_effector.tool_frame
+        return Open(tip_link=tip, environment_link=self.object_part)
 
 
 @dataclass
-class ClosingMotion(BaseMotion, HandleOperationParameters):
+class ClosingMotion(BaseMotion, UsedArm):
     """
     Designator for closing a container.
     """
 
+    object_part: Body
+    """
+    Object designator for the drawer handle.
+    """
+
     def perform(self):
         return
 
     @property
     def _motion_chart(self):
-        tip = ViewManager().get_end_effector_view(self.arm, self.robot).tool_frame
+        tip = self.arm.end_effector.tool_frame
         return Close(
-            tip_link=tip, environment_link=self.handle.root, goal_joint_state=0.01
+            tip_link=tip, environment_link=self.object_part, goal_joint_state=0.01
         )

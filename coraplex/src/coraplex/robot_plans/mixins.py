@@ -2,28 +2,29 @@
 Reusable parameters for actions and motions: the inputs a behaviour is given and the
 knobs that tune how it carries them out.
 
-.. note:: Annotations here are evaluated at class creation, so this module must not
-    defer them with ``from __future__ import annotations``.
-    :meth:`~coraplex.plans.designator.Designator.get_type_hints` resolves a designator's
-    inherited fields against the *concrete* class's module, which does not import the
-    types declared here.
+.. note:: This module does not use ``from __future__ import annotations``, so the
+    fields a designator inherits from it carry their types as type objects rather than
+    as strings that would have to be resolved against the designator's own module.
 """
 
 from dataclasses import dataclass, field
 
+import numpy as np
 from typing_extensions import Optional
 
-from coraplex.config.action_conf import ActionConfig
-from coraplex.datastructures.enums import Arms, MovementType
-from coraplex.datastructures.grasp import GraspDescription
+from coraplex.datastructures.enums import MovementType
 from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
-from semantic_digital_twin.robots.robot_parts import Camera, EndEffector
-from semantic_digital_twin.semantic_annotations.mixins import IsGraspable
-from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
-from semantic_digital_twin.spatial_types.spatial_types import Pose
-from semantic_digital_twin.world_description.world_entity import (
-    SemanticAnnotation,
+from semantic_digital_twin.grasping.grasp_candidates import (
+    GraspCandidate,
+    HasGraspCandidates,
 )
+from semantic_digital_twin.robots.robot_parts import Arm, Camera, EndEffector
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Handle,
+    Tool,
+)
+from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 # %% behaviour parameters
 
@@ -34,9 +35,25 @@ class UsedArm:
     Mixin for behaviours that operate one of the robot's arms.
     """
 
-    arm: Arms = field(kw_only=True)
+    arm: Arm = field(kw_only=True)
     """
     The arm the behaviour uses.
+    """
+
+
+@dataclass(eq=False)
+class UsedGrasp:
+    """
+    Mixin for behaviours that close a gripper on something. The grasp names the object it
+    is on, so that is not asked for separately.
+    """
+
+    grasp: GraspCandidate = field(kw_only=True)
+    """
+    The grasp to take hold by.
+
+    One of the object's own
+    :meth:`~semantic_digital_twin.grasping.grasp_candidates.HasGraspCandidates.grasp_candidates`.
     """
 
 
@@ -46,10 +63,10 @@ class ObjectActedOn:
     Mixin for behaviours that act on a single graspable object.
     """
 
-    target_object: IsGraspable = field(kw_only=True)
+    object_designator: HasGraspCandidates = field(kw_only=True)
     """
-    The graspable annotation the behaviour acts on; its :attr:`root` body is used where the
-    underlying kinematic body is required.
+    The annotation of the object the behaviour acts on; its :attr:`root` body is used
+    where the underlying kinematic body is required.
     """
 
 
@@ -68,26 +85,14 @@ class HandleOperatedOn:
 
 
 @dataclass(eq=False)
-class UsedGraspDescription:
+class UsedGripper:
     """
-    Mixin for behaviours that approach a body with a defined grasp.
-    """
-
-    grasp_description: GraspDescription = field(kw_only=True)
-    """
-    The grasp the behaviour uses to approach the body.
+    Mixin for behaviours that actuate a gripper.
     """
 
-
-@dataclass(eq=False)
-class JointStatesKept:
+    gripper: EndEffector = field(kw_only=True)
     """
-    Mixin for behaviours that can preserve the robot's joint states while moving the base.
-    """
-
-    keep_joint_states: bool = field(default=False, kw_only=True)
-    """
-    Whether the joint states are kept unchanged during the behaviour.
+    The gripper the behaviour actuates.
     """
 
 
@@ -133,21 +138,9 @@ class TargetLookedAt:
     Mixin for behaviours that orient the robot toward a pose.
     """
 
-    look_at_target: Pose = field(kw_only=True)
+    target: Pose = field(kw_only=True)
     """
     The pose the behaviour orients toward.
-    """
-
-
-@dataclass(eq=False)
-class StandingPositionMovedTo:
-    """
-    Mixin for behaviours that first move the robot's base to a standing pose.
-    """
-
-    standing_position: Pose = field(kw_only=True)
-    """
-    The pose the robot stands at before manipulating.
     """
 
 
@@ -205,48 +198,9 @@ class UsedTool:
     Mixin for behaviours that manipulate an object with a held tool.
     """
 
-    tool: SemanticAnnotation = field(kw_only=True)
+    tool: Tool = field(kw_only=True)
     """
     The tool the behaviour uses.
-    """
-
-
-@dataclass(eq=False)
-class UsedTechnique:
-    """
-    Mixin for behaviours that can be parametrised by a named technique.
-    """
-
-    technique: Optional[str] = field(default=None, kw_only=True)
-    """
-    The technique the behaviour applies.
-    """
-
-
-@dataclass(eq=False)
-class UsedGraspingPreposeDistance:
-    """
-    Mixin for behaviours that approach a handle from a prepose offset before grasping.
-    """
-
-    grasping_prepose_distance: float = field(
-        default=ActionConfig.grasping_prepose_distance, kw_only=True
-    )
-    """
-    The distance in meters between the gripper and the handle before approaching to grasp.
-    """
-
-
-@dataclass(eq=False)
-class PoseSequenceReversed:
-    """
-    Mixin for behaviours whose pose sequence can be reversed to move away instead of toward
-    the target.
-    """
-
-    reverse_pose_sequence: bool = field(default=False, kw_only=True)
-    """
-    Whether the pose sequence is reversed.
     """
 
 
@@ -347,7 +301,7 @@ class HasMaxJointVelocity:
     Adds an optional joint velocity cap to an action or motion.
 
     .. note:: Stands on its own rather than joining one of the bundles below, because the
-        behaviours that cap a joint speed share no other parameter: one names an arm, the
+        behaviours that cap a joint speed share no other parameter: one names the arms, the
         other the joints it drives.
     """
 
@@ -363,36 +317,10 @@ class HasMaxJointVelocity:
 
 
 @dataclass(eq=False)
-class ObjectManipulationParameters(ObjectActedOn, UsedArm):
+class GraspParameters(UsedGrasp, UsedArm):
     """
-    Bundle of the parameters shared by every behaviour that manipulates an object with an arm:
-    the object and the arm acting on it.
-    """
-
-
-@dataclass(eq=False)
-class GraspParameters(ObjectManipulationParameters, UsedGraspDescription):
-    """
-    Bundle of the parameters for grasping an object: the object, the arm, and the grasp the
-    arm approaches it with.
-    """
-
-
-@dataclass(eq=False)
-class ToolUsageParameters(ObjectManipulationParameters, UsedTool, UsedTechnique):
-    """
-    Bundle of the parameters for acting on an object with a held tool: the object, the arm,
-    the tool, and the technique.
-    """
-
-
-@dataclass(eq=False)
-class MobileManipulationParameters(
-    ObjectManipulationParameters, StandingPositionMovedTo, JointStatesKept
-):
-    """
-    Bundle of the parameters for manipulating an object after first driving the base to a
-    standing pose: the object, the arm, the standing pose, and whether joint states are kept.
+    Bundle of the parameters for taking hold of an object: the grasp, which names the
+    object, and the arm that takes hold by it.
     """
 
 
@@ -434,18 +362,10 @@ class CameraTargetParameters(UsedCamera, TargetLookedAt):
 
 
 @dataclass(eq=False)
-class NavigationParameters(TargetLocationMovedTo, JointStatesKept):
-    """
-    Bundle of the parameters for navigating the base to a destination: the destination and
-    whether joint states are kept.
-    """
-
-
-@dataclass(eq=False)
-class GripperActuationParameters(GripperStateSet, UsedArm):
+class GripperActuationParameters(GripperStateSet, UsedGripper):
     """
     Bundle of the parameters for setting a gripper to an open or closed state: the gripper
-    state and the arm.
+    state and the gripper.
     """
 
 
@@ -453,7 +373,7 @@ class GripperActuationParameters(GripperStateSet, UsedArm):
 class GripperStallTolerated(GripperActuationParameters):
     """
     Bundle of the parameters for setting a gripper that may stall short of its target: the
-    gripper state, the arm, and how a stall is tolerated.
+    gripper state, the gripper, and how a stall is tolerated.
     """
 
     finger_velocity: Optional[float] = field(default=None, kw_only=True)
@@ -613,3 +533,145 @@ class PlaceTuningParameters(GraspDetectionThreshold):
     :class:`~giskardpy.motion_statechart.tasks.cartesian_tasks.CartesianPositionVelocityLimit`.
     ``None`` leaves the speed unconstrained.
     """
+
+
+# %% grasp approach poses
+
+
+@dataclass
+class GraspPoseSequence:
+    """
+    The tool frame goals that approach a grasp, reach it and withdraw from it.
+    """
+
+    pre_grasp: Pose
+    """
+    Where the gripper waits before it moves onto the grasp, clear of the object.
+    """
+
+    grasp: Pose
+    """
+    The tool frame goal at the grasp itself.
+    """
+
+    retreat: Pose
+    """
+    Where the gripper rises to when it leaves the grasp.
+    """
+
+
+@dataclass
+class HasApproachesGraspPoses:
+    """
+    Turns a grasp frame (x-axis along the approach, see
+    :class:`~semantic_digital_twin.grasping.grasp_candidates.GraspCandidate`) into the
+    tool frame goals that approach it, reach it and withdraw from it.
+    """
+
+    approach_clearance: float = field(default=0.1, kw_only=True)
+    """
+    The gap in meters between the object and the gripper at the pre-grasp pose.
+    """
+
+    retreat_distance: float = field(default=0.1, kw_only=True)
+    """
+    How far in meters the gripper rises when it leaves a grasp or a placed object.
+    """
+
+    def grasp_pose_sequence(
+        self,
+        reference_T_grasp: Pose,
+        end_effector: EndEffector,
+        grasp: Optional[GraspCandidate] = None,
+    ) -> GraspPoseSequence:
+        """
+        :param reference_T_grasp: The grasp frame to reach; for a release, where the
+            object is to be put.
+        :param end_effector: The end effector that is to reach it.
+        :param grasp: The grasp whose object the pre-grasp pose has to stay outside of;
+            ``None`` keeps only :attr:`approach_clearance`.
+        :return: The tool frame goals around the grasp.
+        """
+        tool_goal = end_effector.tool_frame_goal(reference_T_grasp)
+        grasp_T_pre_grasp = HomogeneousTransformationMatrix.from_xyz_rpy(
+            x=-self._approach_distance(grasp)
+        )
+        pre_grasp_pose = end_effector.tool_frame_goal(
+            (reference_T_grasp.to_homogeneous_matrix() @ grasp_T_pre_grasp).to_pose()
+        )
+        return GraspPoseSequence(
+            pre_grasp=pre_grasp_pose,
+            grasp=tool_goal,
+            retreat=self._retreat_pose(reference_T_grasp, tool_goal),
+        )
+
+    def _approach_distance(self, grasp: Optional[GraspCandidate]) -> float:
+        """
+        :param grasp: The grasp on the object, or ``None`` when there is no object.
+        :return: The distance in meters from the grasp back to the pre-grasp pose: the
+            distance to the object's bounding box along the approach, plus
+            :attr:`approach_clearance`.
+        """
+        if grasp is None or not grasp.graspable.root.has_collision():
+            return self.approach_clearance
+        return self._distance_to_boundary(grasp) + self.approach_clearance
+
+    @staticmethod
+    def _distance_to_boundary(grasp: GraspCandidate) -> float:
+        """
+        The distance the gripper has to retrace before it leaves the body's bounding
+        box.
+
+        :param grasp: The grasp on the object.
+        :return: The distance in meters, zero when the grasp already lies outside the
+            box.
+        """
+        body = grasp.graspable.root
+        bounding_box = body.collision.as_bounding_box_collection_in_frame(
+            body
+        ).bounding_box()
+
+        grasp_position = grasp.grasp_pose.to_np()[:3, 3]
+        # The grasp frame's x-axis is where the gripper comes from, so it retraces -x.
+        retrace_direction = -grasp.grasp_pose.to_np()[:3, 0]
+        intervals = (
+            bounding_box.x_interval,
+            bounding_box.y_interval,
+            bounding_box.z_interval,
+        )
+        minimum = np.array([interval.lower for interval in intervals])
+        maximum = np.array([interval.upper for interval in intervals])
+
+        distances = [
+            (
+                (maximum[axis] if retrace_direction[axis] > 0 else minimum[axis])
+                - grasp_position[axis]
+            )
+            / retrace_direction[axis]
+            for axis in range(3)
+            if not np.isclose(retrace_direction[axis], 0)
+        ]
+        return max(min(distances, default=0.0), 0.0)
+
+    def _retreat_pose(self, reference_T_grasp: Pose, tool_goal: Pose) -> Pose:
+        """
+        The tool frame goal :attr:`retreat_distance` above the grasp along the world's
+        z-axis (a grasp frame's own z-axis can lie flat).
+
+        :param reference_T_grasp: The grasp frame that was reached.
+        :param tool_goal: The tool frame goal at the grasp, whose orientation is kept.
+        :return: The retreat pose, in ``reference_T_grasp``'s frame.
+        """
+        target = reference_T_grasp.reference_frame
+        world = target._world
+        world_T_grasp = world.transform(
+            reference_T_grasp.to_homogeneous_matrix(), world.root
+        )
+        world_T_lift = HomogeneousTransformationMatrix.from_xyz_rpy(
+            z=self.retreat_distance, reference_frame=world.root
+        )
+        return Pose(
+            world.transform((world_T_lift @ world_T_grasp).to_position(), target),
+            tool_goal.to_quaternion(),
+            reference_frame=target,
+        )

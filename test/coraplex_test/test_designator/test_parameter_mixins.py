@@ -1,11 +1,5 @@
 import dataclasses
 
-from coraplex.datastructures.enums import (
-    ApproachDirection,
-    Arms,
-    VerticalAlignment,
-)
-from coraplex.datastructures.grasp import GraspDescription
 from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
@@ -26,103 +20,80 @@ from coraplex.robot_plans.mixins import (
     GripperStateSet,
     HandleOperatedOn,
     HandleOperationParameters,
-    NavigationParameters,
     ObjectActedOn,
-    ObjectManipulationParameters,
     PlaceTuningParameters,
+    TargetLocationMovedTo,
     ToolCenterPointGoalThresholds,
     UsedArm,
-    UsedGraspDescription,
+    UsedGrasp,
+    UsedGripper,
 )
 from semantic_digital_twin.datastructures.definitions import GripperState
-from semantic_digital_twin.semantic_annotations.mixins import IsGraspable
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle, Milk
 
 
 def test_action_inherits_parameter_mixins():
     assert issubclass(PickUpAction, UsedArm)
-    assert issubclass(PickUpAction, ObjectActedOn)
-    assert issubclass(PickUpAction, UsedGraspDescription)
+    assert issubclass(PickUpAction, UsedGrasp)
 
 
 def test_bundle_mixins_compose_leaf_mixins():
     # bundles inherit their constituent leaf mixins ...
-    assert issubclass(GraspParameters, ObjectManipulationParameters)
-    assert issubclass(GraspParameters, UsedGraspDescription)
-    assert issubclass(ObjectManipulationParameters, ObjectActedOn)
-    assert issubclass(ObjectManipulationParameters, UsedArm)
+    assert issubclass(GraspParameters, UsedGrasp)
+    assert issubclass(GraspParameters, UsedArm)
     assert issubclass(GripperActuationParameters, GripperStateSet)
+    assert issubclass(GripperActuationParameters, UsedGripper)
     assert issubclass(HandleOperationParameters, HandleOperatedOn)
+    assert issubclass(HandleOperationParameters, UsedArm)
 
 
 def test_classes_inherit_bundle_mixins():
     # ... and concrete classes inherit the bundles while still exposing the leaf interface.
     assert issubclass(PickUpAction, GraspParameters)
-    assert issubclass(PickUpAction, ObjectManipulationParameters)
     assert issubclass(PickUpAction, UsedArm)
-    assert issubclass(NavigateAction, NavigationParameters)
+    assert issubclass(NavigateAction, TargetLocationMovedTo)
     assert issubclass(OpenAction, HandleOperationParameters)
     assert issubclass(MoveGripperMotion, GripperActuationParameters)
 
 
-def test_pick_up_action_acts_on_graspable_annotation(immutable_model_world):
-    world, view, context = immutable_model_world
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        view.left_arm.end_effector,
-    )
+def test_pick_up_action_takes_its_grasp_and_arm(pr2_apartment_context):
+    world, view, context = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    assert isinstance(milk, IsGraspable)
-    action = PickUpAction(
-        target_object=milk, arm=Arms.LEFT, grasp_description=grasp_description
-    )
+    grasp = milk.grasp_candidates()[0]
+    arm = context.robot.left_arm
 
-    assert action.arm is Arms.LEFT
-    assert action.target_object is milk
-    assert action.target_object.root is world.get_body_by_name("milk.stl")
-    assert not hasattr(action, "object_designator")
-    assert action.grasp_description is grasp_description
+    action = PickUpAction(grasp=grasp, arm=arm)
+
+    assert action.arm is arm
+    assert action.grasp is grasp
+    assert action.grasp.graspable is milk
 
     parameters = action.designator_parameter
-    assert parameters["arm"] is Arms.LEFT
-    assert parameters["target_object"] is milk
-    assert parameters["grasp_description"] is grasp_description
+    assert parameters["arm"] is arm
+    assert parameters["grasp"] is grasp
 
 
-def test_combined_mixins_instantiate_without_ordering_error(immutable_model_world):
-    world, view, context = immutable_model_world
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        view.left_arm.end_effector,
-    )
-    action = PickUpAction(
-        target_object=world.get_semantic_annotations_by_type(Milk)[0],
-        arm=Arms.LEFT,
-        grasp_description=grasp_description,
-    )
-    assert {"arm", "target_object", "grasp_description"} <= set(
-        action.designator_parameter
-    )
+def test_move_gripper_motion_exposes_its_gripper(pr2_apartment_context):
+    world, view, context = pr2_apartment_context
+    gripper = context.robot.left_arm.end_effector
 
+    motion = MoveGripperMotion(motion=GripperState.OPEN, gripper=gripper)
 
-def test_move_gripper_motion_exposes_unified_arm():
-    motion = MoveGripperMotion(motion=GripperState.OPEN, arm=Arms.LEFT)
-
-    assert motion.arm is Arms.LEFT
+    assert motion.gripper is gripper
     assert motion.motion is GripperState.OPEN
-    assert issubclass(MoveGripperMotion, UsedArm)
+    assert issubclass(MoveGripperMotion, UsedGripper)
     assert issubclass(MoveGripperMotion, GripperStateSet)
 
 
-def test_open_action_operates_on_handle(immutable_model_world):
-    world, view, context = immutable_model_world
-    handle = Handle(root=world.get_body_by_name("handle_cab10_m"))
-    action = OpenAction(handle=handle, arm=Arms.LEFT)
+def test_open_action_operates_on_handle(pr2_apartment_context):
+    world, view, context = pr2_apartment_context
+    handle = world.get_semantic_annotations_by_type(Handle)[0]
+    arm = context.robot.left_arm
+
+    action = OpenAction(handle=handle, arm=arm)
 
     assert action.handle is handle
-    assert action.handle.root is world.get_body_by_name("handle_cab10_m")
+    assert action.arm is arm
     assert issubclass(OpenAction, HandleOperatedOn)
     assert issubclass(OpenAction, UsedArm)
 
@@ -130,16 +101,30 @@ def test_open_action_operates_on_handle(immutable_model_world):
 # %% runtime resolution of the inherited field types
 
 
+def field_types(designator_type: type) -> dict:
+    """
+    :return: The declared type of each of the designator's dataclass fields, by name.
+    """
+    return {
+        parameter.name: parameter.type
+        for parameter in dataclasses.fields(designator_type)
+    }
+
+
 def test_inherited_parameters_keep_their_declared_types():
     """
-    A designator resolves its fields against its own module, which does not import the
-    types the mixins declare, so those annotations have to survive as types rather than
-    as strings this module cannot look up.
+    The fields a designator inherits from the mixins carry the types the mixins declare
+    as type objects, not as strings the designator's own module would have to resolve.
     """
-    hints = PlaceAction.get_type_hints()
+    hints = field_types(PlaceAction)
 
-    assert hints["target_object"] is ObjectActedOn.__annotations__["target_object"]
-    assert hints["arm"] is UsedArm.__annotations__["arm"]
+    assert (
+        hints["object_designator"] is ObjectActedOn.__annotations__["object_designator"]
+    )
+    assert (
+        hints["target_location"]
+        is TargetLocationMovedTo.__annotations__["target_location"]
+    )
     assert (
         hints["placing_linear_velocity"]
         == PlaceTuningParameters.__annotations__["placing_linear_velocity"]
@@ -158,7 +143,7 @@ def test_behaviours_driving_a_tool_center_point_carry_their_own_tolerances():
     assert issubclass(ArmDrivenToGoal, UsedArm)
     assert issubclass(ArmDrivenToGoal, ToolCenterPointGoalThresholds)
 
-    hints = MoveToolCenterPointMotion.get_type_hints()
+    hints = field_types(MoveToolCenterPointMotion)
     assert (
         hints["position_threshold"]
         == ToolCenterPointGoalThresholds.__annotations__["position_threshold"]
@@ -167,19 +152,18 @@ def test_behaviours_driving_a_tool_center_point_carry_their_own_tolerances():
 
 def test_behaviours_without_a_tool_center_point_goal_have_no_tolerances():
     """
-    Parking an arm and setting a gripper drive no tool center point, so folding the
+    Parking the arms and setting a gripper drive no tool center point, so folding the
     tolerances into the arm parameters must not reach them.
     """
-    assert issubclass(ParkArmsAction, UsedArm)
     assert not issubclass(ParkArmsAction, ToolCenterPointGoalThresholds)
     assert "position_threshold" not in {
-        f.name for f in dataclasses.fields(ParkArmsAction)
+        parameter.name for parameter in dataclasses.fields(ParkArmsAction)
     }
 
     assert issubclass(SetGripperAction, GripperActuationParameters)
     assert not issubclass(SetGripperAction, GripperStallTolerated)
     assert "tolerate_stall" not in {
-        f.name for f in dataclasses.fields(SetGripperAction)
+        parameter.name for parameter in dataclasses.fields(SetGripperAction)
     }
 
 
