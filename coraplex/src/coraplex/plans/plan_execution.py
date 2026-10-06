@@ -31,7 +31,6 @@ from coraplex.plans.plan_transformation import PlanRewriting
 from coraplex.plans.underspecified import UnderspecifiedNode
 from coraplex.robot_plans.actions.base import Action
 from coraplex.visualization import RvizVisualization
-from cramph.candidate_generator import CandidateGenerator
 from cramph.composites import (
     Attempt,
     ChildChooser,
@@ -625,14 +624,14 @@ class ActionTrial:
 
 
 @dataclass(eq=False, repr=False)
-class UnderspecifiedCandidates(
-    CandidateGenerator[DesignatorParameters, StatechartNode]
-):
+class UnderspecifiedCandidates:
     """
     The actions an :class:`~coraplex.plans.underspecified.UnderspecifiedNode` may run,
     grounded one at a time against the world at the moment it asks, each tried in an
     :class:`ActionTrial` first.
 
+    Nothing is grounded before :meth:`advance` is called, and the statement is left
+    suspended between candidates, so a later :meth:`advance` resumes where it stopped.
     At most :attr:`candidate_limit` actions are grounded.
     """
 
@@ -645,6 +644,21 @@ class UnderspecifiedCandidates(
     """
     The trial every candidate is tried against, shared by every underspecified node of a
     plan so they all try their candidates in one copy of the world.
+    """
+
+    current_candidate: Optional[StatechartNode] = field(
+        default=None, init=False, repr=False
+    )
+    """
+    The node running the action the latest successful :meth:`advance` grounded.
+    """
+
+    _proposals: Optional[Iterator[DesignatorParameters]] = field(
+        default=None, init=False, repr=False
+    )
+    """
+    The grounded actions of the statement, open from the first pull until they are
+    exhausted or released by :meth:`stop_generating`.
     """
 
     _candidates_pulled: int = field(default=0, init=False, repr=False)
@@ -668,6 +682,38 @@ class UnderspecifiedCandidates(
         """
         return self._candidates_pulled == self.candidate_limit
 
+    def advance(self) -> bool:
+        """
+        Makes the next action that succeeds its trial the current candidate.
+
+        An action that fails its trial is discarded without ever touching the real
+        world, so a bad parameterization cannot poison a later attempt.
+
+        :return: True if a new candidate was created, False if the statement ran out of
+            actions that succeed their trial.
+        """
+        proposal = self._pull_next_proposal()
+        while proposal is not None:
+            if self.trial.succeeds(proposal):
+                self.current_candidate = self._create_candidate(proposal)
+                return True
+            proposal = self._pull_next_proposal()
+        return False
+
+    def stop_generating(self) -> None:
+        """
+        Releases the statement's grounded actions once no further candidate will be
+        requested.
+
+        A suspended generator keeps every value its frame holds alive, so closing it
+        frees whatever the statement only holds to ground actions with. The next
+        :meth:`advance` grounds the statement anew.
+        """
+        if self._proposals is None:
+            return
+        self._proposals.close()
+        self._proposals = None
+
     def _pull_next_proposal(self) -> Optional[DesignatorParameters]:
         """
         :return: The next grounded action, or None once the statement is exhausted or
@@ -675,23 +721,18 @@ class UnderspecifiedCandidates(
         """
         if self._proposals is None:
             self._candidates_pulled = 0
+            self._proposals = self.trial.context.query_backend.evaluate(
+                self.node.statement
+            )
         if self.reached_candidate_limit:
             self.stop_generating()
             return None
-        proposal = super()._pull_next_proposal()
-        if proposal is not None:
-            self._candidates_pulled += 1
+        proposal = next(self._proposals, None)
+        if proposal is None:
+            self._proposals = None
+            return None
+        self._candidates_pulled += 1
         return proposal
-
-    def _generate_proposals(self) -> Iterator[DesignatorParameters]:
-        return self.trial.context.query_backend.evaluate(self.node.statement)
-
-    def _is_viable(self, proposal: DesignatorParameters) -> bool:
-        """
-        A proposal that fails its trial is discarded without ever touching the real
-        world, so a bad parameterization cannot poison a later attempt.
-        """
-        return self.trial.succeeds(proposal)
 
     def _create_candidate(self, proposal: DesignatorParameters) -> StatechartNode:
         """

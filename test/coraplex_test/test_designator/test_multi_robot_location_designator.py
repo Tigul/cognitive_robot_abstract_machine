@@ -12,7 +12,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.plan_execution import PlanExecutor
 from cramph.composites import Parallel, Sequence, TryAll, TryInOrder
-from coraplex.plans.function_call import FunctionCall
+from cramph.threaded_nodes import FunctionCall
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.robots.robot_parts import AbstractRobot

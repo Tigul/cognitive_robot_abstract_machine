@@ -20,7 +20,7 @@ from coraplex.execution_environment import ExecutionEnvironment
 from coraplex.demonstrations import RobotDemonstration, RobotDemonstrationRosSession
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.world import World
-from coraplex.plans.function_call import FunctionCall
+from cramph.threaded_nodes import FunctionCall
 
 from ..conftest import SAMPLING_SEED
 

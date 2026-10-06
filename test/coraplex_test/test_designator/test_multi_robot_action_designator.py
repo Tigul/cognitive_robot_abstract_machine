@@ -17,7 +17,7 @@ from coraplex.execution_environment import simulated_robot
 from cramph.statechart import Statechart
 from coraplex.plans.plan_execution import PlanExecutor
 from cramph.composites import Parallel, Sequence, TryAll, TryInOrder
-from coraplex.plans.function_call import FunctionCall
+from cramph.threaded_nodes import FunctionCall
 from coraplex.robot_plans.plan_transformations import OpenDrawerBeforeMoveAndPickUp
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.container import OpenAction, CloseAction

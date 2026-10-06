@@ -7,6 +7,7 @@ from cramph.data_types import LifeCycleValues, ObservationStateValues
 from cramph.executor import StatechartExecutor
 from cramph.node import EndStatechart, StatechartNode
 from cramph.nodes_for_testing import ConstTrueNode, NodeSucceedingOnObservingTrue
+from cramph.plotters.interactive_graph import StatechartGraphVisualizer
 from cramph.statechart import Statechart
 from krrood.rustworkx_utils.graph_visualizer_base import (
     GraphLayout,
@@ -81,7 +82,7 @@ def test_an_empty_statechart_has_no_layers(statechart_executor: StatechartExecut
 def test_the_drawing_connects_each_node_to_the_nodes_it_runs(
     two_tree_statechart: Statechart,
 ):
-    visualizer = two_tree_statechart._create_visualizer(
+    visualizer = StatechartGraphVisualizer(two_tree_statechart).create_visualizer(
         backend=GraphVisualizerBackend.CYTOSCAPE, layout=GraphLayout.LAYERED
     )
 
@@ -97,7 +98,7 @@ def test_a_node_is_drawn_labelled_by_its_unique_name(
     two_tree_statechart: Statechart,
 ):
     middle = node_named(two_tree_statechart, "middle")
-    visualizer = two_tree_statechart._create_visualizer(
+    visualizer = StatechartGraphVisualizer(two_tree_statechart).create_visualizer(
         backend=GraphVisualizerBackend.CYTOSCAPE, layout=GraphLayout.LAYERED
     )
 
@@ -113,7 +114,7 @@ def test_a_node_is_drawn_in_the_color_of_its_current_state(
     )
     statechart.add_node(node)
     statechart.add_node(EndStatechart.when_true(node))
-    visualizer = statechart._create_visualizer(
+    visualizer = StatechartGraphVisualizer(statechart).create_visualizer(
         backend=GraphVisualizerBackend.CYTOSCAPE, layout=GraphLayout.LAYERED
     )
 

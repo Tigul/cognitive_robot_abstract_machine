@@ -1,6 +1,4 @@
-import abc
 import logging
-import threading
 import time
 from abc import ABC, abstractmethod
 from dataclasses import field, dataclass
@@ -9,6 +7,7 @@ from typing import Optional, Callable
 from cramph.context import StatechartContext
 from cramph.data_types import SuccessDecider, LifeCycleValues, ObservationStateValues
 from cramph.node import StatechartNode, NodeArtifacts
+from cramph.threaded_nodes import ThreadedNode
 
 logger = logging.getLogger(__name__)
 
@@ -141,27 +140,17 @@ class CountTicks(TickCounter):
 
 
 @dataclass(eq=False, repr=False)
-class ThreadedPredicateMonitor(StatechartNode):
+class ThreadedPredicateMonitor(ThreadedNode):
     """
     Evaluates an arbitrary boolean predicate in a background thread and exposes the
     result as the node's observation state.
 
-    While the node is RUNNING:
+    The observation is ``UNKNOWN`` until the predicate returned, then ``TRUE`` or
+    ``FALSE`` by what it returned. If the predicate raises, the error is raised out of
+    the tick.
 
-    - On entering RUNNING (``on_start``), the predicate is launched in a daemon
-      thread so a slow/blocking evaluation does not stall the tick loop.
-    - Until the thread finishes, the observation is ``UNKNOWN``.
-    - Afterwards the observation is ``TRUE`` / ``FALSE`` based on the predicate's
-      return value. If the predicate raises, the error is logged and the
-      observation becomes ``FALSE``.
-
-    The predicate is a plain ``Callable[[], bool]`` so this class has no
-    dependency on whatever produces it (e.g. an EQL condition is wrapped in a lambda
-    by the caller).
-
-    .. warning:: The predicate is not serializable, so this monitor only works in
-        a locally ticked statechart, not when the statechart is shipped to a
-        remote process.
+    The predicate is a plain ``Callable[[], bool]`` so this class has no dependency on
+    whatever produces it (e.g. an EQL condition is wrapped in a lambda by the caller).
     """
 
     success_decided_by = SuccessDecider.OWNER
@@ -171,32 +160,12 @@ class ThreadedPredicateMonitor(StatechartNode):
     The predicate to evaluate, passed as a constructor argument.
     """
 
-    _thread: Optional[threading.Thread] = field(default=None, init=False, repr=False)
-    _result: Optional[bool] = field(default=None, init=False, repr=False)
-    _done: bool = field(default=False, init=False, repr=False)
-    _error: Optional[BaseException] = field(default=None, init=False, repr=False)
-
-    def _worker(self, predicate: Callable[[], bool]) -> None:
-        """
-        Wrapper that is executed in the external thread to catch Exceptions and manage
-        Observation variables.
-
-        :param predicate: The predicate to evaluate
-        """
-        result: Optional[bool] = None
-        error: Optional[BaseException] = None
-        try:
-            result = bool(predicate())
-        except BaseException as e:  # noqa: BLE001 - reported via observation/logging
-            error = e
-        self._result = result
-        self._error = error
-        self._done = True
+    def run(self) -> bool:
+        return bool(self.predicate())
 
     def on_start(self, context: StatechartContext) -> None:
         """
-        On start of this note construct the external thread with self._worker and start
-        it as daemon.
+        Start evaluating the predicate, unless there is none.
         """
         if self.predicate is None:
             logger.error(
@@ -204,30 +173,17 @@ class ThreadedPredicateMonitor(StatechartNode):
                 self.unique_name,
             )
             return
-        self._result = None
-        self._error = None
-        self._done = False
-        self._thread = threading.Thread(
-            target=self._worker,
-            args=(self.predicate,),
-            name=f"{self.__class__.__name__}-{self.name}",
-            daemon=True,
-        )
-        self._thread.start()
+        super().on_start(context)
 
     def on_tick(self, context: StatechartContext) -> Optional[ObservationStateValues]:
         """
-        On tick of the statechart check if the thread is finished and set the
-        ObservationStateValues accordingly to ObservationStateValues.UNKNOWN if the
-        thread is still working ObservationStateValues.TRUE if the Thread finished with
-        true and ObservationStateValues.FALSE if the Thread finished with false or
-        crashed with an exception.
+        :raises BaseException: What the predicate raised, if it raised.
         """
-        if not self._done:
+        if not self.has_finished:
             return ObservationStateValues.UNKNOWN
         if self._error is not None:
             logger.warning(
-                "%s predicate raised %s; reporting FALSE.",
+                "%s predicate raised %s.",
                 self.unique_name,
                 self._error,
             )
@@ -237,22 +193,6 @@ class ThreadedPredicateMonitor(StatechartNode):
             if self._result
             else ObservationStateValues.FALSE
         )
-
-    def on_reset(self, context: StatechartContext) -> None:
-        self._join_thread()
-        self._result = None
-        self._error = None
-        self._done = False
-
-    def cleanup(self, context: StatechartContext) -> None:
-        self._join_thread()
-
-    def _join_thread(self) -> None:
-        if self._thread is not None and self._thread.is_alive():
-            # Don't block the control loop indefinitely on a hung predicate;
-            # the thread is a daemon and will be reaped on interpreter exit.
-            self._thread.join(timeout=0.1)
-        self._thread = None
 
 
 @dataclass(eq=False, repr=False)
@@ -330,24 +270,3 @@ class CountNodeResets(StatechartNode):
         if self.resets >= self.target:
             return ObservationStateValues.TRUE
         return ObservationStateValues.FALSE
-
-
-@dataclass
-class ThreadedPayloadMonitor(StatechartNode, ABC):
-    """
-    A monitor which executes its __call__ function when start_condition becomes True.
-
-    Subclass this and implement __init__.py and __call__. The __call__ method should
-    change self.state to True when it's done. Calls __call__ in a separate thread. Use
-    for expensive operations
-    """
-
-    success_decided_by = SuccessDecider.OWNER
-
-    state: ObservationStateValues = field(
-        init=False, default=ObservationStateValues.UNKNOWN
-    )
-
-    @abc.abstractmethod
-    def __call__(self):
-        pass

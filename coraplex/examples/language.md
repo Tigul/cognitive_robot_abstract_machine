@@ -168,13 +168,13 @@ In this case 'park' and 'move_torso' form a Sequence, and that Sequence runs in 
 
 ## Code Objects
 
-A plan can also call Python code. A {class}`~coraplex.plans.function_call.FunctionCall` calls its function in a thread
+A plan can also call Python code. A {class}`~cramph.threaded_nodes.FunctionCall` calls its function in a thread
 of its own and succeeds once the function returned.
 
 The function can either be a lambda expression or, for more complex code, a function.
 
 ```python
-from coraplex.plans.function_call import FunctionCall
+from cramph.threaded_nodes import FunctionCall
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from cramph.composites import Parallel
 
@@ -206,7 +206,7 @@ plan.
 
 ```python
 from coraplex.plans.failures import PlanFailure
-from coraplex.plans.function_call import FunctionCall
+from cramph.threaded_nodes import FunctionCall
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from cramph.composites import TryAll
 from semantic_digital_twin.spatial_types import Pose

@@ -71,7 +71,7 @@ from experiments.experiment_definitions import (
     ExperimentsTable,
     TypstRenderer,
 )
-from coraplex.plans.function_call import FunctionCall
+from cramph.threaded_nodes import FunctionCall
 from coraplex.plans.plan_execution import PlanExecutor
 
 _CORAPLEX_RESOURCES = Path(_coraplex_pkg.__file__).parent.parent.parent / "resources"
@@ -233,7 +233,7 @@ def build_plan(context: Context) -> StatechartNode:
             MoveTorsoAction(TorsoState.HIGH),
             TryInOrder(
                 [
-                    FunctionCall(function=_failing_step),
+                    FunctionCall(function=_failing_step, failure_types=(PlanFailure,)),
                     TransportAction.from_graspable_by_closest_grasps(
                         world.get_semantic_annotations_by_type(Milk)[0],
                         Pose.from_xyz_rpy(

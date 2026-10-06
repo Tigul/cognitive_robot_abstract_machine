@@ -46,8 +46,12 @@ Open questions to settle when this is picked up again:
   `CompositeNodeChoosingItsChild` it is, so the receiving process asks the sender for
   each child instead of grounding the statement itself. Tests covering that, and a
   statement inside a sent statechart, are still to be written.
-- A giskardpy `MoveGripper` does not survive a JSON round trip, which breaks the
-  real-stretch cross-process demo in `experiments`.
+- A giskardpy `MoveGripper` does not survive a JSON round trip: its fail condition
+  references nodes outside its scope after deserialization
+  (`UnserializableGoalError`/`ConditionScopeError`). This breaks the real-stretch
+  cross-process demo, parked as
+  `test/experiments_test/real_stretch_demo_test/test_real_stretch_demo_process_boundary.py`:
+  `test_demonstration_runs_against_a_controller_in_another_process`.
 
 ## ROS 2 goals
 

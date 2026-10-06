@@ -27,7 +27,7 @@ from cramph.nodes_for_testing import ConstFalseNode, ConstTrueNode
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.spatial_types import Pose
 from semantic_digital_twin.robots.pr2 import PR2Joint
-from coraplex.plans.function_call import FunctionCall
+from cramph.threaded_nodes import FunctionCall
 from coraplex.plans.plan_execution import PlanExecutor
 
 
@@ -208,7 +208,7 @@ def test_exception_sequential(pr2_apartment_context):
         raise PlanFailure()
 
     act = NavigateAction(Pose.from_xyz_rpy(1, -1, reference_frame=world.root))
-    act2 = FunctionCall(function=raise_except)
+    act2 = FunctionCall(function=raise_except, failure_types=(PlanFailure,))
 
     plan = Sequence([act, act2])
 
@@ -231,7 +231,7 @@ def test_exception_try_in_order(pr2_apartment_context):
         raise PlanFailure()
 
     act = NavigateAction(Pose.from_xyz_rpy(1, -1, reference_frame=world.root))
-    act2 = FunctionCall(function=raise_except)
+    act2 = FunctionCall(function=raise_except, failure_types=(PlanFailure,))
 
     plan = TryInOrder([act, act2])
     with simulated_robot:
@@ -249,7 +249,7 @@ def test_exception_try_all(pr2_apartment_context):
         raise PlanFailure()
 
     act = NavigateAction(Pose.from_xyz_rpy(x=-2, reference_frame=world.root))
-    act2 = FunctionCall(function=raise_except)
+    act2 = FunctionCall(function=raise_except, failure_types=(PlanFailure,))
 
     plan = TryAll([act, act2])
     with simulated_robot:
@@ -274,7 +274,10 @@ def test_try_in_order_recovers_from_a_failing_code_step(pr2_apartment_context):
         raise PlanFailure()
 
     plan = TryInOrder(
-        [FunctionCall(function=raise_except), MoveTorsoAction(TorsoState.HIGH)]
+        [
+            FunctionCall(function=raise_except, failure_types=(PlanFailure,)),
+            MoveTorsoAction(TorsoState.HIGH),
+        ]
     )
     with simulated_robot:
         executor = PlanExecutor(context)

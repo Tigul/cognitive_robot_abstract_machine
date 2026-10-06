@@ -21,7 +21,7 @@ from coraplex.plans.failures import (
     EmptyUnderspecified,
     PlanFailure,
 )
-from coraplex.plans.function_call import FunctionCall
+from cramph.threaded_nodes import FunctionCall
 from coraplex.plans.plan_callbacks import PlanCallback
 from coraplex.plans.plan_execution import (
     ActionTrial,
@@ -133,7 +133,9 @@ class RecordingAction(Action):
 
     @property
     def _sub_nodes(self) -> List[StatechartNode]:
-        return [FunctionCall(function=self._record_attempt)]
+        return [
+            FunctionCall(function=self._record_attempt, failure_types=(PlanFailure,))
+        ]
 
     def _record_attempt(self) -> None:
         """
