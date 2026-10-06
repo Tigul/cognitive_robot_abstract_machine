@@ -27,6 +27,12 @@ Done (unstaged):
 - cramera: bridge/visualization/chart_* on cramph Statechart; PlanNodeKind.
 - experiments ported.
 
-Next: coraplex demos/docs/examples; tests (coraplex conflicts + new upstream
-tests incl. test_transporting/test_placing/test_plan_transformations/
-execution observers/visualization; cramera tests); run suites.
+- demos/docs/examples ported; all conflict markers gone; coraplex tests
+  resolved/ported (transformations, placing, grasp choice, transporting,
+  visualization, plan callbacks replace test_execution_observers;
+  test_plan_failure_persistence dropped - no plan-node failure fields).
+
+Next: port cramera tests (test/cramera_test/*, dataset/motion_execution.py use
+MotionStatechart/Plan); delete files in scratchpad deleted.txt via git rm and
+`git add -A` the rest; regenerate ORM; run cramph, giskardpy statechart,
+segmind, coraplex, cramera suites (serially) and fix; then commit the merge.
