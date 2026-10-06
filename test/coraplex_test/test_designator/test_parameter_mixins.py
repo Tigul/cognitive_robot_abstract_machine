@@ -25,8 +25,8 @@ from coraplex.robot_plans.mixins import (
     TargetLocationMovedTo,
     ToolCenterPointGoalThresholds,
     UsedArm,
+    UsedEndEffector,
     UsedGrasp,
-    UsedGripper,
 )
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle, Milk
@@ -42,7 +42,7 @@ def test_bundle_mixins_compose_leaf_mixins():
     assert issubclass(GraspParameters, UsedGrasp)
     assert issubclass(GraspParameters, UsedArm)
     assert issubclass(GripperActuationParameters, GripperStateSet)
-    assert issubclass(GripperActuationParameters, UsedGripper)
+    assert issubclass(GripperActuationParameters, UsedEndEffector)
     assert issubclass(HandleOperationParameters, HandleOperatedOn)
     assert issubclass(HandleOperationParameters, UsedArm)
 
@@ -73,15 +73,15 @@ def test_pick_up_action_takes_its_grasp_and_arm(pr2_apartment_context):
     assert parameters["grasp"] is grasp
 
 
-def test_move_gripper_motion_exposes_its_gripper(pr2_apartment_context):
+def test_move_gripper_motion_exposes_its_end_effector(pr2_apartment_context):
     world, view, context = pr2_apartment_context
-    gripper = context.robot.left_arm.end_effector
+    end_effector = context.robot.left_arm.end_effector
 
-    motion = MoveGripperMotion(motion=GripperState.OPEN, gripper=gripper)
+    motion = MoveGripperMotion(motion=GripperState.OPEN, end_effector=end_effector)
 
-    assert motion.gripper is gripper
+    assert motion.end_effector is end_effector
     assert motion.motion is GripperState.OPEN
-    assert issubclass(MoveGripperMotion, UsedGripper)
+    assert issubclass(MoveGripperMotion, UsedEndEffector)
     assert issubclass(MoveGripperMotion, GripperStateSet)
 
 

@@ -111,10 +111,10 @@ class MoveGrippersBeforeTorsoMotion(InsertionTransformation[MoveTorsoAction]):
     def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
         return [
             MoveGripperMotion(
-                motion=GripperState.OPEN, gripper=left_gripper(plan_node)
+                motion=GripperState.OPEN, end_effector=left_gripper(plan_node)
             ),
             MoveGripperMotion(
-                motion=GripperState.CLOSE, gripper=right_gripper(plan_node)
+                motion=GripperState.CLOSE, end_effector=right_gripper(plan_node)
             ),
         ]
 
@@ -173,7 +173,7 @@ class MoveGripperLastInTheReachBody(InsertionTransformation[ReachAction]):
     def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
         return [
             MoveGripperMotion(
-                motion=GripperState.CLOSE, gripper=right_gripper(plan_node)
+                motion=GripperState.CLOSE, end_effector=right_gripper(plan_node)
             )
         ]
 
@@ -228,7 +228,7 @@ class MoveGripperBeforeEveryAction(InsertionTransformation[ActionNode]):
     def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
         return [
             MoveGripperMotion(
-                motion=GripperState.CLOSE, gripper=right_gripper(plan_node)
+                motion=GripperState.CLOSE, end_effector=right_gripper(plan_node)
             )
         ]
 
@@ -244,7 +244,9 @@ class TransformationWithoutPosition(InsertionTransformation[MoveTorsoAction]):
 
     def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
         return [
-            MoveGripperMotion(motion=GripperState.OPEN, gripper=left_gripper(plan_node))
+            MoveGripperMotion(
+                motion=GripperState.OPEN, end_effector=left_gripper(plan_node)
+            )
         ]
 
 
@@ -342,7 +344,9 @@ class MoveGripperBeforeHighTorso(InsertionTransformation[MoveTorsoAction]):
 
     def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
         return [
-            MoveGripperMotion(motion=GripperState.OPEN, gripper=left_gripper(plan_node))
+            MoveGripperMotion(
+                motion=GripperState.OPEN, end_effector=left_gripper(plan_node)
+            )
         ]
 
 
@@ -458,7 +462,7 @@ class MoveGripperBeforeJointMotion(InsertionTransformation[MoveJointsMotion]):
     def nodes_to_insert(self, plan_node: MotionNode) -> List[ActionLike]:
         return [
             MoveGripperMotion(
-                motion=GripperState.CLOSE, gripper=right_gripper(plan_node)
+                motion=GripperState.CLOSE, end_effector=right_gripper(plan_node)
             )
         ]
 
@@ -501,7 +505,7 @@ def test_a_transformation_inserts_its_nodes_before_the_anchor(pr2_apartment_cont
         MoveGripperMotion,
         MoveJointsMotion,
     ]
-    assert [motion.designator.gripper for motion in motions[:2]] == [
+    assert [motion.designator.end_effector for motion in motions[:2]] == [
         view.left_arm.end_effector,
         view.right_arm.end_effector,
     ]
@@ -524,7 +528,7 @@ def test_a_transformation_inserts_its_nodes_after_the_anchor(pr2_apartment_conte
         MoveGripperMotion,
         MoveGripperMotion,
     ]
-    assert [motion.designator.gripper for motion in motions[1:]] == [
+    assert [motion.designator.end_effector for motion in motions[1:]] == [
         view.left_arm.end_effector,
         view.right_arm.end_effector,
     ]
@@ -1235,7 +1239,9 @@ class MoveLeftGripperBeforeTorso(InsertionTransformation[MoveTorsoAction]):
 
     def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
         return [
-            MoveGripperMotion(motion=GripperState.OPEN, gripper=left_gripper(plan_node))
+            MoveGripperMotion(
+                motion=GripperState.OPEN, end_effector=left_gripper(plan_node)
+            )
         ]
 
 
@@ -1248,7 +1254,7 @@ class MoveRightGripperBeforeTorso(MoveLeftGripperBeforeTorso):
     def nodes_to_insert(self, plan_node: ActionNode) -> List[ActionLike]:
         return [
             MoveGripperMotion(
-                motion=GripperState.CLOSE, gripper=right_gripper(plan_node)
+                motion=GripperState.CLOSE, end_effector=right_gripper(plan_node)
             )
         ]
 
@@ -1299,7 +1305,7 @@ def test_the_transformations_that_collide_are_still_applied(pr2_apartment_contex
     plan = sequential([MoveTorsoAction(torso_state=TorsoState.HIGH)], context)
     plan.notify()
 
-    assert [motion.designator.gripper for motion in motions_of(plan)] == [
+    assert [motion.designator.end_effector for motion in motions_of(plan)] == [
         view.left_arm.end_effector,
         view.right_arm.end_effector,
     ]

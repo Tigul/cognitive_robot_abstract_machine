@@ -87,7 +87,7 @@ class PlaceAction(
                 ),
                 MoveGripperMotion(
                     motion=GripperState.OPEN,
-                    gripper=arm.end_effector,
+                    end_effector=arm.end_effector,
                     allow_gripper_collision=True,
                     finger_velocity=self.release_opening_velocity,
                 ),

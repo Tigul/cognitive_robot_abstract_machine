@@ -25,7 +25,7 @@ from krrood.entity_query_language.query.match import Match
 from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.grasping.grasp_candidates import (
     GraspCandidate,
-    HasGraspCandidates,
+    CanBeGrasped,
 )
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -50,7 +50,7 @@ class TransportAction(ActionDescription):
     @classmethod
     def from_graspable_by_closest_grasps(
         cls,
-        graspable: HasGraspCandidates,
+        graspable: CanBeGrasped,
         target_location: Pose,
         arm: Arm,
         context: Context,
@@ -157,7 +157,7 @@ class MoveAndPlaceAction(ActionDescription):
         cls,
         standing_position: Pose,
         target_location: Pose,
-        object_designator: HasGraspCandidates,
+        object_designator: CanBeGrasped,
     ) -> Self:
         """
         :param standing_position: Where the robot stands while placing.
@@ -237,7 +237,7 @@ class MoveAndPickUpAction(ActionDescription):
     @classmethod
     def from_graspable_by_closest_grasps(
         cls,
-        graspable: HasGraspCandidates,
+        graspable: CanBeGrasped,
         arm: Arm,
         context: Context,
         number_of_grasps: int = IsAmongTheClosestGraspsTo.number_of_grasps,

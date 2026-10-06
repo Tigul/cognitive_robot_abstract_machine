@@ -168,7 +168,7 @@ class StretchMoveGripperMotion(MoveGripperMotion, AlternativeMotion[Stretch]):
         return Parallel(
             [
                 JointPositionList(
-                    goal_state=self.gripper.get_joint_state_by_type(self.motion),
+                    goal_state=self.end_effector.get_joint_state_by_type(self.motion),
                     name=(
                         "OpenGripper"
                         if self.motion == GripperState.OPEN

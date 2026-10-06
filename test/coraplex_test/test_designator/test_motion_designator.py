@@ -335,7 +335,7 @@ def test_move_gripper_motion_finger_velocity_adds_real_limit(pr2_apartment_conte
 
     close_motion = MoveGripperMotion(
         motion=GripperState.CLOSE,
-        gripper=left_or_only_arm(context.robot).end_effector,
+        end_effector=left_or_only_arm(context.robot).end_effector,
         finger_velocity=0.03,
     )
     execute_single(close_motion, context=context)
@@ -363,7 +363,7 @@ def test_move_gripper_motion_tolerate_stall_and_finger_velocity_combine(
 
     close_motion = MoveGripperMotion(
         motion=GripperState.CLOSE,
-        gripper=left_or_only_arm(context.robot).end_effector,
+        end_effector=left_or_only_arm(context.robot).end_effector,
         tolerate_stall=True,
         finger_velocity=0.03,
     )
@@ -394,13 +394,15 @@ def test_move_gripper_motion_tolerate_stall_defaults_to_false(pr2_apartment_cont
     world, view, context = pr2_apartment_context
 
     close_motion = MoveGripperMotion(
-        motion=GripperState.CLOSE, gripper=left_or_only_arm(context.robot).end_effector
+        motion=GripperState.CLOSE,
+        end_effector=left_or_only_arm(context.robot).end_effector,
     )
     execute_single(close_motion, context=context)
     assert isinstance(close_motion.motion_chart, JointPositionList)
 
     open_motion = MoveGripperMotion(
-        motion=GripperState.OPEN, gripper=left_or_only_arm(context.robot).end_effector
+        motion=GripperState.OPEN,
+        end_effector=left_or_only_arm(context.robot).end_effector,
     )
     execute_single(open_motion, context=context)
     assert isinstance(open_motion.motion_chart, JointPositionList)
@@ -420,7 +422,7 @@ def test_move_gripper_motion_tolerate_stall_can_be_explicitly_enabled(
 
     close_motion = MoveGripperMotion(
         motion=GripperState.CLOSE,
-        gripper=left_or_only_arm(context.robot).end_effector,
+        end_effector=left_or_only_arm(context.robot).end_effector,
         tolerate_stall=True,
     )
     execute_single(close_motion, context=context)
@@ -629,7 +631,7 @@ def test_move_gripper_motion_frees_the_fingers_it_closes(pr2_apartment_context):
 
     close_motion = MoveGripperMotion(
         motion=GripperState.CLOSE,
-        gripper=left_or_only_arm(context.robot).end_effector,
+        end_effector=left_or_only_arm(context.robot).end_effector,
         allow_gripper_collision=True,
     )
     execute_single(close_motion, context=context)
@@ -648,7 +650,8 @@ def test_move_gripper_motion_keeps_the_fingers_clear_by_default(pr2_apartment_co
     world, view, context = pr2_apartment_context
 
     close_motion = MoveGripperMotion(
-        motion=GripperState.CLOSE, gripper=left_or_only_arm(context.robot).end_effector
+        motion=GripperState.CLOSE,
+        end_effector=left_or_only_arm(context.robot).end_effector,
     )
     execute_single(close_motion, context=context)
 

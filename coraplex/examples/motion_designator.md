@@ -94,7 +94,7 @@ from coraplex.robot_plans.motions import MoveGripperMotion
 from coraplex.execution_environment import simulated_robot
 from semantic_digital_twin.datastructures.definitions import GripperState
 
-motion_description = MoveGripperMotion(motion=GripperState.OPEN, gripper=pr2_view.left_arm.end_effector)
+motion_description = MoveGripperMotion(motion=GripperState.OPEN, end_effector=pr2_view.left_arm.end_effector)
 
 with simulated_robot:
     execute_single(motion_description, context=context).perform()

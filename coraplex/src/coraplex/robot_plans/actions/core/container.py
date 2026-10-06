@@ -54,7 +54,7 @@ class OpenAction(ActionDescription, HandleOperationParameters):
                 OpeningMotion(self.handle.root, arm=self.arm),
                 MoveGripperMotion(
                     motion=GripperState.OPEN,
-                    gripper=self.arm.end_effector,
+                    end_effector=self.arm.end_effector,
                     allow_gripper_collision=True,
                 ),
             ]
@@ -118,7 +118,7 @@ class CloseAction(ActionDescription, HandleOperationParameters):
                 ClosingMotion(self.handle.root, arm=self.arm),
                 MoveGripperMotion(
                     motion=GripperState.OPEN,
-                    gripper=self.arm.end_effector,
+                    end_effector=self.arm.end_effector,
                     allow_gripper_collision=True,
                 ),
             ]

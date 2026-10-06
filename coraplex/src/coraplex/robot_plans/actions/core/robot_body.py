@@ -74,7 +74,7 @@ class SetGripperAction(ActionDescription, GripperActuationParameters):
     @property
     def _action_plan(self) -> PlanNode:
         return execute_single(
-            MoveGripperMotion(gripper=self.gripper, motion=self.motion)
+            MoveGripperMotion(end_effector=self.end_effector, motion=self.motion)
         )
 
 

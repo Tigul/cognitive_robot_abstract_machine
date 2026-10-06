@@ -335,7 +335,7 @@ def test_move_gripper_multi(multiple_robot_apartment_context):
 
     plan = execute_single(
         SetGripperAction(
-            gripper=left_or_only_arm(context.robot).end_effector,
+            end_effector=left_or_only_arm(context.robot).end_effector,
             motion=GripperState.OPEN,
         ),
         context,
@@ -353,7 +353,7 @@ def test_move_gripper_multi(multiple_robot_apartment_context):
 
     plan = execute_single(
         SetGripperAction(
-            gripper=left_or_only_arm(context.robot).end_effector,
+            end_effector=left_or_only_arm(context.robot).end_effector,
             motion=GripperState.CLOSE,
         ),
         context,

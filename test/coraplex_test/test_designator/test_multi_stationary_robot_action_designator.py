@@ -36,7 +36,7 @@ from semantic_digital_twin.world_description.geometry import Box, Scale
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.grasping.grasp_candidates import (
     GraspCandidate,
-    HasGraspCandidates,
+    CanBeGrasped,
 )
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import Body
@@ -107,12 +107,12 @@ def robot_setup(request):
         # The boxes stand in for any graspable object; the plans only need an annotation
         # to name them by, not a particular kind of object.
         world.add_semantic_annotations(
-            [HasGraspCandidates(root=box1), HasGraspCandidates(root=box2)]
+            [CanBeGrasped(root=box1), CanBeGrasped(root=box2)]
         )
     return world, request.param[1]
 
 
-def graspable_annotation(world: World, body: Body) -> HasGraspCandidates:
+def graspable_annotation(world: World, body: Body) -> CanBeGrasped:
     """
     The annotation naming ``body`` for the actions that take one rather than a body.
 
@@ -123,7 +123,7 @@ def graspable_annotation(world: World, body: Body) -> HasGraspCandidates:
     return an(
         entity(
             semantic_annotation := variable(
-                HasGraspCandidates, domain=world.semantic_annotations
+                CanBeGrasped, domain=world.semantic_annotations
             )
         ).where(semantic_annotation.root == body)
     ).first()
@@ -208,7 +208,7 @@ def test_move_gripper_multi(stationary_block_context):
 
     plan = execute_single(
         SetGripperAction(
-            gripper=left_or_only_arm(context.robot).end_effector,
+            end_effector=left_or_only_arm(context.robot).end_effector,
             motion=GripperState.OPEN,
         ),
         context=context,
@@ -226,7 +226,7 @@ def test_move_gripper_multi(stationary_block_context):
 
     plan = execute_single(
         SetGripperAction(
-            gripper=left_or_only_arm(context.robot).end_effector,
+            end_effector=left_or_only_arm(context.robot).end_effector,
             motion=GripperState.CLOSE,
         ),
         context=context,

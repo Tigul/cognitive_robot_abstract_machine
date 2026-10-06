@@ -41,7 +41,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
 from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm
 from semantic_digital_twin.grasping.grasp_candidates import (
     GraspCandidate,
-    HasGraspCandidates,
+    CanBeGrasped,
 )
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import (
@@ -95,7 +95,7 @@ def _pick_up_the_milk(world: World, context: Context) -> MoveAndPickUpAction:
 
 
 def _place_at(
-    target: Pose, placed: HasGraspCandidates, context: Context
+    target: Pose, placed: CanBeGrasped, context: Context
 ) -> MoveAndPlaceAction:
     """
     :return: A place of `placed` at `target`, standing wherever its trial finds one
@@ -366,7 +366,7 @@ def _grasp_signature(grasp: GraspCandidate) -> tuple:
 
 def _assert_each_standing_pose_keeps_the_closest_grasps(
     pick_ups: List[MoveAndPickUpAction],
-    graspable: HasGraspCandidates,
+    graspable: CanBeGrasped,
     number_of_grasps: int,
 ) -> None:
     """

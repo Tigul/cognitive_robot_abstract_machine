@@ -16,7 +16,7 @@ from coraplex.datastructures.enums import MovementType
 from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
 from semantic_digital_twin.grasping.grasp_candidates import (
     GraspCandidate,
-    HasGraspCandidates,
+    CanBeGrasped,
 )
 from semantic_digital_twin.robots.robot_parts import Arm, Camera, EndEffector
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
@@ -63,7 +63,7 @@ class ObjectActedOn:
     Mixin for behaviours that act on a single graspable object.
     """
 
-    object_designator: HasGraspCandidates = field(kw_only=True)
+    object_designator: CanBeGrasped = field(kw_only=True)
     """
     The annotation of the object the behaviour acts on; its :attr:`root` body is used
     where the underlying kinematic body is required.
@@ -81,18 +81,6 @@ class HandleOperatedOn:
     """
     The handle annotation the behaviour operates; its :attr:`root` body is used where the
     underlying kinematic body is required.
-    """
-
-
-@dataclass(eq=False)
-class UsedGripper:
-    """
-    Mixin for behaviours that actuate a gripper.
-    """
-
-    gripper: EndEffector = field(kw_only=True)
-    """
-    The gripper the behaviour actuates.
     """
 
 
@@ -362,10 +350,10 @@ class CameraTargetParameters(UsedCamera, TargetLookedAt):
 
 
 @dataclass(eq=False)
-class GripperActuationParameters(GripperStateSet, UsedGripper):
+class GripperActuationParameters(GripperStateSet, UsedEndEffector):
     """
     Bundle of the parameters for setting a gripper to an open or closed state: the gripper
-    state and the gripper.
+    state and the end effector whose gripper is set.
     """
 
 
@@ -373,7 +361,7 @@ class GripperActuationParameters(GripperStateSet, UsedGripper):
 class GripperStallTolerated(GripperActuationParameters):
     """
     Bundle of the parameters for setting a gripper that may stall short of its target: the
-    gripper state, the gripper, and how a stall is tolerated.
+    gripper state, the end effector, and how a stall is tolerated.
     """
 
     finger_velocity: Optional[float] = field(default=None, kw_only=True)

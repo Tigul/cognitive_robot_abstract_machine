@@ -53,7 +53,7 @@ class MoveGripperMotion(BaseMotion, GripperStallTolerated, GripperCollisionAllow
     @property
     def _motion_chart(self):
         name = "OpenGripper" if self.motion == GripperState.OPEN else "CloseGripper"
-        goal_state = self.gripper.get_joint_state_by_type(self.motion)
+        goal_state = self.end_effector.get_joint_state_by_type(self.motion)
         joint_task = JointPositionList(goal_state=goal_state, name=name)
 
         done_node = joint_task
@@ -83,7 +83,7 @@ class MoveGripperMotion(BaseMotion, GripperStallTolerated, GripperCollisionAllow
             )
         if self.allow_gripper_collision:
             accompanying_nodes.extend(
-                self._only_allow_gripper_collision_rules(self.gripper)
+                self._only_allow_gripper_collision_rules(self.end_effector)
             )
         if not accompanying_nodes:
             return done_node

@@ -84,7 +84,7 @@ class ReachAction(
         if self.open_gripper_at_pre_pose:
             children.append(
                 MoveGripperMotion(
-                    motion=GripperState.OPEN, gripper=self.arm.end_effector
+                    motion=GripperState.OPEN, end_effector=self.arm.end_effector
                 )
             )
         children.append(
@@ -260,7 +260,7 @@ class GraspingAction(
                 ),
                 MoveGripperMotion(
                     motion=GripperState.CLOSE,
-                    gripper=self.arm.end_effector,
+                    end_effector=self.arm.end_effector,
                     allow_gripper_collision=True,
                     finger_velocity=self.grasp_closing_velocity,
                     stall_minimum_time=self.grasp_stall_minimum_time,

@@ -63,7 +63,7 @@ def main() -> None:
     plan = sequential(
         [
             SetGripperAction(
-                gripper=pr2.right_arm.end_effector, motion=GripperState.CLOSE
+                end_effector=pr2.right_arm.end_effector, motion=GripperState.CLOSE
             ),
             ParkArmsAction(pr2.all_arms),
             MoveTorsoAction(torso_state=TorsoState.HIGH),
