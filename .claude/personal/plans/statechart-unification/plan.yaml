@@ -275,6 +275,8 @@ items:
       execute(), mirroring how Giskard builds a statechart against its
       executor's context and compiles it. Where a Plan was persisted, its root
       node is stored instead (PlanDAO was already gone).
+    blockers:
+      - "No pull request yet: the gh token cannot create one (403); branch retire-plan-wrapper is pushed and ready for a draft PR into plan-cramp-second-iter."
   - id: statechart-compile-performance
     title: "Make compiling and extending a statechart cheap enough for a control loop"
     branch: null
