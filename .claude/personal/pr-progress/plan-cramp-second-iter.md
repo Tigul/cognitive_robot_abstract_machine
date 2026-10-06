@@ -10,15 +10,23 @@ delete at staging time are listed in scratchpad deleted.txt. An IDE runs git
 status constantly -> index.lock races; stage everything at the end.
 
 Done (unstaged):
-- giskardpy: ErrorSignal -> Scalar; progress monitors ported (error at last
-  progress); daisy/progress/cartesian tests ported; motion_statechart.py deleted.
-- cramph: StateHistoryObserver + try/finally cancel; tests in
-  test/cramph_test/test_statechart/test_state_history_observers.py.
-- segmind: upstream detectors (#670) ported to cramph; event_segmentation uses
-  StatechartExecutor + EpisodeSegmentation; new segmind tests ported.
-- scripts/sync_version.py (theirs), version test (+cramera, cramph).
+- giskardpy: ErrorSignal -> Scalar; progress monitors (error at last
+  progress); daisy/progress/cartesian tests; motion_statechart.py deleted.
+- cramph: StateHistoryObserver + try/finally cancel (+ tests).
+- segmind: upstream detectors (#670) ported to cramph; event_segmentation.
+- coraplex src: grasp candidates (#588), Arm/EndEffector instead of Arms/
+  ViewManager, FaceAtAction/FaceAndLookAtAction, transporting with Match
+  fields via UnderspecifiedNode.for_step; PlanExecutor: StillProgressing +
+  simulation_time_limit + MotionMadeNoProgress/MotionViolatedCollision
+  wrapping, candidate limit, shared ActionTrial with catch-up + debug RViz,
+  chosen candidate = Attempt(Sequence([action]), Stalled); plan
+  transformations as PlanRewriting (ContextExtension) applied after
+  expansion + on adopt_chosen_child; PlanCallback(on_compile/on_start/
+  on_end) via PlanCallbackDispatcher(StateHistoryObserver); visualization
+  attach_plan(executor). Deleted backends/pose_validator/utils (upstream).
+- cramera: bridge/visualization/chart_* on cramph Statechart; PlanNodeKind.
+- experiments ported.
 
-Next: coraplex (#588 grasp candidates, Arm instead of Arms, no ViewManager,
-locations rewrite, ticks_per_motion -> StillProgressing), then plan
-transformations / visualization / cramera on statecharts, experiments, docs,
-tests; then run cramph, giskardpy statechart, segmind, coraplex suites.
+Next: coraplex demos/docs/examples; tests (coraplex conflicts + new upstream
+tests incl. test_transporting/test_placing/test_plan_transformations/
+execution observers/visualization; cramera tests); run suites.
