@@ -20,7 +20,6 @@ from cramph.data_types import (
     SuccessDecider,
 )
 from giskardpy.motion_statechart.data_types import DefaultWeights
-from giskardpy.motion_statechart.error_signals import ErrorSignal
 from giskardpy.motion_statechart.exceptions import MissingErrorSignalError
 from cramph.plotters.plot_specs import NodePlotSpec, plot_specification_field
 from giskardpy.qp.constraint_collection import ConstraintCollection
@@ -111,7 +110,7 @@ class MotionNodeArtifacts(NodeArtifacts):
     A collection of constraints that describe a motion task.
     """
 
-    error: Optional[ErrorSignal] = field(default=None)
+    error: Optional[Scalar] = field(default=None)
     """
     How far this node is from its goal.
 
@@ -193,7 +192,7 @@ class MotionStatechartNode(StatechartNode):
         return self.artifacts.debug_expressions
 
     @property
-    def error_signal(self) -> Optional[ErrorSignal]:
+    def error_signal(self) -> Optional[Scalar]:
         """
         :return: The error signal produced during build, if any.
         """
@@ -327,8 +326,15 @@ class ConvergingTask(ABC, Task):
         artifacts = super().build(context)
         if not isinstance(artifacts, MotionNodeArtifacts) or artifacts.error is None:
             raise MissingErrorSignalError(node=self)
-        artifacts.observation = artifacts.error.expression <= self.threshold
+        artifacts.observation = self.goal_reached_at(artifacts.error)
         return artifacts
+
+    def goal_reached_at(self, error: Scalar) -> Scalar:
+        """
+        :param error: An error of this task, in its own units.
+        :return: Whether this task observes its goal as reached at that error.
+        """
+        return error <= self.threshold
 
     @abstractmethod
     def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
@@ -342,7 +348,7 @@ class ConvergingTask(ABC, Task):
         """
 
     @property
-    def error_signal(self) -> ErrorSignal:
+    def error_signal(self) -> Scalar:
         """
         :return: The error signal produced during build.
         """
@@ -362,7 +368,7 @@ class ConvergingTask(ABC, Task):
 
         :return: The threshold relative error of this task.
         """
-        return self.error_signal.expression / self.threshold
+        return self.error_signal / self.threshold
 
 
 @dataclass(eq=False, repr=False)

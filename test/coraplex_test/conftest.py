@@ -8,18 +8,15 @@ from ..orm_interface_build import regenerate_orm_interfaces
 regenerate_orm_interfaces()
 
 
-from copy import deepcopy
 from functools import partial
 
 import pytest
 
-from typing_extensions import List
+from typing_extensions import List, Optional
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms
 from cramph.node import StatechartNode
 from cramph.statechart import Statechart
-from coraplex.view_manager import ViewManager
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from semantic_digital_twin.predetermined_maps.building_floor import BuildingFloor
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -54,6 +51,27 @@ from semantic_digital_twin.robots.stretch import Stretch
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.world_description.geometry import VolumetricBoundingBox
 
+from .world_snapshot import WorldSnapshot
+from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm
+
+from ..conftest import SAMPLING_SEED
+
+# %% the arm a test runs with on any robot
+
+
+def left_or_only_arm(robot: AbstractRobot) -> Arm:
+    """
+    :return: The left arm of a robot that names one, otherwise its first arm.
+    """
+    return robot.get_left_arm_if_specified() or robot.all_arms[0]
+
+
+def right_or_only_arm(robot: AbstractRobot) -> Arm:
+    """
+    :return: The right arm of a robot that names one, otherwise its first arm.
+    """
+    return robot.get_right_arm_if_specified() or robot.all_arms[0]
+
 
 @pytest.fixture(scope="session")
 def viz_marker_publisher():
@@ -64,38 +82,50 @@ def viz_marker_publisher():
     rclpy.shutdown()
 
 
-@pytest.fixture(scope="function")
-def mutable_model_world(pr2_apartment_world):
-    world = deepcopy(pr2_apartment_world)
-    pr2 = world.get_semantic_annotations_by_type(PR2)[0]
-    return world, pr2, Context(world, pr2)
+# %% world rollback
 
 
 @pytest.fixture(scope="function")
-def immutable_model_world(pr2_apartment_world):
-    world = pr2_apartment_world
+def pr2_apartment_context(pr2_apartment_world):
+    """
+    The shared PR2 apartment world, its robot and a context for both, returned to its
+    initial model and state after the test.
+    """
+    snapshot = WorldSnapshot.capture(pr2_apartment_world)
     pr2 = pr2_apartment_world.get_semantic_annotations_by_type(PR2)[0]
-    state = deepcopy(world.state._data)
-    yield world, pr2, Context(world, pr2)
-    world.state._data[:] = state
-    world.notify_state_change()
+    yield pr2_apartment_world, pr2, Context(
+        pr2_apartment_world, pr2, sampling_seed=SAMPLING_SEED
+    )
+    snapshot.restore()
 
 
-@pytest.fixture
-def immutable_simple_pr2_world(simple_pr2_world_setup):
+@pytest.fixture(scope="function")
+def simple_pr2_context(simple_pr2_world_setup):
+    """
+    The shared PR2 world in the simple apartment, its robot and a context for both,
+    returned to its initial model and state after the test.
+    """
     world, robot_view, context = simple_pr2_world_setup
-    state = deepcopy(world.state._data)
+    snapshot = WorldSnapshot.capture(world)
     yield world, robot_view, context
-    world.state._data[:] = state
-    world.notify_state_change()
+    snapshot.restore()
 
 
-@pytest.fixture
-def mutable_simple_pr2_world(simple_pr2_world_setup):
-    world, robot_view, context = simple_pr2_world_setup
-    copy_world = deepcopy(world)
-    robot_view = world.get_semantic_annotations_by_type(PR2)[0]
-    return world, robot_view, Context(copy_world, robot_view)
+@pytest.fixture(scope="function")
+def stretch_apartment_context(stretch_apartment_world):
+    """
+    The shared Stretch apartment world, its robot and a context for both, returned to
+    its initial model and state after the test.
+    """
+    snapshot = WorldSnapshot.capture(stretch_apartment_world)
+    robot = stretch_apartment_world.get_semantic_annotations_by_type(Stretch)[0]
+    yield stretch_apartment_world, robot, Context(
+        stretch_apartment_world, robot, sampling_seed=SAMPLING_SEED
+    )
+    snapshot.restore()
+
+
+# %% database session
 
 
 @pytest.fixture(scope="function")
@@ -110,26 +140,17 @@ def coraplex_testing_session():
     engine.dispose()
 
 
-@pytest.fixture(scope="function")
-def immutable_stretch_apartment_world(stretch_apartment_world):
-    robot = stretch_apartment_world.get_semantic_annotations_by_type(Stretch)[0]
-    context = Context(stretch_apartment_world, robot)
-    state = deepcopy(stretch_apartment_world.state._data)
-
-    yield stretch_apartment_world, robot, context
-
-    stretch_apartment_world.state._data[:] = state
-    stretch_apartment_world.notify_state_change()
+# %% perception regions
 
 
 @pytest.fixture
-def whole_scene_region(immutable_model_world) -> VolumetricBoundingBox:
+def whole_scene_region(pr2_apartment_context) -> VolumetricBoundingBox:
     """
     A region large enough to contain everything in the apartment fixture.
 
     Lets a perception test say "look everywhere" without restating the extents.
     """
-    world, _, _ = immutable_model_world
+    world, _, _ = pr2_apartment_context
     return VolumetricBoundingBox(
         origin=HomogeneousTransformationMatrix(reference_frame=world.root),
         min_x=-10,
@@ -146,8 +167,8 @@ def whole_scene_region(immutable_model_world) -> VolumetricBoundingBox:
 
 def tool_center_point_goal(
     context: Context,
-    arm: Arms = Arms.LEFT,
-    target: Pose = None,
+    arm: Optional[Arm] = None,
+    target: Optional[Pose] = None,
 ) -> CartesianPose:
     """
     Build the goal an action would build to move an arm's tool center point.
@@ -157,13 +178,16 @@ def tool_center_point_goal(
 
     :param context: The context the plan runs in, supplying the robot and the link the
         goal is expressed relative to.
-    :param arm: Which arm's tool center point moves.
+    :param arm: Which arm's tool center point moves, the left or only arm of the
+        context's robot by default.
     :param target: Where it should end up, the world's origin by default.
     :return: The goal moving that tool center point there.
     """
     return CartesianPose(
         root_link=context.controlled_root,
-        tip_link=ViewManager.get_end_effector_view(arm, context.robot).tool_frame,
+        tip_link=(
+            left_or_only_arm(context.robot) if arm is None else arm
+        ).end_effector.tool_frame,
         goal_pose=(
             Pose(reference_frame=context.world.root) if target is None else target
         ),

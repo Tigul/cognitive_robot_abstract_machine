@@ -61,13 +61,12 @@ giskard_wrapper.execute()
 ```
 
 ```python
-from coraplex.datastructures.enums import Arms
 from coraplex.plans.plan_execution import PlanExecutor
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 
 executor = PlanExecutor(context)
 with real_robot:
-    executor.compile(ParkArmsAction(Arms.BOTH))
+    executor.compile(ParkArmsAction(robot.all_arms))
     executor.execute()
 ```
 
@@ -107,12 +106,11 @@ For the path that we provide here the first value is skipped as that is equal to
 
 ```python
 print('move along path to goal pose...')
-from coraplex.view_manager import ViewManager
 from coraplex.plans.plan_execution import PlanExecutor
 
 
 def follow_path(waypoints):
-    tool_frame = ViewManager.get_end_effector_view(Arms.RIGHT, robot).tool_frame
+    tool_frame = robot.right_arm.end_effector.tool_frame
     return Sequence(
         nodes=[
             CartesianPose(

@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 
 import krrood.symbolic_math.symbolic_math as sm
 from cramph.context import StatechartContext
-from giskardpy.motion_statechart.error_signals import SymbolicErrorSignal
 from giskardpy.motion_statechart.graph_node import ConvergingTask, MotionNodeArtifacts
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -61,7 +60,5 @@ class MaxManipulability(ConvergingTask):
             name=self.name,
         )
 
-        artifacts.error = SymbolicErrorSignal(
-            sm.abs(self.manipulability_threshold - manipulability)
-        )
+        artifacts.error = sm.abs(self.manipulability_threshold - manipulability)
         return artifacts

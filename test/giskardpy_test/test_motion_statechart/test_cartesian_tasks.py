@@ -652,7 +652,7 @@ class TestCartesianTasks:
             atol=cart_goal.translation_threshold,
         )
 
-    def test_front_facing_orientation(self, _hsr_world_setup: World):
+    def test_grasp_frame_orientation(self, _hsr_world_setup: World):
         """
         Test combined position and orientation control in parallel.
         """
@@ -677,7 +677,7 @@ class TestCartesianTasks:
             extensions=[MotionControl()],
         )
         motion_statechart = Statechart(context=executor.context)
-        orientation_goal = hand.front_facing_orientation.to_rotation_matrix()
+        orientation_goal = hand.tool_R_grasp.inverse()
         orientation_goal.reference_frame = _hsr_world_setup.get_body_by_name(
             "base_footprint"
         )

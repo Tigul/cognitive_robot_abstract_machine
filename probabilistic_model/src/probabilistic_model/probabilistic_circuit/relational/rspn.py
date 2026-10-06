@@ -670,7 +670,9 @@ class RelationalProbabilisticCircuit:
     part_learning_methods: dict[str, LearningMethod] = field(default_factory=dict)
     """
     Per exchangeable-part field name, what that part's template distribution is fitted
-    with. A part absent from the mapping is fitted with a plain
+    with.
+
+    A part absent from the mapping is fitted with a plain
     :class:`~probabilistic_model.learning.jpt.jpt.JointProbabilityTree`.
     """
 
@@ -969,7 +971,7 @@ class RelationalProbabilisticCircuit:
         circuit, product_nodes_to_extend = self._condition_class_circuit(
             circuit, determined_statistics, template.latent_variables
         )
-        query_parts = query.kwargs[exchangeable_part_name]
+        query_parts = query._kwargs_[exchangeable_part_name]
 
         grounder = ExchangeablePartGrounder(
             circuit=circuit,

@@ -65,12 +65,10 @@ with simulated_robot:
 another. For a tool center point, the tip is the arm's tool frame.
 
 ```python
-from coraplex.datastructures.enums import Arms
-from coraplex.view_manager import ViewManager
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from coraplex.plans.plan_execution import PlanExecutor
 
-end_effector = ViewManager.get_end_effector_view(Arms.LEFT, pr2_view)
+end_effector = pr2_view.left_arm.end_effector
 goal = CartesianPose(
     root_link=context.controlled_root,
     tip_link=end_effector.tool_frame,

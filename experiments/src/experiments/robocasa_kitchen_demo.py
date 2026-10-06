@@ -39,8 +39,6 @@ with robocasa_version_assertions_relaxed():
     from robocasa.models.scenes.scene_registry import LayoutType, StyleType
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
-from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.failures import PlanFailure
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
@@ -375,16 +373,11 @@ def _spawn_robot_and_prepare_pick_up(
     apple_annotation = world.get_semantic_annotations_by_type(Apple)[0]
     plan = Sequence(
         [
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(pr2.all_arms),
             MoveTorsoAction(TorsoState.HIGH),
             PickUpAction(
-                apple_annotation,
-                Arms.RIGHT,
-                GraspDescription(
-                    ApproachDirection.FRONT,
-                    VerticalAlignment.TOP,
-                    pr2.right_arm.end_effector,
-                ),
+                apple_annotation.grasp_candidates()[0],
+                pr2.right_arm,
             ),
         ]
     )

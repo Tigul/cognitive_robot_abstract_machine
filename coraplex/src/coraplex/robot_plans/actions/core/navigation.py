@@ -18,7 +18,10 @@ from giskardpy.motion_statechart.monitors.joint_monitors import (
     JointPositionReached,
 )
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import SetOdometry
-from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
+from giskardpy.motion_statechart.tasks.cartesian_tasks import (
+    CartesianPose,
+    CartesianPosition,
+)
 from giskardpy.motion_statechart.tasks.pointing import Pointing
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import variable_from, and_, ConditionType
@@ -142,6 +145,53 @@ class LookAtAction(Action):
 
 
 @dataclass(eq=False, repr=False)
+class FaceAtAction(Action):
+    """
+    Turns the robot's base on the spot until its front faces a target.
+
+    The base keeps the position it has when the action starts, so the turn is towards
+    the target from wherever an earlier action left it.
+    """
+
+    target: Pose
+    """
+    What to face; only its horizontal position matters.
+    """
+
+    @property
+    def _sub_nodes(self) -> List[StatechartNode]:
+        return [
+            Parallel(
+                [
+                    Pointing(
+                        root_link=self.world.root,
+                        tip_link=self.robot.root,
+                        goal_point=self._target_at_base_height(),
+                        pointing_axis=Vector3(
+                            *self.robot.mobile_base.forward_axis.to_np()[:3],
+                            reference_frame=self.robot.root,
+                        ),
+                    ),
+                    CartesianPosition(
+                        root_link=self.world.root,
+                        tip_link=self.robot.root,
+                        goal_point=Point3(reference_frame=self.robot.root),
+                    ),
+                ]
+            )
+        ]
+
+    def _target_at_base_height(self) -> Point3:
+        """
+        :return: :attr:`target` moved vertically to the height of the base, which can
+            only turn about the vertical and so can only point level.
+        """
+        root_P_target = self.world.transform(self.target, self.world.root).to_position()
+        root_P_target.z = self.robot.root.global_pose.z
+        return root_P_target
+
+
+@dataclass(eq=False, repr=False)
 class PathPlanningNavigateAction(DrivesBase):
     """
     Navigates the robot to a pose along a path through the environment's free space.
@@ -149,8 +199,8 @@ class PathPlanningNavigateAction(DrivesBase):
     The free space is decomposed into a graph of convex sets, so the robot drives around
     the furniture and walls between it and the target instead of straight at them.
 
-     This works for obstacles which are known in the environment beforehand not such
-    that are added during navigation.
+    This works for obstacles which are known in the environment beforehand, not for
+    those added during navigation.
     """
 
     target: Pose

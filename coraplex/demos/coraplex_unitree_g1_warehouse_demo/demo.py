@@ -11,8 +11,6 @@ from __future__ import annotations
 import numpy as np
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
-from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot
 from giskardpy.motion_statechart.tasks.joint_tasks import (
     JointPositionList,
@@ -23,8 +21,6 @@ from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from coraplex.testing import start_visualization
-from coraplex.view_manager import ViewManager
-from krrood.entity_query_language.factories import an, entity, variable
 from semantic_digital_twin.api import (
     BodySpecification,
     RobotSpecification,
@@ -32,7 +28,8 @@ from semantic_digital_twin.api import (
 )
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.robots.unitree_g1 import UnitreeG1
-from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
+from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Parcel
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.geometry import Color, Scale
@@ -113,9 +110,7 @@ def build_world() -> World:
     # The parcel stands in for any graspable object; the plan only needs an annotation
     # to name it by, not a particular kind of object.
     with world.modify_world():
-        world.add_semantic_annotation(
-            HasRootBody(root=world.get_body_by_name("parcel"))
-        )
+        world.add_semantic_annotation(Parcel(root=world.get_body_by_name("parcel")))
     return world
 
 
@@ -148,87 +143,39 @@ def standing_pose_in_front_of(pose: Pose, world: World) -> Pose:
     )
 
 
-def build_plan(world: World, robot: UnitreeG1) -> Sequence:
+def build_plan(
+    world: World, robot: UnitreeG1, source: Pose, destination: Pose, turn: float
+) -> Sequence:
     """
     :param world: The world the plan acts in.
     :param robot: The robot carrying out the plan.
-    :return: The plan transporting the parcel from one pallet stack to the other.
+    :param source: Where the parcel stands when the plan starts.
+    :param destination: Where the parcel is to be put down.
+    :param turn: The yaw the robot turns by on the spot before it walks to the
+        destination, so it does not walk through the pallet stack it took the parcel
+        from.
+    :return: The plan carrying the parcel from one pallet stack to the other.
     """
-    parcel = world.get_body_by_name("parcel")
-    parcel_annotation = an(
-        entity(
-            semantic_annotation := variable(
-                HasRootBody, domain=world.semantic_annotations
-            )
-        ).where(semantic_annotation.root == parcel)
-    ).first()
-    grasp = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        ViewManager.get_end_effector_view(Arms.LEFT, robot),
-    )
-    place_pose = Pose(
-        PLACE_POSE.to_position(), PLACE_POSE.to_quaternion(), reference_frame=world.root
-    )
-    pick_pose = Pose(
-        PICK_POSE.to_position(), PICK_POSE.to_quaternion(), reference_frame=world.root
-    )
+    parcel = world.get_semantic_annotations_by_type(Parcel)[0]
 
     return Sequence(
         [
-            # %% bring to place pose
-            ParkArmsAction(Arms.BOTH),
-            NavigateAction(standing_pose_in_front_of(PICK_POSE, world)),
-            PickUpAction(parcel_annotation, Arms.LEFT, grasp),
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(robot.all_arms),
+            NavigateAction(standing_pose_in_front_of(source, world)),
+            PickUpAction(GraspCandidate.from_body_origin(parcel), robot.torso.left_arm),
+            ParkArmsAction(robot.all_arms),
             straighten_torso(robot),
-            NavigateAction(Pose.from_xyz_rpy(yaw=-1.57, reference_frame=robot.root)),
-            NavigateAction(standing_pose_in_front_of(PLACE_POSE, world)),
-            PlaceAction(parcel, place_pose, Arms.LEFT),
-            ParkArmsAction(Arms.BOTH),
-            straighten_torso(robot),
-        ]
-    )
-
-
-def build_plan2(world: World, robot: UnitreeG1) -> Sequence:
-    """
-    :param world: The world the plan acts in.
-    :param robot: The robot carrying out the plan.
-    :return: The plan transporting the parcel from one pallet stack to the other.
-    """
-    parcel = world.get_body_by_name("parcel")
-    parcel_annotation = an(
-        entity(
-            semantic_annotation := variable(
-                HasRootBody, domain=world.semantic_annotations
-            )
-        ).where(semantic_annotation.root == parcel)
-    ).first()
-    grasp = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        ViewManager.get_end_effector_view(Arms.LEFT, robot),
-    )
-    place_pose = Pose(
-        PLACE_POSE.to_position(), PLACE_POSE.to_quaternion(), reference_frame=world.root
-    )
-    pick_pose = Pose(
-        PICK_POSE.to_position(), PICK_POSE.to_quaternion(), reference_frame=world.root
-    )
-
-    return Sequence(
-        [
-            # %% bring to place pose
-            ParkArmsAction(Arms.BOTH),
-            NavigateAction(standing_pose_in_front_of(PLACE_POSE, world)),
-            PickUpAction(parcel_annotation, Arms.LEFT, grasp),
-            ParkArmsAction(Arms.BOTH),
-            straighten_torso(robot),
-            NavigateAction(Pose.from_xyz_rpy(yaw=1.57, reference_frame=robot.root)),
-            NavigateAction(standing_pose_in_front_of(PICK_POSE, world)),
-            PlaceAction(parcel, pick_pose, Arms.LEFT),
-            ParkArmsAction(Arms.BOTH),
+            NavigateAction(Pose.from_xyz_rpy(yaw=turn, reference_frame=robot.root)),
+            NavigateAction(standing_pose_in_front_of(destination, world)),
+            PlaceAction(
+                parcel,
+                Pose(
+                    destination.to_position(),
+                    destination.to_quaternion(),
+                    reference_frame=world.root,
+                ),
+            ),
+            ParkArmsAction(robot.all_arms),
             straighten_torso(robot),
         ]
     )
@@ -263,10 +210,13 @@ start_visualization(world)
 executor = PlanExecutor(Context(world=world, robot=robot, evaluate_conditions=False))
 with simulated_robot:
     for _ in range(10):
-        for plan in (build_plan(world, robot), build_plan2(world, robot)):
+        for plan in (
+            build_plan(world, robot, PICK_POSE, PLACE_POSE, turn=-1.57),
+            build_plan(world, robot, PLACE_POSE, PICK_POSE, turn=1.57),
+        ):
             executor.compile(plan)
             executor.execute()
-    executor.compile(build_plan(world, robot))
+    executor.compile(build_plan(world, robot, PICK_POSE, PLACE_POSE, turn=-1.57))
     executor.execute()
 
 parcel_position = world.get_body_by_name("parcel").global_pose

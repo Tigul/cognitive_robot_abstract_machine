@@ -17,9 +17,9 @@ into. Actions build them straight from the tasks and goals in
 {mod}`giskardpy.motion_statechart` (for example {class}`~giskardpy.motion_statechart.tasks.joint_tasks.JointPositionList`
 to move a joint, or {class}`~giskardpy.motion_statechart.goals.gripper.MoveGripper` to open a gripper).
 
-An action resolves what is coraplex's own before it builds a goal: an {class}`~coraplex.datastructures.enums.Arms`
-member becomes an `EndEffector` through {class}`~coraplex.view_manager.ViewManager`, goal-achievement thresholds fall
-back to {attr}`~coraplex.datastructures.dataclasses.Context.motion_tolerances`, and the link a Cartesian goal is
+An action resolves what is coraplex's own before it builds a goal: an arm's tool frame comes from its
+{class}`~semantic_digital_twin.robots.robot_parts.EndEffector`, goal-achievement thresholds fall back to
+{attr}`~coraplex.datastructures.dataclasses.Context.motion_tolerances`, and the link a Cartesian goal is
 expressed relative to comes from {attr}`~coraplex.datastructures.dataclasses.Context.controlled_root`. The mixins in
 {mod}`coraplex.robot_plans.mixins` do this for the goals several actions share.
 
@@ -69,8 +69,10 @@ with simulated_robot(collision_avoidance=True):
 {class}`~coraplex.plans.plan_execution.PlanExecutor` dispatches on the execution type active at
 {meth}`~coraplex.plans.plan_execution.PlanExecutor.compile`:
 
-- `SIMULATED`: the chart is compiled and ticked against the world of the context until it reports an end motion. If
-  it does not finish within the tick budget a {class}`~coraplex.exceptions.MotionDidNotFinish` exception is raised.
+- `SIMULATED`: the chart is compiled and ticked against the world of the context until it reports an end motion. A
+  plan that stops approaching its goal gives up and raises
+  {class}`~coraplex.plans.failures.MotionMadeNoProgress`, naming the tasks that stalled; one that keeps converging is
+  never cut off for taking many ticks, only once it exceeds the simulated time limit.
 - `REAL`: the chart is sent to giskard via the `GiskardWrapper`, which grounds underspecified actions while giskard
   runs it.
 - `NO_EXECUTION`: nothing is built or run.

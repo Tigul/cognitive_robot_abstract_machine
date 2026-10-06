@@ -1137,6 +1137,21 @@ class RunTicks:
 
 
 @dataclass
+class StateHistoryObserver(ABC):
+    """
+    Observes the snapshots a :class:`StateHistory` records.
+    """
+
+    @abstractmethod
+    def on_state_change(self, history: StateHistory) -> None:
+        """
+        Observe the newest snapshot after it has been appended.
+
+        :param history: The history containing the changed state.
+        """
+
+
+@dataclass
 class StateHistory:
     """
     The recorded sequence of :class:`StateHistoryItem` snapshots of a
@@ -1149,10 +1164,38 @@ class StateHistory:
     duplicates.
     """
 
+    observers: List[StateHistoryObserver] = field(
+        default_factory=list, init=False, repr=False, compare=False
+    )
+    """
+    The observers subscribed to newly recorded snapshots.
+    """
+
+    def add_observer(self, observer: StateHistoryObserver) -> None:
+        """
+        Subscribe an observer once by identity.
+
+        :param observer: The observer to notify when a changed state is recorded.
+        """
+        if any(registered is observer for registered in self.observers):
+            return
+        self.observers.append(observer)
+
+    def remove_observer(self, observer: StateHistoryObserver) -> None:
+        """
+        Remove an observer's subscription if it is present.
+
+        :param observer: The observer whose subscription should end.
+        """
+        self.observers[:] = [
+            registered for registered in self.observers if registered is not observer
+        ]
+
     def append(self, next_item: StateHistoryItem):
         """
-        Appends `next_item`, unless it is equal to the last recorded item, in which case
-        it is dropped to avoid storing consecutive duplicates.
+        Appends `next_item` and notifies the observers, unless it is equal to the last
+        recorded item, in which case it is dropped to avoid storing consecutive
+        duplicates.
 
         :param next_item: The snapshot to append.
         """
@@ -1160,6 +1203,8 @@ class StateHistory:
             if next_item == self.history[-1]:
                 return
         self.history.append(next_item)
+        for observer in tuple(self.observers):
+            observer.on_state_change(self)
 
     def get_life_cycle_history_of_node(
         self, node: StatechartNode
@@ -2061,7 +2106,8 @@ class Statechart(SubclassJSONSerializer):
         Every node is brought to the state it reaches in this tick, see
         :class:`CompiledTick`, then the life cycle callbacks of every change run
         and the tick is recorded. A :class:`CancelStatechart` that started in this
-        tick ends the statechart only after that.
+        tick ends the statechart only after that, even if a
+        :class:`StateHistoryObserver` of the record failed.
 
         If the kinematic structure of the world changed, before this tick or in one of
         its callbacks, every node is built again right away, see
@@ -2074,14 +2120,16 @@ class Statechart(SubclassJSONSerializer):
         self._let_waiting_nodes_choose_their_child()
         self._rebuild_if_world_structure_changed()
         self._log_life_cycle_changes(changes)
-        self.history.append(
-            next_item=StateHistoryItem(
-                tick_count=self.context.tick_count,
-                life_cycle_state=self.life_cycle_state,
-                observation_state=self.observation_state,
+        try:
+            self.history.append(
+                next_item=StateHistoryItem(
+                    tick_count=self.context.tick_count,
+                    life_cycle_state=self.life_cycle_state,
+                    observation_state=self.observation_state,
+                )
             )
-        )
-        self._raise_if_cancelled()
+        finally:
+            self._raise_if_cancelled()
 
     def _let_waiting_nodes_choose_their_child(self) -> None:
         """

@@ -16,7 +16,7 @@ independently of the world and robot it will run with:
 ```python
 from cramph.composites import Sequence
 
-plan = Sequence([ParkArmsAction(Arms.BOTH), NavigateAction(target_pose)])
+plan = Sequence([ParkArmsAction(robot.all_arms), NavigateAction(target_pose)])
 ```
 
 ## How a Plan is shaped

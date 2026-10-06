@@ -19,8 +19,6 @@ from giskardpy.motion_statechart.exceptions import GoalPointsReferenceFrameMisma
 from cramph.composites import Parallel
 from cramph.node import CompositeNode, NodeArtifacts
 from giskardpy.motion_statechart.error_signals import (
-    SampledErrorSignal,
-    SymbolicErrorSignal,
     joint_position_and_velocity_variables,
     time_derivative_from_joint_motion,
 )
@@ -183,9 +181,7 @@ class CartesianPosition(CartesianTask):
             artifacts, goal=root_P_goal, current=root_P_current
         )
 
-        artifacts.error = SymbolicErrorSignal(
-            root_P_goal.euclidean_distance(root_P_current)
-        )
+        artifacts.error = root_P_goal.euclidean_distance(root_P_current)
         return artifacts
 
 
@@ -298,7 +294,7 @@ class CartesianPositionTrajectory(CartesianTask):
         )
 
         self.compile_current_point_on_tick(context)
-        artifacts.error = SampledErrorSignal(self.remaining_distance)
+        artifacts.error = self.remaining_distance
         return artifacts
 
     def _init_remaining_distance(self, float_variable_data: FloatVariableData) -> None:
@@ -572,9 +568,7 @@ class CartesianPositionStraight(CartesianTask):
             artifacts, goal=root_P_goal, current=root_P_tip
         )
 
-        artifacts.error = SymbolicErrorSignal(
-            root_P_goal.euclidean_distance(root_P_tip)
-        )
+        artifacts.error = root_P_goal.euclidean_distance(root_P_tip)
         return artifacts
 
 
@@ -634,9 +628,7 @@ class CartesianOrientation(CartesianTask):
             artifacts, goal=root_R_goal, current=root_R_current
         )
 
-        artifacts.error = SymbolicErrorSignal(
-            sm.abs(root_R_current.rotational_distance(root_R_goal))
-        )
+        artifacts.error = sm.abs(root_R_current.rotational_distance(root_R_goal))
         return artifacts
 
 

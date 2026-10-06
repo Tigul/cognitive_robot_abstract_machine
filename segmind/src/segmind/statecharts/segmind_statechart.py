@@ -7,9 +7,7 @@ from cramph.context import StatechartContext
 from cramph.statechart import Statechart
 from segmind.detectors.atomic_event_detectors_nodes import (
     ContactDetector,
-    LossOfContactDetector,
     TranslationDetector,
-    StopTranslationDetector,
 )
 from segmind.detectors.base import AbstractDetector
 from segmind.detectors.coarse_event_detector_nodes import (
@@ -18,10 +16,8 @@ from segmind.detectors.coarse_event_detector_nodes import (
 )
 from segmind.detectors.spatial_relation_detector_nodes import (
     SupportDetector,
-    LossOfSupportDetector,
     ContainmentDetector,
     InsertionDetector,
-    LossOfContainmentDetector,
 )
 
 
@@ -35,16 +31,12 @@ class DetectorStatechartBuilder:
     detectors: List[AbstractDetector] = field(
         default_factory=lambda: [
             ContactDetector(),
-            LossOfContactDetector(),
             SupportDetector(),
-            LossOfSupportDetector(),
             ContainmentDetector(),
             TranslationDetector(),
-            StopTranslationDetector(),
             PlacingDetector(),
             InsertionDetector(),
             PickUpDetector(),
-            LossOfContainmentDetector(),
         ]
     )
     """

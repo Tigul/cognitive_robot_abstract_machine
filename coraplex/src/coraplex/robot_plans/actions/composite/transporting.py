@@ -1,276 +1,348 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import List
+from dataclasses import dataclass
 
-from typing_extensions import Optional
+from typing_extensions import List, Self
 
-from krrood.entity_query_language.factories import (
-    a,
-    an,
-    entity,
-    variable,
-)
-from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
-from coraplex.datastructures.grasp import GraspDescription
-from coraplex.locations.base import DeferredLocation
-from coraplex.locations.factories import reachability_location
+from krrood.entity_query_language.factories import a, variable
+from coraplex.datastructures.dataclasses import Context
+from coraplex.locations.locations import ReachabilityLocation
 from coraplex.plans.underspecified import UnderspecifiedNode
 from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.base import Action
-from coraplex.robot_plans.actions.composite.facing import FaceAtAction
+from coraplex.robot_plans.mixins import HasApproachesGraspPoses
+from coraplex.robot_plans.actions.composite.facing import FaceAndLookAtAction
 from coraplex.robot_plans.actions.core.container import OpenAction
-from coraplex.robot_plans.actions.core.navigation import NavigateAction
+from coraplex.robot_plans.actions.core.navigation import (
+    FaceAtAction,
+    LookAtAction,
+    NavigateAction,
+)
+from coraplex.querying.predicates import IsAmongTheClosestGraspsTo
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
-from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
-from coraplex.view_manager import ViewManager
-from semantic_digital_twin.datastructures.definitions import TorsoState
-from semantic_digital_twin.reasoning.predicates import InsideOf
-from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
-from semantic_digital_twin.semantic_annotations.semantic_annotations import Drawer
+from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
+from krrood.entity_query_language.query.match import Match
+from semantic_digital_twin.robots.robot_parts import Arm
+from semantic_digital_twin.grasping.grasp_candidates import (
+    GraspCandidate,
+    HasGraspCandidates,
+)
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
 from semantic_digital_twin.spatial_types.spatial_types import Pose
-from semantic_digital_twin.world_description.world_entity import Body
 
 
 @dataclass(eq=False, repr=False)
 class TransportAction(Action):
     """
-    Transports an object to a position using an arm.
+    Picks an object up with one step and puts it down with another.
     """
 
-    object_designator: HasRootBody = field(repr=False)
+    pick_up: MoveAndPickUpAction
     """
-    The annotation of the object that should be transported.
-    """
-
-    target_location: Pose
-    """
-    Target Location to which the object should be transported.
+    The step that picks the object up, or an underspecified statement of it.
     """
 
-    arm: Arms
+    place: MoveAndPlaceAction
     """
-    Arm that should be used.
-    """
-
-    grasp_description: Optional[GraspDescription] = None
-    """
-    Grasp Description that should be used for picking up the object.
+    The step that puts down what :attr:`pick_up` picked up, or an underspecified
+    statement of it.
     """
 
-    def inside_container(self) -> List[Body]:
-        bodies = []
-        object_body = self.object_designator.root
-        for body in self.world.bodies:
-            if body == object_body:
-                continue
-            if InsideOf(object_body, body).compute_containment_ratio() > 0.9:
-                bodies.append(body)
-        return bodies
-
-    def _make_open_container_actions(self, container: Body) -> List:
+    @classmethod
+    def from_graspable_by_closest_grasps(
+        cls,
+        graspable: HasGraspCandidates,
+        target_location: Pose,
+        arm: Arm,
+        context: Context,
+        number_of_grasps: int = IsAmongTheClosestGraspsTo.number_of_grasps,
+    ) -> Self:
         """
-        :param container: The container body in which the object is located.
-        :return: The actions needed to open the given container, empty if the container is not a known drawer.
-        """
-        drawer_annotation = an(
-            entity(
-                drawer := variable(Drawer, domain=self.world.semantic_annotations)
-            ).where(drawer.root == container)
-        )
-        drawer_annotation = list(drawer_annotation.evaluate())
-        if len(drawer_annotation) == 0:
-            return []
-        handle = drawer_annotation[0].handle.root
+        A transport that takes `graspable` to `target_location`, standing wherever each
+        step can be carried out from and taking the object by the grasps closest to the
+        robot there.
 
-        return [
-            UnderspecifiedNode(
-                statement=a(NavigateAction)(
+        :param graspable: The object to transport.
+        :param target_location: Where to put the object down.
+        :param arm: The arm that carries the object.
+        :param context: The context the standing poses are sampled in.
+        :param number_of_grasps: How many of the object's grasps closest to a standing
+            pose are tried from there.
+        :return: The transport, standing near the object to pick it up and near the
+            target to place it.
+        """
+        return cls(
+            pick_up=MoveAndPickUpAction.from_graspable_by_closest_grasps(
+                graspable=graspable,
+                arm=arm,
+                context=context,
+                number_of_grasps=number_of_grasps,
+            ),
+            place=a(MoveAndPlaceAction)(
+                navigate=a(NavigateAction)(
                     target_location=variable(
                         Pose,
-                        domain=reachability_location(handle, self.context, self.arm),
-                    ),
-                )
-            ),
-            OpenAction(handle, self.arm),
-        ]
-
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        self.grasp_description = self.grasp_description or GraspDescription(
-            ApproachDirection.FRONT,
-            VerticalAlignment.NoAlignment,
-            ViewManager.get_end_effector_view(self.arm, self.robot),
-        )
-
-        children = []
-        for container in self.inside_container():
-            children.extend(self._make_open_container_actions(container))
-
-        children.extend(
-            [
-                ParkArmsAction(Arms.BOTH),
-                # Tries to find a pick-up position for the robot that uses the given arm
-                UnderspecifiedNode(
-                    statement=a(NavigateAction)(
-                        target_location=variable(
-                            Pose,
-                            domain=DeferredLocation(
-                                lambda: reachability_location(
-                                    self.object_designator.root,
-                                    self.context,
-                                    self.arm,
-                                    self.grasp_description,
-                                )
-                            ),
+                        domain=ReachabilityLocation(
+                            target_pose=target_location, arm=arm, context=context
                         ),
                     )
                 ),
-                UnderspecifiedNode(
-                    statement=a(PickUpAction)(
-                        object_designator=self.object_designator,
-                        arm=self.arm,
-                        grasp_description=self.grasp_description,
-                    )
+                face_and_look_at=a(FaceAndLookAtAction)(
+                    face_at=a(FaceAtAction)(target=target_location),
+                    look_at=a(LookAtAction)(target=target_location),
                 ),
-                ParkArmsAction(Arms.BOTH),
-                MoveTorsoAction(TorsoState.HIGH),
-                self._make_navigate_action_for_placing(self.grasp_description),
-                UnderspecifiedNode(
-                    statement=a(PlaceAction)(
-                        object_designator=self.object_designator.root,
-                        target_location=self.target_location,
-                        arm=self.arm,
-                    )
+                place=a(PlaceAction)(
+                    object_designator=graspable, target_location=target_location
                 ),
-                ParkArmsAction(Arms.BOTH),
-            ]
+            ),
         )
 
-        return children
-
-    def _make_navigate_action_for_placing(
-        self, grasp_description: GraspDescription
-    ) -> UnderspecifiedNode:
-        """
-        :param grasp_description: The grasp description that should be used for placing the object.
-        :return: The navigate action that will be used to place the object.
-        """
-        return UnderspecifiedNode(
-            statement=a(NavigateAction)(
-                target_location=variable(
-                    Pose,
-                    domain=reachability_location(
-                        self.target_location, self.context, self.arm, grasp_description
-                    ),
-                ),
-            )
-        )
+    @property
+    def _sub_nodes(self) -> List[StatechartNode]:
+        return [
+            ParkArmsAction(self.robot.all_arms),
+            UnderspecifiedNode.for_step(self.pick_up),
+            ParkArmsAction(self.robot.all_arms),
+            UnderspecifiedNode.for_step(self.place),
+            ParkArmsAction(self.robot.all_arms),
+        ]
 
 
 @dataclass(eq=False, repr=False)
 class PickAndPlaceAction(Action):
     """
-    Transports an object to a position using an arm without moving the base of
-    the robot.
+    Picks an object up with one step and puts it down with another, without moving the
+    base of the robot.
     """
 
-    object_designator: HasRootBody
+    pick_up: PickUpAction
     """
-    The annotation of the object that should be transported.
-    """
-
-    target_location: Pose
-    """
-    Target Location to which the object should be transported.
+    The step that picks the object up.
     """
 
-    arm: Arms
+    place: PlaceAction
     """
-    Arm that should be used.
-    """
-    grasp_description: GraspDescription
-    """
-    Description of the grasp to pick up the target.
+    The step that puts down what :attr:`pick_up` picked up.
     """
 
     @property
     def _sub_nodes(self) -> List[StatechartNode]:
         return [
-            ParkArmsAction(Arms.BOTH),
-            PickUpAction(
-                self.object_designator,
-                self.arm,
-                grasp_description=self.grasp_description,
-            ),
-            ParkArmsAction(Arms.BOTH),
-            PlaceAction(self.object_designator.root, self.target_location, self.arm),
-            ParkArmsAction(Arms.BOTH),
+            UnderspecifiedNode.for_step(self.pick_up),
+            UnderspecifiedNode.for_step(self.place),
         ]
 
 
 @dataclass(eq=False, repr=False)
 class MoveAndPlaceAction(Action):
     """
-    Navigate to `standing_position`, then turn towards the target and place the
-    object.
+    Navigates to where the robot stands, faces the target and places the object there.
     """
 
-    standing_position: Pose
+    navigate: NavigateAction
     """
-    The pose to stand before trying to pick up the object.
+    The step to where the robot stands while placing.
     """
-    object_designator: Body
+
+    face_and_look_at: FaceAndLookAtAction
     """
-    The object to pick up.
+    The turn towards the target and the look at it.
     """
-    target_location: Pose
+
+    place: PlaceAction
     """
-    The location to place the object.
+    The step that puts the object down.
     """
-    arm: Arms
-    """
-    The arm to use.
-    """
+
+    @classmethod
+    def from_standing_position(
+        cls,
+        standing_position: Pose,
+        target_location: Pose,
+        object_designator: HasGraspCandidates,
+    ) -> Self:
+        """
+        :param standing_position: Where the robot stands while placing.
+        :param target_location: Where to put the object down.
+        :param object_designator: The object to put down.
+        :return: The step placing the object from `standing_position`.
+        """
+        return cls(
+            navigate=NavigateAction(standing_position),
+            face_and_look_at=FaceAndLookAtAction(
+                face_at=FaceAtAction(target_location),
+                look_at=LookAtAction(target_location),
+            ),
+            place=PlaceAction(
+                object_designator=object_designator, target_location=target_location
+            ),
+        )
 
     @property
     def _sub_nodes(self) -> List[StatechartNode]:
         return [
-            NavigateAction(self.standing_position),
-            FaceAtAction(self.target_location),
-            PlaceAction(self.object_designator, self.target_location, self.arm),
+            UnderspecifiedNode.for_step(self.navigate),
+            UnderspecifiedNode.for_step(self.face_and_look_at),
+            UnderspecifiedNode.for_step(self.place),
         ]
 
 
 @dataclass(eq=False, repr=False)
 class MoveAndPickUpAction(Action):
     """
-    Navigate to `standing_position`, then turn towards the object and pick it
-    up.
+    Navigates to where the robot stands, faces the object and picks it up.
     """
 
-    standing_position: Pose
+    navigate: NavigateAction
     """
-    The pose to stand before trying to pick up the object.
+    The step to where the robot stands while picking up.
     """
-    object_designator: HasRootBody
+
+    face_and_look_at: FaceAndLookAtAction
     """
-    The annotation of the object to pick up.
+    The turn towards the object and the look at it.
     """
-    arm: Arms
+
+    pick_up: PickUpAction
     """
-    The arm to use.
+    The step that picks the object up.
     """
-    grasp_description: GraspDescription
-    """
-    The grasp to use.
-    """
+
+    @classmethod
+    def from_standing_position(
+        cls,
+        standing_position: Pose,
+        grasp: GraspCandidate,
+        arm: Arm,
+        approach_clearance: float = HasApproachesGraspPoses.approach_clearance,
+        retreat_distance: float = HasApproachesGraspPoses.retreat_distance,
+    ) -> Self:
+        """
+        :param standing_position: Where the robot stands while picking up.
+        :param grasp: The grasp to take hold by, which also names the object.
+        :param arm: The arm to pick up with.
+        :param approach_clearance: How far from the grasp the gripper approaches from.
+        :param retreat_distance: How far the gripper retreats with the object.
+        :return: The step picking the object up from `standing_position`.
+        """
+        object_pose = Pose(reference_frame=grasp.graspable.root)
+        return cls(
+            navigate=NavigateAction(standing_position),
+            face_and_look_at=FaceAndLookAtAction(
+                face_at=FaceAtAction(object_pose), look_at=LookAtAction(object_pose)
+            ),
+            pick_up=PickUpAction(
+                grasp=grasp,
+                arm=arm,
+                approach_clearance=approach_clearance,
+                retreat_distance=retreat_distance,
+            ),
+        )
+
+    @classmethod
+    def from_graspable_by_closest_grasps(
+        cls,
+        graspable: HasGraspCandidates,
+        arm: Arm,
+        context: Context,
+        number_of_grasps: int = IsAmongTheClosestGraspsTo.number_of_grasps,
+    ) -> Match:
+        """
+        A pick-up of `graspable`, standing wherever it can be reached from and taking it
+        by the grasps closest to the robot there.
+
+        The closeness is a ``where`` condition on the returned match,
+        :class:`~coraplex.querying.predicates.IsAmongTheClosestGraspsTo`.
+
+        :param graspable: The object to pick up.
+        :param arm: The arm to pick up with.
+        :param context: The context the standing poses are sampled in.
+        :param number_of_grasps: How many of the object's grasps closest to a standing
+            pose are tried from there.
+        :return: The pick-up, with the standing pose and the grasp left open.
+        """
+        grasps = graspable.grasp_candidates()
+        object_pose = Pose(reference_frame=graspable.root)
+        step = a(cls)(
+            navigate=a(NavigateAction)(
+                target_location=variable(
+                    Pose,
+                    domain=ReachabilityLocation(
+                        target_pose=object_pose, arm=arm, context=context
+                    ),
+                )
+            ),
+            face_and_look_at=a(FaceAndLookAtAction)(
+                face_at=a(FaceAtAction)(target=object_pose),
+                look_at=a(LookAtAction)(target=object_pose),
+            ),
+            pick_up=a(PickUpAction)(
+                grasp=variable(GraspCandidate, domain=grasps), arm=arm
+            ),
+        )
+        return step.where(
+            IsAmongTheClosestGraspsTo(
+                step.pick_up.grasp,
+                step.navigate.target_location,
+                grasps,
+                number_of_grasps,
+            )
+        )
 
     @property
     def _sub_nodes(self) -> List[StatechartNode]:
         return [
-            NavigateAction(self.standing_position),
-            FaceAtAction(self.object_designator.root.global_pose),
-            PickUpAction(self.object_designator, self.arm, self.grasp_description),
+            UnderspecifiedNode.for_step(self.navigate),
+            UnderspecifiedNode.for_step(self.face_and_look_at),
+            UnderspecifiedNode.for_step(self.pick_up),
+        ]
+
+
+@dataclass(eq=False, repr=False)
+class MoveAndOpenAction(Action):
+    """
+    Navigates to where the robot stands, faces the handle and opens its container.
+    """
+
+    navigate: NavigateAction
+    """
+    The step to where the robot stands while opening.
+    """
+
+    face_and_look_at: FaceAndLookAtAction
+    """
+    The turn towards the handle and the look at it.
+    """
+
+    open_container: OpenAction
+    """
+    The step that opens the container.
+    """
+
+    @classmethod
+    def from_standing_position(
+        cls, standing_position: Pose, handle: Handle, arm: Arm
+    ) -> Self:
+        """
+        :param standing_position: Where the robot stands while opening.
+        :param handle: The handle of the container to open.
+        :param arm: The arm to open with.
+        :return: The step opening the container from `standing_position`.
+        """
+        handle_pose = Pose(reference_frame=handle.root)
+        return cls(
+            navigate=NavigateAction(standing_position),
+            face_and_look_at=FaceAndLookAtAction(
+                face_at=FaceAtAction(handle_pose), look_at=LookAtAction(handle_pose)
+            ),
+            open_container=OpenAction(handle=handle, arm=arm),
+        )
+
+    @property
+    def _sub_nodes(self) -> List[StatechartNode]:
+        return [
+            UnderspecifiedNode.for_step(self.navigate),
+            UnderspecifiedNode.for_step(self.face_and_look_at),
+            UnderspecifiedNode.for_step(self.open_container),
         ]

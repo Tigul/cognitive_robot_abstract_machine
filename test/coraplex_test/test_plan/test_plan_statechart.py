@@ -1,18 +1,16 @@
 """
 Tests for running a plan as one statechart, see
-:class:`~coraplex.plans.plan_execution.PlanExecution`.
+:class:`~coraplex.plans.plan_execution.PlanExecutor`.
 """
 
 import json
 from dataclasses import dataclass, field
 
-from typing_extensions import List
+from typing_extensions import Iterator, List
 
-from coraplex.datastructures.enums import ApproachDirection, Arms, VerticalAlignment
-from coraplex.datastructures.grasp import GraspDescription
 from coraplex.datastructures.dataclasses import Context
 from coraplex.execution_environment import real_robot, simulated_robot
-from coraplex.locations.base import DeferredLocation
+from coraplex.locations.base import Location
 from coraplex.plans.plan_execution import PlanExecutor, UnderspecifiedChildChooser
 from coraplex.plans.underspecified import UnderspecifiedNode
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
@@ -30,8 +28,10 @@ from semantic_digital_twin.adapters.world_entity_kwargs_tracker import (
     WorldEntityWithIDKwargsTracker,
 )
 from semantic_digital_twin.datastructures.definitions import TorsoState
+from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.world import World
 
 # %% helpers
 
@@ -46,13 +46,41 @@ def _pose_in_front_of_the_robot(world, robot) -> Pose:
     )
 
 
+@dataclass
+class RecordingLocationInFrontOfTheRobot(Location):
+    """
+    A location in front of the robot that records, each time it is sampled, whether the
+    torso stood high at that moment.
+    """
+
+    world: World
+    """
+    The world the robot stands in.
+    """
+
+    robot: AbstractRobot
+    """
+    The robot the location is in front of.
+    """
+
+    torso_high_when_sampled: List[bool] = field(default_factory=list)
+    """
+    Whether the torso stood high, once per sampling.
+    """
+
+    def candidates(self) -> Iterator[Pose]:
+        torso_high = self.robot.get_torso().get_joint_state_by_type(TorsoState.HIGH)
+        self.torso_high_when_sampled.append(torso_high.is_achieved())
+        yield _pose_in_front_of_the_robot(self.world, self.robot)
+
+
 # %% one statechart per plan
 
 
 def test_a_plan_grounding_an_action_mid_sequence_runs_as_one_statechart(
-    immutable_model_world,
+    pr2_apartment_context,
 ):
-    world, robot, context = immutable_model_world
+    world, robot, context = pr2_apartment_context
     torso = MoveTorsoAction(TorsoState.HIGH)
     plan = Sequence(
         [
@@ -73,7 +101,7 @@ def test_a_plan_grounding_an_action_mid_sequence_runs_as_one_statechart(
         executor.execute()
 
     statechart: Statechart = plan.statechart
-    navigate = plan.nodes[1].latest_child
+    navigate = plan.nodes[1].chosen_actions[-1]
     assert isinstance(navigate, NavigateAction)
     assert navigate.statechart is statechart
     assert torso.statechart is statechart
@@ -82,25 +110,19 @@ def test_a_plan_grounding_an_action_mid_sequence_runs_as_one_statechart(
 
 
 def test_an_underspecified_action_is_grounded_against_the_world_the_steps_before_left(
-    immutable_model_world,
+    pr2_apartment_context,
 ):
-    world, robot, context = immutable_model_world
+    world, robot, context = pr2_apartment_context
     torso_high = robot.get_torso().get_joint_state_by_type(TorsoState.HIGH)
     assert not torso_high.is_achieved()
-    torso_high_when_grounded: List[bool] = []
-
-    def poses_in_front_of_the_robot():
-        torso_high_when_grounded.append(torso_high.is_achieved())
-        return [_pose_in_front_of_the_robot(world, robot)]
+    location = RecordingLocationInFrontOfTheRobot(world=world, robot=robot)
 
     plan = Sequence(
         [
             MoveTorsoAction(TorsoState.HIGH),
             UnderspecifiedNode(
                 statement=a(NavigateAction)(
-                    target_location=variable(
-                        Pose, domain=DeferredLocation(poses_in_front_of_the_robot)
-                    )
+                    target_location=variable(Pose, domain=location)
                 )
             ),
         ]
@@ -111,11 +133,11 @@ def test_an_underspecified_action_is_grounded_against_the_world_the_steps_before
         executor.compile(plan)
         executor.execute()
 
-    assert torso_high_when_grounded == [True]
+    assert location.torso_high_when_sampled == [True]
 
 
-def test_a_branch_moved_mid_plan_follows_its_new_parent(mutable_model_world):
-    world, robot, context = mutable_model_world
+def test_a_branch_moved_mid_plan_follows_its_new_parent(pr2_apartment_context):
+    world, robot, context = pr2_apartment_context
     milk = world.get_body_by_name("milk.stl")
     tool_frame = robot.left_arm.end_effector.tool_frame
     height_before = milk.global_pose.z
@@ -146,22 +168,12 @@ def test_actions_with_the_same_parameters_are_different_nodes():
     assert first != second
 
 
-def test_a_place_finds_the_grasp_of_the_pick_up_before_it(mutable_model_world):
-    world, robot, context = mutable_model_world
+def test_a_place_finds_the_grasp_of_the_pick_up_before_it(pr2_apartment_context):
+    world, robot, context = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    pick_up = PickUpAction(
-        milk,
-        Arms.LEFT,
-        GraspDescription(
-            ApproachDirection.FRONT,
-            VerticalAlignment.NoAlignment,
-            robot.left_arm.end_effector,
-        ),
-    )
+    pick_up = PickUpAction(milk.grasp_candidates()[0], robot.left_arm)
     place = PlaceAction(
-        milk.root,
-        Pose.from_xyz_rpy(0.8, -1.9, 0.7, reference_frame=world.root),
-        Arms.LEFT,
+        milk, Pose.from_xyz_rpy(0.8, -1.9, 0.7, reference_frame=world.root)
     )
     statechart = Statechart(context=context.create_statechart_context())
 
@@ -195,13 +207,13 @@ class GiskardWrapperRecordingTheGoal:
 
 
 def test_an_underspecified_node_is_sent_as_a_node_choosing_its_child(
-    immutable_model_world,
+    pr2_apartment_context,
 ):
     """
     Giskard receives the children the client chooses, so it needs nothing but the node
     itself, and not the statement it is grounded from.
     """
-    world, robot, context = immutable_model_world
+    world, robot, context = pr2_apartment_context
     node = UnderspecifiedNode(statement=a(NavigateAction)(target_location=...))
 
     received = from_json(json.loads(json.dumps(to_json(node))))
@@ -211,9 +223,9 @@ def test_an_underspecified_node_is_sent_as_a_node_choosing_its_child(
 
 
 def test_a_plan_on_the_robot_is_sent_once_with_the_chooser_grounding_its_actions(
-    immutable_model_world, monkeypatch
+    pr2_apartment_context, monkeypatch
 ):
-    world, robot, context = immutable_model_world
+    world, robot, context = pr2_apartment_context
     giskard = GiskardWrapperRecordingTheGoal()
     monkeypatch.setattr(Context, "giskard_wrapper", property(lambda self: giskard))
     plan = Sequence(
@@ -241,12 +253,12 @@ def test_a_plan_on_the_robot_is_sent_once_with_the_chooser_grounding_its_actions
     assert chooser.context is context
 
 
-def test_an_expanded_action_is_received_with_the_nodes_it_runs(immutable_model_world):
+def test_an_expanded_action_is_received_with_the_nodes_it_runs(pr2_apartment_context):
     """
     A receiver does not expand the nodes of a statechart again, so an action has to
     arrive knowing the sequence it runs.
     """
-    world, robot, context = immutable_model_world
+    world, robot, context = pr2_apartment_context
     sent = Statechart(context=context.create_statechart_context())
     sent.add_node(action := MoveTorsoAction(TorsoState.HIGH))
 

@@ -19,7 +19,7 @@ from giskardpy.middleware.ros2.feedback_publisher import (
     MotionStatechartPayloadKey,
 )
 from giskardpy.middleware.ros2.cycle_counter import CycleCounter
-from giskardpy.middleware.ros2.input_synchronization import (
+from semantic_digital_twin.input_synchronization import (
     InputSynchronizer,
     WorldStateInputs,
 )

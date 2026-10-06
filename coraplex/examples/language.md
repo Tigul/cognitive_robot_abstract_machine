@@ -54,14 +54,13 @@ never start.
 We will start with a simple example that moves the robot and parks its arms.
 
 ```python
-from coraplex.datastructures.enums import Arms
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from cramph.composites import Sequence
 from semantic_digital_twin.spatial_types import Pose
 
 navigate = NavigateAction(Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
-park = ParkArmsAction(Arms.BOTH)
+park = ParkArmsAction(pr2.all_arms)
 
 plan = Sequence([navigate, park])
 ```
@@ -86,14 +85,13 @@ Try in order also runs its children one after another, but a failing child does 
 instead. It fails only if all of its children failed.
 
 ```python
-from coraplex.datastructures.enums import Arms
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from cramph.composites import TryInOrder
 from semantic_digital_twin.spatial_types import Pose
 
 navigate = NavigateAction(Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
-park = ParkArmsAction(Arms.BOTH)
+park = ParkArmsAction(pr2.all_arms)
 
 plan = TryInOrder([navigate, park])
 
@@ -108,14 +106,13 @@ Parallel holds all of its children at once, in the same statechart, and succeeds
 by default, are at their goals on the same tick.
 
 ```python
-from coraplex.datastructures.enums import Arms
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from cramph.composites import Parallel
 from semantic_digital_twin.spatial_types import Pose
 
 navigate = NavigateAction(Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
-park = ParkArmsAction(Arms.BOTH)
+park = ParkArmsAction(pr2.all_arms)
 
 plan = Parallel([navigate, park])
 
@@ -130,14 +127,13 @@ TryAll is to Parallel what TryInOrder is to Sequence: it runs all of its childre
 them succeeded.
 
 ```python
-from coraplex.datastructures.enums import Arms
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from cramph.composites import TryAll
 from semantic_digital_twin.spatial_types import Pose
 
 navigate = NavigateAction(Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
-park = ParkArmsAction(Arms.BOTH)
+park = ParkArmsAction(pr2.all_arms)
 
 plan = TryAll([navigate, park])
 
@@ -151,7 +147,6 @@ with simulated_robot:
 Composites are statechart nodes themselves, so they nest. For example, a Sequence can run as one child of a Parallel.
 
 ```python
-from coraplex.datastructures.enums import Arms
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
 from cramph.composites import Parallel, Sequence
@@ -159,7 +154,7 @@ from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.spatial_types import Pose
 
 navigate = NavigateAction(Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
-park = ParkArmsAction(Arms.BOTH)
+park = ParkArmsAction(pr2.all_arms)
 move_torso = MoveTorsoAction(TorsoState.HIGH)
 
 plan = Parallel([navigate, Sequence([park, move_torso])])
@@ -179,7 +174,6 @@ of its own and succeeds once the function returned.
 The function can either be a lambda expression or, for more complex code, a function.
 
 ```python
-from coraplex.datastructures.enums import Arms
 from coraplex.plans.function_call import FunctionCall
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from cramph.composites import Parallel
@@ -190,7 +184,7 @@ def code_test():
     print("Code function")
 
 
-park = ParkArmsAction(Arms.BOTH)
+park = ParkArmsAction(pr2.all_arms)
 code_lambda = FunctionCall(function=lambda: print("This is from the code object"))
 code_func = FunctionCall(function=code_test)
 

@@ -4,12 +4,6 @@ Tests for performing plans and for what their actions move.
 
 import pytest
 
-from coraplex.datastructures.enums import (
-    ApproachDirection,
-    VerticalAlignment,
-    Arms,
-)
-from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.failures import EmptyUnderspecified
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
@@ -27,7 +21,6 @@ from krrood.entity_query_language.backends import ProbabilisticBackend
 from krrood.entity_query_language.factories import (
     variable_from,
     a,
-    variable,
 )
 from krrood.parametrization.model_registries import (
     FullyFactorizedRegistry,
@@ -40,7 +33,6 @@ from semantic_digital_twin.orm.model import (
     PoseMapping,
 )
 from semantic_digital_twin.robots.pr2 import PR2Joint
-from semantic_digital_twin.robots.robot_parts import EndEffector
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Pose
 
@@ -56,7 +48,7 @@ def _torso_position(world):
     ].position
 
 
-def test_sequence_runs_all_motions(immutable_model_world):
+def test_sequence_runs_all_motions(pr2_apartment_context):
     """
     Every motion of a sequence is executed, so the torso ends at the target of the
     *last* motion.
@@ -64,7 +56,7 @@ def test_sequence_runs_all_motions(immutable_model_world):
     The robot starts in the LOW configuration, so a final HIGH motion proves the second
     motion actually ran.
     """
-    world, robot_view, context = immutable_model_world
+    world, robot_view, context = pr2_apartment_context
 
     plan = Sequence([MoveTorsoAction(TorsoState.LOW), MoveTorsoAction(TorsoState.HIGH)])
     with simulated_robot:
@@ -109,7 +101,7 @@ def test_algebra_sequential_plan(apartment_world_pr2_copy_with_context):
         executor.compile(plan)
         executor.execute()
 
-    assert isinstance(plan.nodes[1].latest_child, NavigateAction)
+    assert isinstance(plan.nodes[1].chosen_actions[-1], NavigateAction)
     assert len(plan.nodes[1].children) == 1
 
 
@@ -119,30 +111,22 @@ def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
 
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
-    milk_variable = variable_from([milk])
+    grasp_variable = variable_from(milk.grasp_candidates())
 
     pick_up_description = a(PickUpAction)(
-        object_designator=milk_variable,
-        arm=...,
-        grasp_description=a(GraspDescription)(
-            approach_direction=...,
-            vertical_alignment=...,
-            rotate_gripper=...,
-            manipulation_offset=0.05,
-            end_effector=variable(EndEffector, world.semantic_annotations),
-        ),
+        grasp=grasp_variable,
+        arm=variable_from(context.robot.all_arms),
+        approach_clearance=0.05,
     )
 
     parameters = UnderspecifiedParameters(pick_up_description)
 
-    [end_effector_offset] = [
-        v
-        for v in parameters.variables.values()
-        if v.name.endswith("manipulation_offset")
+    [approach_clearance] = [
+        v for v in parameters.variables.values() if v.name.endswith("clearance")
     ]
 
     assert (
-        parameters.conditioning_assignments_from_literal_values[end_effector_offset]
+        parameters.conditioning_assignments_from_literal_values[approach_clearance]
         == 0.05
     )
 
@@ -161,15 +145,10 @@ def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
             pass
 
 
-def test_motion_order_pick_up(mutable_model_world):
-    world, robot_view, context = mutable_model_world
+def test_motion_order_pick_up(pr2_apartment_context):
+    world, robot_view, context = pr2_apartment_context
 
-    grasp_description = GraspDescription(
-        ApproachDirection.FRONT,
-        VerticalAlignment.NoAlignment,
-        robot_view.left_arm.end_effector,
-    )
-
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
     milk_body = world.get_body_by_name("milk.stl")
     milk_body.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         1, -2, 0.6, reference_frame=world.root
@@ -183,11 +162,7 @@ def test_motion_order_pick_up(mutable_model_world):
 
     root = Sequence(
         [
-            PickUpAction(
-                world.get_semantic_annotations_by_type(Milk)[0],
-                Arms.LEFT,
-                grasp_description,
-            ),
+            PickUpAction(milk.grasp_candidates()[0], context.robot.left_arm),
         ]
     )
 
@@ -202,8 +177,8 @@ def test_motion_order_pick_up(mutable_model_world):
     ]
 
 
-def test_motion_order_place(mutable_model_world):
-    world, robot_view, context = mutable_model_world
+def test_motion_order_place(pr2_apartment_context):
+    world, robot_view, context = pr2_apartment_context
 
     milk_body = world.get_body_by_name("milk.stl")
     milk_body.parent_connection.origin = world.get_body_by_name(
@@ -227,9 +202,8 @@ def test_motion_order_place(mutable_model_world):
     root = Sequence(
         [
             PlaceAction(
-                world.get_body_by_name("milk.stl"),
+                world.get_semantic_annotations_by_type(Milk)[0],
                 Pose.from_xyz_rpy(0.8, -1.9, 0.7, reference_frame=world.root),
-                Arms.LEFT,
             ),
         ]
     )

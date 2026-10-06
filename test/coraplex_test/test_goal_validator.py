@@ -32,8 +32,8 @@ from semantic_digital_twin.robots.pr2 import PR2Joint
 
 
 @pytest.fixture
-def goal_validator_world(immutable_model_world):
-    world, robot_view, context = immutable_model_world
+def goal_validator_world(pr2_apartment_context):
+    world, robot_view, context = pr2_apartment_context
     robot_view.root.parent_connection.origin = (
         HomogeneousTransformationMatrix.from_xyz_quaternion(0, 0, 0)
     )
@@ -41,9 +41,7 @@ def goal_validator_world(immutable_model_world):
     milk_connection.origin = HomogeneousTransformationMatrix.from_xyz_quaternion(
         2.2, 2, 1, reference_frame=milk_connection.parent
     )
-    cereal_connection = world.get_body_by_name(
-        "breakfast_cereal.stl"
-    ).parent_connection
+    cereal_connection = world.get_body_by_name("breakfast_cereal.stl").parent_connection
     cereal_connection.origin = HomogeneousTransformationMatrix.from_xyz_quaternion(
         2.2, 1.8, 1, reference_frame=cereal_connection.parent
     )

@@ -4,11 +4,12 @@ import logging
 from copy import deepcopy
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field, replace
+from datetime import timedelta
 
-from typing_extensions import Dict, Iterator, Optional, Tuple
+from typing_extensions import ClassVar, Dict, Iterator, List, Optional, Tuple
 
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import ExecutionType
+from coraplex.datastructures.enums import ActionTrialVisualization, ExecutionType
 from coraplex.exceptions import (
     MotionDidNotFinish,
     NotAnUnderspecifiedNode,
@@ -17,12 +18,24 @@ from coraplex.exceptions import (
 )
 from coraplex.execution_environment import ExecutionEnvironment
 from coraplex.plans.designator import DesignatorParameters
-from coraplex.plans.failures import EmptyUnderspecified, PlanFailure
+from coraplex.plans.failures import (
+    CandidateLimitReached,
+    EmptyUnderspecified,
+    MotionExceededSimulationTimeLimit,
+    MotionMadeNoProgress,
+    MotionViolatedCollisionAvoidance,
+    PlanFailure,
+)
+from coraplex.plans.plan_callbacks import PlanCallback, PlanCallbackDispatcher
+from coraplex.plans.plan_transformation import PlanRewriting
 from coraplex.plans.underspecified import UnderspecifiedNode
+from coraplex.robot_plans.actions.base import Action
+from coraplex.visualization import RvizVisualization
 from cramph.candidate_generator import CandidateGenerator
 from cramph.composites import (
-    Sequence,
+    Attempt,
     ChildChooser,
+    Sequence,
     ChildChooserAccess,
     CompositeNodeChoosingItsChild,
 )
@@ -32,13 +45,22 @@ from cramph.executor import StatechartExecutor
 from cramph.node import StatechartNode
 from cramph.statechart import Statechart
 from giskardpy.motion_control import MotionControl
+from giskardpy.motion_statechart.exceptions import (
+    CollisionViolatedError,
+    NoProgressError,
+)
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
 )
-from giskardpy.motion_statechart.graph_node import EndMotion
+from giskardpy.motion_statechart.graph_node import ConvergingTask, EndMotion
+from giskardpy.motion_statechart.monitors.progress_monitors import (
+    Stalled,
+    StillProgressing,
+)
 from giskardpy.motion_statechart.ros_context import RosNodeAccess
 from giskardpy.qp.qp_controller_config import QPControllerConfig
+from semantic_digital_twin.world import World
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +87,11 @@ class PlanExecutor:
     The context plans are compiled and executed in.
     """
 
+    callbacks: List[PlanCallback] = field(default_factory=list, kw_only=True)
+    """
+    The callbacks observing every plan this executor runs.
+    """
+
     _run: Optional[PlanRun] = field(default=None, init=False, repr=False)
     """
     The run of the plan compiled last.
@@ -83,7 +110,7 @@ class PlanExecutor:
             plan=plan,
             context=self.context,
         )
-        self._run.compile()
+        self._run.compile(self.callbacks)
 
     def execute(self) -> None:
         """
@@ -93,10 +120,20 @@ class PlanExecutor:
         :raises MotionDidNotFinish: If the plan did not succeed.
         :raises EmptyUnderspecified: If an underspecified action ran out of actions to
             try.
+        :raises MotionMadeNoProgress: When the plan stops approaching its goal.
+        :raises MotionExceededSimulationTimeLimit: When a simulated plan runs for longer
+            than :attr:`SimulatedPlanRun.simulation_time_limit`.
+        :raises MotionViolatedCollisionAvoidance: When the plan brings bodies closer to
+            each other than collision avoidance allows.
         """
         if self._run is None:
             raise PlanNotCompiled()
-        self._run.execute()
+        try:
+            self._run.execute()
+        except NoProgressError as stalled:
+            raise MotionMadeNoProgress(stalled) from stalled
+        except CollisionViolatedError as violation:
+            raise MotionViolatedCollisionAvoidance(violation) from violation
 
 
 @dataclass
@@ -139,20 +176,59 @@ class PlanRun(ABC):
     def create_statechart(self, statechart_context: StatechartContext) -> Statechart:
         """
         :param statechart_context: The context the statechart is built in.
-        :return: The statechart running the plan, ending once the plan succeeded.
+        :return: The statechart running the plan, ending once the plan succeeded and
+            giving up on it once it stops approaching its goal.
         """
         statechart = Statechart(context=statechart_context)
         statechart.add_node(self.plan)
+        self._rewrite(statechart_context)
         if ExecutionEnvironment.current_collision_avoidance:
             statechart.add_node(ExternalCollisionAvoidance())
             statechart.add_node(SelfCollisionAvoidance())
         statechart.add_node(EndMotion.when_true(self.plan))
+        self._add_stall_detection(statechart)
         return statechart
 
+    def _rewrite(self, statechart_context: StatechartContext) -> None:
+        """
+        Rewrite the plan with the plan transformations of the context, and keep them in
+        `statechart_context` for the actions that join the plan while it runs.
+
+        :param statechart_context: The context of the statechart the plan was added to.
+        """
+        rewriting = PlanRewriting(
+            transformations=self.context.plan_transformations,
+            offered_types=(Action, UnderspecifiedNode),
+        )
+        statechart_context.add_extension(rewriting)
+        rewriting.rewrite(self.plan)
+
+    def _add_stall_detection(self, statechart: Statechart) -> None:
+        """
+        Cancel the statechart once nothing the plan holds approaches its goal.
+
+        Only the motions the plan holds when it is compiled are watched; an action an
+        underspecified node chooses later is watched by its own stall monitor, see
+        :class:`UnderspecifiedChildChooser`. A plan holding no motion yet is not watched
+        at all, since it would read as stalled from its first tick.
+
+        :param statechart: The statechart the plan was added to, which expanded it.
+        """
+        if not any(
+            isinstance(node, ConvergingTask)
+            for node in [self.plan, *self.plan.descendants]
+        ):
+            return
+        still_progressing = StillProgressing(monitored_node=self.plan)
+        statechart.add_node(still_progressing)
+        statechart.add_node(still_progressing.cancel_motion())
+
     @abstractmethod
-    def compile(self) -> None:
+    def compile(self, callbacks: List[PlanCallback]) -> None:
         """
         Build the statechart running the plan and prepare it for :meth:`execute`.
+
+        :param callbacks: The callbacks observing the plan while it runs.
         """
 
     @abstractmethod
@@ -165,13 +241,22 @@ class PlanRun(ABC):
 @dataclass
 class SkippedPlanRun(PlanRun):
     """
-    Leaves the plan alone, for an environment that asks for nothing to be executed.
+    Builds the statechart running the plan without running it, for an environment that
+    asks for nothing to be executed, so the plan can be inspected as it would run.
     """
 
-    def compile(self) -> None:
+    statechart: Optional[Statechart] = field(default=None, init=False)
+    """
+    The statechart running the plan, set by :meth:`compile`.
+    """
+
+    def compile(self, callbacks: List[PlanCallback]) -> None:
         """
-        Build nothing, since nothing runs.
+        Build the statechart, which expands the plan, without compiling it.
         """
+        self.statechart = self.create_statechart(
+            self.context.create_statechart_context()
+        )
 
     def execute(self) -> None:
         """
@@ -185,54 +270,78 @@ class SimulatedPlanRun(PlanRun):
     Ticks the plan's statechart in the world of the context.
     """
 
+    simulation_time_limit: ClassVar[timedelta] = timedelta(minutes=2)
+    """
+    The simulated time after which a plan is given up on, however it is progressing.
+    """
+
+    qp_controller_config: QPControllerConfig = field(
+        default_factory=lambda: QPControllerConfig(
+            target_frequency=50, prediction_horizon=4, verbose=False
+        ),
+        kw_only=True,
+    )
+    """
+    The controller configuration the plan's motions are simulated with.
+    """
+
     executor: StatechartExecutor = field(init=False)
     """
     The executor ticking the statechart.
     """
 
-    def __post_init__(self):
-        self.executor = self.create_executor(self.context)
+    child_chooser: UnderspecifiedChildChooser = field(init=False)
+    """
+    Grounds the underspecified actions of the plan while it runs.
+    """
 
-    @staticmethod
-    def create_executor(context: Context) -> StatechartExecutor:
-        """
-        :param context: The plan context whose world and ROS node the executor uses.
-        :return: An executor that runs the statechart of a plan in simulation.
-        """
-        executor = StatechartExecutor(
-            context=context.create_statechart_context(),
+    def __post_init__(self):
+        self.child_chooser = UnderspecifiedChildChooser(context=self.context)
+        self.executor = StatechartExecutor(
+            context=self.context.create_statechart_context(),
             extensions=[
-                RosNodeAccess(context.ros_node),
-                MotionControl(
-                    qp_controller_config=QPControllerConfig(
-                        target_frequency=50, prediction_horizon=4, verbose=False
-                    )
-                ),
+                RosNodeAccess(self.context.ros_node),
+                MotionControl(qp_controller_config=self.qp_controller_config),
             ],
         )
-        executor.context.add_extension(
-            ChildChooserAccess(chooser=UnderspecifiedChildChooser(context=context))
+        self.executor.context.add_extension(
+            ChildChooserAccess(chooser=self.child_chooser)
         )
-        return executor
 
-    def compile(self) -> None:
+    def compile(self, callbacks: List[PlanCallback]) -> None:
         """
-        Compile the statechart against the executor, which ticks it once.
+        Compile the statechart against the executor, which ticks it once, reporting the
+        plan's progress to `callbacks` from then on.
         """
-        self.executor.compile(self.create_statechart(self.executor.context))
+        statechart = self.create_statechart(self.executor.context)
+        for callback in callbacks:
+            callback.on_compile(self.plan, statechart)
+        statechart.history.add_observer(
+            PlanCallbackDispatcher(plan=self.plan, callbacks=callbacks)
+        )
+        self.executor.compile(statechart)
 
     def execute(self) -> None:
         """
-        Tick the statechart until it ended, the plan ended without succeeding, or the
-        tick budget ran out.
+        Tick the statechart until it or the plan ended.
+
+        The statechart's own stall monitor decides when a plan is hopeless, so a plan
+        that keeps converging is never cut off for taking many ticks.
 
         :raises MotionDidNotFinish: If the statechart did not end.
+        :raises NoProgressError: When the plan stops approaching its goal.
+        :raises MotionExceededSimulationTimeLimit: When the plan runs for longer than
+            :attr:`simulation_time_limit`.
         """
         statechart = self.executor.statechart
+        maximum_ticks = (
+            self.simulation_time_limit.total_seconds()
+            / self.qp_controller_config.control_dt
+        )
         try:
-            while not self._is_over(statechart) and (
-                self.executor.tick_count < self._tick_budget()
-            ):
+            while not self._is_over(statechart):
+                if self.executor.tick_count >= maximum_ticks:
+                    raise MotionExceededSimulationTimeLimit(self.simulation_time_limit)
                 self.executor.tick()
         finally:
             MotionControl.set_velocity_acceleration_jerk_to_zero(
@@ -240,9 +349,12 @@ class SimulatedPlanRun(PlanRun):
             )
             statechart.cleanup_nodes()
             self.executor.context.cleanup()
-        if statechart.is_ended():
+        if (
+            statechart.is_ended()
+            or self.plan.life_cycle_state == LifeCycleValues.SUCCEEDED
+        ):
             return
-        self._raise_if_out_of_actions(statechart)
+        self._raise_if_out_of_candidates(statechart)
         motion_did_not_finish = MotionDidNotFinish(
             [
                 node
@@ -254,54 +366,28 @@ class SimulatedPlanRun(PlanRun):
         logger.error(motion_did_not_finish.error_message())
         raise motion_did_not_finish
 
-    @staticmethod
-    def _raise_if_out_of_actions(statechart: Statechart) -> None:
+    def _raise_if_out_of_candidates(self, statechart: Statechart) -> None:
         """
+        :raises CandidateLimitReached: If an underspecified node tried as many actions
+            as it may, which is why the statechart did not end.
         :raises EmptyUnderspecified: If an underspecified node ran out of actions to
             try, which is why the statechart did not end.
         """
         for node in statechart.get_nodes_by_type(UnderspecifiedNode):
-            if node.ran_out_of_children:
-                raise EmptyUnderspecified(node=node)
+            if not node.ran_out_of_children:
+                continue
+            candidates = self.child_chooser.candidates_of(node)
+            if candidates.reached_candidate_limit:
+                raise CandidateLimitReached(
+                    node=node, candidate_limit=candidates.candidate_limit
+                )
+            raise EmptyUnderspecified(node=node)
 
     def _is_over(self, statechart: Statechart) -> bool:
         """
-        :return: Whether the statechart ended or the plan can no longer succeed.
+        :return: Whether the statechart or the plan ended.
         """
-        return statechart.is_ended() or self.plan.life_cycle_state in (
-            LifeCycleValues.FAILED,
-            LifeCycleValues.INTERRUPTED,
-        )
-
-    def _tick_budget(self) -> int:
-        """
-        The ticks the run may take,
-        :attr:`~coraplex.datastructures.dataclasses.Context.ticks_per_motion` for every
-        motion of the plan.
-
-        It grows with the plan, since a grounded action joins it while it runs.
-        """
-        motion_count = len(
-            [
-                node
-                for node in [self.plan, *self.plan.descendants]
-                if self._is_motion(node)
-            ]
-        )
-        return max(motion_count, 1) * self.context.ticks_per_motion
-
-    @staticmethod
-    def _is_motion(node: StatechartNode) -> bool:
-        """
-        :return: Whether `node` is one step of a sequence that does something itself,
-            rather than an action, a sequence or an underspecified node arranging other
-            steps. A motion held alongside speed caps or collision rules is one step.
-        """
-        if not isinstance(node.parent_node, Sequence):
-            return False
-        return not isinstance(
-            node, (DesignatorParameters, Sequence, CompositeNodeChoosingItsChild)
-        )
+        return statechart.is_ended() or self.plan.life_cycle_state.is_terminal
 
 
 @dataclass
@@ -316,9 +402,10 @@ class RobotPlanRun(PlanRun):
     The statechart sent to giskard, set by :meth:`compile`.
     """
 
-    def compile(self) -> None:
+    def compile(self, callbacks: List[PlanCallback]) -> None:
         """
-        Build the statechart; giskard compiles it once it receives it.
+        Build the statechart; giskard compiles it once it receives it, and ticks it
+        where no callback can observe it.
         """
         self.statechart = self.create_statechart(
             self.context.create_statechart_context()
@@ -340,17 +427,17 @@ class RobotPlanRun(PlanRun):
 @dataclass
 class ActionTrial:
     """
-    Tries grounded actions against a disposable copy of the world, to check that a
-    candidate can succeed before it is attempted for real.
+    Tries grounded actions against a copy of the world, to check that a candidate can
+    succeed before it is attempted for real.
 
-    One copy serves every candidate: after an attempt the copy is rolled back to the
-    model version it was at and its state is restored, so the next candidate starts from
-    the same point without another copy having to be made. A fresh copy is taken
-    whenever `context.world` has itself moved on, so a trial always reflects the state
-    and model changes actually in it.
+    One copy serves every candidate: after each attempt its model is rolled back and its
+    state restored, and when `context.world` has changed since, the copy replays those
+    model and state changes instead of being taken anew. Collision rules changed after
+    the copy was taken are not carried over.
 
-    The copy is never connected to a synchronizer, so nothing a trial does is published,
-    and a trial always runs simulated, whatever the real attempt will use.
+    Trials never publish to a synchronizer, always run simulated, and always evaluate
+    pre- and postconditions. While the context is debugging, the copy is shown in RViz
+    under its own frame prefix and marker topic.
     """
 
     context: Context
@@ -362,18 +449,35 @@ class ActionTrial:
     afterwards.
     """
 
+    copy_marker_alpha: float = field(default=0.9, kw_only=True)
+    """
+    The opacity the copy is drawn with while debugging, so it can be told apart from the
+    world it copies where the two overlap.
+    """
+
     _copied_context: Optional[Context] = field(default=None, init=False, repr=False)
     """
-    The context pointing at the copy candidates are tried against, kept until that copy
-    no longer matches the world it was taken from.
+    The context pointing at the copy candidates are tried against.
     """
 
     _source_versions: Optional[Tuple[int, int]] = field(
         default=None, init=False, repr=False
     )
     """
-    The model and state versions `context.world` had when the copy was taken, used to
-    notice that it has moved on and the copy has to be replaced.
+    The model and state versions `context.world` had when the copy last matched it, used
+    to notice that it has moved on and the copy has to be caught up.
+    """
+
+    _replayed_modification_blocks: int = field(default=0, init=False, repr=False)
+    """
+    How many of the modification blocks of `context.world` the copy already holds.
+    """
+
+    _visualization: Optional[RvizVisualization] = field(
+        default=None, init=False, repr=False
+    )
+    """
+    The RViz publishing of the current copy, while the context is debugging.
     """
 
     def succeeds(self, action: DesignatorParameters) -> bool:
@@ -393,9 +497,7 @@ class ActionTrial:
         """
         context = self._copy()
         world = context.world
-        candidate = type(action)(
-            **world.rebind_world_entities(action.designator_parameter)
-        )
+        candidate = self._on_the_copy(action, world)
         version = world.get_world_model_manager().version
 
         with (
@@ -407,42 +509,116 @@ class ActionTrial:
         ):
             try:
                 executor = PlanExecutor(context)
-                executor.compile(candidate)
+                # The candidate runs in a sequence of its own, the way it runs for real,
+                # so the nodes a plan transformation puts beside it are tried with it.
+                executor.compile(Sequence(nodes=[candidate]))
                 executor.execute()
                 return True
             except PlanFailure as failure:
-                logger.info("%s failed its trial: %s", action, failure)
+                logger.info(f"{action} failed its trial: {failure}")
                 return False
             finally:
                 # Undo the model changes before leaving the reset context restores the
                 # state, which needs the degrees of freedom it was snapshotted with.
                 world.rollback_to_version(version)
 
+    @classmethod
+    def _on_the_copy(
+        cls, action: DesignatorParameters, world: World
+    ) -> DesignatorParameters:
+        """
+        :param action: The grounded action to try out.
+        :param world: The copy to try it against.
+        :return: A new action with the parameters of `action`, referring to `world`.
+            The actions among those parameters are built anew the same way, since each
+            of them becomes a node of the statechart the trial runs.
+        """
+        return type(action)(
+            **{
+                name: (
+                    cls._on_the_copy(value, world)
+                    if isinstance(value, DesignatorParameters)
+                    else world.rebind_world_entities(value)
+                )
+                for name, value in action.designator_parameter.items()
+            }
+        )
+
     def _copy(self) -> Context:
         """
-        :return: The context pointing at the copy to try candidates against, taken again
-            if `context.world` has changed since the current one was made.
+        :return: The context pointing at the copy to try candidates against, caught up
+            with `context.world` if that has changed since the copy last matched it.
         """
         versions = (
             self.context.world.get_world_model_manager().version,
             self.context.world.state.version,
         )
-        if self._copied_context is None or self._source_versions != versions:
-            world = deepcopy(self.context.world)
-            self._copied_context = replace(
-                self.context,
-                world=world,
-                robot=world.get_semantic_annotation_by_id(self.context.robot.id),
-            )
-            self._source_versions = versions
+        if self._copied_context is None:
+            self._take_copy()
+        elif self._source_versions != versions:
+            self._catch_up()
+        self._source_versions = versions
         return self._copied_context
+
+    def _take_copy(self) -> None:
+        """
+        Copy `context.world` and, while the context is debugging, start publishing the
+        copy.
+        """
+        world = deepcopy(self.context.world)
+        self._replayed_modification_blocks = len(
+            self.context.world.get_world_model_manager().model_modification_blocks
+        )
+        self._copied_context = replace(
+            self.context,
+            world=world,
+            robot=world.get_semantic_annotation_by_id(self.context.robot.id),
+            evaluate_conditions=True,
+        )
+        if self.context.debug:
+            self._visualization = RvizVisualization(
+                world,
+                ros_node=self.context.ros_node,
+                collision_visualization=True,
+                frame_prefix=ActionTrialVisualization.FRAME_PREFIX,
+                marker_topic=ActionTrialVisualization.MARKER_TOPIC,
+                marker_alpha=self.copy_marker_alpha,
+            ).start()
+
+    def _catch_up(self) -> None:
+        """
+        Bring the copy up to date with `context.world`: replay the modifications made to
+        it since, the way copying it replays all of them, and take over its state.
+
+        The copy's own modifications are all rolled back by then, so it still matches
+        the world as it was when it last caught up.
+        """
+        modification_blocks = (
+            self.context.world.get_world_model_manager().model_modification_blocks
+        )
+        world = self._copied_context.world
+        with world.modify_world():
+            for block in modification_blocks[self._replayed_modification_blocks :]:
+                block.update_references_for_world_and_apply(world=world)
+            world.state.merge_state(self.context.world.state)
+        self._replayed_modification_blocks = len(modification_blocks)
 
     def discard(self) -> None:
         """
         Release the copy, so the next trial takes a fresh one.
         """
+        self._stop_visualization()
         self._copied_context = None
         self._source_versions = None
+
+    def _stop_visualization(self) -> None:
+        """
+        Stop publishing the current copy, if it is being published.
+        """
+        if self._visualization is None:
+            return
+        self._visualization.stop()
+        self._visualization = None
 
 
 # %% grounding underspecified actions while the statechart runs
@@ -456,6 +632,8 @@ class UnderspecifiedCandidates(
     The actions an :class:`~coraplex.plans.underspecified.UnderspecifiedNode` may run,
     grounded one at a time against the world at the moment it asks, each tried in an
     :class:`ActionTrial` first.
+
+    At most :attr:`candidate_limit` actions are grounded.
     """
 
     node: UnderspecifiedNode
@@ -465,9 +643,45 @@ class UnderspecifiedCandidates(
 
     trial: ActionTrial
     """
-    The trial every candidate of :attr:`node` is tried against, shared so they share one
-    copy of the world.
+    The trial every candidate is tried against, shared by every underspecified node of a
+    plan so they all try their candidates in one copy of the world.
     """
+
+    _candidates_pulled: int = field(default=0, init=False, repr=False)
+    """
+    How many actions the current run through the statement has grounded.
+    """
+
+    @property
+    def candidate_limit(self) -> int:
+        """
+        :return: How many actions are grounded: the statement's own limit, or the
+            context's if it has none.
+        """
+        return self.node.statement._limit_ or self.trial.context.candidates_to_try
+
+    @property
+    def reached_candidate_limit(self) -> bool:
+        """
+        :return: Whether the last run through the statement stopped because it grounded
+            :attr:`candidate_limit` actions.
+        """
+        return self._candidates_pulled == self.candidate_limit
+
+    def _pull_next_proposal(self) -> Optional[DesignatorParameters]:
+        """
+        :return: The next grounded action, or None once the statement is exhausted or
+            :attr:`candidate_limit` actions were grounded.
+        """
+        if self._proposals is None:
+            self._candidates_pulled = 0
+        if self.reached_candidate_limit:
+            self.stop_generating()
+            return None
+        proposal = super()._pull_next_proposal()
+        if proposal is not None:
+            self._candidates_pulled += 1
+        return proposal
 
     def _generate_proposals(self) -> Iterator[DesignatorParameters]:
         return self.trial.context.query_backend.evaluate(self.node.statement)
@@ -480,14 +694,17 @@ class UnderspecifiedCandidates(
         return self.trial.succeeds(proposal)
 
     def _create_candidate(self, proposal: DesignatorParameters) -> StatechartNode:
-        return proposal
-
-    def stop_generating(self) -> None:
         """
-        Release the action iterator and the trial's copy of the world.
+        :return: `proposal`, in a sequence of its own for the nodes a plan
+            transformation puts beside it, given up on once it stops approaching its
+            goal, so the node can try the next action instead.
         """
-        super().stop_generating()
-        self.trial.discard()
+        steps = Sequence(name=f"{proposal.name}/steps", nodes=[proposal])
+        return Attempt(
+            name=f"{proposal.name}/attempt",
+            task=steps,
+            failure_monitors=[Stalled(monitored_node=steps)],
+        )
 
 
 @dataclass
@@ -503,12 +720,20 @@ class UnderspecifiedChildChooser(ChildChooser):
     The context the statements are grounded in.
     """
 
+    trial: ActionTrial = field(init=False)
+    """
+    The trial every node tries its candidates against.
+    """
+
     _candidates: Dict[UnderspecifiedNode, UnderspecifiedCandidates] = field(
         default_factory=dict, init=False, repr=False
     )
     """
     The candidates of every node that asked so far.
     """
+
+    def __post_init__(self):
+        self.trial = ActionTrial(context=self.context)
 
     def choose_child(
         self, node: CompositeNodeChoosingItsChild, context: StatechartContext
@@ -518,25 +743,26 @@ class UnderspecifiedChildChooser(ChildChooser):
         """
         if not isinstance(node, UnderspecifiedNode):
             raise NotAnUnderspecifiedNode(node=node)
-        candidates = self._candidates_of(node)
+        candidates = self.candidates_of(node)
         if candidates.advance():
             return candidates.current_candidate
         candidates.stop_generating()
         return None
 
-    def _candidates_of(self, node: UnderspecifiedNode) -> UnderspecifiedCandidates:
+    def candidates_of(self, node: UnderspecifiedNode) -> UnderspecifiedCandidates:
         """
         :return: The candidates of `node`, created when it first asks.
         """
         if node not in self._candidates:
             self._candidates[node] = UnderspecifiedCandidates(
-                node=node, trial=ActionTrial(context=self.context)
+                node=node, trial=self.trial
             )
         return self._candidates[node]
 
     def cleanup(self) -> None:
         """
-        Release every node's action iterator and world copy.
+        Release every node's action iterator and the trial's world copy.
         """
         for candidates in self._candidates.values():
             candidates.stop_generating()
+        self.trial.discard()

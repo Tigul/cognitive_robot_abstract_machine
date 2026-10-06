@@ -1,12 +1,15 @@
 import pytest
 
 from krrood.ormatic.data_access_objects.helper import to_dao
+from krrood.ormatic.exceptions import QueryCannotBePersisted
 from coraplex.datastructures.dataclasses import Context
-from coraplex.datastructures.enums import Arms, ApproachDirection, VerticalAlignment
-from coraplex.datastructures.grasp import GraspDescription
 from coraplex.execution_environment import simulated_robot
 from coraplex.orm.ormatic_interface import *  # type: ignore
-from coraplex.robot_plans.actions.composite.transporting import TransportAction
+from coraplex.robot_plans.actions.composite.transporting import (
+    MoveAndPickUpAction,
+    MoveAndPlaceAction,
+    TransportAction,
+)
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
 from coraplex.plans.plan_execution import PlanExecutor
@@ -18,8 +21,8 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
 
 @pytest.fixture()
-def simple_plan(immutable_model_world):
-    world, robot_view, context = immutable_model_world
+def simple_plan(pr2_apartment_context):
+    world, robot_view, context = pr2_apartment_context
 
     plan = Sequence(
         [
@@ -29,7 +32,7 @@ def simple_plan(immutable_model_world):
                 )
             ),
             MoveTorsoAction(TorsoState.HIGH),
-            ParkArmsAction(Arms.BOTH),
+            ParkArmsAction(robot_view.all_arms),
         ]
     )
     return plan
@@ -58,9 +61,9 @@ def _executed(plan: StatechartNode, context: Context) -> None:
 
 
 def test_a_performed_plan_is_read_back_with_its_steps(
-    coraplex_testing_session, immutable_model_world, simple_plan
+    coraplex_testing_session, pr2_apartment_context, simple_plan
 ):
-    world, robot_view, context = immutable_model_world
+    world, robot_view, context = pr2_apartment_context
     _executed(simple_plan, context)
 
     recreated_plan = _stored_and_loaded(coraplex_testing_session, simple_plan)
@@ -73,19 +76,31 @@ def test_a_performed_plan_is_read_back_with_its_steps(
 
 
 @pytest.fixture
-def complex_plan(mutable_model_world):
-    world, robot_view, context = mutable_model_world
+def complex_plan(pr2_apartment_context):
+    """
+    A plan transporting the milk with steps that are grounded already, standing where
+    the transport described by queries grounds its steps to.
+    """
+    world, robot_view, context = pr2_apartment_context
+    context.evaluate_conditions = False
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     plan = TransportAction(
-        object_designator=world.get_semantic_annotations_by_type(Milk)[0],
-        target_location=Pose.from_xyz_quaternion(
-            2.4, 2.8, 1, 0, 0, 0, 1, reference_frame=world.root
+        pick_up=MoveAndPickUpAction.from_standing_position(
+            standing_position=Pose.from_xyz_rpy(
+                1.63, 1.98, 0.0, reference_frame=world.root
+            ),
+            grasp=milk.grasp_candidates()[0],
+            arm=context.robot.left_arm,
         ),
-        arm=Arms.LEFT,
-        grasp_description=GraspDescription(
-            ApproachDirection.LEFT,
-            VerticalAlignment.NoAlignment,
-            robot_view.left_arm.end_effector,
+        place=MoveAndPlaceAction.from_standing_position(
+            standing_position=Pose.from_xyz_rpy(
+                1.8, 2.54, 0.0, reference_frame=world.root
+            ),
+            target_location=Pose.from_xyz_quaternion(
+                2.4, 2.8, 1, 0, 0, 0, 1, reference_frame=world.root
+            ),
+            object_designator=milk,
         ),
     )
 
@@ -93,12 +108,37 @@ def complex_plan(mutable_model_world):
 
 
 def test_a_performed_transport_is_read_back(
-    coraplex_testing_session, mutable_model_world, complex_plan
+    coraplex_testing_session, pr2_apartment_context, complex_plan
 ):
-    world, robot_view, context = mutable_model_world
+    """
+    A performed plan holding a transport is persisted and recreated from the database.
+    """
+    world, robot_view, context = pr2_apartment_context
     _executed(complex_plan, context)
 
     recreated_plan = _stored_and_loaded(coraplex_testing_session, complex_plan)
 
     assert type(recreated_plan) is TransportAction
-    assert recreated_plan.arm == complex_plan.arm
+    assert type(recreated_plan.pick_up) is MoveAndPickUpAction
+    assert type(recreated_plan.place) is MoveAndPlaceAction
+
+
+def test_a_plan_whose_transport_still_holds_queries_cannot_be_stored(
+    pr2_apartment_context,
+):
+    """
+    A step still described by a query has no value to store until it is grounded, so
+    storing it is refused rather than writing something that cannot be read back.
+    """
+    world, robot_view, context = pr2_apartment_context
+    transport = TransportAction.from_graspable_by_closest_grasps(
+        world.get_semantic_annotations_by_type(Milk)[0],
+        Pose.from_xyz_quaternion(2.4, 2.8, 1, 0, 0, 0, 1, reference_frame=world.root),
+        context.robot.left_arm,
+        context,
+    )
+
+    with pytest.raises(QueryCannotBePersisted) as failure:
+        to_dao(transport)
+
+    assert failure.value.query in (transport.pick_up, transport.place)

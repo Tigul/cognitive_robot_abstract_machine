@@ -28,7 +28,7 @@ from giskardpy.middleware.ros2.child_choices import (
 from giskardpy.middleware.ros2.cycle_counter import CycleCounter
 from giskardpy.middleware.ros2.exceptions import StatechartOutOfStepError
 from giskardpy.middleware.ros2.feedback_publisher import MotionStatechartPayloadKey
-from giskardpy.middleware.ros2.input_synchronization import InputSynchronizer
+from semantic_digital_twin.input_synchronization import InputSynchronizer
 from giskardpy.middleware.ros2.motion_goal import MotionGoal
 from giskardpy.motion_statechart.graph_node import EndMotion
 from krrood.adapters.json_serializer import from_json

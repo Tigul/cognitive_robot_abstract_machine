@@ -11,6 +11,7 @@ from typing_extensions import Any, List, Optional, Tuple, Union
 
 from semantic_digital_twin.datastructures.alignment import AlignmentPair
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
+from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Tool
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -24,9 +25,9 @@ from semantic_digital_twin.world_description.world_entity import (
 )
 
 from coraplex.datastructures.enums import (
-    Arms,
     CuttingTechnique,
     MixingPattern,
+    PouringSide,
     SlicingPriority,
     ToolPathSegmentKind,
     WipingTechnique,
@@ -49,7 +50,6 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPositionTrajectory,
 )
 from semantic_digital_twin.robots.justin import Justin
-from coraplex.view_manager import ViewManager
 from coraplex.robot_plans.actions.composite.tool_paths import (
     ToolPath,
     ToolPathSegment,
@@ -87,7 +87,7 @@ class ToolMotionAction(FullBodyControlledAction, ABC, MovesToolCenterPoint):
     with its target.
     """
 
-    arm: Arms
+    arm: Arm
     """
     The arm holding the tool.
     """
@@ -190,9 +190,7 @@ class ToolMotionAction(FullBodyControlledAction, ABC, MovesToolCenterPoint):
         ]
         return Parallel(
             [
-                UpdateTemporaryCollisionRules.for_end_effector(
-                    ViewManager.get_end_effector_view(self.arm, self.robot)
-                ),
+                UpdateTemporaryCollisionRules.for_end_effector(self.arm.end_effector),
                 Parallel(
                     [
                         CartesianPositionTrajectory(**trajectory_arguments),
@@ -442,7 +440,7 @@ class PouringAction(FullBodyControlledAction, MovesToolCenterPoint):
     The held container that is poured from.
     """
 
-    arm: Arms
+    arm: Arm
     """
     The arm holding the source container.
     """
@@ -452,11 +450,12 @@ class PouringAction(FullBodyControlledAction, MovesToolCenterPoint):
     Tilt angle in radians applied to the source container while pouring.
     """
 
-    pour_side: Optional[Arms] = None
+    pour_side: Optional[PouringSide] = None
     """
     Robot-relative side of the target container to pour from.
 
-    Defaults to the arm, so one-arm robots can still use either side's pouring geometry.
+    Defaults to the side of the pouring arm, so one-arm robots can still use either
+    side's pouring geometry.
     """
 
     pour_side_offset: float = 0.0
@@ -474,20 +473,23 @@ class PouringAction(FullBodyControlledAction, MovesToolCenterPoint):
     TCP height in meters above the target container for the pre-pour pose.
     """
 
-    def _effective_pour_side(self) -> Arms:
+    def _effective_pour_side(self) -> PouringSide:
         """
-        :return: The requested pour side, or the pouring arm if none was requested.
+        :return: The requested pour side, or the side of the pouring arm if none was
+            requested.
         """
-        if self.pour_side is None:
-            return self.arm
-        return self.pour_side
+        if self.pour_side is not None:
+            return self.pour_side
+        if self.arm is self.robot.get_right_arm_if_specified():
+            return PouringSide.RIGHT
+        return PouringSide.LEFT
 
     def _mouth_height_above_tool_frame(self) -> float:
         """
         :return: Height in meters of the source container's opening above the arm's
             tool frame, measured along the tool frame's z axis.
         """
-        tool_frame = ViewManager.get_end_effector_view(self.arm, self.robot).tool_frame
+        tool_frame = self.arm.end_effector.tool_frame
         tool_frame_T_source = self.world.compute_forward_kinematics_np(
             tool_frame, self.source_container.root
         )
@@ -551,7 +553,7 @@ class PouringAction(FullBodyControlledAction, MovesToolCenterPoint):
         approach_x, approach_y = self._approach_direction(target_pose, robot_pose)
         robot_right_x = approach_y
         robot_right_y = -approach_x
-        side_sign = 1.0 if pour_side == Arms.RIGHT else -1.0
+        side_sign = 1.0 if pour_side == PouringSide.RIGHT else -1.0
 
         side_offset = float(self.pour_side_offset) + math.sin(self.tilt_angle) * max(
             self._mouth_height_above_tool_frame(), 0.0
@@ -574,11 +576,11 @@ class PouringAction(FullBodyControlledAction, MovesToolCenterPoint):
             float(target_pose.y) - pour_y, float(target_pose.x) - pour_x
         )
         base_rotation = Rotation.from_euler("z", yaw_to_target)
-        if pour_side == Arms.LEFT:
+        if pour_side == PouringSide.LEFT:
             base_rotation = Rotation.from_euler("z", math.pi) * base_rotation
 
         signed_tilt_angle = (
-            self.tilt_angle if pour_side == Arms.RIGHT else -self.tilt_angle
+            self.tilt_angle if pour_side == PouringSide.RIGHT else -self.tilt_angle
         )
         tilted_rotation = base_rotation * Rotation.from_euler("y", signed_tilt_angle)
 

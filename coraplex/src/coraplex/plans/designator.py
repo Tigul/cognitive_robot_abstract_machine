@@ -8,6 +8,7 @@ from typing_extensions import Any, Dict, List, TypeVar, get_type_hints
 
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import variable
+from krrood.ormatic.utils import classproperty
 
 T = TypeVar("T")
 
@@ -32,8 +33,7 @@ class DesignatorParameters:
         """
         return list(fields(DesignatorParameters))
 
-    @classmethod
-    @property
+    @classproperty
     def fields(cls) -> List[Field]:
         """
         The fields of this designator, leaving out the ones its bases brought along.

@@ -11,7 +11,6 @@ from giskardpy.motion_statechart.context import MotionControlContext
 from cramph.context import StatechartContext
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from cramph.data_types import ObservationStateValues
-from giskardpy.motion_statechart.error_signals import SymbolicErrorSignal
 from giskardpy.motion_statechart.graph_node import (
     ConvergingTask,
     DebugExpression,
@@ -249,9 +248,7 @@ class WiggleInsert(ConvergingTask):
             DebugExpression(f"{self.name}/root_P_hole_wiggled", root_P_hole_wiggled)
         )
 
-        artifacts.error = SymbolicErrorSignal(
-            root_P_current.euclidean_distance(root_P_hole)
-        )
+        artifacts.error = root_P_current.euclidean_distance(root_P_hole)
         return artifacts
 
     def on_tick(self, context: StatechartContext) -> Optional[ObservationStateValues]:

@@ -10,9 +10,8 @@ from krrood.entity_query_language.core.variable import Variable
 from coraplex.datastructures.dataclasses import Context
 from krrood.entity_query_language.factories import variable_from
 from semantic_digital_twin.reasoning.predicates import allclose
-from semantic_digital_twin.robots.robot_parts import EndEffector
+from semantic_digital_twin.robots.robot_parts import Arm, EndEffector
 from semantic_digital_twin.spatial_types.spatial_types import Pose
-from coraplex.datastructures.enums import Arms
 
 from coraplex.datastructures.trajectory import PoseTrajectory
 from coraplex.robot_plans.actions.base import Action
@@ -33,7 +32,6 @@ from giskardpy.motion_statechart.tasks.joint_tasks import (
     JointVelocityLimit,
 )
 from semantic_digital_twin.datastructures.joint_state import JointState
-from coraplex.view_manager import ViewManager
 from semantic_digital_twin.datastructures.definitions import (
     TorsoState,
     GripperState,
@@ -76,7 +74,7 @@ class SetGripperAction(Action, MovesGripper):
     Set the gripper state of the robot.
     """
 
-    gripper: Arms
+    gripper: EndEffector
     """
     The gripper that should be set.
     """
@@ -88,8 +86,7 @@ class SetGripperAction(Action, MovesGripper):
 
     @property
     def _sub_nodes(self) -> List[StatechartNode]:
-        arms = [Arms.LEFT, Arms.RIGHT] if self.gripper == Arms.BOTH else [self.gripper]
-        return [self.gripper_goal(self.motion, arm) for arm in arms]
+        return [self.gripper_goal(self.motion, self.gripper)]
 
 
 @dataclass(eq=False, repr=False)
@@ -98,9 +95,9 @@ class ParkArmsAction(Action, HasMaxJointVelocity):
     Park the arms of the robot.
     """
 
-    arm: Arms
+    arms: List[Arm]
     """
-    Entry from the enum for which arm should be parked.
+    The arms that should be parked.
     """
 
     @property
@@ -128,7 +125,7 @@ class ParkArmsAction(Action, HasMaxJointVelocity):
         """
         connections = []
         target_values = []
-        for arm in ViewManager().get_all_arm_views(self.arm, self.robot):
+        for arm in self.arms:
             joint_state = arm.get_joint_state_by_type(StaticJointState.PARK)
             connections.extend(joint_state.connections)
             target_values.extend(joint_state.target_values)
@@ -147,9 +144,9 @@ class FollowToolCenterPointPathAction(Action, MovesToolCenterPoint):
     Path poses for the TCP motion.
     """
 
-    arm: Arms
+    arm: Arm
     """
-    Entry from the enum for which arm should be parked.
+    The arm to use.
     """
 
     @property
@@ -169,7 +166,7 @@ class FollowToolCenterPointPathAction(Action, MovesToolCenterPoint):
             thresholds["orientation_threshold"] = self.orientation_threshold
         return CartesianPose(
             root_link=self.controlled_root,
-            tip_link=ViewManager.get_end_effector_view(self.arm, self.robot).tool_frame,
+            tip_link=self.arm.end_effector.tool_frame,
             goal_pose=target,
             **thresholds,
         )

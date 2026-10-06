@@ -6,14 +6,7 @@ import numpy as np
 import pytest
 from typing_extensions import List
 
-from coraplex.datastructures.enums import (
-    Arms,
-    ApproachDirection,
-    DetectionTechnique,
-    VerticalAlignment,
-)
-from coraplex.datastructures.grasp import GraspDescription
-from coraplex.exceptions import PerceptionTargetMissing
+from coraplex.datastructures.enums import DetectionTechnique
 from coraplex.execution_environment import simulated_robot
 from coraplex.perception import PerceptionQuery, PerceptionTask
 from coraplex.datastructures.dataclasses import Context
@@ -43,6 +36,7 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import (
 )
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from semantic_digital_twin.datastructures.definitions import TorsoState
+from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
@@ -79,8 +73,8 @@ def _nodes_of_type(root: StatechartNode, node_type: type) -> List[StatechartNode
 # %% an action expands into its motions
 
 
-def test_an_action_expands_into_its_motion(immutable_model_world):
-    world, view, context = immutable_model_world
+def test_an_action_expands_into_its_motion(pr2_apartment_context):
+    world, view, context = pr2_apartment_context
 
     root = expand(MoveTorsoAction(TorsoState.HIGH), context)
 
@@ -92,8 +86,8 @@ def test_an_action_expands_into_its_motion(immutable_model_world):
 # %% a sequence holds its steps
 
 
-def test_a_sequence_holds_each_action_with_its_own_motion(immutable_model_world):
-    world, view, context = immutable_model_world
+def test_a_sequence_holds_each_action_with_its_own_motion(pr2_apartment_context):
+    world, view, context = pr2_apartment_context
 
     root = expand(
         Sequence([MoveTorsoAction(TorsoState.LOW), MoveTorsoAction(TorsoState.HIGH)]),
@@ -110,12 +104,12 @@ def test_a_sequence_holds_each_action_with_its_own_motion(immutable_model_world)
 # %% monitored subtrees
 
 
-def test_pause_monitor_pauses_the_children_goal(immutable_model_world, rclpy_node):
+def test_pause_monitor_pauses_the_children_goal(pr2_apartment_context, rclpy_node):
     """
     The monitor and the children's goal are siblings inside the monitored goal, which is
     what makes the pause condition legal: it may only reference a sibling.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     monitor = ConstFalseNode(name="never")
 
     plan = PausedWhileTrue(
@@ -132,13 +126,13 @@ def test_pause_monitor_pauses_the_children_goal(immutable_model_world, rclpy_nod
 
 
 def test_pause_until_monitor_pauses_the_children_goal(
-    immutable_model_world, rclpy_node
+    pr2_apartment_context, rclpy_node
 ):
     """
     The children's goal is paused on the negated monitor observation, so it is held
     until the monitor turns True rather than while it is True.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     monitor = ConstFalseNode(name="never")
 
     plan = PausedUntilTrue(
@@ -154,8 +148,8 @@ def test_pause_until_monitor_pauses_the_children_goal(
     ]
 
 
-def test_cancel_monitor_ends_the_children_goal(immutable_model_world, rclpy_node):
-    world, view, context = immutable_model_world
+def test_cancel_monitor_ends_the_children_goal(pr2_apartment_context, rclpy_node):
+    world, view, context = pr2_apartment_context
     monitor = ConstFalseNode(name="never")
 
     plan = CancelledWhenTrue(
@@ -177,13 +171,13 @@ def test_cancel_monitor_ends_the_children_goal(immutable_model_world, rclpy_node
 
 
 def test_cancel_monitor_ends_the_motion_when_the_monitor_fires(
-    immutable_model_world, rclpy_node
+    pr2_apartment_context, rclpy_node
 ):
     """
     The monitored goal holds a node that ends the motion, so giving up on the subtree
     gives up on the plan rather than leaving the rest of it waiting.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     monitor = ConstFalseNode(name="never")
 
     plan = CancelledWhenTrue(
@@ -202,7 +196,7 @@ def test_cancel_monitor_ends_the_motion_when_the_monitor_fires(
 
 
 def test_monitored_subtree_nested_in_a_sequence_compiles(
-    immutable_model_world, rclpy_node
+    pr2_apartment_context, rclpy_node
 ):
     """
     A monitored subtree is a node like any other in the surrounding sequence.
@@ -210,7 +204,7 @@ def test_monitored_subtree_nested_in_a_sequence_compiles(
     Compiling is the real assertion: it runs the condition scope validation that this
     structure exists to satisfy.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
 
     never = ConstFalseNode(name="never")
 
@@ -232,22 +226,18 @@ def test_monitored_subtree_nested_in_a_sequence_compiles(
 # %% running actions
 
 
-def test_a_reach_runs_to_its_target(immutable_model_world, rclpy_node):
-    world, view, context = immutable_model_world
+def test_a_reach_runs_to_its_target(pr2_apartment_context, rclpy_node):
+    world, view, context = pr2_apartment_context
 
     milk_connection = world.get_body_by_name("milk.stl").parent_connection
     milk_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         2, 1.5, 0.7, 0, 0, 0, reference_frame=milk_connection.parent
     )
     reach = ReachAction(
-        Pose.from_xyz_rpy(2, 1.5, 0.7, reference_frame=world.root),
-        Arms.RIGHT,
-        GraspDescription(
-            ApproachDirection.FRONT,
-            VerticalAlignment.NoAlignment,
-            view.right_arm.end_effector,
+        grasp=GraspCandidate.from_body_origin(
+            world.get_semantic_annotations_by_type(Milk)[0]
         ),
-        world.get_semantic_annotations_by_type(Milk)[0],
+        arm=view.right_arm,
     )
 
     with simulated_robot:
@@ -259,23 +249,18 @@ def test_a_reach_runs_to_its_target(immutable_model_world, rclpy_node):
 
 
 def test_a_pick_up_moves_the_object_to_the_gripper_between_closing_and_lifting(
-    immutable_model_world,
+    pr2_apartment_context,
 ):
     """
     The object only follows the gripper once it belongs to it, and has to before the
     lift, so the branch moves between the two inside the pick-up's own statechart.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
 
     root = expand(
         PickUpAction(
-            world.get_semantic_annotations_by_type(Milk)[0],
-            Arms.RIGHT,
-            GraspDescription(
-                ApproachDirection.FRONT,
-                VerticalAlignment.NoAlignment,
-                view.right_arm.end_effector,
-            ),
+            world.get_semantic_annotations_by_type(Milk)[0].grasp_candidates()[0],
+            view.right_arm,
         ),
         context,
     )
@@ -290,18 +275,19 @@ def test_a_pick_up_moves_the_object_to_the_gripper_between_closing_and_lifting(
 
 
 def test_a_transport_runs_with_its_underspecified_steps(
-    mutable_model_world, rclpy_node
+    pr2_apartment_context, rclpy_node
 ):
-    world, view, context = mutable_model_world
+    world, view, context = pr2_apartment_context
 
     plan = Sequence(
         [
             MoveTorsoAction(TorsoState.HIGH),
-            ParkArmsAction(Arms.BOTH),
-            TransportAction(
+            ParkArmsAction(view.all_arms),
+            TransportAction.from_graspable_by_closest_grasps(
                 world.get_semantic_annotations_by_type(Milk)[0],
                 Pose.from_xyz_rpy(2.37, 2.5, 1.05, reference_frame=world.root),
-                Arms.RIGHT,
+                view.right_arm,
+                context,
             ),
         ]
     )
@@ -317,12 +303,12 @@ def test_a_transport_runs_with_its_underspecified_steps(
 # %% perception
 
 
-def test_perceiving_runs_between_the_motions_around_it(immutable_model_world):
+def test_perceiving_runs_between_the_motions_around_it(pr2_apartment_context):
     """
     Perception is a step like any other, so it runs in the same statechart as the
     motions around it, in the order the plan gives.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     query = PerceptionQuery(
         Milk,
         VolumetricBoundingBox(
@@ -341,9 +327,9 @@ def test_perceiving_runs_between_the_motions_around_it(immutable_model_world):
     root = expand(
         Sequence(
             [
-                tool_center_point_goal(context, Arms.LEFT),
+                tool_center_point_goal(context, view.left_arm),
                 PerceptionTask(query=query, execution_type=None),
-                tool_center_point_goal(context, Arms.RIGHT),
+                tool_center_point_goal(context, view.right_arm),
             ]
         ),
         context,
@@ -358,8 +344,8 @@ def test_perceiving_runs_between_the_motions_around_it(immutable_model_world):
     ]
 
 
-def test_a_detect_action_expands_into_a_perception_task(immutable_model_world):
-    world, view, context = immutable_model_world
+def test_a_detect_action_expands_into_a_perception_task(pr2_apartment_context):
+    world, view, context = pr2_apartment_context
 
     root = expand(
         DetectAction(DetectionTechnique.TYPES, object_sem_annotation=Milk), context
@@ -386,32 +372,21 @@ def detect_actions_of(plan: StatechartNode, context: Context) -> List[DetectActi
     ]
 
 
-def reach_action(milk: Milk, view, **kwargs) -> ReachAction:
+def reach_action(milk: Milk, view) -> ReachAction:
     """
     :param milk: The object the reach is aimed at.
     :param view: The robot reaching for it.
-    :param kwargs: The fields under test.
     :return: A reach at the object's own frame.
     """
-    return ReachAction(
-        target_pose=Pose(reference_frame=milk.root),
-        arm=Arms.RIGHT,
-        grasp_description=GraspDescription(
-            ApproachDirection.FRONT,
-            VerticalAlignment.NoAlignment,
-            view.right_arm.end_effector,
-        ),
-        object_designator=milk,
-        **kwargs,
-    )
+    return ReachAction(grasp=GraspCandidate.from_body_origin(milk), arm=view.right_arm)
 
 
-def test_a_reach_does_not_perceive_by_default(immutable_model_world):
+def test_a_reach_does_not_perceive_by_default(pr2_apartment_context):
     """
     A reach acts on the pose the world already holds, so it must not spend a detection
     the caller did not ask for.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     plan = reach_action(milk, view)
@@ -419,71 +394,10 @@ def test_a_reach_does_not_perceive_by_default(immutable_model_world):
     assert detect_actions_of(plan, context) == []
 
 
-def test_perceiving_before_the_grasp_detects_the_object_being_reached_for(
-    immutable_model_world,
-):
-    """
-    The detection has to ask for the object the reach was given, so that a plan grasping
-    something else does not query for the wrong thing.
-    """
-    world, view, context = immutable_model_world
-    milk = world.get_semantic_annotations_by_type(Milk)[0]
-
-    plan = reach_action(milk, view, perceive_before_grasp=True)
-
-    [detection] = detect_actions_of(plan, context)
-    assert detection.object_sem_annotation is type(milk)
-
-
-def test_a_pick_up_passes_perceiving_on_to_its_reach(immutable_model_world):
-    """
-    The flag is set on the pick-up, but the detection belongs to the reach inside it, so
-    it has to survive that hand-over.
-    """
-    world, view, context = immutable_model_world
-    milk = world.get_semantic_annotations_by_type(Milk)[0]
-
-    plan = PickUpAction(
-        milk,
-        Arms.RIGHT,
-        GraspDescription(
-            ApproachDirection.FRONT,
-            VerticalAlignment.NoAlignment,
-            view.right_arm.end_effector,
-        ),
-        perceive_before_grasp=True,
-    )
-
-    [detection] = detect_actions_of(plan, context)
-    assert detection.object_sem_annotation is type(milk)
-
-
-def test_perceiving_without_an_object_to_detect_is_rejected(immutable_model_world):
-    """
-    A reach may be given a pose without an object, but then there is nothing to build
-    the detection query from, so the contradiction is reported instead of guessed away.
-    """
-    world, view, context = immutable_model_world
-
-    reach = ReachAction(
-        target_pose=Pose(reference_frame=world.root),
-        arm=Arms.RIGHT,
-        grasp_description=GraspDescription(
-            ApproachDirection.FRONT,
-            VerticalAlignment.NoAlignment,
-            view.right_arm.end_effector,
-        ),
-        perceive_before_grasp=True,
-    )
-
-    with pytest.raises(PerceptionTargetMissing):
-        expand(reach, context)
-
-
 # %% expansion-time pose capture
 
 
-def test_pick_up_motions_follow_the_object_moved_after_expansion(immutable_model_world):
+def test_pick_up_motions_follow_the_object_moved_after_expansion(pr2_apartment_context):
     """
     A pick-up expands when its plan starts, before the first motion runs, so one that
     captured the object's pose in world coordinates could never act on a pose corrected
@@ -491,19 +405,11 @@ def test_pick_up_motions_follow_the_object_moved_after_expansion(immutable_model
 
     Keeping the motion targets in the object's own frame is what lets them follow it.
     """
-    world, view, context = immutable_model_world
+    world, view, context = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     milk_body = milk.root
 
-    plan = PickUpAction(
-        milk,
-        Arms.RIGHT,
-        GraspDescription(
-            ApproachDirection.FRONT,
-            VerticalAlignment.NoAlignment,
-            view.right_arm.end_effector,
-        ),
-    )
+    plan = PickUpAction(milk.grasp_candidates()[0], view.right_arm)
     targets = [
         node.goal_pose
         for node in motion_nodes_of(plan, context)
