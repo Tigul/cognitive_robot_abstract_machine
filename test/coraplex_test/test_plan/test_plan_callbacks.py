@@ -11,9 +11,7 @@ from enum import StrEnum
 import pytest
 
 from coraplex.exceptions import MotionDidNotFinish
-from coraplex.execution_environment import simulated_robot
 from coraplex.plans.plan_callbacks import PlanCallback, PlanCallbackDispatcher
-from coraplex.plans.plan_execution import PlanExecutor
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
 from cramph.composites import Sequence
 from cramph.context import StatechartContext
@@ -24,6 +22,8 @@ from cramph.statechart import StateHistoryItem, Statechart
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.world import World
+from ...plan_running import simulated_executor, statechart_of
+from typing_extensions import List
 
 # %% observer records
 
@@ -65,9 +65,9 @@ class ExecutionRecorder(PlanCallback):
     Records every report, in order.
     """
 
-    compiled: list[StatechartNode] = field(default_factory=list)
+    compiled: list[List[StatechartNode]] = field(default_factory=list)
     """
-    The plans reported as compiled.
+    The top-level nodes of every plan reported as compiled.
     """
 
     events: list[NodeEvent] = field(default_factory=list)
@@ -75,8 +75,10 @@ class ExecutionRecorder(PlanCallback):
     The starts and ends reported.
     """
 
-    def on_compile(self, plan: StatechartNode, statechart: Statechart) -> None:
-        self.compiled.append(plan)
+    def on_compile(
+        self, plan_nodes: List[StatechartNode], statechart: Statechart
+    ) -> None:
+        self.compiled.append(plan_nodes)
 
     def on_start(self, node: StatechartNode) -> None:
         self.events.append(NodeEvent(ExecutionEvent.START, node, node.life_cycle_state))
@@ -133,7 +135,7 @@ def tracked_node() -> tuple[RecordedNode, ExecutionRecorder]:
     statechart.add_node(node)
     recorder = ExecutionRecorder()
     statechart.history.add_observer(
-        PlanCallbackDispatcher(plan=node, callbacks=[recorder])
+        PlanCallbackDispatcher(plan_nodes=[node], callbacks=[recorder])
     )
     return RecordedNode(statechart=statechart, node=node), recorder
 
@@ -203,7 +205,7 @@ def test_the_default_callback_accepts_every_event(tracked_node) -> None:
     """
     recorded, _ = tracked_node
     recorded.statechart.history.add_observer(
-        PlanCallbackDispatcher(plan=recorded.node, callbacks=[PlanCallback()])
+        PlanCallbackDispatcher(plan_nodes=[recorded.node], callbacks=[PlanCallback()])
     )
 
     recorded.record(LifeCycleValues.RUNNING)
@@ -216,17 +218,16 @@ def test_the_default_callback_accepts_every_event(tracked_node) -> None:
 def test_an_executed_plan_reports_its_compile_and_every_node_once(
     pr2_apartment_context,
 ) -> None:
-    world, robot, context = pr2_apartment_context
+    world, robot, extensions = pr2_apartment_context
     torso = MoveTorsoAction(TorsoState.HIGH)
     plan = Sequence([torso])
     recorder = ExecutionRecorder()
-    executor = PlanExecutor(context, callbacks=[recorder])
+    executor = simulated_executor(extensions, callbacks=[recorder])
 
-    with simulated_robot:
-        executor.compile(plan)
-        executor.execute()
+    executor.compile(statechart_of(executor, plan))
+    executor.execute()
 
-    assert recorder.compiled == [plan]
+    assert recorder.compiled == [[plan]]
     [joint_goal] = plan.statechart.get_nodes_by_type(JointPositionList)
     for node in (plan, torso, joint_goal):
         assert [event.kind for event in recorder.events_of(node)] == [
@@ -237,13 +238,13 @@ def test_an_executed_plan_reports_its_compile_and_every_node_once(
 
 
 def test_a_failed_plan_reports_its_failure(pr2_apartment_context) -> None:
-    world, robot, context = pr2_apartment_context
+    world, robot, extensions = pr2_apartment_context
     plan = NodeFailingOnObservingFalse(observation=ObservationStateValues.FALSE)
     recorder = ExecutionRecorder()
-    executor = PlanExecutor(context, callbacks=[recorder])
+    executor = simulated_executor(extensions, callbacks=[recorder])
 
-    with simulated_robot, pytest.raises(MotionDidNotFinish):
-        executor.compile(plan)
+    with pytest.raises(MotionDidNotFinish):
+        executor.compile(statechart_of(executor, plan))
         executor.execute()
 
     assert recorder.events_of(plan)[-1] == NodeEvent(

@@ -7,11 +7,9 @@ import time
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 
-from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import (
     ExecutionType,
 )
-from coraplex.execution_environment import real_robot, ExecutionEnvironment
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
@@ -32,7 +30,9 @@ from semantic_digital_twin.world_description.connections import (
 from semantic_digital_twin.world_description.geometry import Box, Scale, Color
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import Body
-from coraplex.plans.plan_execution import PlanExecutor
+from coraplex.plans.context_extensions import RobotAccess
+from coraplex.plans.executors import PlanExecutor
+from cramph.statechart import Statechart
 from cramph.composites import Sequence
 
 giskard_process = subprocess.Popen(
@@ -136,13 +136,10 @@ with world.modify_world():
         )
     )
 
-# It is important to have the ros_node in the context for a real robot
+# The executor needs the ROS node to reach the real robot
 tracy = world.get_semantic_annotations_by_type(Tracy)[0]
-context = Context(
-    world=world,
-    robot=tracy,
-    ros_node=node,
-    evaluate_conditions=False,
+executor = PlanExecutor.type_for(execition_mode)(
+    world, context_extensions=[RobotAccess(tracy)], ros_node=node
 )
 
 plan = Sequence(
@@ -171,10 +168,10 @@ plan = Sequence(
 )
 try:
     print("Perform Plan")
-    with ExecutionEnvironment(execution_type=execition_mode, collision_avoidance=False):
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    statechart = Statechart(context=executor.context)
+    statechart.add_node(plan)
+    executor.compile(statechart)
+    executor.execute()
 finally:
     os.killpg(os.getpgid(giskard_process.pid), signal.SIGTERM)
     giskard_process.wait()

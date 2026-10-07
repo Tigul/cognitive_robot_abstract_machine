@@ -44,7 +44,7 @@ class TestPlanStatus:
         child = make_plan_node("MotionNode", life_cycle_state=LifeCycleValues.RUNNING)
         root = make_plan_node("SequentialNode", children=[child])
 
-        bridge.begin_plan(root)
+        bridge.begin_plan([root])
 
         assert (
             nodes_by_kind(bridge)["SequentialNode"]["status"] == TaskStatusName.RUNNING
@@ -54,7 +54,7 @@ class TestPlanStatus:
         bridge = Bridge()
         motion = make_plan_node("MotionNode", life_cycle_state=LifeCycleValues.PAUSED)
 
-        bridge.begin_plan(motion)
+        bridge.begin_plan([motion])
 
         assert nodes_by_kind(bridge)["MotionNode"]["status"] == TaskStatusName.PAUSE
 
@@ -87,7 +87,7 @@ class TestMotionHistoryRecording:
         chart.observation_state.data[-1] = ObservationStateValues.TRUE
 
         motion_execution.record(LifeCycleValues.SUCCEEDED)
-        motion_execution.callback.on_end(motion_execution.plan)
+        motion_execution.callback.on_finish(motion_execution.chart)
 
         [recorded] = bridge.recording.stop()
         assert recorded.statechart == bridge.executing_statechart()
@@ -113,7 +113,7 @@ class TestMotionHistoryRecording:
         motion_execution.chart.observation_state.data[-1] = ObservationStateValues.TRUE
 
         motion_execution.record(LifeCycleValues.SUCCEEDED)
-        motion_execution.callback.on_end(motion_execution.plan)
+        motion_execution.callback.on_finish(motion_execution.chart)
 
         assert bridge.recording.stop() == original
 
@@ -131,7 +131,7 @@ class TestRecordedPlan:
             life_cycle_state=LifeCycleValues.SUCCEEDED,
             children=[child],
         )
-        bridge.begin_plan(root)
+        bridge.begin_plan([root])
 
         scene = write_recording_bundle(
             bridge, [frame_with_milk()], 20.0, tmp_path / "recording", "finished_run"

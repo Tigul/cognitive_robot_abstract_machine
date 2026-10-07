@@ -30,8 +30,6 @@ import coraplex as _coraplex_pkg
 import coraplex.orm.ormatic_interface  # type: ignore  # noqa: F401
 import krrood.entity_query_language.factories as eql
 from cramph.data_types import LifeCycleValues
-from coraplex.datastructures.dataclasses import Context
-from coraplex.execution_environment import simulated_robot
 from coraplex.orm.ormatic_interface import Base  # type: ignore
 from coraplex.plans.failures import PlanFailure
 from coraplex.robot_plans.actions.base import Action
@@ -72,7 +70,9 @@ from experiments.experiment_definitions import (
     TypstRenderer,
 )
 from cramph.threaded_nodes import FunctionCall
-from coraplex.plans.plan_execution import PlanExecutor
+from coraplex.plans.context_extensions import RobotAccess
+from coraplex.plans.executors import SimulatedPlanExecutor
+from cramph.statechart import Statechart
 
 _CORAPLEX_RESOURCES = Path(_coraplex_pkg.__file__).parent.parent.parent / "resources"
 _DATABASE_PATH = Path(__file__).parent / "querying.db"
@@ -148,13 +148,13 @@ class BehaviourQueryResult(ExperimentResult):
     """
 
 
-def build_context() -> Context:
+def build_executor() -> SimulatedPlanExecutor:
     """
     Set up the bullet-world scene the plan runs in.
 
     The scene mirrors ``coraplex/demos/coraplex_bullet_world_demo/demo.py`` exactly.
 
-    :return: The context holding the scene and the PR2 acting in it.
+    :return: The executor running plans of the PR2 in the scene.
     """
     world = setup_world()
 
@@ -191,7 +191,9 @@ def build_context() -> Context:
         ros_node = None
 
     pr2 = PR2.from_world(world)
-    context = Context(world=world, robot=pr2, _debug=False, ros_node=ros_node)
+    executor = SimulatedPlanExecutor(
+        world, context_extensions=[RobotAccess(pr2)], ros_node=ros_node
+    )
 
     with world.modify_world():
         world_reasoner = WorldReasoner(world)
@@ -206,11 +208,10 @@ def build_context() -> Context:
             )
         )
 
-    context.evaluate_conditions = False
-    return context
+    return executor
 
 
-def build_plan(context: Context) -> StatechartNode:
+def build_plan(executor: SimulatedPlanExecutor) -> StatechartNode:
     """
     Execute the plan in simulation and return it, completed.
 
@@ -218,11 +219,11 @@ def build_plan(context: Context) -> StatechartNode:
     exactly: the PR2 parks its arms, raises its torso, then transports milk, bowl, and
     spoon to the dining table.
 
-    :param context: The context the plan is executed in.
+    :param executor: The executor running the plan.
     :return: The fully executed plan, ready for EQL queries.
     """
-    world = context.world
-    pr2 = context.robot
+    world = executor.world
+    pr2 = executor.context.require_extension(RobotAccess).robot
 
     def _failing_step():
         raise PlanFailure()
@@ -240,7 +241,7 @@ def build_plan(context: Context) -> StatechartNode:
                             4.9, 3.3, 0.8, yaw=1.57, reference_frame=world.root
                         ),
                         pr2.left_arm,
-                        context,
+                        pr2,
                     ),
                 ]
             ),
@@ -248,21 +249,21 @@ def build_plan(context: Context) -> StatechartNode:
                 bowl_annotation,
                 Pose.from_xyz_rpy(5.0, 3.3, 0.75, yaw=1.57, reference_frame=world.root),
                 pr2.left_arm,
-                context,
+                pr2,
             ),
             TransportAction.from_graspable_by_closest_grasps(
                 spoon_annotation,
                 Pose.from_xyz_rpy(5.1, 3.3, 0.75, yaw=1.57, reference_frame=world.root),
                 pr2.left_arm,
-                context,
+                pr2,
             ),
         ]
     )
 
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(root)
-        executor.execute()
+    statechart = Statechart(context=executor.context)
+    statechart.add_node(root)
+    executor.compile(statechart)
+    executor.execute()
 
     return root
 
@@ -543,11 +544,11 @@ def main() -> None:
     Run the bullet-world plan, persist it to a database, evaluate all behaviour queries
     both via EQL and via SQL, and print the combined result table.
     """
-    context = build_context()
-    plan = build_plan(context)
+    executor = build_executor()
+    plan = build_plan(executor)
     session, engine = persist_plan(plan)
     try:
-        table = run_experiment(plan, context.world, session)
+        table = run_experiment(plan, executor.world, session)
     finally:
         session.close()
         engine.dispose()

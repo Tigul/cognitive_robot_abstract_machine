@@ -94,6 +94,19 @@ class PlanNotCompiled(DataclassException):
 
 
 @dataclass
+class StatechartHoldsNoPlan(DataclassException):
+    """
+    Raised when an executor is asked to run a statechart that holds no node.
+    """
+
+    def error_message(self) -> str:
+        return "The statechart to execute holds no node, so there is no plan to run."
+
+    def suggest_correction(self) -> str:
+        return "add the plan's nodes to the statechart before compiling it."
+
+
+@dataclass
 class NotAnUnderspecifiedNode(DataclassException):
     """
     Raised when a node asks for a child to be grounded that carries no underspecified

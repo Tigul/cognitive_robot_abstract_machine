@@ -17,7 +17,7 @@ jupyter:
 The CoraPlex plan language structures what a plan does. It is the set of cramph composites: statechart nodes that run
 their children in a given order and decide, from how the children ended, whether they succeeded themselves. A plan is a
 tree of these composites with actions at its leaves, built on its own and then compiled and executed by a
-{class}`~coraplex.plans.plan_execution.PlanExecutor`.
+{class}`~coraplex.plans.executors.PlanExecutor`.
 
 | Name                | Description                                                                                                         |
 |---------------------|---------------------------------------------------------------------------------------------------------------------|
@@ -30,20 +30,32 @@ tree of these composites with actions at its leaves, built on its own and then c
 
 # Setup the World
 
-If you are performing a plan with a simulated robot, you need a world and a context to execute the plan in.
+If you are performing a plan with a simulated robot, you need a world, and an executor running the plan in it. The
+`run` function below gives every plan an executor of its own, since an executor runs one statechart.
 
 ```python
-from coraplex.execution_environment import simulated_robot
-from coraplex.plans.plan_execution import PlanExecutor
 from coraplex.testing import setup_world
-from coraplex.datastructures.dataclasses import Context
 from semantic_digital_twin.robots.pr2 import PR2
 
 world = setup_world()
 pr2 = PR2.from_world(world)
 
-context = Context(world, pr2)
-executor = PlanExecutor(context)
+from coraplex.plans.context_extensions import RobotAccess
+from coraplex.plans.executors import SimulatedPlanExecutor
+from cramph.statechart import Statechart
+
+extensions = [RobotAccess(pr2)]
+
+def run(plan):
+    """
+    Run `plan` simulated in `world`, with the robot and settings in `extensions`.
+    """
+    executor = SimulatedPlanExecutor(world, context_extensions=extensions)
+    statechart = Statechart(context=executor.context)
+    statechart.add_node(plan)
+    executor.compile(statechart)
+    executor.execute()
+    return executor
 ```
 
 ## Sequence
@@ -65,12 +77,10 @@ park = ParkArmsAction(pr2.all_arms)
 plan = Sequence([navigate, park])
 ```
 
-The plan is executed by compiling and executing it inside a ```with simulated_robot``` environment.
+The plan is executed by putting it into a statechart of a simulated executor, compiling and executing it.
 
 ```python
-with simulated_robot:
-    executor.compile(plan)
-    executor.execute()
+run(plan)
 ```
 
 Afterwards the statechart the plan ran in can be inspected in an interactive visualization.
@@ -95,9 +105,7 @@ park = ParkArmsAction(pr2.all_arms)
 
 plan = TryInOrder([navigate, park])
 
-with simulated_robot:
-    executor.compile(plan)
-    executor.execute()
+run(plan)
 ```
 
 ## Parallel
@@ -116,9 +124,7 @@ park = ParkArmsAction(pr2.all_arms)
 
 plan = Parallel([navigate, park])
 
-with simulated_robot:
-    executor.compile(plan)
-    executor.execute()
+run(plan)
 ```
 
 ## Try All
@@ -137,9 +143,7 @@ park = ParkArmsAction(pr2.all_arms)
 
 plan = TryAll([navigate, park])
 
-with simulated_robot:
-    executor.compile(plan)
-    executor.execute()
+run(plan)
 ```
 
 ## Combination of Expressions
@@ -159,9 +163,7 @@ move_torso = MoveTorsoAction(TorsoState.HIGH)
 
 plan = Parallel([navigate, Sequence([park, move_torso])])
 
-with simulated_robot:
-    executor.compile(plan)
-    executor.execute()
+run(plan)
 ```
 
 In this case 'park' and 'move_torso' form a Sequence, and that Sequence runs in parallel with 'navigate'.
@@ -190,9 +192,7 @@ code_func = FunctionCall(function=code_test)
 
 plan = Parallel([park, code_lambda, code_func])
 
-with simulated_robot:
-    executor.compile(plan)
-    executor.execute()
+run(plan)
 ```
 
 ## Exception Handling
@@ -221,9 +221,7 @@ code_func = FunctionCall(function=code_test)
 
 plan = TryAll([navigate, code_func])
 
-with simulated_robot:
-    executor.compile(plan)
-    executor.execute()
+run(plan)
 
 print(plan.life_cycle_state)
 print(code_func.life_cycle_state)
@@ -252,9 +250,7 @@ plan = RepeatOnStall(
     exception=RepetitionsExhausted(repeated_node=move_torso, maximum_repetitions=3),
 )
 
-with simulated_robot:
-    executor.compile(plan)
-    executor.execute()
+run(plan)
 ```
 
 ## Monitors
@@ -292,9 +288,7 @@ plan = CancelledWhenTrue(
 )
 
 try:
-    with simulated_robot:
-        executor.compile(plan)
-        executor.execute()
+    run(plan)
 except PlanCancelled as cancelled:
     print(cancelled)
 ```
@@ -315,8 +309,6 @@ plan = PausedUntilTrue(
     ),
 )
 
-with simulated_robot:
-    executor.compile(plan)
-    executor.execute()
+run(plan)
 ```
 This will hold the wrapped plan for the first 2 seconds of simulation time before letting it run.

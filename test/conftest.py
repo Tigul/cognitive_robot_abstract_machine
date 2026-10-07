@@ -34,11 +34,13 @@ try:
 except ImportError:
     Garmi = None
 
+from .sampling import SAMPLING_SEED
+
 try:
-    from coraplex.datastructures.dataclasses import Context
+    from .plan_running import robot_extensions
 except ModuleNotFoundError:
     # ROS dependencies.
-    Context = None
+    robot_extensions = None
 
 try:
     from giskardpy.middleware.ros2 import rospy
@@ -170,14 +172,6 @@ The structure of fixtures in this conftest:
         This fixtures are scoped for functions, they are a copy of the world from the world setup and are discarded 
         after the test since there is no good method to reset the model after a test has changed it. 
 
-"""
-
-
-# %% repeatable location samples
-
-SAMPLING_SEED = 0
-"""
-The sampling seed of every plan context the tests build, so location samples repeat.
 """
 
 
@@ -856,11 +850,7 @@ def apartment_world_pr2_copy_with_context(_apartment_world_setup, _pr2_world_set
     return (
         result,
         result.get_semantic_annotations_by_type(AbstractRobot)[0],
-        Context(
-            result,
-            result.get_semantic_annotations_by_type(AbstractRobot)[0],
-            sampling_seed=SAMPLING_SEED,
-        ),
+        robot_extensions(result.get_semantic_annotations_by_type(AbstractRobot)[0]),
     )
 
 
@@ -1092,7 +1082,7 @@ def simple_pr2_world_setup(_pr2_world_setup, _simple_apartment_setup):
     return (
         pr2_copy,
         robot_view,
-        Context(pr2_copy, robot_view, sampling_seed=SAMPLING_SEED),
+        robot_extensions(robot_view),
     )
 
 
@@ -1109,7 +1099,7 @@ def hsr_apartment_world(_hsr_world_setup, _apartment_world_setup):
     return (
         apartment_copy,
         robot_view,
-        Context(apartment_copy, robot_view, sampling_seed=SAMPLING_SEED),
+        robot_extensions(robot_view),
     )
 
 

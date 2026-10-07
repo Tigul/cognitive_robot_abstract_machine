@@ -17,11 +17,13 @@ class PlanCallback:
     Observe plan execution; unimplemented events leave execution unchanged.
     """
 
-    def on_compile(self, plan: StatechartNode, statechart: Statechart) -> None:
+    def on_compile(
+        self, plan_nodes: List[StatechartNode], statechart: Statechart
+    ) -> None:
         """
         Observe a plan about to be compiled, before any of its nodes has started.
 
-        :param plan: The root node of the plan.
+        :param plan_nodes: The top-level nodes of the plan.
         :param statechart: The statechart running the plan.
         """
 
@@ -39,6 +41,13 @@ class PlanCallback:
         :param node: The ended node, in the life cycle state it ended in.
         """
 
+    def on_finish(self, statechart: Statechart) -> None:
+        """
+        Observe a plan whose execution ended, however it ended.
+
+        :param statechart: The statechart that ran the plan, in its final state.
+        """
+
 
 @dataclass
 class PlanCallbackDispatcher(StateHistoryObserver):
@@ -47,9 +56,9 @@ class PlanCallbackDispatcher(StateHistoryObserver):
     records, and reports them to the callbacks.
     """
 
-    plan: StatechartNode
+    plan_nodes: List[StatechartNode]
     """
-    The root node of the observed plan.
+    The top-level nodes of the observed plan.
     """
 
     callbacks: List[PlanCallback] = field(default_factory=list)
@@ -65,7 +74,7 @@ class PlanCallbackDispatcher(StateHistoryObserver):
         """
         current = history.history[-1]
         previous = history.history[-2] if len(history) > 1 else None
-        for node in [self.plan, *self.plan.descendants]:
+        for node in self._nodes():
             if not current.records(node):
                 continue
             current_state = current.life_cycle_state[node]
@@ -82,3 +91,13 @@ class PlanCallbackDispatcher(StateHistoryObserver):
             if current_state.is_terminal:
                 for callback in self.callbacks:
                     callback.on_end(node)
+
+    def _nodes(self) -> List[StatechartNode]:
+        """
+        :return: Every node of the plan, the top-level ones and everything below them.
+        """
+        return [
+            node
+            for plan_node in self.plan_nodes
+            for node in [plan_node, *plan_node.descendants]
+        ]

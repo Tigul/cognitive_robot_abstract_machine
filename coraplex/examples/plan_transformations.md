@@ -20,38 +20,49 @@ node has been expanded, before the statechart running the plan is compiled.
 
 That makes transformations the place for behaviour that is not part of an action's own description,
 such as perceiving before a grasp or parking the arms before driving, without giving every action a
-parameter for it. Transformations are registered on the `Context`, next to the alternative motion
-mappings, so they hold for every plan built with that context.
+parameter for it. Transformations are given to the executor running a plan, so they hold for every
+plan it runs.
 
 # Setup a World
 
 ```python
-from coraplex.datastructures.dataclasses import Context
-from coraplex.execution_environment import simulated_robot
+from coraplex.plans.context_extensions import RobotAccess
+from coraplex.plans.executors import SimulatedPlanExecutor
 from coraplex.testing import setup_world
+from cramph.statechart import Statechart
 from semantic_digital_twin.robots.pr2 import PR2
 
 world = setup_world()
 
 pr2 = PR2.from_world(world)
 
-context = Context(world, pr2)
+plan_transformations = []
+
+
+def statechart_for(plan):
+    """
+    :return: An executor configured with the transformations registered so far, and a
+        statechart of its context holding `plan`.
+    """
+    executor = SimulatedPlanExecutor(
+        world,
+        context_extensions=[RobotAccess(pr2)],
+        plan_transformations=plan_transformations,
+    )
+    statechart = Statechart(context=executor.context)
+    statechart.add_node(plan)
+    return executor, statechart
 ```
 
 ## Looking at a Plan
 
-Compiling a plan without executing it, in the `no_execution` environment, builds the statechart
-running it, which expands the plan and lets the transformations rewrite it. A few lines are enough to
-print the expanded plan:
+Putting a plan into a statechart expands it, and preparing that statechart without compiling or
+executing it lets the transformations rewrite it. A few lines are enough to print the expanded plan:
 
 ```python
-from coraplex.execution_environment import no_execution
-from coraplex.plans.plan_execution import PlanExecutor
-
-
 def expand(plan):
-    with no_execution:
-        PlanExecutor(context).compile(plan)
+    executor, statechart = statechart_for(plan)
+    executor.prepare(statechart)
     return plan
 
 
@@ -91,7 +102,7 @@ approach acts on a freshly perceived pose. Registering it is the whole change:
 ```python
 from coraplex.robot_plans.plan_transformations import DetectBeforeGrasp
 
-context.plan_transformations.append(DetectBeforeGrasp())
+plan_transformations.append(DetectBeforeGrasp())
 
 reach = expand(Sequence([ReachAction(grasp=grasp, arm=pr2.right_arm)]))
 
@@ -173,7 +184,7 @@ it. That needs the pick-up to run in a sequence, which holds the new neighbours:
 ```python
 from coraplex.robot_plans.plan_transformations import OpenDrawerBeforePickUp
 
-context.plan_transformations = [OpenDrawerBeforePickUp()]
+plan_transformations = [OpenDrawerBeforePickUp()]
 
 spoon_annotation = world.get_semantic_annotations_by_type(Spoon)[0]
 
@@ -242,7 +253,7 @@ class ParkArmsBeforeNavigating(InsertionTransformation[NavigateAction]):
 ```
 
 ```python
-context.plan_transformations = [ParkArmsBeforeNavigating()]
+plan_transformations = [ParkArmsBeforeNavigating()]
 
 navigate = expand(
     NavigateAction(Pose.from_xyz_rpy(1.5, 2.4, 0.0, reference_frame=world.root))
@@ -256,10 +267,9 @@ The parking is part of the plan like any other action, so it is performed with i
 ```python
 navigate = NavigateAction(Pose.from_xyz_rpy(1.5, 2.4, 0.0, reference_frame=world.root))
 
-with simulated_robot:
-    executor = PlanExecutor(context)
-    executor.compile(navigate)
-    executor.execute()
+executor, statechart = statechart_for(navigate)
+executor.compile(statechart)
+executor.execute()
 
 print(navigate.life_cycle_state)
 ```
@@ -283,7 +293,7 @@ class ParkArmsAfterNavigating(ParkArmsBeforeNavigating):
         return InsertionPosition.AFTER
 
 
-context.plan_transformations = [ParkArmsAfterNavigating()]
+plan_transformations = [ParkArmsAfterNavigating()]
 
 navigate = expand(
     NavigateAction(Pose.from_xyz_rpy(1.5, 2.4, 0.0, reference_frame=world.root))
@@ -319,7 +329,7 @@ class ParkArmsBeforeLongDrives(ParkArmsBeforeNavigating):
 ```
 
 ```python
-context.plan_transformations = [ParkArmsBeforeLongDrives()]
+plan_transformations = [ParkArmsBeforeLongDrives()]
 
 navigate = expand(NavigateAction(pr2.root.global_pose))
 

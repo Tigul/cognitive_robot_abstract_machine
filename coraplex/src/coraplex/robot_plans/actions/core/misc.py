@@ -4,9 +4,9 @@ from dataclasses import dataclass
 
 from typing_extensions import Optional, Type
 
+from coraplex.plans.context_extensions import ExecutionMode
 from coraplex.datastructures.enums import DetectionTechnique, DetectionState
 from coraplex.perception import PerceptionQuery, PerceptionTask
-from coraplex.execution_environment import ExecutionEnvironment
 from cramph.composites import Sequence
 from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.base import Action
@@ -89,7 +89,9 @@ class DetectAction(Action):
             [
                 PerceptionTask(
                     query=self._build_query(),
-                    execution_type=ExecutionEnvironment.current_execution_type,
+                    execution_type=self.context.require_extension(
+                        ExecutionMode
+                    ).execution_type,
                     accept_first_if_multiple=self.accept_first_if_multiple,
                 )
             ]

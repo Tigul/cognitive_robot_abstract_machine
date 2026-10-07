@@ -33,7 +33,7 @@ from semantic_digital_twin.robots.pr2 import PR2Joint
 
 @pytest.fixture
 def goal_validator_world(pr2_apartment_context):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
     robot_view.root.parent_connection.origin = (
         HomogeneousTransformationMatrix.from_xyz_quaternion(0, 0, 0)
     )
@@ -46,11 +46,11 @@ def goal_validator_world(pr2_apartment_context):
         2.2, 1.8, 1, reference_frame=cereal_connection.parent
     )
     world.notify_state_change()
-    return world, robot_view, context
+    return world, robot_view, extensions
 
 
 def test_single_pose_goal(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     pose_goal_validators = PoseGoalValidator(
         lambda: (world.get_body_by_name("milk.stl").global_pose)
     )
@@ -58,7 +58,7 @@ def test_single_pose_goal(goal_validator_world):
 
 
 def test_single_pose_goal_generic(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     pose_goal_validators = GoalValidator(
         PoseErrorChecker(),
         lambda: (world.get_body_by_name("milk.stl").global_pose),
@@ -88,7 +88,7 @@ def validate_pose_goal(goal_validator, world):
 
 
 def test_single_position_goal_generic(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     goal_validator = GoalValidator(
         PositionErrorChecker(),
         lambda: (world.get_body_by_name("breakfast_cereal.stl").global_pose)
@@ -99,7 +99,7 @@ def test_single_position_goal_generic(goal_validator_world):
 
 
 def test_single_position_goal(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     goal_validator = PositionGoalValidator(
         lambda: (world.get_body_by_name("breakfast_cereal.stl").global_pose)
         .to_position()
@@ -131,7 +131,7 @@ def validate_position_goal(goal_validator, world):
 
 
 def test_single_orientation_goal_generic(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     goal_validator = GoalValidator(
         OrientationErrorChecker(),
         lambda: (world.get_body_by_name("breakfast_cereal.stl").global_pose)
@@ -142,7 +142,7 @@ def test_single_orientation_goal_generic(goal_validator_world):
 
 
 def test_single_orientation_goal(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     goal_validator = OrientationGoalValidator(
         lambda: (world.get_body_by_name("breakfast_cereal.stl").global_pose)
         .to_quaternion()
@@ -181,7 +181,7 @@ def validate_orientation_goal(goal_validator, world):
 
 
 def test_single_revolute_joint_position_goal_generic(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     goal_validator = GoalValidator(
         RevoluteJointPositionErrorChecker(),
         lambda name: world.state[world.get_degree_of_freedom_by_name(name).id].position,
@@ -190,7 +190,7 @@ def test_single_revolute_joint_position_goal_generic(goal_validator_world):
 
 
 def test_single_revolute_joint_position_goal(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     goal_validator = JointPositionGoalValidator(
         lambda name: world.state[world.get_degree_of_freedom_by_name(name).id].position
     )
@@ -233,7 +233,7 @@ def validate_revolute_joint_position_goal(
 
 
 def test_single_prismatic_joint_position_goal_generic(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     goal_validator = GoalValidator(
         PrismaticJointPositionErrorChecker(),
         lambda name: world.state[world.get_degree_of_freedom_by_name(name).id].position,
@@ -242,7 +242,7 @@ def test_single_prismatic_joint_position_goal_generic(goal_validator_world):
 
 
 def test_single_prismatic_joint_position_goal(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     goal_validator = JointPositionGoalValidator(
         lambda name: world.state[world.get_degree_of_freedom_by_name(name).id].position
     )
@@ -286,7 +286,7 @@ def validate_prismatic_joint_position_goal(
 
 
 def test_multi_joint_goal_generic(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     joint_types = [JointType.PRISMATIC, JointType.REVOLUTE]
     goal_validator = GoalValidator(
         MultiJointPositionErrorChecker(joint_types),
@@ -299,7 +299,7 @@ def test_multi_joint_goal_generic(goal_validator_world):
 
 
 def test_multi_joint_goal(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     joint_types = [JointType.PRISMATIC, JointType.REVOLUTE]
     goal_validator = MultiJointPositionGoalValidator(
         lambda x: [
@@ -364,7 +364,7 @@ def validate_multi_joint_goal(
 
 
 def test_list_of_poses_goal_generic(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     goal_validator = GoalValidator(
         PoseErrorChecker(is_iterable=True),
         lambda: [
@@ -376,7 +376,7 @@ def test_list_of_poses_goal_generic(goal_validator_world):
 
 
 def test_list_of_poses_goal(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     goal_validator = MultiPoseGoalValidator(
         lambda: [
             (world.get_body_by_name("base_footprint").global_pose),
@@ -458,7 +458,7 @@ def validate_list_of_poses_goal(goal_validator, world):
 
 
 def test_list_of_positions_goal_generic(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     goal_validator = GoalValidator(
         PositionErrorChecker(is_iterable=True),
         lambda: [
@@ -474,7 +474,7 @@ def test_list_of_positions_goal_generic(goal_validator_world):
 
 
 def test_list_of_positions_goal(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     goal_validator = MultiPositionGoalValidator(
         lambda: [
             (world.get_body_by_name("base_footprint").global_pose)
@@ -524,7 +524,7 @@ def validate_list_of_positions_goal(goal_validator, world):
 
 
 def test_list_of_orientations_goal_generic(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     goal_validator = GoalValidator(
         OrientationErrorChecker(is_iterable=True),
         lambda: [
@@ -540,7 +540,7 @@ def test_list_of_orientations_goal_generic(goal_validator_world):
 
 
 def test_list_of_orientations_goal(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     goal_validator = MultiOrientationGoalValidator(
         lambda: [
             (world.get_body_by_name("base_footprint").global_pose)
@@ -602,7 +602,7 @@ def validate_list_of_orientations_goal(goal_validator, world):
 
 
 def test_list_of_revolute_joint_positions_goal_generic(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     goal_validator = GoalValidator(
         RevoluteJointPositionErrorChecker(is_iterable=True),
         lambda x: [
@@ -614,7 +614,7 @@ def test_list_of_revolute_joint_positions_goal_generic(goal_validator_world):
 
 
 def test_list_of_revolute_joint_positions_goal(goal_validator_world):
-    world, robot_view, context = goal_validator_world
+    world, robot_view, extensions = goal_validator_world
     goal_validator = MultiJointPositionGoalValidator(
         lambda x: [
             world.state[world.get_degree_of_freedom_by_name(name).id].position

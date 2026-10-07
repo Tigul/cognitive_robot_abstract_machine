@@ -18,15 +18,18 @@ from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from enum import StrEnum
 
-from typing_extensions import Optional, Tuple, Type
+from typing_extensions import List, Optional, Tuple, Type
 
-from coraplex.datastructures.dataclasses import Context
+from coraplex.plans.context_extensions import RobotAccess, StatementGrounding
+from coraplex.plans.plan_transformation import PlanTransformation
 from coraplex.datastructures.enums import ExecutionType
 from coraplex.demonstrations import RobotDemonstration
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from coraplex.robot_plans.plan_transformations import OpenDrawerBeforeMoveAndPickUp
 from cramph.composites import Sequence
+from cramph.context import ContextExtension, StatechartContext
+from cramph.statechart import Statechart
 from krrood.entity_query_language.factories import (
     an,
     entity,
@@ -89,6 +92,13 @@ class ApartmentBody(StrEnum):
     """
 
     SPOON_DRAWER = "cabinet10_drawer_top"
+
+
+SAMPLING_SEED = 0
+"""
+The seed the demonstration samples its standing poses with, so it runs the same way
+every time.
+"""
 
 
 @dataclass
@@ -207,6 +217,10 @@ class BulletWorldDemonstration(RobotDemonstration):
 
     ros_node_name: str = "bullet_world_demo_node"
 
+    plan_transformations: List[PlanTransformation] = field(
+        default_factory=lambda: [OpenDrawerBeforeMoveAndPickUp()]
+    )
+
     robot_start: HomogeneousTransformationMatrix = field(
         default_factory=lambda: HomogeneousTransformationMatrix.from_xyz_rpy(
             1.1, 2.5, 0
@@ -296,16 +310,11 @@ class BulletWorldDemonstration(RobotDemonstration):
         with world.modify_world():
             WorldReasoner(world).reason()
 
-    def build_context(self, world: World) -> Context:
-        return Context(
-            world=world,
-            robot=world.get_semantic_annotations_by_type(self.used_robot)[0],
-            ros_node=self.ros_node,
-            sampling_seed=0,
-            alternative_motion_mappings=self.alternative_motion_mappings,
-            plan_transformations=[OpenDrawerBeforeMoveAndPickUp()],
-            _debug=self.debug,
-        )
+    def build_context_extensions(self, world: World) -> List[ContextExtension]:
+        return [
+            RobotAccess(world.get_semantic_annotations_by_type(self.used_robot)[0]),
+            StatementGrounding(sampling_seed=SAMPLING_SEED),
+        ]
 
     def segment_events(self, world: World) -> AbstractContextManager:
         """
@@ -325,36 +334,44 @@ class BulletWorldDemonstration(RobotDemonstration):
             ),
         )
 
-    def build_plan(self, context: Context) -> Sequence:
+    def build_statechart(self, context: StatechartContext) -> Statechart:
         """
         Carry each object to its place on the table.
         """
         world = context.world
-        left_arm = context.robot.left_arm
-        return Sequence(
-            [
-                ParkArmsAction(context.robot.all_arms),
-                MoveTorsoAction(TorsoState.HIGH),
-                TransportAction.from_graspable_by_closest_grasps(
-                    self.milk.annotation_in(world),
-                    self.milk.target_location(world),
-                    left_arm,
-                    context,
-                ),
-                TransportAction.from_graspable_by_closest_grasps(
-                    self.bowl.annotation_in(world),
-                    self.bowl.target_location(world),
-                    left_arm,
-                    context,
-                ),
-                TransportAction.from_graspable_by_closest_grasps(
-                    self.spoon.annotation_in(world),
-                    self.spoon.target_location(world),
-                    left_arm,
-                    context,
-                ),
-            ]
+        robot = context.require_extension(RobotAccess).robot
+        left_arm = robot.left_arm
+        statechart = Statechart(context=context)
+        statechart.add_node(
+            Sequence(
+                [
+                    ParkArmsAction(robot.all_arms),
+                    MoveTorsoAction(TorsoState.HIGH),
+                    TransportAction.from_graspable_by_closest_grasps(
+                        self.milk.annotation_in(world),
+                        self.milk.target_location(world),
+                        left_arm,
+                        robot,
+                        seed=SAMPLING_SEED,
+                    ),
+                    TransportAction.from_graspable_by_closest_grasps(
+                        self.bowl.annotation_in(world),
+                        self.bowl.target_location(world),
+                        left_arm,
+                        robot,
+                        seed=SAMPLING_SEED,
+                    ),
+                    TransportAction.from_graspable_by_closest_grasps(
+                        self.spoon.annotation_in(world),
+                        self.spoon.target_location(world),
+                        left_arm,
+                        robot,
+                        seed=SAMPLING_SEED,
+                    ),
+                ]
+            )
         )
+        return statechart
 
 
 def main(

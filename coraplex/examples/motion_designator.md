@@ -25,14 +25,28 @@ We need a robot to move, so we start with a world and a PR2.
 
 ```python
 from coraplex.testing import setup_world
-from coraplex.datastructures.dataclasses import Context
 from semantic_digital_twin.robots.pr2 import PR2
 
 
 world = setup_world()
 pr2_view = PR2.from_world(world)
 
-context = Context(world, pr2_view)
+from coraplex.plans.context_extensions import RobotAccess
+from coraplex.plans.executors import SimulatedPlanExecutor
+from cramph.statechart import Statechart
+
+extensions = [RobotAccess(pr2_view)]
+
+def run(plan):
+    """
+    Run `plan` simulated in `world`, with the robot and settings in `extensions`.
+    """
+    executor = SimulatedPlanExecutor(world, context_extensions=extensions)
+    statechart = Statechart(context=executor.context)
+    statechart.add_node(plan)
+    executor.compile(statechart)
+    executor.execute()
+    return executor
 ```
 
 ## Driving the base
@@ -42,10 +56,8 @@ the same plan commands the pose instead; {class}`~coraplex.robot_plans.actions.c
 between the two for you.
 
 ```python
-from coraplex.execution_environment import simulated_robot
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import SetOdometry
 from semantic_digital_twin.spatial_types.spatial_types import Pose
-from coraplex.plans.plan_execution import PlanExecutor
 
 target = Pose.from_xyz_quaternion(pos_x=1.0, reference_frame=world.root)
 goal = SetOdometry(
@@ -53,10 +65,7 @@ goal = SetOdometry(
     odom_connection=pr2_view.root.parent_connection,
 )
 
-with simulated_robot:
-    executor = PlanExecutor(context)
-    executor.compile(goal)
-    executor.execute()
+run(goal)
 ```
 
 ## Moving the tool center point
@@ -66,24 +75,20 @@ another. For a tool center point, the tip is the arm's tool frame.
 
 ```python
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
-from coraplex.plans.plan_execution import PlanExecutor
 
 end_effector = pr2_view.left_arm.end_effector
 goal = CartesianPose(
-    root_link=context.controlled_root,
+    root_link=RobotAccess(pr2_view).controlled_root,
     tip_link=end_effector.tool_frame,
     goal_pose=Pose.from_xyz_quaternion(
         1.5, 0.6, 0.6, 0, 0, 0, 1, reference_frame=world.root
     ),
 )
 
-with simulated_robot:
-    executor = PlanExecutor(context)
-    executor.compile(goal)
-    executor.execute()
+run(goal)
 ```
 
-{attr}`~coraplex.datastructures.dataclasses.Context.controlled_root` is the link the goal is expressed relative to: the
+{attr}`~coraplex.plans.context_extensions.RobotAccess.controlled_root` is the link the goal is expressed relative to: the
 world root for a robot that drives its base while it manipulates, and the robot's own root otherwise.
 
 ## Looking at something
@@ -92,7 +97,6 @@ world root for a robot that drives its base while it manipulates, and the robot'
 
 ```python
 from giskardpy.motion_statechart.tasks.pointing import Pointing
-from coraplex.plans.plan_execution import PlanExecutor
 
 camera = pr2_view.get_default_camera()
 goal = Pointing(
@@ -104,10 +108,7 @@ goal = Pointing(
     pointing_axis=camera.forward_facing_axis,
 )
 
-with simulated_robot:
-    executor = PlanExecutor(context)
-    executor.compile(goal)
-    executor.execute()
+run(goal)
 ```
 
 ## Opening and closing a gripper
@@ -118,14 +119,10 @@ defines. It reads the finger positions off the end effector, so the same goal wo
 ```python
 from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from semantic_digital_twin.datastructures.definitions import GripperState
-from coraplex.plans.plan_execution import PlanExecutor
 
 goal = MoveGripper(end_effector=end_effector, state=GripperState.OPEN)
 
-with simulated_robot:
-    executor = PlanExecutor(context)
-    executor.compile(goal)
-    executor.execute()
+run(goal)
 ```
 
 Closing onto an object is the interesting case: the fingers stop short of the position they were commanded, so
@@ -133,7 +130,6 @@ Closing onto an object is the interesting case: the fingers stop short of the po
 what they grasp.
 
 ```python
-from coraplex.plans.plan_execution import PlanExecutor
 goal = MoveGripper(
     end_effector=end_effector,
     state=GripperState.CLOSE,
@@ -141,10 +137,7 @@ goal = MoveGripper(
     allow_gripper_collision=True,
 )
 
-with simulated_robot:
-    executor = PlanExecutor(context)
-    executor.compile(goal)
-    executor.execute()
+run(goal)
 ```
 
 ## Detecting an object
@@ -160,7 +153,6 @@ It takes the connections themselves, so the joints are named once, in the world 
 
 ```python
 from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList, JointState
-from coraplex.plans.plan_execution import PlanExecutor
 
 goal = JointPositionList(
     goal_state=JointState.from_mapping(
@@ -171,8 +163,5 @@ goal = JointPositionList(
     )
 )
 
-with simulated_robot:
-    executor = PlanExecutor(context)
-    executor.compile(goal)
-    executor.execute()
+run(goal)
 ```

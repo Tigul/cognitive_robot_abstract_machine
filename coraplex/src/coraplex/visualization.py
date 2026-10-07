@@ -27,7 +27,7 @@ if TYPE_CHECKING:
     from rclpy.node import Node
 
     from coraplex.plans.plan_callbacks import PlanCallback
-    from coraplex.plans.plan_execution import PlanExecutor
+    from coraplex.plans.executors import PlanExecutor
     from semantic_digital_twin.world import World
 
 try:

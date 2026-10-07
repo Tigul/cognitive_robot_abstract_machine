@@ -12,10 +12,8 @@ from krrood.entity_query_language.factories import a, variable, variable_from
 from cramph.composites import ChildChooserAccess, Sequence
 from cramph.data_types import LifeCycleValues
 from cramph.node import StatechartNode
-from cramph.statechart import Statechart
 
 from coraplex.datastructures.enums import ActionTrialVisualization
-from coraplex.execution_environment import simulated_robot
 from coraplex.plans.failures import (
     CandidateLimitReached,
     EmptyUnderspecified,
@@ -23,12 +21,11 @@ from coraplex.plans.failures import (
 )
 from cramph.threaded_nodes import FunctionCall
 from coraplex.plans.plan_callbacks import PlanCallback
-from coraplex.plans.plan_execution import (
+from coraplex.plans.underspecified import (
     ActionTrial,
-    PlanExecutor,
     UnderspecifiedChildChooser,
+    UnderspecifiedNode,
 )
-from coraplex.plans.underspecified import UnderspecifiedNode
 from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
@@ -39,6 +36,8 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.world_description.world_entity import Body
+from ...plan_running import run_plan, simulated_executor, statechart_of, with_grounding
+from coraplex.plans.context_extensions import StatementGrounding
 
 # %% mimics for testing candidate trials without depending on real motion physics
 
@@ -160,7 +159,7 @@ def test_underspecified_action(apartment_world_pr2_copy_with_context):
     Test that an underspecified action resolves to a concrete candidate, which runs as
     the node's child.
     """
-    world, robot, context = apartment_world_pr2_copy_with_context
+    world, robot, extensions = apartment_world_pr2_copy_with_context
     action = a(NavigateAction)(
         target_location=variable_from(
             [
@@ -171,10 +170,7 @@ def test_underspecified_action(apartment_world_pr2_copy_with_context):
     )
 
     plan = UnderspecifiedNode(statement=action)
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
     assert isinstance(plan.chosen_actions[-1], NavigateAction)
@@ -185,8 +181,8 @@ def test_underspecified_action_with_ellipsis(apartment_world_pr2_copy_with_conte
     Test that an underspecified action resolves when a factory for a spatial type is
     used with ellipsis.
     """
-    world, robot, context = apartment_world_pr2_copy_with_context
-    context.query_backend = ProbabilisticBackend()
+    world, robot, extensions = apartment_world_pr2_copy_with_context
+    extensions = with_grounding(extensions, query_backend=ProbabilisticBackend())
     action = a(NavigateAction)(
         target_location=a(Pose.from_xyz_rpy)(
             x=...,
@@ -195,15 +191,12 @@ def test_underspecified_action_with_ellipsis(apartment_world_pr2_copy_with_conte
             roll=0.0,
             pitch=0.0,
             yaw=0.0,
-            reference_frame=context.robot.root,
+            reference_frame=robot.root,
         ),
     )
 
     plan = UnderspecifiedNode(statement=action)
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
     assert isinstance(plan.chosen_actions[-1], NavigateAction)
@@ -213,7 +206,7 @@ def test_underspecified_language(apartment_world_pr2_copy_with_context):
     """
     Test that entire plans can be underspecified.
     """
-    world, robot, context = apartment_world_pr2_copy_with_context
+    world, robot, extensions = apartment_world_pr2_copy_with_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     plan_generator = a(Sequence)(
         nodes=[
@@ -232,15 +225,13 @@ def test_underspecified_language(apartment_world_pr2_copy_with_context):
                 ),
             ),
             a(PickUpAction)(
-                arm=variable(Arm, domain=context.robot.all_arms),
+                arm=variable(Arm, domain=robot.all_arms),
                 grasp=milk.grasp_candidates()[0],
             ),
         ],
     )
     plans = list(EntityQueryLanguageGenerativeBackend().evaluate(plan_generator))
-    assert len(plans) == len(list(target_locations._domain_)) * len(
-        context.robot.all_arms
-    )
+    assert len(plans) == len(list(target_locations._domain_)) * len(robot.all_arms)
 
 
 # %% candidate trials
@@ -254,7 +245,7 @@ def test_isolation_rejected_candidate_never_touches_real_world(
     disposable copy of the world, and never attached to the plan or executed against the
     real world; only the candidate that survives its trial is executed for real.
     """
-    world, robot, context = apartment_world_pr2_copy_with_context
+    world, robot, extensions = apartment_world_pr2_copy_with_context
     dof = world.degrees_of_freedom[0]
     probe_key = register_probe()
 
@@ -264,10 +255,7 @@ def test_isolation_rejected_candidate_never_touches_real_world(
         fail_on_attempt_number=variable_from([1, None]),
     )
     plan = UnderspecifiedNode(statement=action)
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
     assert len(plan.children) == 1
@@ -297,7 +285,7 @@ def test_rejected_candidates_are_tried_against_one_copy(
     Nothing has changed the real world between them, so the copy still describes it and
     rolling it back is enough to give the next candidate the same starting point.
     """
-    world, robot, context = apartment_world_pr2_copy_with_context
+    world, robot, extensions = apartment_world_pr2_copy_with_context
     dof = world.degrees_of_freedom[0]
     probe_key = register_probe()
 
@@ -307,10 +295,7 @@ def test_rejected_candidates_are_tried_against_one_copy(
         fail_on_attempt_number=variable_from([1, 2, None]),
     )
     plan = UnderspecifiedNode(statement=action)
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     probe = _registered_probes[probe_key]
     # every call but the last is a trial; the last is the accepted candidate's real
@@ -330,7 +315,7 @@ def test_real_failure_keeps_state_and_next_trial_reflects_it(
     world's state exactly as the failed attempt left it; the next candidate's trial copy
     must be taken from that post-failure state, not the original one.
     """
-    world, robot, context = apartment_world_pr2_copy_with_context
+    world, robot, extensions = apartment_world_pr2_copy_with_context
     dof = world.degrees_of_freedom[0]
     initial_position = world.state[dof.id].position
     probe_key = register_probe()
@@ -341,10 +326,7 @@ def test_real_failure_keeps_state_and_next_trial_reflects_it(
         fail_on_attempt_number=variable_from([2, None]),
     )
     plan = UnderspecifiedNode(statement=action)
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
     # Both the failed and the accepted candidate are attached to the tree - a real
@@ -382,7 +364,7 @@ def test_the_underspecified_steps_of_one_plan_are_tried_against_one_copy(
     Every step of a plan is tried in the same copy, caught up with what the steps before
     it did for real.
     """
-    world, robot, context = apartment_world_pr2_copy_with_context
+    world, robot, extensions = apartment_world_pr2_copy_with_context
     dof = world.degrees_of_freedom[0]
     probe_key = register_probe()
     plan = Sequence(
@@ -398,10 +380,7 @@ def test_the_underspecified_steps_of_one_plan_are_tried_against_one_copy(
         ]
     )
 
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     probe = _registered_probes[probe_key]
     first_trial, first_real_attempt, second_trial, second_real_attempt = probe.calls
@@ -456,15 +435,12 @@ def test_a_plan_releases_its_trial_copy_once_it_has_run(
     """
     The copy of the world the steps were tried in is only needed while the plan runs.
     """
-    world, robot, context = apartment_world_pr2_copy_with_context
+    world, robot, extensions = apartment_world_pr2_copy_with_context
     plan = _plan_of_two_underspecified_steps(world)
 
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
-    assert _child_chooser_of(plan).trial._copied_context is None
+    assert _child_chooser_of(plan).trial._copied_world is None
 
 
 def test_a_plan_releases_its_trial_copy_even_when_an_observer_fails(
@@ -473,16 +449,15 @@ def test_a_plan_releases_its_trial_copy_even_when_an_observer_fails(
     """
     An observer failing as the plan ends must not keep the copy alive past the plan.
     """
-    world, robot, context = apartment_world_pr2_copy_with_context
+    world, robot, extensions = apartment_world_pr2_copy_with_context
     plan = _plan_of_two_underspecified_steps(world)
-    executor = PlanExecutor(context, callbacks=[_FailsWhenThePlanEnds()])
+    executor = simulated_executor(extensions, callbacks=[_FailsWhenThePlanEnds()])
 
-    with simulated_robot:
-        executor.compile(plan)
-        with pytest.raises(RuntimeError):
-            executor.execute()
+    executor.compile(statechart_of(executor, plan))
+    with pytest.raises(RuntimeError):
+        executor.execute()
 
-    assert _child_chooser_of(plan).trial._copied_context is None
+    assert _child_chooser_of(plan).trial._copied_world is None
 
 
 def test_a_trial_catches_its_copy_up_with_what_the_world_gained(
@@ -491,15 +466,15 @@ def test_a_trial_catches_its_copy_up_with_what_the_world_gained(
     """
     A body added after the copy was taken appears in the same copy once caught up.
     """
-    world, robot, context = apartment_world_pr2_copy_with_context
-    trial = ActionTrial(context=context)
-    copied = trial._copy().world
+    world, robot, extensions = apartment_world_pr2_copy_with_context
+    trial = ActionTrial(executor=simulated_executor(extensions))
+    copied = trial._copy()
     body = Body(name=PrefixedName("added_after_the_copy"))
     with world.modify_world():
         world.add_kinematic_structure_entity(body)
         world.add_connection(FixedConnection(parent=world.root, child=body))
 
-    caught_up = trial._copy().world
+    caught_up = trial._copy()
 
     assert caught_up is copied
     assert caught_up.get_kinematic_structure_entity_by_id(body.id).name == body.name
@@ -512,8 +487,8 @@ def test_a_trial_catches_its_copy_up_with_what_the_world_gained(
 def test_a_step_gives_up_after_as_many_candidates_as_the_context_allows(
     apartment_world_pr2_copy_with_context,
 ):
-    world, robot, context = apartment_world_pr2_copy_with_context
-    context.candidates_to_try = 2
+    world, robot, extensions = apartment_world_pr2_copy_with_context
+    extensions = with_grounding(extensions, candidates_to_try=2)
     probe_key = register_probe()
     plan = UnderspecifiedNode(
         statement=a(RecordingAction)(
@@ -522,21 +497,31 @@ def test_a_step_gives_up_after_as_many_candidates_as_the_context_allows(
             fail_on_attempt_number=variable_from([1, 2, 3]),
         )
     )
-    executor = PlanExecutor(context)
+    executor = simulated_executor(extensions)
 
-    with simulated_robot, pytest.raises(CandidateLimitReached) as failure:
-        executor.compile(plan)
+    with pytest.raises(CandidateLimitReached) as failure:
+        executor.compile(statechart_of(executor, plan))
         executor.execute()
 
-    assert failure.value.candidate_limit == context.candidates_to_try
-    assert len(_registered_probes[probe_key].calls) == context.candidates_to_try
+    assert (
+        failure.value.candidate_limit
+        == next(
+            e for e in extensions if isinstance(e, StatementGrounding)
+        ).candidates_to_try
+    )
+    assert (
+        len(_registered_probes[probe_key].calls)
+        == next(
+            e for e in extensions if isinstance(e, StatementGrounding)
+        ).candidates_to_try
+    )
 
 
 def test_a_step_keeps_its_own_limit_over_the_contexts(
     apartment_world_pr2_copy_with_context,
 ):
-    world, robot, context = apartment_world_pr2_copy_with_context
-    context.candidates_to_try = 2
+    world, robot, extensions = apartment_world_pr2_copy_with_context
+    extensions = with_grounding(extensions, candidates_to_try=2)
     plan = UnderspecifiedNode(
         statement=a(RecordingAction)(
             probe_key=register_probe(),
@@ -544,11 +529,10 @@ def test_a_step_keeps_its_own_limit_over_the_contexts(
             fail_on_attempt_number=variable_from([1, 2, None]),
         ).limit(3)
     )
-    executor = PlanExecutor(context)
+    executor = simulated_executor(extensions)
 
-    with simulated_robot:
-        executor.compile(plan)
-        executor.execute()
+    executor.compile(statechart_of(executor, plan))
+    executor.execute()
 
     assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
 
@@ -556,7 +540,7 @@ def test_a_step_keeps_its_own_limit_over_the_contexts(
 def test_a_step_that_runs_out_of_candidates_below_its_limit_says_it_is_empty(
     apartment_world_pr2_copy_with_context,
 ):
-    world, robot, context = apartment_world_pr2_copy_with_context
+    world, robot, extensions = apartment_world_pr2_copy_with_context
     plan = UnderspecifiedNode(
         statement=a(RecordingAction)(
             probe_key=register_probe(),
@@ -564,10 +548,10 @@ def test_a_step_that_runs_out_of_candidates_below_its_limit_says_it_is_empty(
             fail_on_attempt_number=variable_from([1, 2]),
         )
     )
-    executor = PlanExecutor(context)
+    executor = simulated_executor(extensions)
 
-    with simulated_robot, pytest.raises(EmptyUnderspecified) as failure:
-        executor.compile(plan)
+    with pytest.raises(EmptyUnderspecified) as failure:
+        executor.compile(statechart_of(executor, plan))
         executor.execute()
 
     assert type(failure.value) is EmptyUnderspecified
@@ -577,39 +561,36 @@ def test_a_step_that_runs_out_of_candidates_below_its_limit_says_it_is_empty(
 
 
 @pytest.fixture
-def debugging_context(apartment_world_pr2_copy_with_context, rclpy_node):
+def debugging_executor(apartment_world_pr2_copy_with_context, rclpy_node):
     """
-    The apartment with a PR2, in a context that is debugging.
+    The apartment with a PR2, its robot and an executor debugging its plans.
     """
-    world, robot, context = apartment_world_pr2_copy_with_context
-    context.ros_node = rclpy_node
-    context.debug = True
-    yield world, robot, context
-    context.debug = False
+    world, robot, extensions = apartment_world_pr2_copy_with_context
+    yield world, robot, simulated_executor(extensions, ros_node=rclpy_node, debug=True)
 
 
-def test_a_trial_publishes_its_copy_while_debugging(debugging_context):
+def test_a_trial_publishes_its_copy_while_debugging(debugging_executor):
     """
     The candidates are tried in the copy, so a run being watched would otherwise show
     the robot standing still through every candidate it rejects.
     """
-    world, robot, context = debugging_context
-    trial = ActionTrial(context=context)
+    world, robot, executor = debugging_executor
+    trial = ActionTrial(executor=executor)
 
     copied = trial._copy()
 
-    assert trial._visualization.world is copied.world
+    assert trial._visualization.world is copied
     assert trial._visualization.is_rendering
     trial.discard()
 
 
-def test_a_trial_publishes_its_copy_apart_from_the_world_it_copies(debugging_context):
+def test_a_trial_publishes_its_copy_apart_from_the_world_it_copies(debugging_executor):
     """
     The copy has the same frame names and markers as the world it was taken from, so it
     is published under a prefix and on a topic of its own rather than over that world.
     """
-    world, robot, context = debugging_context
-    trial = ActionTrial(context=context)
+    world, robot, executor = debugging_executor
+    trial = ActionTrial(executor=executor)
 
     trial._copy()
 
@@ -622,13 +603,13 @@ def test_a_trial_publishes_its_copy_apart_from_the_world_it_copies(debugging_con
     trial.discard()
 
 
-def test_a_trial_copy_is_drawn_see_through(debugging_context):
+def test_a_trial_copy_is_drawn_see_through(debugging_executor):
     """
     The copy is drawn translucent so that it can be told apart from the world it copies
     where the two overlap.
     """
-    world, robot, context = debugging_context
-    trial = ActionTrial(context=context)
+    world, robot, executor = debugging_executor
+    trial = ActionTrial(executor=executor)
 
     trial._copy()
 
@@ -643,21 +624,21 @@ def test_a_trial_publishes_nothing_without_debugging(
     Publishing the copy is a debugging aid, so a run that is not debugging publishes
     nothing.
     """
-    world, robot, context = apartment_world_pr2_copy_with_context
-    trial = ActionTrial(context=context)
+    world, robot, extensions = apartment_world_pr2_copy_with_context
+    trial = ActionTrial(executor=simulated_executor(extensions))
 
     trial._copy()
 
     assert trial._visualization is None
 
 
-def test_a_discarded_trial_stops_publishing_its_copy(debugging_context):
+def test_a_discarded_trial_stops_publishing_its_copy(debugging_executor):
     """
     Releasing the copy also stops publishing it, so nothing keeps drawing a world that
     is gone.
     """
-    world, robot, context = debugging_context
-    trial = ActionTrial(context=context)
+    world, robot, executor = debugging_executor
+    trial = ActionTrial(executor=executor)
     trial._copy()
     visualization = trial._visualization
 
@@ -667,13 +648,13 @@ def test_a_discarded_trial_stops_publishing_its_copy(debugging_context):
     assert trial._visualization is None
 
 
-def test_a_caught_up_copy_keeps_being_published(debugging_context):
+def test_a_caught_up_copy_keeps_being_published(debugging_executor):
     """
     A copy caught up with the world is still the one candidates are tried in, so it
     keeps being shown rather than being drawn anew.
     """
-    world, robot, context = debugging_context
-    trial = ActionTrial(context=context)
+    world, robot, executor = debugging_executor
+    trial = ActionTrial(executor=executor)
     trial._copy()
     first = trial._visualization
     dof = world.degrees_of_freedom[0]
@@ -684,15 +665,15 @@ def test_a_caught_up_copy_keeps_being_published(debugging_context):
 
     assert trial._visualization is first
     assert first.is_rendering
-    assert first.world is copied.world
+    assert first.world is copied
     trial.discard()
 
 
-def test_a_plan_stops_publishing_its_trial_copy_once_it_has_run(debugging_context):
+def test_a_plan_stops_publishing_its_trial_copy_once_it_has_run(debugging_executor):
     """
     The copy is only published while the plan that tries candidates in it runs.
     """
-    world, robot, context = debugging_context
+    world, robot, executor = debugging_executor
     dof = world.degrees_of_freedom[0]
     probe_key = register_probe()
     plan = UnderspecifiedNode(
@@ -703,24 +684,22 @@ def test_a_plan_stops_publishing_its_trial_copy_once_it_has_run(debugging_contex
         )
     )
 
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    executor.compile(statechart_of(executor, plan))
+    executor.execute()
 
     assert _child_chooser_of(plan).trial._visualization is None
 
 
-def test_a_trial_tries_an_action_that_already_belongs_to_a_plan(debugging_context):
+def test_a_trial_tries_an_action_that_already_belongs_to_a_plan(debugging_executor):
     """
-    An action in a statechart reaches that statechart's context, and with it the ROS
+    An action in a statechart reaches that statechart's extensions, and with it the ROS
     node the run publishes through, which a trial must not try to copy.
     """
-    world, robot, context = debugging_context
+    world, robot, executor = debugging_executor
     stand_where_it_is = robot.root.global_pose
     action = NavigateAction(stand_where_it_is)
-    Statechart(context=context.create_statechart_context()).add_node(Sequence([action]))
-    trial = ActionTrial(context=context)
+    statechart_of(executor, Sequence([action]))
+    trial = ActionTrial(executor=executor)
 
     assert trial.succeeds(action)
     trial.discard()

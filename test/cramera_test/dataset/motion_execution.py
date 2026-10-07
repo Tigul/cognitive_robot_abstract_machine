@@ -57,7 +57,7 @@ class MotionExecution:
         """
         Tell the callback the plan is about to run, as an executor does on compile.
         """
-        self.callback.on_compile(self.plan, self.chart)
+        self.callback.on_compile([self.plan], self.chart)
 
     def record(self, state: LifeCycleValues) -> None:
         """

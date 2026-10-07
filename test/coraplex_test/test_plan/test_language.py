@@ -16,7 +16,6 @@ from cramph.composites import (
     TryAll,
     TryInOrder,
 )
-from coraplex.execution_environment import simulated_robot
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from ..conftest import tool_center_point_goal
@@ -28,7 +27,7 @@ from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.spatial_types import Pose
 from semantic_digital_twin.robots.pr2 import PR2Joint
 from cramph.threaded_nodes import FunctionCall
-from coraplex.plans.plan_execution import PlanExecutor
+from ...plan_running import run_plan
 
 
 def test_factory_construction():
@@ -83,16 +82,13 @@ def test_combination_construction():
 
 
 def test_perform_execute_single(pr2_apartment_context):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
     act = NavigateAction(Pose.from_xyz_rpy(0.3, -1.3, 0, reference_frame=world.root))
     act2 = MoveTorsoAction(TorsoState.HIGH)
-    act3 = ParkArmsAction(context.robot.all_arms)
+    act3 = ParkArmsAction(robot_view.all_arms)
 
     plan = Sequence([act, act2, act3])
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
     np.testing.assert_almost_equal(
         robot_view.root.global_transform.to_np()[:3, 3], [0.3, -1.3, 0], decimal=1
     )
@@ -102,13 +98,10 @@ def test_perform_execute_single(pr2_apartment_context):
 
 
 def test_perform_single_designator(pr2_apartment_context):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
 
     plan = Sequence([MoveTorsoAction(TorsoState.HIGH)])
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     assert world.state[
         world.get_degree_of_freedom_by_name(PR2Joint.TORSO_LIFT).id
@@ -116,7 +109,7 @@ def test_perform_single_designator(pr2_apartment_context):
 
 
 def test_perform_parallel(pr2_apartment_context):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
 
     def check_thread_id(main_id):
         assert main_id != threading.get_ident()
@@ -127,10 +120,7 @@ def test_perform_parallel(pr2_apartment_context):
     act3 = FunctionCall(function=lambda: check_thread_id(main_thread_id))
 
     plan = Parallel([act, act2, act3])
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     assert [node.life_cycle_state for node in plan.children] == [
         LifeCycleValues.SUCCEEDED
@@ -159,13 +149,10 @@ def test_perform_repeat_runs_a_succeeding_motion_once(pr2_apartment_context):
     Attempting stops as soon as the children succeed, so a motion that works first time
     is not repeated and the plan finishes normally.
     """
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
 
     plan = _repeat_on_stall(Sequence([MoveTorsoAction(TorsoState.HIGH)]), 3)
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     assert world.state[
         world.get_degree_of_freedom_by_name("torso_lift_joint").id
@@ -180,19 +167,13 @@ def test_repeat_does_not_give_up_on_a_child_that_starts_at_its_goal(
     A child that is already where it should be finishes without converging on anything,
     which must not be mistaken for an attempt that stalled.
     """
-    world, robot_view, context = pr2_apartment_context
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(Sequence([MoveTorsoAction(TorsoState.HIGH)]))
-        executor.execute()
+    world, robot_view, extensions = pr2_apartment_context
+    executor = run_plan(Sequence([MoveTorsoAction(TorsoState.HIGH)]), extensions)
 
     plan = _repeat_on_stall(
         Sequence([MoveTorsoAction(TorsoState.HIGH), MoveTorsoAction(TorsoState.LOW)]), 3
     )
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     [torso_down] = (
         robot_view.get_torso().get_joint_state_by_type(TorsoState.LOW).target_values
@@ -202,7 +183,7 @@ def test_repeat_does_not_give_up_on_a_child_that_starts_at_its_goal(
 
 
 def test_exception_sequential(pr2_apartment_context):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
 
     def raise_except():
         raise PlanFailure()
@@ -213,10 +194,7 @@ def test_exception_sequential(pr2_apartment_context):
     plan = Sequence([act, act2])
 
     def perform_plan():
-        with simulated_robot:
-            executor = PlanExecutor(context)
-            executor.compile(plan)
-            executor.execute()
+        run_plan(plan, extensions)
 
     with pytest.raises(PlanFailure):
         perform_plan()
@@ -225,7 +203,7 @@ def test_exception_sequential(pr2_apartment_context):
 
 
 def test_exception_try_in_order(pr2_apartment_context):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
 
     def raise_except():
         raise PlanFailure()
@@ -234,16 +212,13 @@ def test_exception_try_in_order(pr2_apartment_context):
     act2 = FunctionCall(function=raise_except, failure_types=(PlanFailure,))
 
     plan = TryInOrder([act, act2])
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
     assert len(plan.children) == 2
     assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
 
 
 def test_exception_try_all(pr2_apartment_context):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
 
     def raise_except():
         raise PlanFailure()
@@ -252,10 +227,7 @@ def test_exception_try_all(pr2_apartment_context):
     act2 = FunctionCall(function=raise_except, failure_types=(PlanFailure,))
 
     plan = TryAll([act, act2])
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     assert type(plan) is TryAll
     assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
@@ -268,7 +240,7 @@ def test_try_in_order_recovers_from_a_failing_code_step(pr2_apartment_context):
     """
     A code step that fails is one failed alternative, so the next one is tried.
     """
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
 
     def raise_except():
         raise PlanFailure()
@@ -279,10 +251,7 @@ def test_try_in_order_recovers_from_a_failing_code_step(pr2_apartment_context):
             MoveTorsoAction(TorsoState.HIGH),
         ]
     )
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     [torso_up] = (
         robot_view.get_torso().get_joint_state_by_type(TorsoState.HIGH).target_values
@@ -295,15 +264,12 @@ def test_children_report_the_outcome_of_the_chart_they_ran_in(pr2_apartment_cont
     """
     A child is only run as part of its parent's chart, and reports how it ended there.
     """
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
 
     root = Sequence(
         [MoveTorsoAction(TorsoState.HIGH), ParkArmsAction(robot_view.all_arms)]
     )
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(root)
-        executor.execute()
+    run_plan(root, extensions)
 
     assert [child.life_cycle_state for child in root.children] == [
         LifeCycleValues.SUCCEEDED,
@@ -315,8 +281,8 @@ def test_children_report_the_outcome_of_the_chart_they_ran_in(pr2_apartment_cont
 
 
 def test_cancel_monitor_construction(pr2_apartment_context):
-    world, robot_view, context = pr2_apartment_context
-    act = ParkArmsAction(context.robot.all_arms)
+    world, robot_view, extensions = pr2_apartment_context
+    act = ParkArmsAction(robot_view.all_arms)
     act2 = MoveTorsoAction(TorsoState.HIGH)
 
     never = ConstFalseNode(name="never")
@@ -340,7 +306,7 @@ def test_cancel_monitor_stops_the_motion_it_wraps(pr2_apartment_context):
     """
     A monitor that is true from the start stops the motion before it moves.
     """
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
     start_position = _torso_position(world)
 
     always = ConstTrueNode(name="always")
@@ -351,10 +317,7 @@ def test_cancel_monitor_stops_the_motion_it_wraps(pr2_apartment_context):
         exception=PlanCancelled(monitor=always),
     )
     with pytest.raises(PlanCancelled):
-        with simulated_robot:
-            executor = PlanExecutor(context)
-            executor.compile(plan)
-            executor.execute()
+        run_plan(plan, extensions)
 
     assert _torso_position(world) == pytest.approx(start_position, abs=0.05)
 
@@ -365,7 +328,7 @@ def test_cancel_monitor_gives_up_on_the_plan_instead_of_stalling(pr2_apartment_c
     surrounding plan waiting for a subtree that will never succeed until the motion runs
     out of control cycles.
     """
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
 
     always = ConstTrueNode(name="always")
 
@@ -380,10 +343,7 @@ def test_cancel_monitor_gives_up_on_the_plan_instead_of_stalling(pr2_apartment_c
         ]
     )
     with pytest.raises(PlanCancelled):
-        with simulated_robot:
-            executor = PlanExecutor(context)
-            executor.compile(plan)
-            executor.execute()
+        run_plan(plan, extensions)
 
 
 def test_never_firing_cancel_monitor_leaves_the_motion_alone(pr2_apartment_context):
@@ -391,7 +351,7 @@ def test_never_firing_cancel_monitor_leaves_the_motion_alone(pr2_apartment_conte
     The control for the test above: the same plan with a monitor that never fires runs
     the motion to its target.
     """
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
 
     never = ConstFalseNode(name="never")
 
@@ -400,10 +360,7 @@ def test_never_firing_cancel_monitor_leaves_the_motion_alone(pr2_apartment_conte
         monitored_node=Sequence([MoveTorsoAction(TorsoState.HIGH)]),
         exception=PlanCancelled(monitor=never),
     )
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     assert _torso_position(world) == pytest.approx(0.3, abs=0.05)
     assert plan.last_observation_state == ObservationStateValues.TRUE
@@ -415,22 +372,19 @@ def test_repeat_raises_when_it_runs_out_of_attempts(pr2_apartment_context):
     reported as a plan failure, rather than silently stalling until the motion runs out
     of control cycles.
     """
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
     unreachable = Pose.from_xyz_rpy(5, 0, 0, reference_frame=world.root)
 
     plan = _repeat_on_stall(
         Sequence(
-            [tool_center_point_goal(context, context.robot.right_arm, unreachable)]
+            [tool_center_point_goal(robot_view, robot_view.right_arm, unreachable)]
         ),
         2,
         timeout=timedelta(seconds=1),
     )
 
     with pytest.raises(RepetitionsExhausted):
-        with simulated_robot:
-            executor = PlanExecutor(context)
-            executor.compile(plan)
-            executor.execute()
+        run_plan(plan, extensions)
 
 
 def test_repeat_of_a_non_converging_motion_is_attempted(pr2_apartment_context):
@@ -438,14 +392,11 @@ def test_repeat_of_a_non_converging_motion_is_attempted(pr2_apartment_context):
     Progress is measured from a task's error, and a motion that has none is no longer
     rejected: it is attempted until it succeeds or the attempts run out.
     """
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
     target = Pose.from_xyz_rpy(1, -1, reference_frame=world.root)
 
     plan = _repeat_on_stall(Sequence([NavigateAction(target)]), 2)
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
     np.testing.assert_almost_equal(

@@ -19,13 +19,12 @@ from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 from typing_extensions import List, Type
 
-from coraplex.alternative_motion_mapping import AlternativeMotion
-from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import ExecutionType, VisualizationBackend
-from coraplex.execution_environment import ExecutionEnvironment
-from coraplex.plans.plan_execution import PlanExecutor
+from coraplex.plans.executors import PlanExecutor
+from coraplex.plans.plan_transformation import PlanTransformation
 from coraplex.visualization import VisualizationSession, WorldVisualization
-from cramph.node import StatechartNode
+from cramph.context import ContextExtension, StatechartContext
+from cramph.statechart import Statechart
 from semantic_digital_twin.adapters.ros.world_fetcher import fetch_world_from_service
 from semantic_digital_twin.adapters.ros.world_synchronizer import WorldSynchronizer
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
@@ -174,6 +173,11 @@ class RobotDemonstration(ABC):
     copy of the world a candidate is tried in.
     """
 
+    plan_transformations: List[PlanTransformation] = field(default_factory=list)
+    """
+    The transformations rewriting the plan once it is expanded.
+    """
+
     repetitions: int = 1
     """
     How often the plan is performed against the scene.
@@ -214,16 +218,17 @@ class RobotDemonstration(ABC):
         """
 
     @abstractmethod
-    def build_context(self, world: World) -> Context:
+    def build_context_extensions(self, world: World) -> List[ContextExtension]:
         """
-        Build the plan context, resolving the robot in ``world``, in debug mode when
-        :attr:`debug` is set.
+        Build what the plan's nodes read from their context, at least the
+        :class:`~coraplex.plans.context_extensions.RobotAccess` of the robot resolved in
+        ``world``.
         """
 
     @abstractmethod
-    def build_plan(self, context: Context) -> StatechartNode:
+    def build_statechart(self, context: StatechartContext) -> Statechart:
         """
-        Build the plan this demonstration performs.
+        Build the statechart this demonstration performs, in `context`.
         """
 
     def segment_events(self, world: World) -> AbstractContextManager:
@@ -245,16 +250,6 @@ class RobotDemonstration(ABC):
         if self.ros_session is None:
             return None
         return self.ros_session.node
-
-    @property
-    def alternative_motion_mappings(self) -> List[Type[AlternativeMotion]]:
-        """
-        Every alternative motion mapping known to coraplex, for every robot.
-
-        Resolution filters by ``used_robot`` and execution type, so handing over the
-        full set is always safe and needs no per-robot selection here.
-        """
-        return AlternativeMotion.discover_all()
 
     def acquire_world(self) -> World:
         """
@@ -288,9 +283,15 @@ class RobotDemonstration(ABC):
             if not self.is_scene_populated(world):
                 self.populate_scene(world)
             for _ in range(self.repetitions):
-                context = self.build_context(world)
-                plan = self.build_plan(context)
-                executor = PlanExecutor(context)
+                executor = PlanExecutor.type_for(self.execution_type)(
+                    world,
+                    context_extensions=self.build_context_extensions(world),
+                    ros_node=self.ros_node,
+                    collision_avoidance=self.collision_avoidance,
+                    debug=self.debug,
+                    plan_transformations=self.plan_transformations,
+                )
+                statechart = self.build_statechart(executor.context)
                 if self.visualization is not None:
                     self.visualization.attach_plan(executor)
                 event_segmentation = (
@@ -298,11 +299,8 @@ class RobotDemonstration(ABC):
                     if self.event_segmentation
                     else nullcontext()
                 )
-                with ExecutionEnvironment(
-                    execution_type=self.execution_type,
-                    collision_avoidance=self.collision_avoidance,
-                ), event_segmentation:
-                    executor.compile(plan)
+                with event_segmentation:
+                    executor.compile(statechart)
                     executor.execute()
         finally:
             self.tear_down()

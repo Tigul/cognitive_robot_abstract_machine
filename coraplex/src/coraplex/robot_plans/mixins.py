@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from coraplex.plans.context_extensions import MotionToleranceConfig
 from cramph.composites import Parallel
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     UpdateTemporaryCollisionRules,
@@ -279,7 +280,7 @@ class MovesToolCenterPoint:
     """
     Builds the goals that move an arm's tool center point, with optional
     goal-achievement thresholds that fall back to
-    :attr:`~coraplex.datastructures.dataclasses.Context.motion_tolerances` when left
+    the :class:`~coraplex.plans.context_extensions.MotionToleranceConfig` of the context when left
     unset.
 
     Meant to be mixed into an :class:`~coraplex.robot_plans.actions.base.Action`
@@ -289,13 +290,13 @@ class MovesToolCenterPoint:
     position_threshold: Optional[float] = field(default=None, kw_only=True)
     """
     Distance threshold in meters for goal achievement. ``None`` falls back to
-    :attr:`~coraplex.datastructures.dataclasses.MotionToleranceConfig.default_tcp_position_threshold`.
+    :attr:`~coraplex.plans.context_extensions.MotionToleranceConfig.default_tcp_position_threshold`.
     """
 
     orientation_threshold: Optional[float] = field(default=None, kw_only=True)
     """
     Rotation threshold in rad for goal achievement. ``None`` falls back to
-    :attr:`~coraplex.datastructures.dataclasses.MotionToleranceConfig.tool_orientation_threshold`.
+    :attr:`~coraplex.plans.context_extensions.MotionToleranceConfig.tool_orientation_threshold`.
     """
 
     def resolved_position_threshold(self) -> float:
@@ -304,7 +305,9 @@ class MovesToolCenterPoint:
         """
         if self.position_threshold is not None:
             return self.position_threshold
-        return self.context.motion_tolerances.default_tcp_position_threshold
+        return self.context.require_extension(
+            MotionToleranceConfig
+        ).default_tcp_position_threshold
 
     def resolved_orientation_threshold(self) -> float:
         """
@@ -312,7 +315,9 @@ class MovesToolCenterPoint:
         """
         if self.orientation_threshold is not None:
             return self.orientation_threshold
-        return self.context.motion_tolerances.tool_orientation_threshold
+        return self.context.require_extension(
+            MotionToleranceConfig
+        ).tool_orientation_threshold
 
     def tool_center_point_goal(
         self,

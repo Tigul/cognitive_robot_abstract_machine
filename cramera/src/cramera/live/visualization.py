@@ -11,7 +11,7 @@ import atexit
 from dataclasses import dataclass, field
 from functools import partial
 
-from typing_extensions import Any, Callable, Optional
+from typing_extensions import Any, Callable, List, Optional
 
 from coraplex.plans.designator import DesignatorParameters
 from coraplex.plans.plan_callbacks import PlanCallback
@@ -98,28 +98,24 @@ class BridgePlanCallback(PlanCallback, StateHistoryObserver):
     The bridge the plan's execution is published to.
     """
 
-    _plan: Optional[StatechartNode] = field(default=None, init=False, repr=False)
-    """
-    The root node of the plan running now.
-    """
-
     _statechart: Optional[Statechart] = field(default=None, init=False, repr=False)
     """
     The statechart running the plan, whose history this observes.
     """
 
-    def on_compile(self, plan: StatechartNode, statechart: Statechart) -> None:
+    def on_compile(
+        self, plan_nodes: List[StatechartNode], statechart: Statechart
+    ) -> None:
         """
-        Publish the plan's tree and statechart before its first node runs.
+        Publish the plan's trees and statechart before its first node runs.
 
-        :param plan: The root node of the plan about to run.
+        :param plan_nodes: The top-level nodes of the plan about to run.
         :param statechart: The statechart running it.
         """
         self.stop()
-        self._plan = plan
         self._statechart = statechart
         statechart.history.add_observer(self)
-        self.bridge.begin_plan(plan)
+        self.bridge.begin_plan(plan_nodes)
         self.bridge.observe_chart(statechart)
 
     def on_start(self, node: StatechartNode) -> None:
@@ -141,9 +137,17 @@ class BridgePlanCallback(PlanCallback, StateHistoryObserver):
         self.bridge.snapshot_plan()
         if self.bridge.recording is not None:
             self.bridge.recording.update_statechart(self.bridge.executing_statechart())
-        if node is self._plan:
-            self.bridge.observe_chart(self._statechart)
-            self.stop()
+
+    def on_finish(self, statechart: Statechart) -> None:
+        """
+        Publish the statechart as the plan's execution left it, and stop observing it.
+
+        :param statechart: The statechart that ran the plan.
+        """
+        self.bridge.observe_chart(statechart)
+        if self.bridge.recording is not None:
+            self.bridge.recording.update_statechart(self.bridge.executing_statechart())
+        self.stop()
 
     def on_state_change(self, history: StateHistory) -> None:
         """

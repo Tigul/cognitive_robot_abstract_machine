@@ -110,15 +110,17 @@ from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.datastructures.definitions import TorsoState
-from coraplex.datastructures.dataclasses import Context
+from coraplex.plans.context_extensions import RobotAccess
+from coraplex.plans.executors import SimulatedPlanExecutor
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from cramph.composites import Sequence
+from cramph.statechart import Statechart
 
 pr2 = PR2.from_world(world)
-context = Context(world, pr2)
+executor = SimulatedPlanExecutor(world, context_extensions=[RobotAccess(pr2)])
 milk_body = world.get_body_by_name("milk.stl")
 
 # The pick-up is told what it is grasping, so annotate the parsed mesh as milk.
@@ -140,26 +142,22 @@ plan = Sequence([
             target_location=Pose.from_xyz_rpy(4.2, 4.0, 1.0, reference_frame=world.root),
         ),
     ])
+statechart = Statechart(context=executor.context)
+statechart.add_node(plan)
 ```
 
 What did we just do here?
-We first created a context which holds the world as well as the semantic description of the PR2 robot in that world.
-This context determines in which world and by which robot the plan is executed.
+We first created an executor, which runs the plan in the world, by the PR2 its context extensions name. A
+`SimulatedPlanExecutor` runs it in simulation; a `RobotPlanExecutor` would send it to the real robot.
 Next, we retrieved the milk bottle body from the world to use it in the pick-up and place actions.
 Finally, we built a plan as a {class}`~cramph.composites.Sequence`, meaning all actions will be executed one after
-another in the order they are defined.
+another in the order they are defined, and put it into a statechart of the executor's context.
 
-To execute the plan, we need to determine if it should be run in simulation or on a real robot, and then compile and
-execute it with a {class}`~coraplex.plans.plan_execution.PlanExecutor` for the context.
+To execute the plan, the executor compiles the statechart and executes it.
 
 ```python
-from coraplex.execution_environment import simulated_robot
-from coraplex.plans.plan_execution import PlanExecutor
-
-with simulated_robot:
-    executor = PlanExecutor(context)
-    executor.compile(plan)
-    executor.execute()
+executor.compile(statechart)
+executor.execute()
 ```
 
 Congratulations!🎉 You have just written and executed your first plan in CoraPlex.

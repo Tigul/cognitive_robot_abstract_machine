@@ -3,11 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 import pytest
-from typing_extensions import List, Type
+from typing_extensions import List, Optional, Type
 
-from coraplex.datastructures.dataclasses import Context
+from coraplex.plans.executors import PlanExecutor
 from coraplex.robot_plans.actions.base import Action
-from coraplex.execution_environment import simulated_robot
 from coraplex.datastructures.trajectory import PoseTrajectory
 from coraplex.robot_plans.actions.core.navigation import LookAtAction, NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import (
@@ -41,6 +40,8 @@ from giskardpy.motion_statechart.tasks.joint_tasks import (
 )
 from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
 from semantic_digital_twin.spatial_types.spatial_types import Pose
+from ...plan_running import robot_executor, simulated_executor, statechart_of
+from cramph.context import ContextExtension
 
 # %% a body handed in, so expansion is exercised without a robot
 
@@ -79,15 +80,21 @@ def _failing(name: str) -> NodeFailingOnObservingFalse:
     )
 
 
-def _expanded(action: Action, context: Context) -> Statechart:
+def _expanded(
+    action: Action,
+    extensions: List[ContextExtension],
+    executor: Optional[PlanExecutor] = None,
+) -> Statechart:
     """
     Adds `action` to a statechart, which expands it.
 
+    :param executor: The executor whose context the statechart is built in, a simulated
+        one by default.
     :return: The statechart holding the expanded action.
     """
-    statechart = Statechart(context=context.create_statechart_context())
-    statechart.add_node(action)
-    return statechart
+    if executor is None:
+        executor = simulated_executor(extensions)
+    return statechart_of(executor, action)
 
 
 def _nodes_of_type(
@@ -116,11 +123,11 @@ def test_action_runs_its_steps_as_one_sequence(simple_pr2_context):
     """
     An action's body is a sequence of exactly the nodes it names.
     """
-    _, _, context = simple_pr2_context
+    _, _, extensions = simple_pr2_context
     steps = [_succeeding("first"), _succeeding("second")]
     action = ActionRunningHandedInSteps(steps=steps)
 
-    _expanded(action, context)
+    _expanded(action, extensions)
 
     [body] = action.children
     assert isinstance(body, Sequence)
@@ -147,19 +154,19 @@ def test_an_action_has_no_body_before_it_is_expanded():
 
 
 def test_an_action_runs_the_body_it_created(simple_pr2_context):
-    _, _, context = simple_pr2_context
+    _, _, extensions = simple_pr2_context
     action = ActionRunningHandedInSteps(steps=[_succeeding("only step")])
 
-    _expanded(action, context)
+    _expanded(action, extensions)
 
     assert action.children == [action.action_body]
 
 
 def test_an_action_body_can_be_a_single_node(simple_pr2_context):
-    _, _, context = simple_pr2_context
+    _, _, extensions = simple_pr2_context
     step = _succeeding("only step")
     action = ActionRunningOneNode(node=step)
-    statechart = _expanded(action, context)
+    statechart = _expanded(action, extensions)
 
     _run_until(statechart, EndStatechart.when_true(action))
 
@@ -171,9 +178,9 @@ def test_action_succeeds_once_its_last_step_succeeded(simple_pr2_context):
     """
     An action ends successfully when the sequence it runs does.
     """
-    _, _, context = simple_pr2_context
+    _, _, extensions = simple_pr2_context
     action = ActionRunningHandedInSteps(steps=[_succeeding("only step")])
-    statechart = _expanded(action, context)
+    statechart = _expanded(action, extensions)
 
     _run_until(statechart, EndStatechart.when_true(action))
 
@@ -184,9 +191,9 @@ def test_action_fails_once_a_step_ended_without_succeeding(simple_pr2_context):
     """
     A step that cannot arrive fails the action rather than leaving it waiting.
     """
-    _, _, context = simple_pr2_context
+    _, _, extensions = simple_pr2_context
     action = ActionRunningHandedInSteps(steps=[_failing("step that gives up")])
-    statechart = _expanded(action, context)
+    statechart = _expanded(action, extensions)
 
     _run_until(statechart, EndStatechart.when_failed(action))
 
@@ -197,8 +204,8 @@ def test_action_without_steps_is_rejected(simple_pr2_context):
     """
     An action that names no node to run is a mistake, not an empty success.
     """
-    _, _, context = simple_pr2_context
-    statechart = _expanded(ActionRunningHandedInSteps(steps=[]), context)
+    _, _, extensions = simple_pr2_context
+    statechart = _expanded(ActionRunningHandedInSteps(steps=[]), extensions)
 
     with pytest.raises(CompositeNodeWithoutChildrenError):
         statechart.compile()
@@ -266,10 +273,10 @@ def test_move_torso_runs_the_joint_goal_of_the_requested_state(
     """
     Moving the torso drives it to the joint state that torso state stands for.
     """
-    _, robot, context = simple_pr2_context
+    _, robot, extensions = simple_pr2_context
     action = MoveTorsoAction(TorsoState.HIGH)
 
-    _expanded(action, context)
+    _expanded(action, extensions)
 
     [joint_goal] = _nodes_of_type(action, JointPositionList)
     assert joint_goal.goal_state == robot.get_torso().get_joint_state_by_type(
@@ -281,10 +288,10 @@ def test_set_gripper_drives_the_gripper_it_names(simple_pr2_context):
     """
     Setting a gripper drives that gripper, with one goal.
     """
-    _, robot, context = simple_pr2_context
+    _, robot, extensions = simple_pr2_context
     action = SetGripperAction(robot.left_arm.end_effector, GripperState.OPEN)
 
-    _expanded(action, context)
+    _expanded(action, extensions)
 
     [goal] = _nodes_of_type(action, MoveGripper)
     assert goal.end_effector is robot.left_arm.end_effector
@@ -294,12 +301,12 @@ def test_park_arms_caps_joint_velocity_only_when_asked(simple_pr2_context):
     """
     The velocity cap is a limit run alongside the park goal, not always present.
     """
-    _, robot, context = simple_pr2_context
+    _, robot, extensions = simple_pr2_context
     capped = ParkArmsAction(robot.all_arms, max_joint_velocity=0.1)
     uncapped = ParkArmsAction(robot.all_arms)
 
-    _expanded(capped, context)
-    _expanded(uncapped, context)
+    _expanded(capped, extensions)
+    _expanded(uncapped, extensions)
 
     [limit] = _nodes_of_type(capped, JointVelocityLimit)
     assert limit.max_velocity == 0.1
@@ -311,10 +318,10 @@ def test_look_at_points_the_default_camera(simple_pr2_context):
     """
     Looking somewhere aims the robot's own camera, and runs nothing else.
     """
-    _, robot, context = simple_pr2_context
+    _, robot, extensions = simple_pr2_context
     action = LookAtAction(Pose())
 
-    _expanded(action, context)
+    _expanded(action, extensions)
 
     [pointing] = _nodes_of_type(action, Pointing)
     assert pointing.tip_link == robot.get_default_camera().root
@@ -324,11 +331,11 @@ def test_following_a_path_runs_one_goal_per_waypoint(simple_pr2_context):
     """
     Every waypoint of the path becomes a goal of its own, in order.
     """
-    _, robot, context = simple_pr2_context
+    _, robot, extensions = simple_pr2_context
     waypoints = [Pose(), Pose(), Pose()]
     action = FollowToolCenterPointPathAction(PoseTrajectory(waypoints), robot.left_arm)
 
-    _expanded(action, context)
+    _expanded(action, extensions)
 
     assert len(_nodes_of_type(action, CartesianPose)) == len(waypoints)
 
@@ -339,13 +346,13 @@ def test_moving_the_manipulator_relaxes_collisions_only_when_allowed(
     """
     The gripper is only let through its surroundings when the caller asks.
     """
-    _, robot, context = simple_pr2_context
+    _, robot, extensions = simple_pr2_context
     end_effector = robot.left_arm.end_effector
     allowed = MoveManipulatorAction(Pose(), end_effector, True)
     forbidden = MoveManipulatorAction(Pose(), end_effector, False)
 
-    _expanded(allowed, context)
-    _expanded(forbidden, context)
+    _expanded(allowed, extensions)
+    _expanded(forbidden, extensions)
 
     assert len(_nodes_of_type(allowed, UpdateTemporaryCollisionRules)) == 1
     assert _nodes_of_type(forbidden, UpdateTemporaryCollisionRules) == []
@@ -358,10 +365,10 @@ def test_navigating_drives_the_base_towards_what_it_should_face(
     """
     Navigating commands the base pose, and runs nothing else.
     """
-    _, robot, context = simple_pr2_context
+    _, robot, extensions = simple_pr2_context
     action = NavigateAction(Pose())
 
-    _expanded(action, context)
+    _expanded(action, extensions, robot_executor(extensions))
 
     [drive] = _nodes_of_type(action, CartesianPose)
     assert drive.tip_link == robot.root
@@ -371,11 +378,10 @@ def test_navigating_writes_the_odometry_when_simulated(simple_pr2_context):
     """
     A simulated run has no drive to follow a pose, so it sets the odometry itself.
     """
-    _, _, context = simple_pr2_context
+    _, _, extensions = simple_pr2_context
     action = NavigateAction(Pose())
 
-    with simulated_robot:
-        _expanded(action, context)
+    _expanded(action, extensions)
 
     assert len(_nodes_of_type(action, SetOdometry)) == 1
     assert _nodes_of_type(action, CartesianPose) == []

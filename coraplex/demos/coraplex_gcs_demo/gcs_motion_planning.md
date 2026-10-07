@@ -29,7 +29,9 @@ from coraplex.ros_utils.viz_marker_publisher import VizMarkerPublisher
 from coraplex.ros_utils.robot_state_updater import WorldStateUpdater
 from tf.transformations import quaternion_from_matrix
 from coraplex.robot_plans import *
-from coraplex.process_module import real_robot
+from coraplex.plans.context_extensions import RobotAccess
+from coraplex.plans.executors import RobotPlanExecutor
+from cramph.statechart import Statechart
 from coraplex.external_interfaces.giskard import sync_worlds
 from coraplex.robot_plans import *
 from cramph.composites import Sequence
@@ -61,13 +63,13 @@ giskard_wrapper.execute()
 ```
 
 ```python
-from coraplex.plans.plan_execution import PlanExecutor
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 
-executor = PlanExecutor(context)
-with real_robot:
-    executor.compile(ParkArmsAction(robot.all_arms))
-    executor.execute()
+executor = RobotPlanExecutor(world, context_extensions=[RobotAccess(robot)])
+statechart = Statechart(context=executor.context)
+statechart.add_node(ParkArmsAction(robot.all_arms))
+executor.compile(statechart)
+executor.execute()
 ```
 
 Now, we define a search space for the GCS algorithm around the open drawer and the robot, and calculate the connectivity graph.
@@ -106,7 +108,6 @@ For the path that we provide here the first value is skipped as that is equal to
 
 ```python
 print('move along path to goal pose...')
-from coraplex.plans.plan_execution import PlanExecutor
 
 
 def follow_path(waypoints):
@@ -114,7 +115,7 @@ def follow_path(waypoints):
     return Sequence(
         nodes=[
             CartesianPose(
-                root_link=context.controlled_root,
+                root_link=RobotAccess(robot).controlled_root,
                 tip_link=tool_frame,
                 goal_pose=pose,
             )
@@ -123,10 +124,11 @@ def follow_path(waypoints):
     )
 
 
-with real_robot:
-    executor = PlanExecutor(context)
-    executor.compile(follow_path(path[1:]))
-    executor.execute()
+executor = RobotPlanExecutor(world, context_extensions=[RobotAccess(robot)])
+statechart = Statechart(context=executor.context)
+statechart.add_node(follow_path(path[1:]))
+executor.compile(statechart)
+executor.execute()
 ```
 
 Alternatively, before executing the planned path the path could be further improved by postprocessing the output from the GCS path finding algorithm.
@@ -156,10 +158,10 @@ print(len(new_path))
 ```
 
 ```python
-from coraplex.plans.plan_execution import PlanExecutor
 print('move along path to goal pose...')
-with real_robot:
-    executor = PlanExecutor(context)
-    executor.compile(follow_path(filter_path(path)))
-    executor.execute()
+executor = RobotPlanExecutor(world, context_extensions=[RobotAccess(robot)])
+statechart = Statechart(context=executor.context)
+statechart.add_node(follow_path(filter_path(path)))
+executor.compile(statechart)
+executor.execute()
 ```

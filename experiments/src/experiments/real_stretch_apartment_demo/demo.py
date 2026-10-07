@@ -28,11 +28,15 @@ and an empty scene aborts with :class:`~coraplex.exceptions.NothingDetected`. Ad
 classifying annotator to that engine removes both without changing this demo.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
+from typing_extensions import List
 
-from coraplex.datastructures.dataclasses import Context
+from coraplex.plans.context_extensions import RobotAccess
+from coraplex.plans.plan_transformation import PlanTransformation
+from cramph.context import ContextExtension, StatechartContext
+from cramph.statechart import Statechart
 from coraplex.datastructures.enums import (
     DetectionTechnique,
     ExecutionType,
@@ -101,6 +105,10 @@ class StretchApartmentDemonstration(RobotDemonstration):
 
     ros_node_name: str = "stretch_demo_node"
 
+    plan_transformations: List[PlanTransformation] = field(
+        default_factory=lambda: [DetectBeforeGrasp()]
+    )
+
     def build_simulated_world(self) -> World:
         """
         Put the Stretch on its drive in a world holding nothing but a map body.
@@ -141,37 +149,28 @@ class StretchApartmentDemonstration(RobotDemonstration):
             parent_connection_specification=Connection6DoFSpecification(),
         ).spawn(world, parent=world.get_body_by_name(CEREAL_SHELF_LAYER_NAME))
 
-    def build_context(self, world: World) -> Context:
+    def build_context_extensions(self, world: World) -> List[ContextExtension]:
         """
-        Build the plan context around the Stretch in ``world``.
-
-        ..note:: The ROS node has to be in the context for a real robot.
+        Give the plan the Stretch in ``world``.
         """
-        return Context(
-            world=world,
-            robot=world.get_semantic_annotations_by_type(self.used_robot)[0],
-            ros_node=self.ros_node,
-            evaluate_conditions=False,
-            alternative_motion_mappings=self.alternative_motion_mappings,
-            plan_transformations=[DetectBeforeGrasp()],
-            _debug=self.debug,
-        )
+        return [RobotAccess(world.get_semantic_annotations_by_type(self.used_robot)[0])]
 
-    def build_plan(self, context: Context) -> Sequence:
+    def build_statechart(self, context: StatechartContext) -> Statechart:
         """
         Carry the cereal box from its shelf to the bedside table and back again.
         """
         world = context.world
+        robot = context.require_extension(RobotAccess).robot
 
         cereal = world.get_semantic_annotations_by_type(CheezeIt)[0]
-        arm = context.robot.all_arms[0]
+        arm = robot.all_arms[0]
         shelf_layer_body = world.get_body_by_name(CEREAL_SHELF_LAYER_NAME)
         bedside_table_body = world.get_body_by_name("bedside_table.dae")
         CEREAL_SHELF_LAYER_T_CEREAL.reference_frame = shelf_layer_body
 
         plan = Sequence(
             [
-                ParkArmsAction(context.robot.all_arms),
+                ParkArmsAction(robot.all_arms),
                 SetGripperAction(arm.end_effector, motion=GripperState.CLOSE),
                 NavigateAction(
                     Pose.from_xyz_rpy(
@@ -197,7 +196,7 @@ class StretchApartmentDemonstration(RobotDemonstration):
                     cereal.grasp_candidates()[0],
                     arm,
                 ),
-                ParkArmsAction(context.robot.all_arms),
+                ParkArmsAction(robot.all_arms),
                 NavigateAction(
                     Pose.from_xyz_rpy(
                         0.8, 0, 0, yaw=np.pi, reference_frame=bedside_table_body
@@ -212,7 +211,7 @@ class StretchApartmentDemonstration(RobotDemonstration):
                         reference_frame=bedside_table_body,
                     ),
                 ),
-                ParkArmsAction(context.robot.all_arms),
+                ParkArmsAction(robot.all_arms),
                 SetGripperAction(arm.end_effector, motion=GripperState.CLOSE),
                 NavigateAction(
                     Pose.from_xyz_rpy(
@@ -240,7 +239,7 @@ class StretchApartmentDemonstration(RobotDemonstration):
                         arm=arm,
                     )
                 ),
-                ParkArmsAction(context.robot.all_arms),
+                ParkArmsAction(robot.all_arms),
                 NavigateAction(
                     Pose.from_xyz_rpy(
                         0.8, 0.6, 0, yaw=-np.pi / 2, reference_frame=world.root
@@ -252,12 +251,14 @@ class StretchApartmentDemonstration(RobotDemonstration):
                         target_location=CEREAL_SHELF_LAYER_T_CEREAL.to_pose(),
                     )
                 ),
-                ParkArmsAction(context.robot.all_arms),
+                ParkArmsAction(robot.all_arms),
                 SetGripperAction(arm.end_effector, motion=GripperState.CLOSE),
             ]
         )
 
-        return plan
+        statechart = Statechart(context=context)
+        statechart.add_node(plan)
+        return statechart
 
 
 def main(

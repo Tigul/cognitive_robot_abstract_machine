@@ -2,8 +2,6 @@ import pytest
 
 from krrood.ormatic.data_access_objects.helper import to_dao
 from krrood.ormatic.exceptions import QueryCannotBePersisted
-from coraplex.datastructures.dataclasses import Context
-from coraplex.execution_environment import simulated_robot
 from coraplex.orm.ormatic_interface import *  # type: ignore
 from coraplex.robot_plans.actions.composite.transporting import (
     MoveAndPickUpAction,
@@ -12,17 +10,20 @@ from coraplex.robot_plans.actions.composite.transporting import (
 )
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
-from coraplex.plans.plan_execution import PlanExecutor
 from cramph.composites import Sequence
 from cramph.node import StatechartNode
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
+from ...plan_running import simulated_executor, statechart_of
+from ...sampling import SAMPLING_SEED
+from cramph.context import ContextExtension
+from typing_extensions import List
 
 
 @pytest.fixture()
 def simple_plan(pr2_apartment_context):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
 
     plan = Sequence(
         [
@@ -50,21 +51,20 @@ def _stored_and_loaded(session, plan: StatechartNode) -> StatechartNode:
     return session.get(type(dao), database_id).from_dao()
 
 
-def _executed(plan: StatechartNode, context: Context) -> None:
+def _executed(plan: StatechartNode, extensions: List[ContextExtension]) -> None:
     """
     Execute `plan` in simulation.
     """
-    executor = PlanExecutor(context)
-    with simulated_robot:
-        executor.compile(plan)
-        executor.execute()
+    executor = simulated_executor(extensions)
+    executor.compile(statechart_of(executor, plan))
+    executor.execute()
 
 
 def test_a_performed_plan_is_read_back_with_its_steps(
     coraplex_testing_session, pr2_apartment_context, simple_plan
 ):
-    world, robot_view, context = pr2_apartment_context
-    _executed(simple_plan, context)
+    world, robot_view, extensions = pr2_apartment_context
+    _executed(simple_plan, extensions)
 
     recreated_plan = _stored_and_loaded(coraplex_testing_session, simple_plan)
 
@@ -81,8 +81,7 @@ def complex_plan(pr2_apartment_context):
     A plan transporting the milk with steps that are grounded already, standing where
     the transport described by queries grounds its steps to.
     """
-    world, robot_view, context = pr2_apartment_context
-    context.evaluate_conditions = False
+    world, robot_view, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     plan = TransportAction(
@@ -91,7 +90,7 @@ def complex_plan(pr2_apartment_context):
                 1.63, 1.98, 0.0, reference_frame=world.root
             ),
             grasp=milk.grasp_candidates()[0],
-            arm=context.robot.left_arm,
+            arm=robot_view.left_arm,
         ),
         place=MoveAndPlaceAction.from_standing_position(
             standing_position=Pose.from_xyz_rpy(
@@ -113,8 +112,8 @@ def test_a_performed_transport_is_read_back(
     """
     A performed plan holding a transport is persisted and recreated from the database.
     """
-    world, robot_view, context = pr2_apartment_context
-    _executed(complex_plan, context)
+    world, robot_view, extensions = pr2_apartment_context
+    _executed(complex_plan, extensions)
 
     recreated_plan = _stored_and_loaded(coraplex_testing_session, complex_plan)
 
@@ -130,12 +129,13 @@ def test_a_plan_whose_transport_still_holds_queries_cannot_be_stored(
     A step still described by a query has no value to store until it is grounded, so
     storing it is refused rather than writing something that cannot be read back.
     """
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
     transport = TransportAction.from_graspable_by_closest_grasps(
         world.get_semantic_annotations_by_type(Milk)[0],
         Pose.from_xyz_quaternion(2.4, 2.8, 1, 0, 0, 0, 1, reference_frame=world.root),
-        context.robot.left_arm,
-        context,
+        robot_view.left_arm,
+        robot_view,
+        seed=SAMPLING_SEED,
     )
 
     with pytest.raises(QueryCannotBePersisted) as failure:

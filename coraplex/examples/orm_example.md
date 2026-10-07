@@ -46,7 +46,6 @@ it takes the milk by and with which arm. A step that is still an EQL query, as t
 
 ```python
 from coraplex.robot_plans import *
-from coraplex.execution_environment import simulated_robot
 from coraplex.robot_plans.actions.composite.transporting import (
     MoveAndPickUpAction,
     MoveAndPlaceAction,
@@ -56,13 +55,26 @@ from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
 from coraplex.testing import setup_world
 from semantic_digital_twin.robots.pr2 import PR2, TorsoState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
-from coraplex.datastructures.dataclasses import Context
-from coraplex.plans.plan_execution import PlanExecutor
 from cramph.composites import Sequence
 
 world = setup_world()
 pr2_view = PR2.from_world(world)
-context = Context(world, pr2_view)
+from coraplex.plans.context_extensions import RobotAccess
+from coraplex.plans.executors import SimulatedPlanExecutor
+from cramph.statechart import Statechart
+
+extensions = [RobotAccess(pr2_view)]
+
+def run(plan):
+    """
+    Run `plan` simulated in `world`, with the robot and settings in `extensions`.
+    """
+    executor = SimulatedPlanExecutor(world, context_extensions=extensions)
+    statechart = Statechart(context=executor.context)
+    statechart.add_node(plan)
+    executor.compile(statechart)
+    executor.execute()
+    return executor
 
 milk = world.get_semantic_annotations_by_type(Milk)[0]
 description = TransportAction(
@@ -81,10 +93,7 @@ description = TransportAction(
 )
 plan = Sequence([MoveTorsoAction(TorsoState.HIGH),
                    description])
-with simulated_robot:
-    executor = PlanExecutor(context)
-    executor.compile(plan)
-    executor.execute()
+run(plan)
 ```
 
 The data obtained throughout the plan execution, including robot states, poses, action descriptions and more will be

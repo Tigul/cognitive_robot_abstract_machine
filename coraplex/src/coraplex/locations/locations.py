@@ -6,7 +6,6 @@ from dataclasses import dataclass, field
 import numpy as np
 from typing_extensions import Iterator
 
-from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import ReachFraction
 from coraplex.locations.base import Location
 from coraplex.locations.costmaps import (
@@ -15,7 +14,7 @@ from coraplex.locations.costmaps import (
     RingCostmap,
     VisibilityCostmap,
 )
-from semantic_digital_twin.robots.robot_parts import Arm
+from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 
@@ -26,9 +25,9 @@ class CostmapLocation(Location, ABC):
     they are sampled.
     """
 
-    context: Context = field(kw_only=True)
+    robot: AbstractRobot = field(kw_only=True)
     """
-    The context holding the robot and the world the costmap is built from.
+    The robot to stand, whose world the costmap is built from.
     """
 
     map_resolution: float = field(default=0.02, kw_only=True)
@@ -40,14 +39,6 @@ class CostmapLocation(Location, ABC):
     """
     Number of cells along each side of that costmap.
     """
-
-    def __post_init__(self) -> None:
-        """
-        Take the plan's sampling seed unless this location has its own.
-        """
-        if self.seed is not None:
-            return
-        self.seed = self.context.sampling_seed
 
     @abstractmethod
     def costmap(self) -> Costmap:
@@ -65,7 +56,8 @@ class CostmapLocation(Location, ABC):
         :return: Where `pose` is in the world frame now, so a pose given relative to a
             body follows that body.
         """
-        return self.context.world.transform(pose, self.context.world.root)
+        world = self.robot._world
+        return world.transform(pose, world.root)
 
 
 @dataclass
@@ -103,13 +95,12 @@ class ReachabilityLocation(CostmapLocation):
         """
         target_pose = self._in_world(self.target_pose)
         occupancy = OccupancyCostmap.default_map(
-            context=self.context,
+            robot=self.robot,
             target=target_pose,
             resolution=self.map_resolution,
             cells=self.map_cells,
         )
         ring = RingCostmap.from_arm_reach_distance(
-            context=self.context,
             arm=self.arm,
             origin=target_pose,
             reach_fraction=self.reach_fraction,
@@ -152,9 +143,9 @@ class VisibilityLocation(CostmapLocation):
             view.
         """
         target_pose = self._in_world(self.target_pose)
-        camera = self.context.robot.get_default_camera()
+        camera = self.robot.get_default_camera()
         occupancy = OccupancyCostmap.default_map(
-            context=self.context,
+            robot=self.robot,
             target=target_pose,
             resolution=self.map_resolution,
             cells=self.map_cells,
@@ -162,7 +153,7 @@ class VisibilityLocation(CostmapLocation):
         visibility = VisibilityCostmap(
             minimum_height=camera.minimal_height,
             maximum_height=camera.maximal_height,
-            world=self.context.world,
+            world=self.robot._world,
             width=self.map_cells,
             height=self.map_cells,
             resolution=self.map_resolution,

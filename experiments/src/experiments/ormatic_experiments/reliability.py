@@ -19,10 +19,11 @@ from sqlalchemy import select
 from sqlalchemy.orm import sessionmaker
 
 import coraplex.orm.ormatic_interface  # type: ignore  # noqa: F401
-from coraplex.datastructures.dataclasses import Context
-from coraplex.execution_environment import simulated_robot
+from coraplex.plans.context_extensions import RobotAccess, StatementGrounding
+from cramph.context import ContextExtension
+from cramph.statechart import Statechart
 from coraplex.orm.ormatic_interface import Base  # type: ignore
-from coraplex.plans.plan_execution import PlanExecutor
+from coraplex.plans.executors import SimulatedPlanExecutor
 from coraplex.plans.underspecified import UnderspecifiedNode
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from experiments.experiment_definitions import (
@@ -74,7 +75,8 @@ def _build_hsrb_world() -> World:
 
 def build_cram_world():
     """
-    Build an HSRB+apartment world and return ``(world, hsrb, context)``.
+    Build an HSRB+apartment world and return ``(world, hsrb, extensions)``, the
+    extensions being what its plans read from their context.
     """
     hsrb_world = _build_hsrb_world()
     apartment = URDFParser.from_file(str(_APARTMENT_URDF)).parse()
@@ -83,13 +85,11 @@ def build_cram_world():
         HomogeneousTransformationMatrix.from_xyz_rpy(1.3, 2, 0)
     )
     hsrb = hsrb_world.get_semantic_annotations_by_type(HSRB)[0]
-    ctx = Context(
-        hsrb_world,
-        hsrb,
-        evaluate_conditions=False,
-        query_backend=ProbabilisticBackend(),
-    )
-    return hsrb_world, hsrb, ctx
+    extensions = [
+        RobotAccess(hsrb),
+        StatementGrounding(query_backend=ProbabilisticBackend()),
+    ]
+    return hsrb_world, hsrb, extensions
 
 
 def _random_navigate_action(world: World):
@@ -141,7 +141,7 @@ class ORMaticReliabilityExperimentResult(ExperimentResult):
 
     plan_execution_duration: float
     """
-    Seconds to execute the plan under simulated_robot.
+    Seconds to execute the plan with a simulated executor.
     """
 
     to_data_access_object_duration: float
@@ -183,7 +183,7 @@ class ORMaticReliabilityAggregateResult(ExperimentResult):
 
     plan_execution_duration: MeanAndStandardDeviation
     """
-    Mean and standard deviation of plan execution time under simulated_robot (seconds).
+    Mean and standard deviation of plan execution time in simulation (seconds).
     """
 
     to_data_access_object_duration: MeanAndStandardDeviation
@@ -210,7 +210,7 @@ class ORMaticReliabilityAggregateResult(ExperimentResult):
 def reliability_experiment(
     plan_size: int,
     world: World,
-    context: Context,
+    extensions: List[ContextExtension],
     world_building_duration: float,
 ) -> ORMaticReliabilityExperimentResult:
     """
@@ -219,17 +219,18 @@ def reliability_experiment(
 
     :param plan_size: Number of actions to include in the random plan.
     :param world: The pre-built world to create the plan in.
-    :param context: The execution context.
+    :param extensions: What the plan reads from its context.
     :param world_building_duration: Pre-measured world building time (s).
     :return: Timing breakdown for this single run.
     """
     plan = create_plan(world, plan_size)
 
     t0 = time.perf_counter()
-    executor = PlanExecutor(context)
-    with simulated_robot:
-        executor.compile(plan)
-        executor.execute()
+    executor = SimulatedPlanExecutor(world, context_extensions=extensions)
+    statechart = Statechart(context=executor.context)
+    statechart.add_node(plan)
+    executor.compile(statechart)
+    executor.execute()
     plan_execution_duration = time.perf_counter() - t0
 
     t0 = time.perf_counter()
@@ -290,10 +291,12 @@ def run_reliability_experiment(
     raw = []
     for _ in range(iterations):
         t0 = time.perf_counter()
-        world, _, ctx = build_cram_world()
+        world, _, extensions = build_cram_world()
         world_building_duration = time.perf_counter() - t0
 
-        result = reliability_experiment(plan_size, world, ctx, world_building_duration)
+        result = reliability_experiment(
+            plan_size, world, extensions, world_building_duration
+        )
         raw.append(result)
 
     aggregate = ORMaticReliabilityAggregateResult(

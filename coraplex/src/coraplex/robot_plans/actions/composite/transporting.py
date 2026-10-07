@@ -2,10 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from typing_extensions import Self
+from typing_extensions import Optional, Self
 
 from krrood.entity_query_language.factories import a, variable
-from coraplex.datastructures.dataclasses import Context
 from coraplex.locations.locations import ReachabilityLocation
 from coraplex.plans.underspecified import UnderspecifiedNode
 from cramph.composites import Sequence
@@ -24,7 +23,7 @@ from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from krrood.entity_query_language.query.match import Match
-from semantic_digital_twin.robots.robot_parts import Arm
+from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm
 from semantic_digital_twin.grasping.grasp_candidates import (
     GraspCandidate,
     HasGraspCandidates,
@@ -56,8 +55,9 @@ class TransportAction(Action):
         graspable: HasGraspCandidates,
         target_location: Pose,
         arm: Arm,
-        context: Context,
+        robot: AbstractRobot,
         number_of_grasps: int = IsAmongTheClosestGraspsTo.number_of_grasps,
+        seed: Optional[int] = None,
     ) -> Self:
         """
         A transport that takes `graspable` to `target_location`, standing wherever each
@@ -67,9 +67,10 @@ class TransportAction(Action):
         :param graspable: The object to transport.
         :param target_location: Where to put the object down.
         :param arm: The arm that carries the object.
-        :param context: The context the standing poses are sampled in.
+        :param robot: The robot performing the steps.
         :param number_of_grasps: How many of the object's grasps closest to a standing
             pose are tried from there.
+        :param seed: Seed for sampling the standing poses; ``None`` samples afresh.
         :return: The transport, standing near the object to pick it up and near the
             target to place it.
         """
@@ -77,15 +78,16 @@ class TransportAction(Action):
             pick_up=MoveAndPickUpAction.from_graspable_by_closest_grasps(
                 graspable=graspable,
                 arm=arm,
-                context=context,
+                robot=robot,
                 number_of_grasps=number_of_grasps,
+                seed=seed,
             ),
             place=a(MoveAndPlaceAction)(
                 navigate=a(NavigateAction)(
                     target_location=variable(
                         Pose,
                         domain=ReachabilityLocation(
-                            target_pose=target_location, arm=arm, context=context
+                            target_pose=target_location, arm=arm, robot=robot, seed=seed
                         ),
                     )
                 ),
@@ -249,8 +251,9 @@ class MoveAndPickUpAction(Action):
         cls,
         graspable: HasGraspCandidates,
         arm: Arm,
-        context: Context,
+        robot: AbstractRobot,
         number_of_grasps: int = IsAmongTheClosestGraspsTo.number_of_grasps,
+        seed: Optional[int] = None,
     ) -> Match:
         """
         A pick-up of `graspable`, standing wherever it can be reached from and taking it
@@ -261,9 +264,10 @@ class MoveAndPickUpAction(Action):
 
         :param graspable: The object to pick up.
         :param arm: The arm to pick up with.
-        :param context: The context the standing poses are sampled in.
+        :param robot: The robot performing the steps.
         :param number_of_grasps: How many of the object's grasps closest to a standing
             pose are tried from there.
+        :param seed: Seed for sampling the standing poses; ``None`` samples afresh.
         :return: The pick-up, with the standing pose and the grasp left open.
         """
         grasps = graspable.grasp_candidates()
@@ -273,7 +277,7 @@ class MoveAndPickUpAction(Action):
                 target_location=variable(
                     Pose,
                     domain=ReachabilityLocation(
-                        target_pose=object_pose, arm=arm, context=context
+                        target_pose=object_pose, arm=arm, robot=robot, seed=seed
                     ),
                 )
             ),

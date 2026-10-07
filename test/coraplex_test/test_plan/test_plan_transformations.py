@@ -3,17 +3,14 @@ from dataclasses import dataclass, field
 
 import numpy as np
 import pytest
-from typing_extensions import List, Optional
+from typing_extensions import Iterable, List, Optional
 
-from coraplex.datastructures.dataclasses import Context
 from coraplex.datastructures.enums import InsertionPosition, ReachFraction
 from coraplex.exceptions import (
     CannotInsertBesideRoot,
     CannotMatchOnType,
     ReachHasNoFinalApproach,
 )
-from coraplex.execution_environment import no_execution
-from coraplex.plans.plan_execution import PlanExecutor
 from coraplex.plans.plan_transformation import (
     InsertionTransformation,
     PlanTransformation,
@@ -66,19 +63,28 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 
 from ..test_transporting import pick_and_place_of_the_milk
+from ...plan_running import simulated_executor, statechart_of
+from ...sampling import SAMPLING_SEED
+from cramph.context import ContextExtension
 
 # %% expanding a plan without running it
 
 
-def rewritten(plan: StatechartNode, context: Context) -> StatechartNode:
+def rewritten(
+    plan: StatechartNode,
+    extensions: List[ContextExtension],
+    plan_transformations: Iterable[PlanTransformation] = (),
+) -> StatechartNode:
     """
-    Expand `plan` in the statechart that would run it, which also rewrites it with the
-    plan transformations of `context`, without running it.
+    Expand `plan` in the statechart that would run it, which also rewrites it with
+    `plan_transformations`, without running it.
 
-    :return:`plan`.
+    :return: The plan, rewritten.
     """
-    with no_execution:
-        PlanExecutor(context).compile(plan)
+    executor = simulated_executor(
+        extensions, plan_transformations=list(plan_transformations)
+    )
+    executor.prepare(statechart_of(executor, plan))
     return plan
 
 
@@ -380,10 +386,10 @@ def test_a_transformation_the_case_needs_is_applied(pr2_apartment_context):
     """
     A node the transformation matches and whose case needs it is rewritten.
     """
-    world, view, context = pr2_apartment_context
-    context.plan_transformations.append(MoveGripperBeforeHighTorso())
+    world, view, extensions = pr2_apartment_context
+    plan_transformations = [MoveGripperBeforeHighTorso()]
 
-    plan = rewritten(MoveTorsoAction(TorsoState.HIGH), context)
+    plan = rewritten(MoveTorsoAction(TorsoState.HIGH), extensions, plan_transformations)
 
     assert kinds_of_the_steps_of(plan) == [MoveGripper, JointPositionList]
 
@@ -393,10 +399,10 @@ def test_a_transformation_the_case_does_not_need_is_skipped(pr2_apartment_contex
     Matching the node type is not enough: a case that does not need the transformation
     keeps the plan the action describes itself.
     """
-    world, view, context = pr2_apartment_context
-    context.plan_transformations.append(MoveGripperBeforeHighTorso())
+    world, view, extensions = pr2_apartment_context
+    plan_transformations = [MoveGripperBeforeHighTorso()]
 
-    plan = rewritten(MoveTorsoAction(TorsoState.LOW), context)
+    plan = rewritten(MoveTorsoAction(TorsoState.LOW), extensions, plan_transformations)
 
     assert kinds_of_the_steps_of(plan) == [JointPositionList]
 
@@ -408,12 +414,13 @@ def test_a_transformation_bound_to_a_base_type_reaches_every_action(
     Binding the base type of all actions selects actions of every type, which a binding
     to one action type cannot express.
     """
-    world, view, context = pr2_apartment_context
-    context.plan_transformations.append(MoveGripperBeforeEveryAction())
+    world, view, extensions = pr2_apartment_context
+    plan_transformations = [MoveGripperBeforeEveryAction()]
 
     plan = rewritten(
         Sequence([MoveTorsoAction(TorsoState.HIGH), ParkArmsAction(view.all_arms)]),
-        context,
+        extensions,
+        plan_transformations,
     )
 
     assert kinds_of_the_steps_of(plan) == [
@@ -431,7 +438,7 @@ def test_a_transformation_bound_to_an_action_type_selects_the_actions_of_it(
     A transformation bound to an action type reports that type and selects the actions
     of it, leaving every other node alone.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     transformation = MoveGrippersBeforeTorsoMotion()
     torso = MoveTorsoAction(TorsoState.HIGH)
     parking = ParkArmsAction(view.all_arms)
@@ -448,7 +455,7 @@ def test_a_transformation_bound_to_the_base_type_selects_every_action(
     A transformation bound to the base type of all actions reports that type and selects
     every action, but not the language node holding them.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     transformation = MoveGripperBeforeEveryAction()
     torso = MoveTorsoAction(TorsoState.HIGH)
 
@@ -465,10 +472,10 @@ def test_a_transformation_inserts_its_nodes_before_the_anchor(pr2_apartment_cont
     The nodes are placed in front of the anchor, keeping the order the transformation
     gives them.
     """
-    world, view, context = pr2_apartment_context
-    context.plan_transformations.append(MoveGrippersBeforeTorsoMotion())
+    world, view, extensions = pr2_apartment_context
+    plan_transformations = [MoveGrippersBeforeTorsoMotion()]
 
-    plan = rewritten(MoveTorsoAction(TorsoState.HIGH), context)
+    plan = rewritten(MoveTorsoAction(TorsoState.HIGH), extensions, plan_transformations)
 
     steps = steps_of(plan)
     assert [kind_of(step) for step in steps] == [
@@ -487,10 +494,10 @@ def test_a_transformation_inserts_its_nodes_after_the_anchor(pr2_apartment_conte
     Inserting after the anchor keeps the given order too, rather than reversing it by
     pushing every node into the same place behind the anchor.
     """
-    world, view, context = pr2_apartment_context
-    context.plan_transformations.append(MoveGrippersAfterTorsoMotion())
+    world, view, extensions = pr2_apartment_context
+    plan_transformations = [MoveGrippersAfterTorsoMotion()]
 
-    plan = rewritten(MoveTorsoAction(TorsoState.HIGH), context)
+    plan = rewritten(MoveTorsoAction(TorsoState.HIGH), extensions, plan_transformations)
 
     steps = steps_of(plan)
     assert [kind_of(step) for step in steps] == [
@@ -511,11 +518,11 @@ def test_a_transformation_inserts_its_nodes_as_the_last_child_of_the_anchor(
     Inserting as the last child makes the node a child of the anchor instead of its
     sibling.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    context.plan_transformations.append(MoveGripperLastInTheReachBody())
+    plan_transformations = [MoveGripperLastInTheReachBody()]
 
-    plan = rewritten(reach_action(milk, view), context)
+    plan = rewritten(reach_action(milk, view), extensions, plan_transformations)
 
     assert kinds_of_the_steps_of(plan) == [CartesianPose, CartesianPose, MoveGripper]
 
@@ -524,10 +531,10 @@ def test_a_transformation_leaves_actions_of_another_type_alone(pr2_apartment_con
     """
     A transformation bound to one action type must not rewrite the plan of another one.
     """
-    world, view, context = pr2_apartment_context
-    context.plan_transformations.append(MoveGrippersBeforeTorsoMotion())
+    world, view, extensions = pr2_apartment_context
+    plan_transformations = [MoveGrippersBeforeTorsoMotion()]
 
-    plan = rewritten(ParkArmsAction(view.all_arms), context)
+    plan = rewritten(ParkArmsAction(view.all_arms), extensions, plan_transformations)
 
     assert [node for node in plan.descendants if isinstance(node, MoveGripper)] == []
 
@@ -537,10 +544,10 @@ def test_an_inserted_action_is_expanded(pr2_apartment_context):
     The inserted nodes join the statechart, so an inserted action is expanded like any
     other instead of staying an unexpanded leaf.
     """
-    world, view, context = pr2_apartment_context
-    context.plan_transformations.append(ParkArmsBeforeTorsoMotion())
+    world, view, extensions = pr2_apartment_context
+    plan_transformations = [ParkArmsBeforeTorsoMotion()]
 
-    plan = rewritten(MoveTorsoAction(TorsoState.HIGH), context)
+    plan = rewritten(MoveTorsoAction(TorsoState.HIGH), extensions, plan_transformations)
 
     [park] = [node for node in plan.descendants if isinstance(node, ParkArmsAction)]
     assert kinds_of_the_steps_of(park) == [JointPositionList]
@@ -553,11 +560,11 @@ def test_a_neighbour_of_a_node_no_language_node_runs_is_rejected(
     Only a plan language node can hold a new neighbour, so a plan that is a single
     action has no place for one in front of it.
     """
-    world, view, context = pr2_apartment_context
-    context.plan_transformations.append(MoveGripperBeforeEveryAction())
+    world, view, extensions = pr2_apartment_context
+    plan_transformations = [MoveGripperBeforeEveryAction()]
 
     with pytest.raises(CannotInsertBesideRoot):
-        rewritten(MoveTorsoAction(TorsoState.HIGH), context)
+        rewritten(MoveTorsoAction(TorsoState.HIGH), extensions, plan_transformations)
 
 
 # %% detecting before a grasp
@@ -568,11 +575,11 @@ def test_the_detection_asks_for_the_object_being_reached_for(pr2_apartment_conte
     The detection has to ask for the object the reach was given, so that a plan grasping
     something else does not query for the wrong thing.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    context.plan_transformations.append(DetectBeforeGrasp())
+    plan_transformations = [DetectBeforeGrasp()]
 
-    plan = rewritten(reach_action(milk, view), context)
+    plan = rewritten(reach_action(milk, view), extensions, plan_transformations)
 
     [detection] = detect_actions_of(plan)
     assert detection.object_sem_annotation is type(milk)
@@ -583,11 +590,11 @@ def test_the_perception_precedes_the_final_approach(pr2_apartment_context):
     Perceiving is only worth anything before the approach it corrects, so the look and
     the detection go in front of the reach's last step.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    context.plan_transformations.append(DetectBeforeGrasp())
+    plan_transformations = [DetectBeforeGrasp()]
 
-    plan = rewritten(reach_action(milk, view), context)
+    plan = rewritten(reach_action(milk, view), extensions, plan_transformations)
 
     assert kinds_of_the_steps_of(plan) == [
         CartesianPose,
@@ -598,7 +605,7 @@ def test_the_perception_precedes_the_final_approach(pr2_apartment_context):
 
 
 def test_a_reach_not_yet_expanded_has_no_final_approach(pr2_apartment_context):
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     with pytest.raises(ReachHasNoFinalApproach):
@@ -610,10 +617,10 @@ def test_a_reach_does_not_perceive_without_the_transformation(pr2_apartment_cont
     A reach acts on the pose the world already holds, so it must not spend a detection
     the caller did not ask for.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
-    plan = rewritten(reach_action(milk, view), context)
+    plan = rewritten(reach_action(milk, view), extensions)
 
     assert detect_actions_of(plan) == []
 
@@ -623,11 +630,15 @@ def test_a_transformation_on_reaches_also_fires_inside_a_pick_up(pr2_apartment_c
     The reach a pick-up builds is expanded like any other, so a transformation on
     reaches reaches it without the pick-up having to pass anything down.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    context.plan_transformations.append(DetectBeforeGrasp())
+    plan_transformations = [DetectBeforeGrasp()]
 
-    plan = rewritten(PickUpAction(milk.grasp_candidates()[0], view.right_arm), context)
+    plan = rewritten(
+        PickUpAction(milk.grasp_candidates()[0], view.right_arm),
+        extensions,
+        plan_transformations,
+    )
 
     [detection] = detect_actions_of(plan)
     assert detection.object_sem_annotation is type(milk)
@@ -694,14 +705,14 @@ def test_the_drawer_is_only_opened_for_an_object_that_lies_in_one(
     Opening a drawer is worth doing only for an object lying in one, so the pick-up of
     the spoon needs the transformation and the pick-up of the milk does not.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     spoon = world.get_semantic_annotations_by_type(Spoon)[0]
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     transformation = OpenDrawerBeforePickUp()
 
     in_a_drawer = pick_up_action(spoon, view.right_arm)
     in_the_open = pick_up_action(milk, view.right_arm)
-    rewritten(Sequence([in_a_drawer, in_the_open]), context)
+    rewritten(Sequence([in_a_drawer, in_the_open]), extensions)
 
     assert transformation.is_applicable(in_a_drawer)
     assert not transformation.is_applicable(in_the_open)
@@ -712,7 +723,7 @@ def test_a_drawer_reports_how_far_it_stands_open(pr2_apartment_context):
     How far a drawer stands open is read from its own travel, so it stands none of the
     way open at the lower limit of its joint and all of the way at the upper one.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     spoon = world.get_semantic_annotations_by_type(Spoon)[0]
     drawer = drawer_holding(spoon, world)
     connection = drawer.root.parent_connection
@@ -731,13 +742,13 @@ def test_a_drawer_that_already_stands_open_needs_no_opening(pr2_apartment_contex
     The opening is worth doing only while the drawer is shut, so a drawer that already
     stands open leaves the pick-up as it is.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     spoon = world.get_semantic_annotations_by_type(Spoon)[0]
     drawer = drawer_holding(spoon, world)
     transformation = OpenDrawerBeforePickUp()
 
     pick_up = pick_up_action(spoon, view.right_arm)
-    rewritten(Sequence([pick_up]), context)
+    rewritten(Sequence([pick_up]), extensions)
     assert transformation.is_applicable(pick_up)
 
     connection = drawer.root.parent_connection
@@ -754,11 +765,11 @@ def test_opening_a_drawer_tries_its_standing_pose_with_the_opening(
     Where the robot stands decides whether the handle can be reached, so the standing
     pose is tried together with the opening rather than chosen before it.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     drawer = drawer_holding(world.get_semantic_annotations_by_type(Spoon)[0], world)
 
     [opening] = OpenDrawerBeforeMoveAndPickUp().opening_nodes(
-        drawer, view.right_arm, context
+        drawer, view.right_arm, simulated_executor(extensions).context
     )
 
     assert is_grounding(opening, MoveAndOpenAction)
@@ -770,11 +781,11 @@ def test_opening_a_drawer_stands_where_it_is_opened_from(pr2_apartment_context):
     The robot stands back for opening a container the way it does for any container,
     rather than as close as it would to grasp something that stays put.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     drawer = drawer_holding(world.get_semantic_annotations_by_type(Spoon)[0], world)
 
     [opening] = OpenDrawerBeforeMoveAndPickUp().opening_nodes(
-        drawer, view.right_arm, context
+        drawer, view.right_arm, simulated_executor(extensions).context
     )
     standing_positions = (
         opening.statement._kwargs_["navigate"]._kwargs_["target_location"]._domain_
@@ -791,10 +802,10 @@ def test_opening_a_drawer_faces_the_handle_where_it_is_when_it_opens_it(
     The opening runs after whatever came before it in the plan, so it turns to the
     handle where that left it rather than where it was when the opening was built.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     drawer = drawer_holding(world.get_semantic_annotations_by_type(Spoon)[0], world)
     [opening] = OpenDrawerBeforeMoveAndPickUp().opening_nodes(
-        drawer, view.right_arm, context
+        drawer, view.right_arm, simulated_executor(extensions).context
     )
 
     drawer.root.parent_connection.position = OPENED_DRAWER_POSITION
@@ -818,17 +829,17 @@ def test_the_drawer_is_opened_before_a_move_and_pick_up_rather_than_inside_it(
     A move-and-pick-up drives to the object before picking it up, so the opening
     precedes the whole step, whose own drive then positions the robot at the object.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     spoon = world.get_semantic_annotations_by_type(Spoon)[0]
     drawer = drawer_holding(spoon, world)
-    context.plan_transformations.append(OpenDrawerBeforeMoveAndPickUp())
+    plan_transformations = [OpenDrawerBeforeMoveAndPickUp()]
 
     move_and_pick_up = MoveAndPickUpAction.from_standing_position(
         standing_position=Pose(reference_frame=world.root),
         grasp=spoon.grasp_candidates()[0],
         arm=view.right_arm,
     )
-    plan = rewritten(Sequence([move_and_pick_up]), context)
+    plan = rewritten(Sequence([move_and_pick_up]), extensions, plan_transformations)
 
     [opening, moved_and_picked_up] = steps_of(plan)
     assert is_grounding(opening, MoveAndOpenAction)
@@ -843,12 +854,16 @@ def test_the_drawer_the_object_lies_in_is_opened_before_the_pick_up(
     A drawer has to stand open before the gripper goes in, so the opening precedes the
     pick-up, followed by the drive back to where the object can be reached from.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     spoon = world.get_semantic_annotations_by_type(Spoon)[0]
     drawer = drawer_holding(spoon, world)
-    context.plan_transformations.append(OpenDrawerBeforePickUp())
+    plan_transformations = [OpenDrawerBeforePickUp()]
 
-    plan = rewritten(Sequence([pick_up_action(spoon, view.right_arm)]), context)
+    plan = rewritten(
+        Sequence([pick_up_action(spoon, view.right_arm)]),
+        extensions,
+        plan_transformations,
+    )
 
     [opening, parking, drive_to_the_spoon, pick_up] = steps_of(plan)
     assert is_grounding(opening, MoveAndOpenAction)
@@ -863,11 +878,15 @@ def test_the_actions_beside_the_pick_up_are_expanded(pr2_apartment_context):
     The rewrite is inserted beside the node being rewritten rather than below it, and
     the actions in it are expanded all the same.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     spoon = world.get_semantic_annotations_by_type(Spoon)[0]
-    context.plan_transformations.append(OpenDrawerBeforePickUp())
+    plan_transformations = [OpenDrawerBeforePickUp()]
 
-    plan = rewritten(Sequence([pick_up_action(spoon, view.right_arm)]), context)
+    plan = rewritten(
+        Sequence([pick_up_action(spoon, view.right_arm)]),
+        extensions,
+        plan_transformations,
+    )
 
     [_, parking, _, _] = steps_of(plan)
     assert kinds_of_the_steps_of(parking) == [JointPositionList]
@@ -878,12 +897,12 @@ def test_the_drawer_is_opened_with_the_arm_that_picks_up(pr2_apartment_context):
     Opening with the other arm would leave the robot holding the handle it has to reach
     past, so the opening takes the arm the pick-up was given.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     spoon = world.get_semantic_annotations_by_type(Spoon)[0]
-    context.plan_transformations.append(OpenDrawerBeforePickUp())
+    plan_transformations = [OpenDrawerBeforePickUp()]
 
     pick_up = pick_up_action(spoon, view.left_arm)
-    plan = rewritten(Sequence([pick_up]), context)
+    plan = rewritten(Sequence([pick_up]), extensions, plan_transformations)
 
     [opening] = [
         step for step in steps_of(plan) if is_grounding(step, MoveAndOpenAction)
@@ -896,12 +915,12 @@ def test_an_object_that_lies_in_no_drawer_is_picked_up_unchanged(pr2_apartment_c
     An object standing in the open needs no drawer opened for it, so the pick-up keeps
     the plan it describes itself.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    context.plan_transformations.append(OpenDrawerBeforePickUp())
+    plan_transformations = [OpenDrawerBeforePickUp()]
     pick_up = pick_up_action(milk, view.right_arm)
 
-    plan = rewritten(Sequence([pick_up]), context)
+    plan = rewritten(Sequence([pick_up]), extensions, plan_transformations)
 
     assert steps_of(plan) == [pick_up]
 
@@ -934,17 +953,17 @@ def test_the_opening_joins_the_sequence_a_grounded_pick_up_runs_in(
     The opening has to land in that sequence, otherwise it is not run with the
     candidate.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     spoon = world.get_semantic_annotations_by_type(Spoon)[0]
     drawer = drawer_holding(spoon, world)
-    context.plan_transformations.append(ParkArmsBeforeFirstAction())
-    context.plan_transformations.append(OpenDrawerBeforePickUp())
+    plan_transformations = [ParkArmsBeforeFirstAction()]
+    plan_transformations.append(OpenDrawerBeforePickUp())
 
     described = pick_up_action(spoon, view.right_arm)
     underspecified = UnderspecifiedNode(
         statement=a(PickUpAction)(grasp=described.grasp, arm=described.arm)
     )
-    plan = rewritten(Sequence([underspecified]), context)
+    plan = rewritten(Sequence([underspecified]), extensions, plan_transformations)
     candidate = pick_up_action(spoon, view.right_arm)
     candidate_steps = Sequence([candidate])
 
@@ -965,10 +984,12 @@ def test_the_opening_joins_the_sequence_a_grounded_pick_up_runs_in(
 
 
 def test_the_first_action_of_a_plan_is_preceded_by_parking(pr2_apartment_context):
-    world, view, context = pr2_apartment_context
-    context.plan_transformations.append(ParkArmsBeforeFirstAction())
+    world, view, extensions = pr2_apartment_context
+    plan_transformations = [ParkArmsBeforeFirstAction()]
 
-    plan = rewritten(Sequence([MoveTorsoAction(TorsoState.HIGH)]), context)
+    plan = rewritten(
+        Sequence([MoveTorsoAction(TorsoState.HIGH)]), extensions, plan_transformations
+    )
 
     assert kinds_of_the_steps_of(plan) == [ParkArmsAction, MoveTorsoAction]
 
@@ -1002,16 +1023,18 @@ def test_the_drawer_is_opened_once_in_front_of_a_move_and_pick_up_still_to_be_gr
     front of the step before it is grounded and the arms are parked again, so every
     candidate is tried with the drawer open and the arms out of the way.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     spoon = world.get_semantic_annotations_by_type(Spoon)[0]
     drawer = drawer_holding(spoon, world)
-    context.plan_transformations.append(OpenDrawerBeforeMoveAndPickUp())
+    plan_transformations = [OpenDrawerBeforeMoveAndPickUp()]
 
     move_and_pick_up = MoveAndPickUpAction.from_graspable_by_closest_grasps(
-        spoon, view.right_arm, context
+        spoon, view.right_arm, view, seed=SAMPLING_SEED
     )
     plan = rewritten(
-        Sequence([UnderspecifiedNode(statement=move_and_pick_up)]), context
+        Sequence([UnderspecifiedNode(statement=move_and_pick_up)]),
+        extensions,
+        plan_transformations,
     )
 
     [opening, parking, still_to_be_grounded] = steps_of(plan)
@@ -1029,15 +1052,19 @@ def test_the_drawer_is_opened_in_front_of_a_transports_pick_up_before_it_is_grou
     A transport's pick-up is a move-and-pick-up still to be grounded, so the drawer is
     opened once in front of it instead of with each of its candidates.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     spoon = world.get_semantic_annotations_by_type(Spoon)[0]
     drawer = drawer_holding(spoon, world)
-    context.plan_transformations.append(OpenDrawerBeforeMoveAndPickUp())
+    plan_transformations = [OpenDrawerBeforeMoveAndPickUp()]
 
     transport = TransportAction.from_graspable_by_closest_grasps(
-        spoon, Pose(reference_frame=world.root), view.right_arm, context
+        spoon,
+        Pose(reference_frame=world.root),
+        view.right_arm,
+        view,
+        seed=SAMPLING_SEED,
     )
-    plan = rewritten(Sequence([transport]), context)
+    plan = rewritten(Sequence([transport]), extensions, plan_transformations)
 
     parking = step_before(underspecified_move_and_pick_up_in(plan))
     opening = step_before(parking)
@@ -1054,10 +1081,10 @@ def test_a_move_and_pick_up_whose_grasps_are_on_several_objects_is_opened_per_ca
     Which drawer has to be opened depends on the object each candidate picks up, so
     nothing is opened before grounding; each candidate is rewritten on its own.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     spoon = world.get_semantic_annotations_by_type(Spoon)[0]
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    context.plan_transformations.append(OpenDrawerBeforeMoveAndPickUp())
+    plan_transformations = [OpenDrawerBeforeMoveAndPickUp()]
 
     standing_pose = Pose(reference_frame=world.root)
     move_and_pick_up = a(MoveAndPickUpAction)(
@@ -1074,7 +1101,9 @@ def test_a_move_and_pick_up_whose_grasps_are_on_several_objects_is_opened_per_ca
         ),
     )
     plan = rewritten(
-        Sequence([UnderspecifiedNode(statement=move_and_pick_up)]), context
+        Sequence([UnderspecifiedNode(statement=move_and_pick_up)]),
+        extensions,
+        plan_transformations,
     )
 
     [still_to_be_grounded] = steps_of(plan)
@@ -1084,29 +1113,29 @@ def test_a_move_and_pick_up_whose_grasps_are_on_several_objects_is_opened_per_ca
 def test_a_move_and_pick_up_of_an_object_in_no_drawer_is_left_alone(
     pr2_apartment_context,
 ):
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    context.plan_transformations.append(OpenDrawerBeforeMoveAndPickUp())
+    plan_transformations = [OpenDrawerBeforeMoveAndPickUp()]
     move_and_pick_up = MoveAndPickUpAction.from_standing_position(
         standing_position=Pose(reference_frame=world.root),
         grasp=milk.grasp_candidates()[0],
         arm=view.right_arm,
     )
 
-    plan = rewritten(Sequence([move_and_pick_up]), context)
+    plan = rewritten(Sequence([move_and_pick_up]), extensions, plan_transformations)
 
     assert steps_of(plan) == [move_and_pick_up]
 
 
 def test_a_transport_of_an_object_in_no_drawer_is_left_alone(pr2_apartment_context):
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
-    context.plan_transformations.append(OpenDrawerBeforeMoveAndPickUp())
+    plan_transformations = [OpenDrawerBeforeMoveAndPickUp()]
     transport = TransportAction.from_graspable_by_closest_grasps(
-        milk, Pose(reference_frame=world.root), view.right_arm, context
+        milk, Pose(reference_frame=world.root), view.right_arm, view, seed=SAMPLING_SEED
     )
 
-    plan = rewritten(Sequence([transport]), context)
+    plan = rewritten(Sequence([transport]), extensions, plan_transformations)
 
     assert isinstance(
         step_before(underspecified_move_and_pick_up_in(plan)), ParkArmsAction
@@ -1129,10 +1158,10 @@ def step_types_of(action: Action) -> List[type]:
 
 
 def test_a_pick_and_place_does_not_park_the_arms_by_itself(pr2_apartment_context):
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     pick_and_place = pick_and_place_of_the_milk(world, view.right_arm)
 
-    rewritten(Sequence([pick_and_place]), context)
+    rewritten(Sequence([pick_and_place]), extensions)
 
     assert step_types_of(pick_and_place) == [PickUpAction, PlaceAction]
 
@@ -1140,11 +1169,11 @@ def test_a_pick_and_place_does_not_park_the_arms_by_itself(pr2_apartment_context
 def test_the_arms_are_parked_around_every_step_of_a_pick_and_place(
     pr2_apartment_context,
 ):
-    world, view, context = pr2_apartment_context
-    context.plan_transformations.append(ParkArmsAroundPickAndPlaceSteps())
+    world, view, extensions = pr2_apartment_context
+    plan_transformations = [ParkArmsAroundPickAndPlaceSteps()]
     pick_and_place = pick_and_place_of_the_milk(world, view.right_arm)
 
-    rewritten(Sequence([pick_and_place]), context)
+    rewritten(Sequence([pick_and_place]), extensions, plan_transformations)
 
     assert step_types_of(pick_and_place) == [
         ParkArmsAction,
@@ -1210,14 +1239,14 @@ def test_two_transformations_applied_to_one_node_are_reported(
     Whichever transformation rewrites a node first decides what the next one finds, so a
     node more than one of them is applied to is reported.
     """
-    world, view, context = pr2_apartment_context
-    context.plan_transformations.extend(
+    world, view, extensions = pr2_apartment_context
+    plan_transformations = list(
         [MoveLeftGripperBeforeTorso(), MoveRightGripperBeforeTorso()]
     )
     torso = MoveTorsoAction(TorsoState.HIGH)
 
     with caplog.at_level(logging.WARNING, logger=transformation_logger.name):
-        rewritten(Sequence([torso]), context)
+        rewritten(Sequence([torso]), extensions, plan_transformations)
 
     [warning] = warnings_of(caplog)
     assert str(torso) in warning
@@ -1226,14 +1255,16 @@ def test_two_transformations_applied_to_one_node_are_reported(
 def test_the_transformations_that_collide_are_still_applied(pr2_apartment_context):
     """
     The report is a warning rather than a refusal, so both of them rewrite the plan, in
-    the order the context lists them.
+    the order the extensions lists them.
     """
-    world, view, context = pr2_apartment_context
-    context.plan_transformations.extend(
+    world, view, extensions = pr2_apartment_context
+    plan_transformations = list(
         [MoveLeftGripperBeforeTorso(), MoveRightGripperBeforeTorso()]
     )
 
-    plan = rewritten(Sequence([MoveTorsoAction(TorsoState.HIGH)]), context)
+    plan = rewritten(
+        Sequence([MoveTorsoAction(TorsoState.HIGH)]), extensions, plan_transformations
+    )
 
     assert [step.end_effector for step in steps_of(plan)[:2]] == [
         view.left_arm.end_effector,
@@ -1248,13 +1279,17 @@ def test_a_transformation_the_case_does_not_need_is_no_collision(
     Two transformations matching the same node type collide only where both are needed,
     so the one whose case does not apply leaves the other one alone.
     """
-    world, view, context = pr2_apartment_context
-    context.plan_transformations.extend(
+    world, view, extensions = pr2_apartment_context
+    plan_transformations = list(
         [MoveLeftGripperBeforeTorso(), MoveGripperBeforeHighTorso()]
     )
 
     with caplog.at_level(logging.WARNING, logger=transformation_logger.name):
-        plan = rewritten(Sequence([MoveTorsoAction(TorsoState.LOW)]), context)
+        plan = rewritten(
+            Sequence([MoveTorsoAction(TorsoState.LOW)]),
+            extensions,
+            plan_transformations,
+        )
 
     assert warnings_of(caplog) == []
     assert kinds_of_the_steps_of(plan) == [MoveGripper, MoveTorsoAction]

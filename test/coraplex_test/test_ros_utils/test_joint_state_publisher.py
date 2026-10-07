@@ -20,7 +20,7 @@ class DummyRobot:
 
 
 def test_initialization(pr2_apartment_context, rclpy_node):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
     node = rclpy_node
     publisher = JointStatePublisher(
         world, node, joint_state_topic="/test_topic", interval=0.05
@@ -32,7 +32,7 @@ def test_initialization(pr2_apartment_context, rclpy_node):
 
 
 def test_publish_sends_joint_state(pr2_apartment_context, rclpy_node):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
     node = rclpy_node
     mock_publisher = MagicMock()
     publisher = JointStatePublisher(world, node)
@@ -65,7 +65,7 @@ def test_publish_sends_joint_state(pr2_apartment_context, rclpy_node):
 
 
 def test_stop_publishing(pr2_apartment_context, rclpy_node):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
     node = rclpy_node
     publisher = JointStatePublisher(world, node)
     publisher.kill_event = MagicMock()

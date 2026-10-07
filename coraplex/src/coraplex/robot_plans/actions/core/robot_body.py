@@ -7,12 +7,13 @@ from typing_extensions import Optional, Dict, Any, List
 
 from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.variable import Variable
-from coraplex.datastructures.dataclasses import Context
 from krrood.entity_query_language.factories import variable_from
 from semantic_digital_twin.reasoning.predicates import allclose
 from semantic_digital_twin.robots.robot_parts import Arm, EndEffector
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
+from coraplex.plans.context_extensions import RobotAccess
+from cramph.context import StatechartContext
 from coraplex.datastructures.trajectory import PoseTrajectory
 from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.mixins import (
@@ -56,13 +57,17 @@ class MoveTorsoAction(Action):
 
     @staticmethod
     def post_condition(
-        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable],
+        context: StatechartContext,
+        kwargs: Dict[str, Any],
     ) -> SymbolicExpression | bool:
         """
         The target joint state for the torso needs to be achieved.
         """
-        joint_state = context.robot.get_torso().get_joint_state_by_type(
-            kwargs["torso_state"]
+        joint_state = (
+            context.require_extension(RobotAccess)
+            .robot.get_torso()
+            .get_joint_state_by_type(kwargs["torso_state"])
         )
         return variable_from(joint_state).is_achieved()
 
@@ -226,7 +231,9 @@ class MoveManipulatorAction(Action, MovesToolCenterPoint):
 
     @staticmethod
     def post_condition(
-        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable],
+        context: StatechartContext,
+        kwargs: Dict[str, Any],
     ) -> SymbolicExpression:
         end_effector = variables["end_effector"]
         target_pose = variables["target_pose"]

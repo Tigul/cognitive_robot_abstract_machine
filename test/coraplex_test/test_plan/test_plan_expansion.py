@@ -7,10 +7,7 @@ import pytest
 from typing_extensions import List
 
 from coraplex.datastructures.enums import DetectionTechnique
-from coraplex.execution_environment import simulated_robot
 from coraplex.perception import PerceptionQuery, PerceptionTask
-from coraplex.datastructures.dataclasses import Context
-from coraplex.plans.plan_execution import PlanExecutor, SimulatedPlanRun
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction, ReachAction
@@ -44,11 +41,14 @@ from semantic_digital_twin.world_description.geometry import VolumetricBoundingB
 
 from ..conftest import expand, motion_nodes_of, tool_center_point_goal
 from coraplex.plans.failures import PlanCancelled
+from ...plan_running import run_plan, simulated_executor, statechart_of
+from ...sampling import SAMPLING_SEED
+from cramph.context import ContextExtension
 
 # %% helpers
 
 
-def _compile(plan: StatechartNode, context: Context) -> Statechart:
+def _compile(plan: StatechartNode, extensions: List[ContextExtension]) -> Statechart:
     """
     Build the statechart that executing `plan` runs, and compile it without ticking.
 
@@ -56,9 +56,9 @@ def _compile(plan: StatechartNode, context: Context) -> Statechart:
 
     :return: The compiled statechart.
     """
-    run = SimulatedPlanRun(plan=plan, context=context)
-    with simulated_robot:
-        statechart = run.create_statechart(run.executor.context)
+    executor = simulated_executor(extensions)
+    statechart = statechart_of(executor, plan)
+    executor.prepare(statechart)
     statechart.compile()
     return statechart
 
@@ -74,9 +74,9 @@ def _nodes_of_type(root: StatechartNode, node_type: type) -> List[StatechartNode
 
 
 def test_an_action_expands_into_its_motion(pr2_apartment_context):
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
 
-    root = expand(MoveTorsoAction(TorsoState.HIGH), context)
+    root = expand(MoveTorsoAction(TorsoState.HIGH), extensions)
 
     assert [type(node) for node in _nodes_of_type(root, JointPositionList)] == [
         JointPositionList
@@ -87,11 +87,11 @@ def test_an_action_expands_into_its_motion(pr2_apartment_context):
 
 
 def test_a_sequence_holds_each_action_with_its_own_motion(pr2_apartment_context):
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
 
     root = expand(
         Sequence([MoveTorsoAction(TorsoState.LOW), MoveTorsoAction(TorsoState.HIGH)]),
-        context,
+        extensions,
     )
 
     assert [type(step) for step in root.nodes] == [MoveTorsoAction, MoveTorsoAction]
@@ -109,13 +109,13 @@ def test_pause_monitor_pauses_the_children_goal(pr2_apartment_context, rclpy_nod
     The monitor and the children's goal are siblings inside the monitored goal, which is
     what makes the pause condition legal: it may only reference a sibling.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     monitor = ConstFalseNode(name="never")
 
     plan = PausedWhileTrue(
         monitor=monitor, monitored_node=Sequence([MoveTorsoAction(TorsoState.HIGH)])
     )
-    _compile(plan, context)
+    _compile(plan, extensions)
 
     monitored_goal = plan
     assert type(monitored_goal) is PausedWhileTrue
@@ -132,13 +132,13 @@ def test_pause_until_monitor_pauses_the_children_goal(
     The children's goal is paused on the negated monitor observation, so it is held
     until the monitor turns True rather than while it is True.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     monitor = ConstFalseNode(name="never")
 
     plan = PausedUntilTrue(
         monitor=monitor, monitored_node=Sequence([MoveTorsoAction(TorsoState.HIGH)])
     )
-    _compile(plan, context)
+    _compile(plan, extensions)
 
     monitored_goal = plan
     assert type(monitored_goal) is PausedUntilTrue
@@ -149,7 +149,7 @@ def test_pause_until_monitor_pauses_the_children_goal(
 
 
 def test_cancel_monitor_ends_the_children_goal(pr2_apartment_context, rclpy_node):
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     monitor = ConstFalseNode(name="never")
 
     plan = CancelledWhenTrue(
@@ -157,7 +157,7 @@ def test_cancel_monitor_ends_the_children_goal(pr2_apartment_context, rclpy_node
         monitored_node=Sequence([MoveTorsoAction(TorsoState.HIGH)]),
         exception=PlanCancelled(monitor=monitor),
     )
-    _compile(plan, context)
+    _compile(plan, extensions)
 
     monitored_goal = plan
     assert type(monitored_goal) is CancelledWhenTrue
@@ -177,7 +177,7 @@ def test_cancel_monitor_ends_the_motion_when_the_monitor_fires(
     The monitored goal holds a node that ends the motion, so giving up on the subtree
     gives up on the plan rather than leaving the rest of it waiting.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     monitor = ConstFalseNode(name="never")
 
     plan = CancelledWhenTrue(
@@ -185,7 +185,7 @@ def test_cancel_monitor_ends_the_motion_when_the_monitor_fires(
         monitored_node=Sequence([MoveTorsoAction(TorsoState.HIGH)]),
         exception=PlanCancelled(monitor=monitor),
     )
-    _compile(plan, context)
+    _compile(plan, extensions)
 
     monitored_goal = plan
     [cancelled] = [
@@ -204,7 +204,7 @@ def test_monitored_subtree_nested_in_a_sequence_compiles(
     Compiling is the real assertion: it runs the condition scope validation that this
     structure exists to satisfy.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
 
     never = ConstFalseNode(name="never")
 
@@ -218,7 +218,7 @@ def test_monitored_subtree_nested_in_a_sequence_compiles(
             ),
         ]
     )
-    statechart = _compile(plan, context)
+    statechart = _compile(plan, extensions)
 
     assert len(statechart.get_nodes_by_type(CancelledWhenTrue)) == 1
 
@@ -227,7 +227,7 @@ def test_monitored_subtree_nested_in_a_sequence_compiles(
 
 
 def test_a_reach_runs_to_its_target(pr2_apartment_context, rclpy_node):
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
 
     milk_connection = world.get_body_by_name("milk.stl").parent_connection
     milk_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
@@ -240,10 +240,7 @@ def test_a_reach_runs_to_its_target(pr2_apartment_context, rclpy_node):
         arm=view.right_arm,
     )
 
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(reach)
-        executor.execute()
+    run_plan(reach, extensions)
 
     assert reach.life_cycle_state == LifeCycleValues.SUCCEEDED
 
@@ -255,14 +252,14 @@ def test_a_pick_up_moves_the_object_to_the_gripper_between_closing_and_lifting(
     The object only follows the gripper once it belongs to it, and has to before the
     lift, so the branch moves between the two inside the pick-up's own statechart.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
 
     root = expand(
         PickUpAction(
             world.get_semantic_annotations_by_type(Milk)[0].grasp_candidates()[0],
             view.right_arm,
         ),
-        context,
+        extensions,
     )
 
     steps = [
@@ -277,7 +274,7 @@ def test_a_pick_up_moves_the_object_to_the_gripper_between_closing_and_lifting(
 def test_a_transport_runs_with_its_underspecified_steps(
     pr2_apartment_context, rclpy_node
 ):
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
 
     plan = Sequence(
         [
@@ -287,15 +284,13 @@ def test_a_transport_runs_with_its_underspecified_steps(
                 world.get_semantic_annotations_by_type(Milk)[0],
                 Pose.from_xyz_rpy(2.37, 2.5, 1.05, reference_frame=world.root),
                 view.right_arm,
-                context,
+                view,
+                seed=SAMPLING_SEED,
             ),
         ]
     )
 
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
 
@@ -308,7 +303,7 @@ def test_perceiving_runs_between_the_motions_around_it(pr2_apartment_context):
     Perception is a step like any other, so it runs in the same statechart as the
     motions around it, in the order the plan gives.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     query = PerceptionQuery(
         Milk,
         VolumetricBoundingBox(
@@ -327,12 +322,12 @@ def test_perceiving_runs_between_the_motions_around_it(pr2_apartment_context):
     root = expand(
         Sequence(
             [
-                tool_center_point_goal(context, view.left_arm),
+                tool_center_point_goal(view, view.left_arm),
                 PerceptionTask(query=query, execution_type=None),
-                tool_center_point_goal(context, view.right_arm),
+                tool_center_point_goal(view, view.right_arm),
             ]
         ),
-        context,
+        extensions,
     )
 
     assert [
@@ -345,10 +340,10 @@ def test_perceiving_runs_between_the_motions_around_it(pr2_apartment_context):
 
 
 def test_a_detect_action_expands_into_a_perception_task(pr2_apartment_context):
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
 
     root = expand(
-        DetectAction(DetectionTechnique.TYPES, object_sem_annotation=Milk), context
+        DetectAction(DetectionTechnique.TYPES, object_sem_annotation=Milk), extensions
     )
 
     assert [type(node) for node in _nodes_of_type(root, PerceptionTask)] == [
@@ -359,15 +354,17 @@ def test_a_detect_action_expands_into_a_perception_task(pr2_apartment_context):
 # %% perceiving before the grasp
 
 
-def detect_actions_of(plan: StatechartNode, context: Context) -> List[DetectAction]:
+def detect_actions_of(
+    plan: StatechartNode, extensions: List[ContextExtension]
+) -> List[DetectAction]:
     """
     :param plan: The plan to search.
-    :param context: The context the plan is expanded in.
+    :param extensions: The extensions the plan is expanded in.
     :return: The detections the plan performs, in no particular order.
     """
     return [
         node
-        for node in motion_nodes_of(plan, context)
+        for node in motion_nodes_of(plan, extensions)
         if isinstance(node, DetectAction)
     ]
 
@@ -386,12 +383,12 @@ def test_a_reach_does_not_perceive_by_default(pr2_apartment_context):
     A reach acts on the pose the world already holds, so it must not spend a detection
     the caller did not ask for.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
     plan = reach_action(milk, view)
 
-    assert detect_actions_of(plan, context) == []
+    assert detect_actions_of(plan, extensions) == []
 
 
 # %% expansion-time pose capture
@@ -405,14 +402,14 @@ def test_pick_up_motions_follow_the_object_moved_after_expansion(pr2_apartment_c
 
     Keeping the motion targets in the object's own frame is what lets them follow it.
     """
-    world, view, context = pr2_apartment_context
+    world, view, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     milk_body = milk.root
 
     plan = PickUpAction(milk.grasp_candidates()[0], view.right_arm)
     targets = [
         node.goal_pose
-        for node in motion_nodes_of(plan, context)
+        for node in motion_nodes_of(plan, extensions)
         if isinstance(node, CartesianPose)
     ]
     positions_before = [

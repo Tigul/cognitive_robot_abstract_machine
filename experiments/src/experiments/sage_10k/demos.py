@@ -7,7 +7,10 @@ import numpy as np
 
 from krrood.entity_query_language.backends import ProbabilisticBackend
 from krrood.entity_query_language.factories import *
-from coraplex.datastructures.dataclasses import Context
+from coraplex.plans.context_extensions import RobotAccess, StatementGrounding
+from cramph.context import ContextExtension
+from semantic_digital_twin.robots.robot_parts import AbstractRobot
+from typing_extensions import List
 from experiments.sage_10k.sage10k_actions import Sage10kOpenDoor
 from coraplex.robot_plans.actions.composite.transporting import (
     MoveAndPickUpAction,
@@ -132,11 +135,15 @@ class Sage10kAbstractDemoHSRB:
         return main_entrance
 
     @cached_property
-    def context(self) -> Context:
+    def context_extensions(self) -> List[ContextExtension]:
         """
-        The context the demo's plan is executed in.
+        What the demo's plan reads from its context: the robot of the world, and the
+        probabilistic backend its statements are grounded with.
         """
-        return Context.from_world(self.world, query_backend=ProbabilisticBackend())
+        return [
+            RobotAccess(self.world.get_semantic_annotations_by_type(AbstractRobot)[0]),
+            StatementGrounding(query_backend=ProbabilisticBackend()),
+        ]
 
     @property
     def plan(self) -> StatechartNode:

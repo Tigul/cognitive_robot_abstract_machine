@@ -19,63 +19,62 @@ to move a joint, or {class}`~giskardpy.motion_statechart.goals.gripper.MoveGripp
 
 An action resolves what is coraplex's own before it builds a goal: an arm's tool frame comes from its
 {class}`~semantic_digital_twin.robots.robot_parts.EndEffector`, goal-achievement thresholds fall back to
-{attr}`~coraplex.datastructures.dataclasses.Context.motion_tolerances`, and the link a Cartesian goal is
-expressed relative to comes from {attr}`~coraplex.datastructures.dataclasses.Context.controlled_root`. The mixins in
+the {class}`~coraplex.plans.context_extensions.MotionToleranceConfig` of the context, and the link a Cartesian
+goal is expressed relative to comes from
+{attr}`~coraplex.plans.context_extensions.RobotAccess.controlled_root`. The mixins in
 {mod}`coraplex.robot_plans.mixins` do this for the goals several actions share.
 
-## The Plan Executor
+## The Plan Executors
 
-A {class}`~coraplex.plans.plan_execution.PlanExecutor` runs a whole plan as one {class}`~cramph.statechart.Statechart`.
-{meth}`~coraplex.plans.plan_execution.PlanExecutor.compile` builds that chart from the plan, adding the collision
-avoidance goals when collision avoidance is enabled and an end motion once the plan succeeded, and
-{meth}`~coraplex.plans.plan_execution.PlanExecutor.execute` runs it according to the execution type that was active
-when the plan was compiled.
+A {class}`~coraplex.plans.executors.PlanExecutor` runs a plan, the top-level nodes of a
+{class}`~cramph.statechart.Statechart` built in its context. It builds that context over its world out of the context
+extensions it is given, such as the {class}`~coraplex.plans.context_extensions.RobotAccess` of the robot performing
+the plan. {meth}`~coraplex.plans.executors.PlanExecutor.compile` adds the collision avoidance goals when collision
+avoidance is enabled and an end motion once every plan node succeeded, and
+{meth}`~coraplex.plans.executors.PlanExecutor.execute` runs the plan. An executor runs one statechart, so every plan
+gets an executor of its own.
 
 ## Choosing Between Simulated and Real Execution
 
-The execution context is selected with the {class}`~coraplex.execution_environment.ExecutionEnvironment` context
-managers. Entering an environment sets the current execution type and collision avoidance; leaving it restores the
-previous values, so environments can be nested safely.
+Which executor runs a plan decides how it is executed:
 
 ```python
-from coraplex.execution_environment import simulated_robot, real_robot
-from coraplex.plans.plan_execution import PlanExecutor
+from coraplex.plans.context_extensions import RobotAccess
+from coraplex.plans.executors import RobotPlanExecutor, SimulatedPlanExecutor
+from cramph.statechart import Statechart
 
-executor = PlanExecutor(context)
-
-with simulated_robot:
-    executor.compile(plan)
-    executor.execute()
-
-with real_robot:
-    executor.compile(plan)
-    executor.execute()
+executor = SimulatedPlanExecutor(world, context_extensions=[RobotAccess(robot)])
+statechart = Statechart(context=executor.context)
+statechart.add_node(plan)
+executor.compile(statechart)
+executor.execute()
 ```
 
-Four pre-built environments are provided in {mod}`coraplex.execution_environment`: `simulated_robot`, `real_robot`,
-`semi_real_robot` and `no_execution`. The execution type itself is the {class}`~coraplex.datastructures.enums.ExecutionType`
-enum (`SIMULATED`, `REAL`, `SEMI_REAL`, `NO_EXECUTION`).
+A plan for the real robot is built and run the same way in a
+`RobotPlanExecutor(world, context_extensions=[RobotAccess(robot)], ros_node=node)`.
+{meth}`~coraplex.plans.executors.PlanExecutor.type_for` returns the executor of an
+{class}`~coraplex.datastructures.enums.ExecutionType`, for code that is told how to execute at run time. The nodes of
+a plan read how they are executed from the {class}`~coraplex.plans.context_extensions.ExecutionMode` the executor puts
+into the context.
 
-Collision avoidance can be toggled per environment:
+Collision avoidance is a setting of the executor:
 
 ```python
-with simulated_robot(collision_avoidance=True):
-    executor.compile(plan)
-    executor.execute()
+executor = SimulatedPlanExecutor(
+    world, context_extensions=[RobotAccess(robot)], collision_avoidance=True
+)
 ```
 
-## What happens for each execution type
+## What happens for each executor
 
-{class}`~coraplex.plans.plan_execution.PlanExecutor` dispatches on the execution type active at
-{meth}`~coraplex.plans.plan_execution.PlanExecutor.compile`:
-
-- `SIMULATED`: the chart is compiled and ticked against the world of the context until it reports an end motion. A
-  plan that stops approaching its goal gives up and raises
+- {class}`~coraplex.plans.executors.SimulatedPlanExecutor`: the chart is compiled and ticked against the world until
+  every plan node succeeded. A plan that stops approaching its goal gives up and raises
   {class}`~coraplex.plans.failures.MotionMadeNoProgress`, naming the tasks that stalled; one that keeps converging is
   never cut off for taking many ticks, only once it exceeds the simulated time limit.
-- `REAL`: the chart is sent to giskard via the `GiskardWrapper`, which grounds underspecified actions while giskard
-  runs it.
-- `NO_EXECUTION`: nothing is built or run.
+- {class}`~coraplex.plans.executors.RobotPlanExecutor`: the chart is sent to giskard via the `GiskardWrapper`, which
+  grounds underspecified actions while giskard runs it.
+- {meth}`~coraplex.plans.executors.PlanExecutor.prepare` builds the chart without compiling or running it, for
+  inspecting a plan as it would run.
 
 ## Robot-Specific Motions
 
@@ -90,6 +89,5 @@ overrides are being rebuilt on top of the giskard goals.
 ## Key takeaways
 
 - Actions build giskard goals directly; plans never execute them one at a time.
-- A {class}`~coraplex.plans.plan_execution.PlanExecutor` compiles a plan into one motion state chart and executes it.
-- {class}`~coraplex.execution_environment.ExecutionEnvironment` context managers choose simulated, real, semi-real or
-  no execution, and toggle collision avoidance.
+- A {class}`~coraplex.plans.executors.PlanExecutor` compiles the statechart holding a plan and executes it.
+- The executor's type chooses simulated or real execution; collision avoidance is one of its settings.

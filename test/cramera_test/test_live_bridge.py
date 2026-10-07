@@ -162,7 +162,7 @@ def plan_bridge():
             ROBOT_BASE_KEY: PublishedBody(name="world/base_link"),
         }
     )
-    bridge.begin_plan(root)
+    bridge.begin_plan([root])
     return bridge, root, action, condition, motion
 
 
@@ -264,7 +264,7 @@ class TestPlanSnapshot:
         first = make_plan_node("MotionNode")
         second = make_plan_node("MotionNode")
         root = make_plan_node("SequentialNode", children=[first, second])
-        bridge.begin_plan(root)
+        bridge.begin_plan([root])
         set_life_cycle_state(bridge, first, LifeCycleValues.FAILED)
         statuses = [
             node["status"]
@@ -276,8 +276,22 @@ class TestPlanSnapshot:
     def test_a_new_plan_replaces_the_previous_one(self, plan_bridge):
         bridge, root, action, condition, motion = plan_bridge
         other = make_plan_node("OtherNode")
-        bridge.begin_plan(other)
+        bridge.begin_plan([other])
         assert [node["kind"] for node in bridge.get_plan()["nodes"]] == ["OtherNode"]
+
+    def test_a_plan_of_several_top_level_nodes_is_published_as_trees_of_its_own(self):
+        """
+        A statechart has no root node, so each top-level node of a plan roots a tree.
+        """
+        bridge = Bridge()
+        first = make_plan_node("FirstNode")
+        second = make_plan_node("SecondNode")
+
+        bridge.begin_plan([first, second])
+
+        assert [
+            (node["kind"], node["parent"]) for node in bridge.get_plan()["nodes"]
+        ] == [("FirstNode", None), ("SecondNode", None)]
 
 
 # %% the step a recording is labelled with
@@ -305,7 +319,7 @@ class TestRunningStep:
             "ActionNode", designator=ActionDescription.of(), children=[motion]
         )
         bridge = Bridge()
-        bridge.begin_plan(action)
+        bridge.begin_plan([action])
         set_life_cycle_state(bridge, motion, LifeCycleValues.RUNNING)
         set_life_cycle_state(bridge, motion, LifeCycleValues.SUCCEEDED)
         set_life_cycle_state(bridge, action, LifeCycleValues.SUCCEEDED)
@@ -319,7 +333,7 @@ class TestRunningStep:
         """
         bridge = Bridge()
         motion = make_plan_node("MotionNode")
-        bridge.begin_plan(motion)
+        bridge.begin_plan([motion])
         set_life_cycle_state(bridge, motion, LifeCycleValues.RUNNING)
 
         assert bridge.running_step() is None

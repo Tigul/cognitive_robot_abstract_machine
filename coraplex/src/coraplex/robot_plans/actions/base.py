@@ -10,7 +10,7 @@ from typing_extensions import (
     Optional,
 )
 
-from coraplex.datastructures.dataclasses import Context, PlanContextExtension
+from coraplex.plans.context_extensions import RobotAccess, StatementGrounding
 from coraplex.plans.designator import DesignatorParameters
 from cramph.context import StatechartContext
 from cramph.data_types import SuccessDecider
@@ -77,11 +77,11 @@ class Action(CompositeNode, DesignatorParameters, ABC):
         return self._action_body
 
     @property
-    def context(self) -> Context:
+    def context(self) -> StatechartContext:
         """
-        :return: The plan context this action is executed for.
+        :return: The context of the statechart this action runs in.
         """
-        return self.statechart.context.require_extension(PlanContextExtension).context
+        return self.statechart.context
 
     @property
     def world(self) -> World:
@@ -95,7 +95,15 @@ class Action(CompositeNode, DesignatorParameters, ABC):
         """
         :return: The robot performing this action.
         """
-        return self.context.robot
+        return self.context.require_extension(RobotAccess).robot
+
+    @property
+    def sampling_seed(self) -> Optional[int]:
+        """
+        :return: The seed for the locations this action samples, so a run can be
+            repeated; ``None`` samples afresh each run.
+        """
+        return self.context.require_extension(StatementGrounding).sampling_seed
 
     @property
     def controlled_root(self) -> KinematicStructureEntity:
@@ -103,7 +111,7 @@ class Action(CompositeNode, DesignatorParameters, ABC):
         :return: The topmost entity this action's motions may move the robot relative
             to, which its Cartesian goals are expressed in.
         """
-        return self.context.controlled_root
+        return self.context.require_extension(RobotAccess).controlled_root
 
     def expand(self, context: StatechartContext) -> None:
         """
@@ -123,12 +131,16 @@ class Action(CompositeNode, DesignatorParameters, ABC):
 
     @staticmethod
     def pre_condition(
-        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable],
+        context: StatechartContext,
+        kwargs: Dict[str, Any],
     ) -> SymbolicExpression:
         return True
 
     @staticmethod
     def post_condition(
-        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable],
+        context: StatechartContext,
+        kwargs: Dict[str, Any],
     ) -> SymbolicExpression:
         return True

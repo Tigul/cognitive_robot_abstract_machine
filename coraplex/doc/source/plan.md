@@ -9,9 +9,9 @@
 
 ## What is a Plan?
 
-A plan is the statechart node that describes what a robot does. It is usually a cramph composite, such as `Sequence`,
-`Parallel`, `TryInOrder` or `TryAll`, holding actions, motions and further composites. A plan is built on its own,
-independently of the world and robot it will run with:
+A plan is what a robot does: the nodes at the top level of a statechart. They are usually cramph composites, such as
+`Sequence`, `Parallel`, `TryInOrder` or `TryAll`, holding actions, motions and further composites. A plan's nodes are
+built on their own, independently of the world and robot they will run with:
 
 ```python
 from cramph.composites import Sequence
@@ -21,7 +21,7 @@ plan = Sequence([ParkArmsAction(robot.all_arms), NavigateAction(target_pose)])
 
 ## How a Plan is shaped
 
-A plan is a tree with a composite at the root and actions beneath it:
+Each top-level node of a plan is a tree with a composite at the top and actions beneath it:
 
 ```mermaid
 flowchart TD
@@ -38,23 +38,29 @@ flowchart TD
 
 ## Executing a Plan
 
-A `PlanExecutor` compiles a plan and executes it, the way a Giskard executor compiles and executes a motion
+An executor builds the statechart context a plan runs in, out of the world and the context extensions it is given,
+and compiles and executes the statechart holding the plan, the way a Giskard executor compiles and executes a motion
 statechart:
 
 ```python
-from coraplex.plans.plan_execution import PlanExecutor
+from coraplex.plans.context_extensions import RobotAccess
+from coraplex.plans.executors import SimulatedPlanExecutor
+from cramph.statechart import Statechart
 
-executor = PlanExecutor(context)
-with simulated_robot:
-    executor.compile(plan)
-    executor.execute()
+executor = SimulatedPlanExecutor(world, context_extensions=[RobotAccess(robot)])
+statechart = Statechart(context=executor.context)
+statechart.add_node(plan)
+executor.compile(statechart)
+executor.execute()
 ```
 
-- `compile` builds one statechart holding the plan, the collision avoidance when the execution environment asks for
-  it, and an `EndMotion` that ends the statechart once the plan succeeded.
-- `execute` runs that statechart in simulation, or sends it to Giskard on the real robot, and raises
-  `MotionDidNotFinish` if the plan did not succeed.
-- The context passed to the executor carries the world, the robot and the settings every node of the plan runs with.
+- The context extensions carry what every node of the plan reads from its context, such as the robot performing it
+  (`RobotAccess`) and how its statements are grounded (`StatementGrounding`).
+- `compile` adds to the statechart the collision avoidance when the executor is asked for it, and an `EndMotion` that
+  ends the statechart once every top-level node of the plan succeeded.
+- `execute` runs that statechart: a `SimulatedPlanExecutor` in simulation, a `RobotPlanExecutor` by sending it to
+  Giskard on the real robot. It raises `MotionDidNotFinish` if the plan did not succeed.
+- An executor runs one statechart, so every plan gets an executor of its own.
 
 ## Inspecting a Plan
 

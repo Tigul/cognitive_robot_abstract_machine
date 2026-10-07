@@ -4,14 +4,12 @@ Tests for performing plans and for what their actions move.
 
 import pytest
 
-from coraplex.execution_environment import simulated_robot
 from coraplex.plans.failures import EmptyUnderspecified
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
 from cramph.node import CompositeNode, StatechartNode
-from coraplex.datastructures.dataclasses import Context
 from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPose,
@@ -37,9 +35,11 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix, Pose
 
 from ..conftest import expand
-from coraplex.plans.plan_execution import PlanExecutor
 from coraplex.plans.underspecified import UnderspecifiedNode
 from cramph.composites import Sequence
+from ...plan_running import run_plan, with_grounding
+from cramph.context import ContextExtension
+from typing_extensions import List
 
 
 def _torso_position(world):
@@ -56,13 +56,10 @@ def test_sequence_runs_all_motions(pr2_apartment_context):
     The robot starts in the LOW configuration, so a final HIGH motion proves the second
     motion actually ran.
     """
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
 
     plan = Sequence([MoveTorsoAction(TorsoState.LOW), MoveTorsoAction(TorsoState.HIGH)])
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     assert _torso_position(world) == pytest.approx(0.3, abs=0.05)
 
@@ -73,8 +70,7 @@ def test_algebra_sequential_plan(apartment_world_pr2_copy_with_context):
     distribution and assert the correctness of sampled values after conditioning and
     truncation.
     """
-    world, robot_view, context = apartment_world_pr2_copy_with_context
-    context.evaluate_conditions = False
+    world, robot_view, extensions = apartment_world_pr2_copy_with_context
 
     target_location = a(PoseMapping.from_point_mapping_quaternion_mapping)(
         position=a(Point3Mapping)(x=..., y=..., z=0.0, reference_frame=None),
@@ -87,8 +83,9 @@ def test_algebra_sequential_plan(apartment_world_pr2_copy_with_context):
     )
     # navigate_action.resolve()
 
-    context.query_backend = ProbabilisticBackend(
-        model_registry=FullyFactorizedRegistry()
+    extensions = with_grounding(
+        extensions,
+        query_backend=ProbabilisticBackend(model_registry=FullyFactorizedRegistry()),
     )
 
     # resolved_navigate = next(pm_backend.evaluate(navigate_action))
@@ -96,18 +93,14 @@ def test_algebra_sequential_plan(apartment_world_pr2_copy_with_context):
         [MoveTorsoAction(TorsoState.LOW), UnderspecifiedNode(statement=navigate_action)]
     )
 
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     assert isinstance(plan.nodes[1].chosen_actions[-1], NavigateAction)
     assert len(plan.nodes[1].children) == 1
 
 
 def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
-    world, robot_view, context = apartment_world_pr2_copy_with_context
-    context.evaluate_conditions = False
+    world, robot_view, extensions = apartment_world_pr2_copy_with_context
 
     milk = world.get_semantic_annotations_by_type(Milk)[0]
 
@@ -115,7 +108,7 @@ def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
 
     pick_up_description = a(PickUpAction)(
         grasp=grasp_variable,
-        arm=variable_from(context.robot.all_arms),
+        arm=variable_from(robot_view.all_arms),
         approach_clearance=0.05,
     )
 
@@ -130,23 +123,21 @@ def test_parameterization_of_pick_up(apartment_world_pr2_copy_with_context):
         == 0.05
     )
 
-    context.query_backend = ProbabilisticBackend(
-        model_registry=FullyFactorizedRegistry()
+    extensions = with_grounding(
+        extensions,
+        query_backend=ProbabilisticBackend(model_registry=FullyFactorizedRegistry()),
     )
 
     plan = UnderspecifiedNode(statement=pick_up_description)
 
-    with simulated_robot:
-        try:
-            executor = PlanExecutor(context)
-            executor.compile(plan)
-            executor.execute()
-        except EmptyUnderspecified:
-            pass
+    try:
+        run_plan(plan, extensions)
+    except EmptyUnderspecified:
+        pass
 
 
 def test_motion_order_pick_up(pr2_apartment_context):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
 
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     milk_body = world.get_body_by_name("milk.stl")
@@ -162,11 +153,11 @@ def test_motion_order_pick_up(pr2_apartment_context):
 
     root = Sequence(
         [
-            PickUpAction(milk.grasp_candidates()[0], context.robot.left_arm),
+            PickUpAction(milk.grasp_candidates()[0], robot_view.left_arm),
         ]
     )
 
-    performed_motions = _motions_of(root, context)
+    performed_motions = _motions_of(root, extensions)
 
     assert performed_motions == [
         CartesianPose,
@@ -178,7 +169,7 @@ def test_motion_order_pick_up(pr2_apartment_context):
 
 
 def test_motion_order_place(pr2_apartment_context):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
 
     milk_body = world.get_body_by_name("milk.stl")
     milk_body.parent_connection.origin = world.get_body_by_name(
@@ -208,7 +199,7 @@ def test_motion_order_place(pr2_apartment_context):
         ]
     )
 
-    performed_motions = _motions_of(root, context)
+    performed_motions = _motions_of(root, extensions)
 
     assert performed_motions == [
         CartesianPose,
@@ -221,14 +212,14 @@ def test_motion_order_place(pr2_apartment_context):
 # %% reading back what a plan moves
 
 
-def _motions_of(plan: StatechartNode, context: Context) -> list:
+def _motions_of(plan: StatechartNode, extensions: List[ContextExtension]) -> list:
     """
-    Expand `plan` in `context` and report what it moves, in the order it runs.
+    Expand `plan` in `extensions` and report what it moves, in the order it runs.
 
     :return: One entry per motion: the gripper state a gripper motion commands, or the
         type of the Cartesian task any other motion is built around.
     """
-    return _motions_below(expand(plan, context))
+    return _motions_below(expand(plan, extensions))
 
 
 def _motions_below(goal) -> list:

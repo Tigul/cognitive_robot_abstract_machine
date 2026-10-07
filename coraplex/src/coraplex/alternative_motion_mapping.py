@@ -20,7 +20,6 @@ from krrood.ormatic.data_access_objects.base import HasGeneric
 from krrood.ormatic.utils import classes_of_package
 from krrood.utils import recursive_subclasses
 from .datastructures.enums import ExecutionType
-from coraplex.execution_environment import ExecutionEnvironment
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
 
 if TYPE_CHECKING:
@@ -50,6 +49,7 @@ class AlternativeMotion(HasGeneric[AbstractRobotType], ABC):
         alternatives: Iterable[Type[AlternativeMotion]],
         robot_view: AbstractRobot,
         motion: Type[BaseMotionType],
+        execution_type: ExecutionType,
     ) -> Optional[Type[BaseMotionType]]:
         """
         Checks if there is an alternative motion for the given robot view, motion and
@@ -59,13 +59,14 @@ class AlternativeMotion(HasGeneric[AbstractRobotType], ABC):
             from the context)
         :param robot_view: The robot for which the alternative motion should be found
         :param motion: The motion class for which an alternative should be found
+        :param execution_type: How the plan the motion belongs to is executed
         :return: The alternative motion class if found, None otherwise
         """
         for alternative in alternatives:
             if (
                 issubclass(alternative, motion)
                 and alternative.original_class() == robot_view.__class__
-                and ExecutionEnvironment.current_execution_type
+                and execution_type
                 in (
                     alternative.execution_type
                     if isinstance(alternative.execution_type, list_like_classes)

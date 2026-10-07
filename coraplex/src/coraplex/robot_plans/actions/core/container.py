@@ -12,8 +12,8 @@ from krrood.entity_query_language.factories import (
     variable_from,
     ConditionType,
 )
+from cramph.context import StatechartContext
 from coraplex.config.action_conf import ActionConfig
-from coraplex.datastructures.dataclasses import Context
 from coraplex.querying.predicates import GripperIsFree
 from cramph.composites import Sequence
 from cramph.node import StatechartNode
@@ -76,7 +76,9 @@ class OpenAction(Action):
 
     @staticmethod
     def pre_condition(
-        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable],
+        context: StatechartContext,
+        kwargs: Dict[str, Any],
     ) -> ConditionType:
         """
         The gripper with which to open the container has to be free.
@@ -85,7 +87,9 @@ class OpenAction(Action):
 
     @staticmethod
     def post_condition(
-        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable],
+        context: StatechartContext,
+        kwargs: Dict[str, Any],
     ) -> ConditionType:
         """
         The handle has to be in the gripper of the robot and the container has to be
@@ -154,7 +158,9 @@ class CloseAction(Action):
 
     @staticmethod
     def post_condition(
-        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable],
+        context: StatechartContext,
+        kwargs: Dict[str, Any],
     ) -> SymbolicExpression | bool:
         """
         The container has to be closed.

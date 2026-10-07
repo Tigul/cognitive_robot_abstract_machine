@@ -16,9 +16,7 @@ from coraplex.exceptions import (
     UnknownVisualizationOption,
     VisualizationBackendUnavailable,
 )
-from coraplex.datastructures.dataclasses import Context
 from coraplex.plans.plan_callbacks import PlanCallback
-from coraplex.plans.plan_execution import PlanExecutor
 from coraplex.visualization import (
     PlanVisualization,
     WorldVisualization,
@@ -33,6 +31,7 @@ import coraplex.testing as testing_module
 from semantic_digital_twin.world import World
 
 from .test_demonstrations import RecordingDemonstration
+from coraplex.plans.executors import PlanExecutor, RobotPlanExecutor
 
 
 # %% optional provider
@@ -84,7 +83,7 @@ def an_executor() -> PlanExecutor:
     :return: An executor whose plans a visualization can observe, without a world of
         its own to run them in.
     """
-    return PlanExecutor(Mock(spec=Context))
+    return RobotPlanExecutor(Mock(spec=World))
 
 
 @pytest.fixture

@@ -97,8 +97,8 @@ class TestMotionHistoryPublication:
         motion_execution.record(LifeCycleValues.RUNNING)
         assert motion_execution.chart.history.observers == [motion_execution.callback]
 
-        motion_execution.callback.on_end(motion_execution.plan)
-        motion_execution.callback.on_end(motion_execution.plan)
+        motion_execution.callback.on_finish(motion_execution.chart)
+        motion_execution.callback.on_finish(motion_execution.chart)
         published = motion_execution.bridge.chart_state
         motion_execution.record(LifeCycleValues.NOT_STARTED)
 
@@ -113,7 +113,7 @@ class TestMotionHistoryPublication:
         """
         visualization = LiveVisualization(world=world, bridge=motion_execution.bridge)
         callback = visualization.plan_callback()
-        callback.on_compile(motion_execution.plan, motion_execution.chart)
+        callback.on_compile([motion_execution.plan], motion_execution.chart)
         assert motion_execution.chart.history.observers == [callback]
 
         visualization.stop()
@@ -173,7 +173,7 @@ class TestHistoryRecordingAlignment:
 
         motion_execution.record(LifeCycleValues.SUCCEEDED)
         motion_execution.callback.on_end(motion_execution.motion)
-        motion_execution.callback.on_end(motion_execution.plan)
+        motion_execution.callback.on_finish(motion_execution.chart)
 
         frames = bridge.recording.stop()
         world_sync.stop()

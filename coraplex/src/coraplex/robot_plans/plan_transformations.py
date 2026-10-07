@@ -48,9 +48,10 @@ from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Drawer
 from semantic_digital_twin.spatial_types.spatial_types import Pose
+from coraplex.plans.context_extensions import RobotAccess, StatementGrounding
+from cramph.context import StatechartContext
 
 if TYPE_CHECKING:
-    from coraplex.datastructures.dataclasses import Context
     from semantic_digital_twin.world import World
 
 
@@ -146,12 +147,14 @@ class DrawerOpening(
         ]
 
     def opening_nodes(
-        self, drawer: Drawer, arm: Arm, context: Context
+        self, drawer: Drawer, arm: Arm, context: StatechartContext
     ) -> List[StatechartNode]:
         """
         :param drawer: The drawer to open
         :param arm: The arm that opens it
-        :param context: The context the standing pose is sampled in
+        :param context: The context of the statechart the opening is inserted in,
+            holding the robot that opens the drawer and the seed its standing pose is
+            sampled with
         :return: The opening, from a standing pose tried together with it.
         """
         handle_pose = Pose(reference_frame=drawer.handle.root)
@@ -160,7 +163,13 @@ class DrawerOpening(
                 target_location=variable(
                     Pose,
                     domain=ReachabilityLocation(
-                        handle_pose, arm, ReachFraction.ACCESSING, context=context
+                        handle_pose,
+                        arm,
+                        ReachFraction.ACCESSING,
+                        robot=context.require_extension(RobotAccess).robot,
+                        seed=context.require_extension(
+                            StatementGrounding
+                        ).sampling_seed,
                     ),
                 )
             ),
@@ -196,7 +205,9 @@ class OpenDrawerBeforePickUp(DrawerOpening[PickUpAction]):
         graspable = plan_node.grasp.graspable
         nodes = []
         for drawer in self._closed_drawers_containing(graspable, plan_node.world):
-            nodes.extend(self.opening_nodes(drawer, plan_node.arm, plan_node.context))
+            nodes.extend(
+                self.opening_nodes(drawer, plan_node.arm, plan_node.statechart.context)
+            )
         drive_to_the_object = a(NavigateAction)(
             target_location=variable(
                 Pose,
@@ -205,7 +216,8 @@ class OpenDrawerBeforePickUp(DrawerOpening[PickUpAction]):
                 domain=ReachabilityLocation(
                     Pose(reference_frame=graspable.root),
                     plan_node.arm,
-                    context=plan_node.context,
+                    robot=plan_node.robot,
+                    seed=plan_node.sampling_seed,
                 ),
             ),
         )
@@ -270,11 +282,14 @@ class OpenDrawerBeforeMoveAndPickUp(DrawerOpening[MoveAndPickUpAction]):
         for drawer in self._closed_drawers_containing(
             target.graspable, plan_node.statechart.context.world
         ):
-            nodes.extend(self.opening_nodes(drawer, target.arm, plan_node.context))
+            nodes.extend(
+                self.opening_nodes(drawer, target.arm, plan_node.statechart.context)
+            )
         if isinstance(plan_node, UnderspecifiedNode):
             # The candidates are grounded after the opening, which leaves the arms at
             # the handle, where they would stand in collision at every standing pose.
-            nodes.append(ParkArmsAction(plan_node.context.robot.all_arms))
+            robot = plan_node.statechart.context.require_extension(RobotAccess).robot
+            nodes.append(ParkArmsAction(robot.all_arms))
         return nodes
 
     def _pick_up_target(

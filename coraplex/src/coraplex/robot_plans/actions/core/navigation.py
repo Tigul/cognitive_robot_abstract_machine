@@ -5,13 +5,13 @@ from dataclasses import dataclass, field
 
 from typing_extensions import Optional, Any, Dict
 
-from coraplex.datastructures.dataclasses import Context
+from coraplex.plans.context_extensions import ExecutionMode, RobotAccess
+from cramph.context import StatechartContext
 from coraplex.exceptions import NoFloorBelowRobot, NotOnASingleLevelException
 from cramph.node import StatechartNode
 from cramph.world_modification_nodes import MoveBranch
 from coraplex.robot_plans.actions.base import Action
 from coraplex.datastructures.enums import ExecutionType
-from coraplex.execution_environment import ExecutionEnvironment
 from cramph.composites import Parallel, PausedUntilTrue, Sequence
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.monitors.joint_monitors import (
@@ -57,7 +57,10 @@ class DrivesBase(Action, ABC):
             directly, because there is no drive to follow the pose; a real one commands
             the pose and lets the controller drive there.
         """
-        if ExecutionEnvironment.current_execution_type == ExecutionType.SIMULATED:
+        if (
+            self.context.require_extension(ExecutionMode).execution_type
+            == ExecutionType.SIMULATED
+        ):
             return SetOdometry(
                 base_pose=target.to_homogeneous_matrix(),
                 odom_connection=self.robot.root.parent_connection,
@@ -88,28 +91,41 @@ class NavigateAction(DrivesBase):
 
     @staticmethod
     def pre_condition(
-        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable],
+        context: StatechartContext,
+        kwargs: Dict[str, Any],
     ) -> ConditionType:
         """
         The robot needs to have a drive and the target location needs to be free from
         obstacles.
         """
-        drive_variable = variable_from(context.robot.drive is not None)
+        drive_variable = variable_from(
+            context.require_extension(RobotAccess).robot.drive is not None
+        )
         return and_(
-            is_pose_free_for_robot(context.robot, variables["target_location"]),
+            is_pose_free_for_robot(
+                context.require_extension(RobotAccess).robot,
+                variables["target_location"],
+            ),
             drive_variable,
         )
 
     @staticmethod
     def post_condition(
-        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable],
+        context: StatechartContext,
+        kwargs: Dict[str, Any],
     ) -> ConditionType:
         """
         The robot needs to be within 3 cm of where the heading puts its base.
         """
         return allclose(
-            variable_from(context.robot.root).global_pose,
-            context.robot.mobile_base.pose_facing(kwargs["target_location"]),
+            variable_from(
+                context.require_extension(RobotAccess).robot.root
+            ).global_pose,
+            context.require_extension(RobotAccess).robot.mobile_base.pose_facing(
+                kwargs["target_location"]
+            ),
             atol=0.03,
         )
 

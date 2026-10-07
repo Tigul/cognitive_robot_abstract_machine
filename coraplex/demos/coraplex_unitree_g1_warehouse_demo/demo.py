@@ -10,8 +10,6 @@ from __future__ import annotations
 
 import numpy as np
 
-from coraplex.datastructures.dataclasses import Context
-from coraplex.execution_environment import simulated_robot
 from giskardpy.motion_statechart.tasks.joint_tasks import (
     JointPositionList,
     JointState,
@@ -33,7 +31,9 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Parc
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.geometry import Color, Scale
-from coraplex.plans.plan_execution import PlanExecutor
+from coraplex.plans.context_extensions import RobotAccess
+from coraplex.plans.executors import SimulatedPlanExecutor
+from cramph.statechart import Statechart
 from cramph.composites import Sequence
 
 # %% where everything stands in the warehouse
@@ -198,6 +198,18 @@ def lowest_collision_point_of(robot: UnitreeG1, world: World) -> float:
 
 # %% running the demo
 
+
+def run(plan: Sequence, world: World, robot: UnitreeG1) -> None:
+    """
+    Run `plan` of `robot` in `world`, simulated.
+    """
+    executor = SimulatedPlanExecutor(world, context_extensions=[RobotAccess(robot)])
+    statechart = Statechart(context=executor.context)
+    statechart.add_node(plan)
+    executor.compile(statechart)
+    executor.execute()
+
+
 world = build_world()
 robot = world.get_semantic_annotations_by_type(UnitreeG1)[0]
 
@@ -207,17 +219,13 @@ assert abs(lowest_collision_point_of(robot, world)) < 1e-3
 
 start_visualization(world)
 
-executor = PlanExecutor(Context(world=world, robot=robot, evaluate_conditions=False))
-with simulated_robot:
-    for _ in range(10):
-        for plan in (
-            build_plan(world, robot, PICK_POSE, PLACE_POSE, turn=-1.57),
-            build_plan(world, robot, PLACE_POSE, PICK_POSE, turn=1.57),
-        ):
-            executor.compile(plan)
-            executor.execute()
-    executor.compile(build_plan(world, robot, PICK_POSE, PLACE_POSE, turn=-1.57))
-    executor.execute()
+for _ in range(10):
+    for plan in (
+        build_plan(world, robot, PICK_POSE, PLACE_POSE, turn=-1.57),
+        build_plan(world, robot, PLACE_POSE, PICK_POSE, turn=1.57),
+    ):
+        run(plan, world, robot)
+run(build_plan(world, robot, PICK_POSE, PLACE_POSE, turn=-1.57), world, robot)
 
 parcel_position = world.get_body_by_name("parcel").global_pose
 print(f"parcel delivered to {np.round(parcel_position.to_position(), 3)}")

@@ -1,6 +1,6 @@
 """
 Tests for running a plan as one statechart, see
-:class:`~coraplex.plans.plan_execution.PlanExecutor`.
+:class:`~coraplex.plans.executors.PlanExecutor`.
 """
 
 import pytest
@@ -9,15 +9,13 @@ from dataclasses import dataclass, field
 
 from typing_extensions import Iterator, List
 
-from coraplex.datastructures.dataclasses import Context
-from coraplex.execution_environment import real_robot, simulated_robot
 from coraplex.locations.base import Location
-from coraplex.plans.plan_execution import PlanExecutor, UnderspecifiedChildChooser
 from coraplex.plans.underspecified import UnderspecifiedNode
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
+from coraplex.plans import executors
 from cramph.composites import ChildChooser, CompositeNodeChoosingItsChild, Sequence
 from cramph.data_types import LifeCycleValues
 from cramph.statechart import Statechart
@@ -33,6 +31,7 @@ from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
+from ...plan_running import robot_executor, run_plan, simulated_executor, statechart_of
 
 # %% helpers
 
@@ -81,7 +80,7 @@ class RecordingLocationInFrontOfTheRobot(Location):
 def test_a_plan_grounding_an_action_mid_sequence_runs_as_one_statechart(
     pr2_apartment_context,
 ):
-    world, robot, context = pr2_apartment_context
+    world, robot, extensions = pr2_apartment_context
     torso = MoveTorsoAction(TorsoState.HIGH)
     plan = Sequence(
         [
@@ -96,10 +95,7 @@ def test_a_plan_grounding_an_action_mid_sequence_runs_as_one_statechart(
         ]
     )
 
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     statechart: Statechart = plan.statechart
     navigate = plan.nodes[1].chosen_actions[-1]
@@ -113,7 +109,7 @@ def test_a_plan_grounding_an_action_mid_sequence_runs_as_one_statechart(
 def test_an_underspecified_action_is_grounded_against_the_world_the_steps_before_left(
     pr2_apartment_context,
 ):
-    world, robot, context = pr2_apartment_context
+    world, robot, extensions = pr2_apartment_context
     torso_high = robot.get_torso().get_joint_state_by_type(TorsoState.HIGH)
     assert not torso_high.is_achieved()
     location = RecordingLocationInFrontOfTheRobot(world=world, robot=robot)
@@ -129,16 +125,13 @@ def test_an_underspecified_action_is_grounded_against_the_world_the_steps_before
         ]
     )
 
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     assert location.torso_high_when_sampled == [True]
 
 
 def test_a_branch_moved_mid_plan_follows_its_new_parent(pr2_apartment_context):
-    world, robot, context = pr2_apartment_context
+    world, robot, extensions = pr2_apartment_context
     milk = world.get_body_by_name("milk.stl")
     tool_frame = robot.left_arm.end_effector.tool_frame
     height_before = milk.global_pose.z
@@ -150,10 +143,7 @@ def test_a_branch_moved_mid_plan_follows_its_new_parent(pr2_apartment_context):
             MoveTorsoAction(TorsoState.HIGH),
         ]
     )
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    run_plan(plan, extensions)
 
     assert milk.parent_connection.parent is tool_frame
     assert milk.global_pose.z > height_before
@@ -170,13 +160,13 @@ def test_actions_with_the_same_parameters_are_different_nodes():
 
 
 def test_a_place_finds_the_grasp_of_the_pick_up_before_it(pr2_apartment_context):
-    world, robot, context = pr2_apartment_context
+    world, robot, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     pick_up = PickUpAction(milk.grasp_candidates()[0], robot.left_arm)
     place = PlaceAction(
         milk, Pose.from_xyz_rpy(0.8, -1.9, 0.7, reference_frame=world.root)
     )
-    statechart = Statechart(context=context.create_statechart_context())
+    statechart = Statechart(context=simulated_executor(extensions).context)
 
     statechart.add_node(Sequence([pick_up, place]))
 
@@ -215,7 +205,7 @@ def test_an_underspecified_node_is_sent_as_a_node_choosing_its_child(
     Giskard receives the children the client chooses, so it needs nothing but the node
     itself, and not the statement it is grounded from.
     """
-    world, robot, context = pr2_apartment_context
+    world, robot, extensions = pr2_apartment_context
     node = UnderspecifiedNode(statement=a(NavigateAction)(target_location=...))
 
     received = from_json(json.loads(json.dumps(to_json(node))))
@@ -227,9 +217,9 @@ def test_an_underspecified_node_is_sent_as_a_node_choosing_its_child(
 def test_a_plan_on_the_robot_is_sent_once_with_the_chooser_grounding_its_actions(
     pr2_apartment_context, monkeypatch
 ):
-    world, robot, context = pr2_apartment_context
+    world, robot, extensions = pr2_apartment_context
     giskard = GiskardWrapperRecordingTheGoal()
-    monkeypatch.setattr(Context, "giskard_wrapper", property(lambda self: giskard))
+    monkeypatch.setattr(executors, "GiskardWrapper", lambda ros_node, world: giskard)
     plan = Sequence(
         [
             MoveTorsoAction(TorsoState.HIGH),
@@ -242,17 +232,15 @@ def test_a_plan_on_the_robot_is_sent_once_with_the_chooser_grounding_its_actions
             ),
         ]
     )
+    executor = robot_executor(extensions)
 
-    with real_robot:
-        executor = PlanExecutor(context)
-        executor.compile(plan)
-        executor.execute()
+    executor.compile(statechart_of(executor, plan))
+    executor.execute()
 
     [statechart] = giskard.executed
     assert plan.statechart is statechart
     [chooser] = giskard.child_choosers
-    assert isinstance(chooser, UnderspecifiedChildChooser)
-    assert chooser.context is context
+    assert chooser is executor.child_chooser
 
 
 @pytest.mark.parked
@@ -261,13 +249,13 @@ def test_an_expanded_action_is_received_with_the_nodes_it_runs(pr2_apartment_con
     A receiver does not expand the nodes of a statechart again, so an action has to
     arrive knowing the sequence it runs.
     """
-    world, robot, context = pr2_apartment_context
-    sent = Statechart(context=context.create_statechart_context())
+    world, robot, extensions = pr2_apartment_context
+    sent = Statechart(context=simulated_executor(extensions).context)
     sent.add_node(action := MoveTorsoAction(TorsoState.HIGH))
 
     received = Statechart.from_json(
         json.loads(json.dumps(sent.to_json())),
-        context=context.create_statechart_context(),
+        context=simulated_executor(extensions).context,
         **WorldEntityWithIDKwargsTracker.from_world(world).create_kwargs(),
     )
 

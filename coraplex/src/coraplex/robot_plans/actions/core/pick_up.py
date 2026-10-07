@@ -11,7 +11,7 @@ from krrood.entity_query_language.factories import (
     variable_from,
     ConditionType,
 )
-from coraplex.datastructures.dataclasses import Context
+from cramph.context import StatechartContext
 from coraplex.datastructures.enums import MovementType
 from coraplex.querying.predicates import (
     GripperHolds,
@@ -123,7 +123,9 @@ class ReachAction(
 
     @staticmethod
     def post_condition(
-        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable],
+        context: StatechartContext,
+        kwargs: Dict[str, Any],
     ) -> ConditionType:
         """
         The end effector needs to be close to the target pose.
@@ -214,7 +216,7 @@ class PickUpAction(
 
     @staticmethod
     def pre_condition(
-        variables: Dict, context: Context, kwargs: Dict[str, Any]
+        variables: Dict, context: StatechartContext, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
         The gripper needs to be free.
@@ -223,7 +225,7 @@ class PickUpAction(
 
     @staticmethod
     def post_condition(
-        variables: Dict, context: Context, kwargs: Dict[str, Any]
+        variables: Dict, context: StatechartContext, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
         The object itself needs to be in the gripper, not merely something.
@@ -291,7 +293,7 @@ class GraspingAction(
 
     @staticmethod
     def pre_condition(
-        variables: Dict[str, Any], context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Any], context: StatechartContext, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
         The gripper needs to be free.
@@ -300,7 +302,7 @@ class GraspingAction(
 
     @staticmethod
     def post_condition(
-        variables: Dict[str, Any], context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Any], context: StatechartContext, kwargs: Dict[str, Any]
     ) -> ConditionType:
         """
         The object needs to be between the gripper's fingers, or the gripper at the

@@ -4,8 +4,6 @@ import numpy as np
 import pytest
 
 import experiments.orm.ormatic_interface  # type: ignore
-from coraplex.datastructures.dataclasses import Context
-from coraplex.execution_environment import simulated_robot
 from experiments.sage_10k.sage10k_actions import Sage10kOpenDoor
 from krrood.entity_query_language.backends import ProbabilisticBackend
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
@@ -22,7 +20,10 @@ from semantic_digital_twin.world_description.degree_of_freedom import (
     DegreeOfFreedomLimits,
 )
 from semantic_digital_twin.world_description.geometry import Color, Scale
-from coraplex.plans.plan_execution import PlanExecutor
+from coraplex.plans.executors import PlanExecutor
+from coraplex.plans.context_extensions import RobotAccess, StatementGrounding
+from ..plan_running import run_plan
+from semantic_digital_twin.robots.robot_parts import AbstractRobot
 
 
 @pytest.fixture
@@ -93,12 +94,15 @@ def test_door_opening(wall_door_handle_world, _hsr_world_setup, rclpy_node):
         )
     )
 
-    context = Context.from_world(world, query_backend=ProbabilisticBackend())
+    robot = world.get_semantic_annotations_by_type(AbstractRobot)[0]
 
-    with simulated_robot:
-        executor = PlanExecutor(context)
-        executor.compile(Sage10kOpenDoor(door))
-        executor.execute()
+    run_plan(
+        Sage10kOpenDoor(door),
+        [
+            RobotAccess(robot),
+            StatementGrounding(query_backend=ProbabilisticBackend()),
+        ],
+    )
 
     assert np.isclose(
         door.mechanical_joint.root.parent_connection.position, np.pi / 2, atol=2e-2

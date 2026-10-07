@@ -14,7 +14,8 @@ import pytest
 
 from typing_extensions import List, Optional
 
-from coraplex.datastructures.dataclasses import Context
+from coraplex.plans.context_extensions import RobotAccess
+from cramph.context import ContextExtension
 from cramph.node import StatechartNode
 from cramph.statechart import Statechart
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
@@ -30,11 +31,6 @@ except ModuleNotFoundError:
 from sqlalchemy.orm import sessionmaker
 
 from krrood.ormatic.utils import create_engine, drop_database
-
-try:
-    from coraplex.datastructures.dataclasses import Context
-except ModuleNotFoundError:
-    pass
 
 try:
     from coraplex.orm.ormatic_interface import Base
@@ -54,7 +50,7 @@ from semantic_digital_twin.world_description.geometry import VolumetricBoundingB
 from .world_snapshot import WorldSnapshot
 from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm
 
-from ..conftest import SAMPLING_SEED
+from ..plan_running import expand, robot_extensions
 
 # %% the arm a test runs with on any robot
 
@@ -88,40 +84,36 @@ def viz_marker_publisher():
 @pytest.fixture(scope="function")
 def pr2_apartment_context(pr2_apartment_world):
     """
-    The shared PR2 apartment world, its robot and a context for both, returned to its
-    initial model and state after the test.
+    The shared PR2 apartment world, its robot and the context extensions of its plans,
+    returned to its initial model and state after the test.
     """
     snapshot = WorldSnapshot.capture(pr2_apartment_world)
     pr2 = pr2_apartment_world.get_semantic_annotations_by_type(PR2)[0]
-    yield pr2_apartment_world, pr2, Context(
-        pr2_apartment_world, pr2, sampling_seed=SAMPLING_SEED
-    )
+    yield pr2_apartment_world, pr2, robot_extensions(pr2)
     snapshot.restore()
 
 
 @pytest.fixture(scope="function")
 def simple_pr2_context(simple_pr2_world_setup):
     """
-    The shared PR2 world in the simple apartment, its robot and a context for both,
-    returned to its initial model and state after the test.
+    The shared PR2 world in the simple apartment, its robot and the context extensions
+    of its plans, returned to its initial model and state after the test.
     """
-    world, robot_view, context = simple_pr2_world_setup
+    world, robot_view, extensions = simple_pr2_world_setup
     snapshot = WorldSnapshot.capture(world)
-    yield world, robot_view, context
+    yield world, robot_view, extensions
     snapshot.restore()
 
 
 @pytest.fixture(scope="function")
 def stretch_apartment_context(stretch_apartment_world):
     """
-    The shared Stretch apartment world, its robot and a context for both, returned to
-    its initial model and state after the test.
+    The shared Stretch apartment world, its robot and the context extensions of its
+    plans, returned to its initial model and state after the test.
     """
     snapshot = WorldSnapshot.capture(stretch_apartment_world)
     robot = stretch_apartment_world.get_semantic_annotations_by_type(Stretch)[0]
-    yield stretch_apartment_world, robot, Context(
-        stretch_apartment_world, robot, sampling_seed=SAMPLING_SEED
-    )
+    yield stretch_apartment_world, robot, robot_extensions(robot)
     snapshot.restore()
 
 
@@ -166,7 +158,7 @@ def whole_scene_region(pr2_apartment_context) -> VolumetricBoundingBox:
 
 
 def tool_center_point_goal(
-    context: Context,
+    robot: AbstractRobot,
     arm: Optional[Arm] = None,
     target: Optional[Pose] = None,
 ) -> CartesianPose:
@@ -176,45 +168,33 @@ def tool_center_point_goal(
     Lets a test about plans and charts state which arm moves where without restating how
     an action assembles that goal.
 
-    :param context: The context the plan runs in, supplying the robot and the link the
-        goal is expressed relative to.
-    :param arm: Which arm's tool center point moves, the left or only arm of the
-        context's robot by default.
+    :param robot: The robot performing the plan, supplying the link the goal is
+        expressed relative to.
+    :param arm: Which arm's tool center point moves, the left or only arm of the robot
+        by default.
     :param target: Where it should end up, the world's origin by default.
     :return: The goal moving that tool center point there.
     """
     return CartesianPose(
-        root_link=context.controlled_root,
+        root_link=RobotAccess(robot).controlled_root,
         tip_link=(
-            left_or_only_arm(context.robot) if arm is None else arm
+            left_or_only_arm(robot) if arm is None else arm
         ).end_effector.tool_frame,
         goal_pose=(
-            Pose(reference_frame=context.world.root) if target is None else target
+            Pose(reference_frame=robot._world.root) if target is None else target
         ),
     )
 
 
-def expand(plan: StatechartNode, context: Context) -> StatechartNode:
-    """
-    Expand `plan` in a statechart of its own, without running it, so a test can read the
-    nodes its steps expand into.
-
-    :param plan: The plan to expand.
-    :param context: The context the plan is expanded in.
-    :return: The plan, expanded.
-    """
-    statechart = Statechart(context=context.create_statechart_context())
-    statechart.add_node(plan)
-    return plan
-
-
-def motion_nodes_of(plan: StatechartNode, context: Context) -> List[StatechartNode]:
+def motion_nodes_of(
+    plan: StatechartNode, extensions: List[ContextExtension]
+) -> List[StatechartNode]:
     """
     :param plan: The plan whose motions to read.
-    :param context: The context the plan is expanded in.
+    :param extensions: The context extensions the plan is expanded with.
     :return: Every node the plan's steps expand into, so a test can look for a task
         without knowing whether the action wrapped it alongside speed caps or collision
         rules.
     """
-    root = expand(plan, context)
+    root = expand(plan, extensions)
     return [root, *root.descendants]

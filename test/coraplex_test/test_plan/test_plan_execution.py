@@ -1,21 +1,35 @@
 """
-Tests for compiling and executing a plan with a :class:`PlanExecutor`.
+Tests for compiling and executing a plan with a
+:class:`~coraplex.plans.executors.PlanExecutor`.
 """
 
 from datetime import timedelta
 
 import pytest
 
-from coraplex.exceptions import MotionDidNotFinish, PlanNotCompiled
-from coraplex.execution_environment import no_execution, simulated_robot
+from coraplex.datastructures.enums import ExecutionType
+from coraplex.exceptions import (
+    MotionDidNotFinish,
+    PlanNotCompiled,
+    StatechartHoldsNoPlan,
+    UnknownExecutionType,
+)
+from coraplex.plans.executors import (
+    PlanExecutor,
+    RobotPlanExecutor,
+    SimulatedPlanExecutor,
+)
 from coraplex.plans.failures import (
     MotionExceededSimulationTimeLimit,
     MotionMadeNoProgress,
     MotionViolatedCollisionAvoidance,
 )
-from coraplex.plans.plan_execution import PlanExecutor, SimulatedPlanRun
 from coraplex.robot_plans.actions.core.pick_up import ReachAction
-from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
+from coraplex.robot_plans.actions.core.robot_body import (
+    MoveTorsoAction,
+    ParkArmsAction,
+)
+from cramph.exceptions import StatechartOfDifferentContextError
 from cramph.data_types import LifeCycleValues, ObservationStateValues
 from cramph.executor import StatechartExecutor
 from cramph.node import CancelStatechart
@@ -28,6 +42,7 @@ from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.robots.pr2 import PR2Joint
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
+from ...plan_running import simulated_executor, statechart_of
 
 # %% compiling
 
@@ -35,12 +50,11 @@ from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 def test_compiling_puts_the_plan_and_its_end_in_one_statechart(
     pr2_apartment_context,
 ):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
     plan = MoveTorsoAction(TorsoState.HIGH)
-    executor = PlanExecutor(context)
+    executor = simulated_executor(extensions)
 
-    with simulated_robot:
-        executor.compile(plan)
+    executor.compile(statechart_of(executor, plan))
 
     statechart = plan.statechart
     assert plan in statechart.top_level_nodes
@@ -48,48 +62,99 @@ def test_compiling_puts_the_plan_and_its_end_in_one_statechart(
 
 
 def test_executing_before_compiling_is_refused(pr2_apartment_context):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
 
     with pytest.raises(PlanNotCompiled):
-        PlanExecutor(context).execute()
+        simulated_executor(extensions).execute()
 
 
 # %% executing
 
 
 def test_executing_runs_the_plan_until_it_succeeded(pr2_apartment_context):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
     plan = MoveTorsoAction(TorsoState.HIGH)
-    executor = PlanExecutor(context)
+    executor = simulated_executor(extensions)
 
-    with simulated_robot:
-        executor.compile(plan)
-        executor.execute()
+    executor.compile(statechart_of(executor, plan))
+    executor.execute()
 
     assert plan.life_cycle_state == LifeCycleValues.SUCCEEDED
 
 
 def test_a_plan_that_fails_raises_motion_did_not_finish(pr2_apartment_context):
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
     plan = NodeFailingOnObservingFalse(observation=ObservationStateValues.FALSE)
-    executor = PlanExecutor(context)
+    executor = simulated_executor(extensions)
 
-    with simulated_robot, pytest.raises(MotionDidNotFinish):
-        executor.compile(plan)
+    with pytest.raises(MotionDidNotFinish):
+        executor.compile(statechart_of(executor, plan))
         executor.execute()
 
 
-def test_without_execution_the_robot_does_not_move(pr2_apartment_context):
-    world, robot_view, context = pr2_apartment_context
+def test_preparing_a_plan_does_not_move_the_robot(pr2_apartment_context):
+    world, robot_view, extensions = pr2_apartment_context
     torso = world.get_degree_of_freedom_by_name(PR2Joint.TORSO_LIFT).id
     position_before = world.state[torso].position
-    executor = PlanExecutor(context)
+    executor = simulated_executor(extensions)
 
-    with no_execution:
-        executor.compile(MoveTorsoAction(TorsoState.HIGH))
-        executor.execute()
+    executor.prepare(statechart_of(executor, MoveTorsoAction(TorsoState.HIGH)))
 
     assert world.state[torso].position == position_before
+
+
+def test_a_plan_of_several_top_level_nodes_ends_once_all_of_them_succeeded(
+    pr2_apartment_context,
+):
+    """
+    A statechart has no root node, so every node the caller puts at its top level is
+    part of the plan.
+    """
+    world, robot_view, extensions = pr2_apartment_context
+    torso = MoveTorsoAction(TorsoState.HIGH)
+    arms = ParkArmsAction(robot_view.all_arms)
+    executor = simulated_executor(extensions)
+
+    executor.compile(statechart_of(executor, torso, arms))
+    executor.execute()
+
+    assert executor.plan_nodes == [torso, arms]
+    assert torso.life_cycle_state == LifeCycleValues.SUCCEEDED
+    assert arms.life_cycle_state == LifeCycleValues.SUCCEEDED
+
+
+def test_a_statechart_without_a_plan_is_refused(pr2_apartment_context):
+    world, robot_view, extensions = pr2_apartment_context
+    executor = simulated_executor(extensions)
+
+    with pytest.raises(StatechartHoldsNoPlan):
+        executor.compile(statechart_of(executor))
+
+
+def test_a_statechart_of_another_context_is_refused(pr2_apartment_context):
+    world, robot_view, extensions = pr2_apartment_context
+    statechart = statechart_of(
+        simulated_executor(extensions), MoveTorsoAction(TorsoState.HIGH)
+    )
+
+    with pytest.raises(StatechartOfDifferentContextError):
+        simulated_executor(extensions).compile(statechart)
+
+
+@pytest.mark.parametrize(
+    "execution_type, executor_type",
+    [
+        (ExecutionType.SIMULATED, SimulatedPlanExecutor),
+        (ExecutionType.REAL, RobotPlanExecutor),
+    ],
+)
+def test_each_execution_type_has_its_executor(execution_type, executor_type):
+    assert PlanExecutor.type_for(execution_type) is executor_type
+
+
+def test_an_execution_type_without_an_executor_is_refused():
+    with pytest.raises(UnknownExecutionType):
+        PlanExecutor.type_for(ExecutionType.NO_EXECUTION)
 
 
 # %% how long a plan may take
@@ -100,12 +165,11 @@ def test_compiling_watches_the_plan_for_progress(pr2_apartment_context):
     A stalled run has to end by itself, so the statechart carries a monitor watching the
     plan and an abort path wired to it.
     """
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
     plan = MoveTorsoAction(TorsoState.HIGH)
-    executor = PlanExecutor(context)
+    executor = simulated_executor(extensions)
 
-    with simulated_robot:
-        executor.compile(plan)
+    executor.compile(statechart_of(executor, plan))
 
     [progress_monitor] = plan.statechart.get_nodes_by_type(StillProgressing)
     assert progress_monitor.monitored_node is plan
@@ -119,18 +183,18 @@ def test_a_plan_that_stops_approaching_its_goal_is_given_up_on(
     Nothing bounds the tick loop but the monitor, so a reach the arm cannot close on has
     to end the run rather than tick forever.
     """
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     milk.root.parent_connection.origin = HomogeneousTransformationMatrix.from_xyz_rpy(
         2, 1.5, 50, reference_frame=milk.root.parent_connection.parent
     )
     plan = ReachAction(
-        grasp=GraspCandidate.from_body_origin(milk), arm=context.robot.right_arm
+        grasp=GraspCandidate.from_body_origin(milk), arm=robot_view.right_arm
     )
-    executor = PlanExecutor(context)
+    executor = simulated_executor(extensions)
 
-    with simulated_robot, pytest.raises(MotionMadeNoProgress):
-        executor.compile(plan)
+    with pytest.raises(MotionMadeNoProgress):
+        executor.compile(statechart_of(executor, plan))
         executor.execute()
 
 
@@ -140,12 +204,12 @@ def test_a_plan_that_outlasts_the_simulation_time_limit_is_given_up_on(
     """
     A simulated plan is given up on once it exceeds the simulation time limit.
     """
-    world, robot_view, context = pr2_apartment_context
-    monkeypatch.setattr(SimulatedPlanRun, "simulation_time_limit", timedelta(0))
-    executor = PlanExecutor(context)
+    world, robot_view, extensions = pr2_apartment_context
+    monkeypatch.setattr(SimulatedPlanExecutor, "simulation_time_limit", timedelta(0))
+    executor = simulated_executor(extensions)
 
-    with simulated_robot, pytest.raises(MotionExceededSimulationTimeLimit):
-        executor.compile(MoveTorsoAction(TorsoState.HIGH))
+    with pytest.raises(MotionExceededSimulationTimeLimit):
+        executor.compile(statechart_of(executor, MoveTorsoAction(TorsoState.HIGH)))
         executor.execute()
 
 
@@ -157,17 +221,16 @@ def test_a_plan_that_violates_collision_avoidance_fails_as_a_plan_failure(
     not work from where it started, so a surrounding plan can try another candidate
     instead of stopping.
     """
-    world, robot_view, context = pr2_apartment_context
+    world, robot_view, extensions = pr2_apartment_context
     violation = CollisionViolatedError(violated_collisions=[], thresholds=[])
 
     def violate_collision_avoidance(executor: StatechartExecutor) -> None:
         raise violation
 
-    executor = PlanExecutor(context)
-    with simulated_robot:
-        executor.compile(MoveTorsoAction(TorsoState.HIGH))
-        monkeypatch.setattr(StatechartExecutor, "tick", violate_collision_avoidance)
-        with pytest.raises(MotionViolatedCollisionAvoidance) as failure:
-            executor.execute()
+    executor = simulated_executor(extensions)
+    executor.compile(statechart_of(executor, MoveTorsoAction(TorsoState.HIGH)))
+    monkeypatch.setattr(StatechartExecutor, "tick", violate_collision_avoidance)
+    with pytest.raises(MotionViolatedCollisionAvoidance) as failure:
+        executor.execute()
 
     assert failure.value.violation is violation

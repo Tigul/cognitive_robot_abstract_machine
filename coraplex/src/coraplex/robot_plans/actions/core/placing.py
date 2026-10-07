@@ -12,7 +12,8 @@ from krrood.entity_query_language.factories import (
     variable_from,
     ConditionType,
 )
-from coraplex.datastructures.dataclasses import Context
+from coraplex.plans.context_extensions import RobotAccess
+from cramph.context import StatechartContext
 from coraplex.exceptions import ObjectIsNotHeld
 from coraplex.querying.predicates import GripperHolds
 from cramph.node import StatechartNode
@@ -153,7 +154,9 @@ class PlaceAction(
 
     @staticmethod
     def pre_condition(
-        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable],
+        context: StatechartContext,
+        kwargs: Dict[str, Any],
     ) -> ConditionType:
         """
         An arm of the robot needs to hold the object, whether the object hangs off its
@@ -166,7 +169,7 @@ class PlaceAction(
         return or_(
             *[
                 GripperHolds(arm.end_effector, object_body)
-                for arm in context.robot.all_arms
+                for arm in context.require_extension(RobotAccess).robot.all_arms
             ],
             *PlaceAction._grips_of_every_arm(
                 context, kwargs, kwargs["grasp_detection_threshold"]
@@ -175,7 +178,9 @@ class PlaceAction(
 
     @staticmethod
     def post_condition(
-        variables: Dict[str, Variable], context: Context, kwargs: Dict[str, Any]
+        variables: Dict[str, Variable],
+        context: StatechartContext,
+        kwargs: Dict[str, Any],
     ) -> ConditionType:
         """
         No arm may hold the object any more and it needs to be at the target location.
@@ -196,7 +201,7 @@ class PlaceAction(
 
     @staticmethod
     def _grips_of_every_arm(
-        context: Context, kwargs: Dict[str, Any], threshold: float
+        context: StatechartContext, kwargs: Dict[str, Any], threshold: float
     ) -> List[ConditionType]:
         """
         :param threshold: The fraction of rays between the fingers that has to hit the
@@ -209,5 +214,5 @@ class PlaceAction(
                 arm.end_effector,
                 threshold=threshold,
             )
-            for arm in context.robot.all_arms
+            for arm in context.require_extension(RobotAccess).robot.all_arms
         ]
