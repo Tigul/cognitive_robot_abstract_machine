@@ -26,11 +26,16 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
+
+@dataclass(eq=False)
+class DesignatorParameterMixin:
+    ...
+
 # %% behaviour parameters
 
 
 @dataclass(eq=False)
-class UsedArm:
+class UsedArm(DesignatorParameterMixin):
     """
     Mixin for behaviours that operate one of the robot's arms.
     """
@@ -42,7 +47,7 @@ class UsedArm:
 
 
 @dataclass(eq=False)
-class UsedGrasp:
+class UsedGrasp(DesignatorParameterMixin):
     """
     Mixin for behaviours that close a gripper on something. The grasp names the object it
     is on, so that is not asked for separately.
@@ -58,7 +63,7 @@ class UsedGrasp:
 
 
 @dataclass(eq=False)
-class ObjectActedOn:
+class ObjectActedOn(DesignatorParameterMixin):
     """
     Mixin for behaviours that act on a single graspable object.
     """
@@ -71,7 +76,7 @@ class ObjectActedOn:
 
 
 @dataclass(eq=False)
-class HandleOperatedOn:
+class HandleOperatedOn(DesignatorParameterMixin):
     """
     Mixin for behaviours that grasp and articulate a handle, such as opening or closing a
     container.
@@ -85,7 +90,7 @@ class HandleOperatedOn:
 
 
 @dataclass(eq=False)
-class GripperCollisionAllowed:
+class GripperCollisionAllowed(DesignatorParameterMixin):
     """
     Mixin for behaviours that may permit the gripper to collide with the environment.
     """
@@ -97,7 +102,7 @@ class GripperCollisionAllowed:
 
 
 @dataclass(eq=False)
-class TargetLocationMovedTo:
+class TargetLocationMovedTo(DesignatorParameterMixin):
     """
     Mixin for behaviours that move the robot or an object to a destination pose.
     """
@@ -109,7 +114,7 @@ class TargetLocationMovedTo:
 
 
 @dataclass(eq=False)
-class TargetPoseReached:
+class TargetPoseReached(DesignatorParameterMixin):
     """
     Mixin for behaviours that drive an end effector to a target pose.
     """
@@ -121,7 +126,7 @@ class TargetPoseReached:
 
 
 @dataclass(eq=False)
-class TargetLookedAt:
+class TargetLookedAt(DesignatorParameterMixin):
     """
     Mixin for behaviours that orient the robot toward a pose.
     """
@@ -133,7 +138,7 @@ class TargetLookedAt:
 
 
 @dataclass(eq=False)
-class UsedMovementType:
+class UsedMovementType(DesignatorParameterMixin):
     """
     Mixin for behaviours whose Cartesian motion follows a selectable movement type.
     """
@@ -145,7 +150,7 @@ class UsedMovementType:
 
 
 @dataclass(eq=False)
-class GripperStateSet:
+class GripperStateSet(DesignatorParameterMixin):
     """
     Mixin for behaviours that set the gripper to an open or closed state.
     """
@@ -157,7 +162,7 @@ class GripperStateSet:
 
 
 @dataclass(eq=False)
-class UsedEndEffector:
+class UsedEndEffector(DesignatorParameterMixin):
     """
     Mixin for behaviours that act through a specific end effector.
     """
@@ -169,7 +174,7 @@ class UsedEndEffector:
 
 
 @dataclass(eq=False)
-class UsedCamera:
+class UsedCamera(DesignatorParameterMixin):
     """
     Mixin for behaviours that point a camera.
     """
@@ -181,7 +186,7 @@ class UsedCamera:
 
 
 @dataclass(eq=False)
-class UsedTool:
+class UsedTool(DesignatorParameterMixin):
     """
     Mixin for behaviours that manipulate an object with a held tool.
     """
@@ -193,7 +198,7 @@ class UsedTool:
 
 
 @dataclass(eq=False)
-class TorsoStateSet:
+class TorsoStateSet(DesignatorParameterMixin):
     """
     Mixin for behaviours that set the torso to a defined state.
     """
@@ -205,7 +210,7 @@ class TorsoStateSet:
 
 
 @dataclass(eq=False)
-class LinkAlignmentApplied:
+class LinkAlignmentApplied(DesignatorParameterMixin):
     """
     Mixin for behaviours that can align an end-effector link with a goal axis.
 
@@ -230,7 +235,7 @@ class LinkAlignmentApplied:
 
 
 @dataclass(eq=False)
-class ToolCenterPointGoalThresholds:
+class ToolCenterPointGoalThresholds(DesignatorParameterMixin):
     """
     Mixin for behaviours that count their tool-center-point goal as reached within a
     tolerance, falling back to
@@ -269,7 +274,7 @@ class ToolCenterPointGoalThresholds:
 
 
 @dataclass(eq=False)
-class GraspDetectionThreshold:
+class GraspDetectionThreshold(DesignatorParameterMixin):
     """
     Mixin for behaviours that check whether an object is held between the gripper's
     fingers.
@@ -284,7 +289,7 @@ class GraspDetectionThreshold:
 
 
 @dataclass
-class HasMaxJointVelocity:
+class HasMaxJointVelocity(DesignatorParameterMixin):
     """
     Adds an optional joint velocity cap to an action or motion.
 
