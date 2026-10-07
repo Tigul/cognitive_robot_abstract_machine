@@ -50,7 +50,7 @@ from .conftest import motion_nodes_of
 from giskardpy.motion_control import MotionControl
 from cramph.context import StatechartContext
 from cramph.data_types import ObservationStateValues
-from giskardpy.motion_statechart.graph_node import EndMotion
+from giskardpy.motion_statechart.graph_node import EndMotion, MotionStatechartNode
 from cramph.statechart import Statechart
 from giskardpy.motion_statechart.ros_context import RosContextExtension
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
@@ -769,6 +769,21 @@ def run_perception_task(task: PerceptionTask, context: StatechartContext) -> Non
     """
     task.on_start(context)
     assert task.on_tick(context) == ObservationStateValues.TRUE
+
+
+def test_perception_task_is_a_plain_statechart_node(
+    pr2_apartment_context, whole_scene_region
+):
+    """
+    Answering a query moves nothing, so the node adds no motion constraints and needs no
+    motion control to be built.
+    """
+    world, view, extensions = pr2_apartment_context
+    query = PerceptionQuery(Milk, whole_scene_region, view, world)
+
+    task = PerceptionTask(query=query, execution_type=ExecutionType.SIMULATED)
+
+    assert not isinstance(task, MotionStatechartNode)
 
 
 def test_perception_task_moves_the_detected_body(

@@ -7,8 +7,8 @@ from datetime import timedelta
 import numpy as np
 
 from cramph.context import StatechartContext
-from cramph.data_types import ObservationStateValues
-from giskardpy.motion_statechart.graph_node import MotionNodeArtifacts, Task
+from cramph.data_types import ObservationStateValues, SuccessDecider
+from cramph.node import StatechartNode
 from giskardpy.motion_statechart.ros_context import RosContextExtension
 from krrood.adapters.json_serializer import SubclassJSONSerializer, from_json, to_json
 from rclpy.node import Node
@@ -461,18 +461,21 @@ class RoboKudoPerception(PerceptionInterface):
 
 
 @dataclass(eq=False, repr=False)
-class PerceptionTask(Task):
+class PerceptionTask(StatechartNode):
     """
-    Motion statechart node that answers a perception query and writes what it saw into
-    the world.
+    Statechart node that answers a perception query and writes what it saw into the
+    world.
 
-    The node adds no motion constraints. The query is answered on the node's first tick,
+    The node moves nothing, so it adds no motion constraints and its owner decides when
+    it succeeded, like a task of a motion. The query is answered on the node's first tick,
     so the whole detection takes one tick however long the source needs to reply, and the
     node then observes ``TRUE`` so the surrounding sequence continues.
 
     ..warning:: That tick blocks until the source replies, which on the real robot holds
         up the control loop for as long as the pipeline takes to answer.
     """
+
+    success_decided_by = SuccessDecider.OWNER
 
     query: PerceptionQuery = field(kw_only=True)
     """
@@ -513,9 +516,6 @@ class PerceptionTask(Task):
             self.execution_type,
             context.require_extension(RosContextExtension).ros_node,
         )
-
-    def build_artifacts(self, context: StatechartContext) -> MotionNodeArtifacts:
-        return MotionNodeArtifacts()
 
     def on_start(self, context: StatechartContext) -> None:
         self._detections_applied = False
