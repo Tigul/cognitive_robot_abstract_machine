@@ -2,18 +2,16 @@ from __future__ import annotations
 
 import logging
 from abc import ABC, abstractmethod
-from dataclasses import Field, dataclass, field, fields
+from dataclasses import dataclass, field
 
 from typing_extensions import (
     Any,
     Dict,
-    List,
     Optional,
 )
 
 from coraplex.datastructures.dataclasses import Context, PlanContextExtension
 from coraplex.plans.designator import DesignatorParameters
-from cramph.composites import Sequence
 from cramph.context import StatechartContext
 from cramph.data_types import SuccessDecider
 from cramph.node import CompositeNode, NodeArtifacts, StatechartNode
@@ -36,9 +34,10 @@ class Action(CompositeNode, DesignatorParameters, ABC):
     Something a robot does, described by the parameters it is given and run as a node of
     a statechart.
 
-    The nodes named in :attr:`_sub_nodes` run one after another. The action reaches its
-    goal once the last of them succeeded, and declares itself failed as soon as one of
-    them ended without succeeding, so an action can be a step of another one.
+    What it does is its :attr:`action_body`, the node :meth:`create_action_body`
+    creates. The action reaches its goal once its body succeeded, and declares itself
+    failed as soon as the body ended without succeeding, so an action can be a step of
+    another one.
 
     .. note:: :class:`~coraplex.plans.designator.DesignatorParameters` is the last
         base, because ORMatic resolves a data access object's parent by walking the
@@ -49,25 +48,33 @@ class Action(CompositeNode, DesignatorParameters, ABC):
     success_decided_by = SuccessDecider.ITSELF
     fails_when_observing_false = True
 
-    _action_body: Optional[Sequence] = field(
+    _action_body: Optional[StatechartNode] = field(
         init=False,
         default=None,
         repr=False,
         metadata=JSONMetadata(serialize=True).as_dict(),
     )
     """
-    The sequence running the nodes this action is made of, created when it is expanded.
+    The node running what this action does, created when it is expanded.
 
     Serialized, because a statechart is sent after its nodes expanded and the receiver
     does not expand them again.
     """
 
-    @property
     @abstractmethod
-    def _sub_nodes(self) -> List[StatechartNode]:
+    def create_action_body(self) -> StatechartNode:
         """
-        :return: The steps this action runs, in the order they run in.
+        :return: A new node running what this action does, usually a
+            :class:`~cramph.composites.Sequence` of its steps. Called once, when the
+            action is expanded.
         """
+
+    @property
+    def action_body(self) -> Optional[StatechartNode]:
+        """
+        :return: The node running what this action does, None until it was expanded.
+        """
+        return self._action_body
 
     @property
     def context(self) -> Context:
@@ -98,23 +105,16 @@ class Action(CompositeNode, DesignatorParameters, ABC):
         """
         return self.context.controlled_root
 
-    @classmethod
-    def _machinery_fields(cls) -> List[Field]:
-        return list(fields(Action))
-
     def expand(self, context: StatechartContext) -> None:
         """
-        Puts the nodes this action is made of into one sequence below it.
+        Puts the node this action creates below it.
         """
-        self._action_body = Sequence(
-            name=f"{self.name}/body",
-            nodes=list(self._sub_nodes),
-        )
+        self._action_body = self.create_action_body()
         self._add_child_to_statechart(self._action_body)
 
     def build_artifacts(self, context: StatechartContext) -> NodeArtifacts:
         """
-        Report what the sequence below reached.
+        Report what the body reached.
 
         It is read through its last observation, which outlasts it, because a node that
         ended observes nothing any more.

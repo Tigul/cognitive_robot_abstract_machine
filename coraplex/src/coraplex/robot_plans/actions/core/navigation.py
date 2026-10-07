@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass, field
 
-from typing_extensions import Optional, Any, Dict, List
+from typing_extensions import Optional, Any, Dict
 
 from coraplex.datastructures.dataclasses import Context
 from coraplex.exceptions import NoFloorBelowRobot, NotOnASingleLevelException
@@ -12,7 +12,7 @@ from cramph.world_modification_nodes import MoveBranch
 from coraplex.robot_plans.actions.base import Action
 from coraplex.datastructures.enums import ExecutionType
 from coraplex.execution_environment import ExecutionEnvironment
-from cramph.composites import Parallel, PausedUntilTrue
+from cramph.composites import Parallel, PausedUntilTrue, Sequence
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.monitors.joint_monitors import (
     JointPositionReached,
@@ -81,11 +81,10 @@ class NavigateAction(DrivesBase):
     x-axis.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        return [
-            self._drive_to(self.robot.mobile_base.pose_facing(self.target_location))
-        ]
+    def create_action_body(self) -> StatechartNode:
+        return Sequence(
+            [self._drive_to(self.robot.mobile_base.pose_facing(self.target_location))]
+        )
 
     @staticmethod
     def pre_condition(
@@ -131,17 +130,18 @@ class LookAtAction(Action):
     Camera that should be looking at the target.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
+    def create_action_body(self) -> StatechartNode:
         camera = self.camera or self.robot.get_default_camera()
-        return [
-            Pointing(
-                root_link=self.robot.get_torso().root,
-                tip_link=camera.root,
-                goal_point=self.target.to_position(),
-                pointing_axis=camera.forward_facing_axis,
-            )
-        ]
+        return Sequence(
+            [
+                Pointing(
+                    root_link=self.robot.get_torso().root,
+                    tip_link=camera.root,
+                    goal_point=self.target.to_position(),
+                    pointing_axis=camera.forward_facing_axis,
+                )
+            ]
+        )
 
 
 @dataclass(eq=False, repr=False)
@@ -158,28 +158,29 @@ class FaceAtAction(Action):
     What to face; only its horizontal position matters.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        return [
-            Parallel(
-                [
-                    Pointing(
-                        root_link=self.world.root,
-                        tip_link=self.robot.root,
-                        goal_point=self._target_at_base_height(),
-                        pointing_axis=Vector3(
-                            *self.robot.mobile_base.forward_axis.to_np()[:3],
-                            reference_frame=self.robot.root,
+    def create_action_body(self) -> StatechartNode:
+        return Sequence(
+            [
+                Parallel(
+                    [
+                        Pointing(
+                            root_link=self.world.root,
+                            tip_link=self.robot.root,
+                            goal_point=self._target_at_base_height(),
+                            pointing_axis=Vector3(
+                                *self.robot.mobile_base.forward_axis.to_np()[:3],
+                                reference_frame=self.robot.root,
+                            ),
                         ),
-                    ),
-                    CartesianPosition(
-                        root_link=self.world.root,
-                        tip_link=self.robot.root,
-                        goal_point=Point3(reference_frame=self.robot.root),
-                    ),
-                ]
-            )
-        ]
+                        CartesianPosition(
+                            root_link=self.world.root,
+                            tip_link=self.robot.root,
+                            goal_point=Point3(reference_frame=self.robot.root),
+                        ),
+                    ]
+                )
+            ]
+        )
 
     def _target_at_base_height(self) -> Point3:
         """
@@ -208,9 +209,8 @@ class PathPlanningNavigateAction(DrivesBase):
     Where the robot should stand at the end of the path, with its base.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        return [self._drive_to(waypoint) for waypoint in self._path()]
+    def create_action_body(self) -> StatechartNode:
+        return Sequence([self._drive_to(waypoint) for waypoint in self._path()])
 
     @property
     def _floor(self) -> Floor:
@@ -343,26 +343,27 @@ class ElevatorNavigation(Action):
     Position error within which the elevator's drive and doors count as having arrived.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        return [
-            NavigateAction(self._pose_infront_of_elevator),
-            PausedUntilTrue(
-                monitor=self._elevator_open_at_floor(self._current_floor),
-                monitored_node=NavigateAction(
-                    Pose.from_xyz_rpy(
-                        z=self._height_in_cabin,
-                        reference_frame=self.elevator.root,
-                    )
+    def create_action_body(self) -> StatechartNode:
+        return Sequence(
+            [
+                NavigateAction(self._pose_infront_of_elevator),
+                PausedUntilTrue(
+                    monitor=self._elevator_open_at_floor(self._current_floor),
+                    monitored_node=NavigateAction(
+                        Pose.from_xyz_rpy(
+                            z=self._height_in_cabin,
+                            reference_frame=self.elevator.root,
+                        )
+                    ),
                 ),
-            ),
-            MoveBranch(body=self.robot.root, new_parent=self.elevator.root),
-            PausedUntilTrue(
-                monitor=self._elevator_open_at_floor(self.target_floor),
-                monitored_node=NavigateAction(self._pose_infront_of_elevator),
-            ),
-            MoveBranch(body=self.robot.root, new_parent=self.world.root),
-        ]
+                MoveBranch(body=self.robot.root, new_parent=self.elevator.root),
+                PausedUntilTrue(
+                    monitor=self._elevator_open_at_floor(self.target_floor),
+                    monitored_node=NavigateAction(self._pose_infront_of_elevator),
+                ),
+                MoveBranch(body=self.robot.root, new_parent=self.world.root),
+            ]
+        )
 
     @property
     def _current_floor(self) -> Level:

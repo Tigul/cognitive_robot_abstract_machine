@@ -20,7 +20,7 @@ from coraplex.robot_plans.mixins import (
     MovesGripper,
     MovesToolCenterPoint,
 )
-from cramph.composites import Parallel
+from cramph.composites import Parallel, Sequence
 from cramph.node import StatechartNode
 from giskardpy.motion_statechart.binding_policy import GoalBindingPolicy
 from giskardpy.motion_statechart.goals.collision_avoidance import (
@@ -50,10 +50,9 @@ class MoveTorsoAction(Action):
     The state of the torso that should be set.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
+    def create_action_body(self) -> StatechartNode:
         joint_state = self.robot.get_torso().get_joint_state_by_type(self.torso_state)
-        return [JointPositionList(goal_state=joint_state)]
+        return Sequence([JointPositionList(goal_state=joint_state)])
 
     @staticmethod
     def post_condition(
@@ -84,9 +83,8 @@ class SetGripperAction(Action, MovesGripper):
     The motion that should be set on the gripper.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        return [self.gripper_goal(self.motion, self.gripper)]
+    def create_action_body(self) -> StatechartNode:
+        return Sequence([self.gripper_goal(self.motion, self.gripper)])
 
 
 @dataclass(eq=False, repr=False)
@@ -100,23 +98,24 @@ class ParkArmsAction(Action, HasMaxJointVelocity):
     The arms that should be parked.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
+    def create_action_body(self) -> StatechartNode:
         park_state = self.park_joint_state()
         joint_goal = JointPositionList(goal_state=park_state)
         if self.max_joint_velocity is None:
-            return [joint_goal]
-        return [
-            Parallel(
-                [
-                    joint_goal,
-                    JointVelocityLimit(
-                        connections=list(park_state.connections),
-                        max_velocity=self.max_joint_velocity,
-                    ),
-                ]
-            )
-        ]
+            return Sequence([joint_goal])
+        return Sequence(
+            [
+                Parallel(
+                    [
+                        joint_goal,
+                        JointVelocityLimit(
+                            connections=list(park_state.connections),
+                            max_velocity=self.max_joint_velocity,
+                        ),
+                    ]
+                )
+            ]
+        )
 
     def park_joint_state(self) -> JointState:
         """
@@ -149,9 +148,10 @@ class FollowToolCenterPointPathAction(Action, MovesToolCenterPoint):
     The arm to use.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        return [self._waypoint_goal(pose) for pose in self.target_locations.poses]
+    def create_action_body(self) -> StatechartNode:
+        return Sequence(
+            [self._waypoint_goal(pose) for pose in self.target_locations.poses]
+        )
 
     def _waypoint_goal(self, target: Pose) -> CartesianPose:
         """
@@ -200,8 +200,7 @@ class MoveManipulatorAction(Action, MovesToolCenterPoint):
     If the gripper can collide with something.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
+    def create_action_body(self) -> StatechartNode:
         goal = CartesianPose(
             root_link=self.controlled_root,
             tip_link=self.end_effector.tool_frame,
@@ -211,15 +210,19 @@ class MoveManipulatorAction(Action, MovesToolCenterPoint):
             binding_policy=GoalBindingPolicy.Bind_on_start,
         )
         if not self.allow_gripper_collision:
-            return [goal]
-        return [
-            Parallel(
-                [
-                    goal,
-                    UpdateTemporaryCollisionRules.for_end_effector(self.end_effector),
-                ]
-            )
-        ]
+            return Sequence([goal])
+        return Sequence(
+            [
+                Parallel(
+                    [
+                        goal,
+                        UpdateTemporaryCollisionRules.for_end_effector(
+                            self.end_effector
+                        ),
+                    ]
+                )
+            ]
+        )
 
     @staticmethod
     def post_condition(

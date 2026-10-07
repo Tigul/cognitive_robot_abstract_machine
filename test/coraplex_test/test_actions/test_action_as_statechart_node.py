@@ -34,6 +34,7 @@ from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
 from giskardpy.motion_statechart.tasks.pointing import Pointing
 from giskardpy.motion_statechart.monitors.overwrite_state_monitors import SetOdometry
+from krrood.patterns.field_metadata import ParameterMetadata
 from giskardpy.motion_statechart.tasks.joint_tasks import (
     JointPositionList,
     JointVelocityLimit,
@@ -56,9 +57,8 @@ class ActionRunningHandedInSteps(Action):
     The nodes this action runs, in order.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        return list(self.steps)
+    def create_action_body(self) -> StatechartNode:
+        return Sequence(list(self.steps))
 
 
 def _succeeding(name: str) -> NodeSucceedingOnObservingTrue:
@@ -127,6 +127,46 @@ def test_action_runs_its_steps_as_one_sequence(simple_pr2_context):
     assert body.nodes == steps
 
 
+@dataclass(eq=False, repr=False)
+class ActionRunningOneNode(Action):
+    """
+    An action whose body is a single node rather than a sequence of steps.
+    """
+
+    node: StatechartNode
+    """
+    The node this action runs.
+    """
+
+    def create_action_body(self) -> StatechartNode:
+        return self.node
+
+
+def test_an_action_has_no_body_before_it_is_expanded():
+    assert ActionRunningHandedInSteps(steps=[]).action_body is None
+
+
+def test_an_action_runs_the_body_it_created(simple_pr2_context):
+    _, _, context = simple_pr2_context
+    action = ActionRunningHandedInSteps(steps=[_succeeding("only step")])
+
+    _expanded(action, context)
+
+    assert action.children == [action.action_body]
+
+
+def test_an_action_body_can_be_a_single_node(simple_pr2_context):
+    _, _, context = simple_pr2_context
+    step = _succeeding("only step")
+    action = ActionRunningOneNode(node=step)
+    statechart = _expanded(action, context)
+
+    _run_until(statechart, EndStatechart.when_true(action))
+
+    assert action.action_body is step
+    assert action.life_cycle_state == LifeCycleValues.SUCCEEDED
+
+
 def test_action_succeeds_once_its_last_step_succeeded(simple_pr2_context):
     """
     An action ends successfully when the sequence it runs does.
@@ -171,6 +211,50 @@ def test_action_parameters_leave_out_statechart_machinery(simple_pr2_context):
     action = MoveTorsoAction(TorsoState.HIGH)
 
     assert action.designator_parameter == {"torso_state": TorsoState.HIGH}
+
+
+@dataclass(eq=False, repr=False)
+class ActionWithKeywordOnlyParameter(ActionRunningHandedInSteps):
+    """
+    An action taking one of its parameters by keyword only.
+    """
+
+    speed: float = field(default=1.0, kw_only=True)
+    """
+    A parameter that can only be passed by keyword.
+    """
+
+
+@dataclass(eq=False, repr=False)
+class ActionWithHelperField(ActionRunningHandedInSteps):
+    """
+    An action carrying a field its caller sets that is not one of its parameters.
+    """
+
+    helper: int = field(
+        default=0, metadata=ParameterMetadata(is_parameter=False).as_dict()
+    )
+    """
+    A value the action needs that does not describe what it does.
+    """
+
+
+def test_a_keyword_only_field_is_a_parameter():
+    action = ActionWithKeywordOnlyParameter(speed=2.0)
+
+    assert action.designator_parameter == {"steps": [], "speed": 2.0}
+
+
+def test_the_name_of_an_action_is_not_a_parameter():
+    action = MoveTorsoAction(TorsoState.HIGH, name="lift")
+
+    assert action.designator_parameter == {"torso_state": TorsoState.HIGH}
+
+
+def test_a_field_marked_as_no_parameter_is_left_out():
+    action = ActionWithHelperField(helper=3)
+
+    assert action.designator_parameter == {"steps": []}
 
 
 # %% the converted actions

@@ -78,7 +78,7 @@ class DetectBeforeGrasp(InsertionTransformation[ReachAction]):
             steps.
         :return: The reach's last step, which brings the gripper onto the object.
         """
-        body = plan_node._action_body
+        body = plan_node.action_body
         if body is None or not body.nodes:
             raise ReachHasNoFinalApproach(plan_node)
         return body.nodes[-1]
@@ -333,7 +333,7 @@ class ParkArmsAroundPickAndPlaceSteps(PlanTransformation[PickAndPlaceAction]):
         return True
 
     def apply(self, plan_node: PickAndPlaceAction) -> None:
-        steps = plan_node._action_body
+        steps = plan_node.action_body
         for step in list(steps.nodes):
             steps.insert_before(step, ParkArmsAction(plan_node.robot.all_arms))
         steps.insert_after(steps.nodes[-1], ParkArmsAction(plan_node.robot.all_arms))

@@ -1,9 +1,9 @@
+from cramph.composites import Sequence
 from dataclasses import dataclass
 
 import rustworkx
 
 from krrood.entity_query_language.factories import a, an, variable
-from typing_extensions import List
 from coraplex.plans.underspecified import UnderspecifiedNode
 from coraplex.robot_plans.actions.base import Action
 from cramph.node import StatechartNode
@@ -29,8 +29,7 @@ class Sage10kOpenDoor(Action):
 
     door: Door
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
+    def create_action_body(self) -> StatechartNode:
         """
         Build the steps for reaching the handle and opening the door.
 
@@ -89,4 +88,4 @@ class Sage10kOpenDoor(Action):
 
         open_action = OpenAction(handle=self.door.handle, arm=arm)
 
-        return [reach_action, open_action]
+        return Sequence([reach_action, open_action])

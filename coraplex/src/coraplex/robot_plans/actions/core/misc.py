@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from typing_extensions import Optional, Type, List
+from typing_extensions import Optional, Type
 
 from coraplex.datastructures.enums import DetectionTechnique, DetectionState
 from coraplex.perception import PerceptionQuery, PerceptionTask
 from coraplex.execution_environment import ExecutionEnvironment
+from cramph.composites import Sequence
 from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
@@ -83,15 +84,16 @@ class DetectAction(Action):
     :class:`~coraplex.exceptions.UnidentifiedDetections` instead of being chosen between.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        return [
-            PerceptionTask(
-                query=self._build_query(),
-                execution_type=ExecutionEnvironment.current_execution_type,
-                accept_first_if_multiple=self.accept_first_if_multiple,
-            )
-        ]
+    def create_action_body(self) -> StatechartNode:
+        return Sequence(
+            [
+                PerceptionTask(
+                    query=self._build_query(),
+                    execution_type=ExecutionEnvironment.current_execution_type,
+                    accept_first_if_multiple=self.accept_first_if_multiple,
+                )
+            ]
+        )
 
     def _build_query(self) -> PerceptionQuery:
         """
@@ -158,18 +160,19 @@ class MoveToReach(Action, HasApproachesGraspPoses, MovesToolCenterPoint):
     The end effector that should reach it.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        return [
-            NavigateAction(self.standing_pose),
-            MoveManipulatorAction(
-                self.end_effector.tool_frame_goal(self.reference_T_grasp),
-                self.end_effector,
-                allow_gripper_collision=False,
-                position_threshold=self.position_threshold,
-                orientation_threshold=self.orientation_threshold,
-            ),
-        ]
+    def create_action_body(self) -> StatechartNode:
+        return Sequence(
+            [
+                NavigateAction(self.standing_pose),
+                MoveManipulatorAction(
+                    self.end_effector.tool_frame_goal(self.reference_T_grasp),
+                    self.end_effector,
+                    allow_gripper_collision=False,
+                    position_threshold=self.position_threshold,
+                    orientation_threshold=self.orientation_threshold,
+                ),
+            ]
+        )
 
     @property
     def standing_pose(self) -> Pose:

@@ -9,6 +9,7 @@ from typing_extensions import Any, Dict, List, TypeVar, get_type_hints
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import variable
 from krrood.ormatic.utils import classproperty
+from krrood.patterns.field_metadata import ParameterMetadata
 
 T = TypeVar("T")
 
@@ -22,34 +23,32 @@ class DesignatorParameters:
     arguments it was given, whatever else it happens to be.
     """
 
-    @classmethod
-    def _machinery_fields(cls) -> List[Field]:
-        """
-        The fields that hold machinery rather than an argument the caller chose, and
-        which therefore never count as parameters.
-
-        A class that brings fields of its own along states them here, so that only the
-        arguments below it remain.
-        """
-        return list(fields(DesignatorParameters))
-
     @classproperty
     def fields(cls) -> List[Field]:
         """
-        The fields of this designator, leaving out the ones its bases brought along.
+        The fields of this designator a caller sets: every field taking a constructor
+        argument, unless it is marked as no parameter with
+        :class:`~krrood.patterns.field_metadata.ParameterMetadata`.
 
         :return: The fields the caller parameterizes this designator with.
         """
-        machinery = {
-            machinery_field.name for machinery_field in cls._machinery_fields()
-        }
-        own_fields = [
-            own_field for own_field in fields(cls) if own_field.name not in machinery
+        parameter_fields = [
+            dataclass_field
+            for dataclass_field in fields(cls)
+            if dataclass_field.init and cls._is_parameter(dataclass_field)
         ]
         type_hints = cls.get_type_hints()
-        for own_field in own_fields:
-            own_field.type = type_hints[own_field.name]
-        return own_fields
+        for parameter_field in parameter_fields:
+            parameter_field.type = type_hints[parameter_field.name]
+        return parameter_fields
+
+    @staticmethod
+    def _is_parameter(dataclass_field: Field) -> bool:
+        """
+        :return: Whether `dataclass_field` is not marked as no parameter.
+        """
+        metadata = dataclass_field.metadata.get(ParameterMetadata)
+        return metadata is None or metadata.is_parameter
 
     @property
     def designator_parameter(self) -> Dict[str, Any]:

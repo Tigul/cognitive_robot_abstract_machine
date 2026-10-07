@@ -87,7 +87,7 @@ def steps_of(node: StatechartNode) -> List[StatechartNode]:
     :param node: An expanded action, or a plan language node.
     :return: The steps it runs, in order, each read through the attempt holding it.
     """
-    language_node = node._action_body if isinstance(node, Action) else node
+    language_node = node.action_body if isinstance(node, Action) else node
     return [
         child.task if isinstance(child, Attempt) else child
         for child in language_node.nodes
@@ -201,7 +201,7 @@ class MoveGripperLastInTheReachBody(InsertionTransformation[ReachAction]):
         return True
 
     def anchor(self, plan_node: ReachAction) -> StatechartNode:
-        return plan_node._action_body
+        return plan_node.action_body
 
     def nodes_to_insert(self, plan_node: ReachAction) -> List[StatechartNode]:
         return [

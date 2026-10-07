@@ -68,8 +68,7 @@ class PlaceAction(
     :func:`~semantic_digital_twin.reasoning.robot_predicates.is_body_gripped`).
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
+    def create_action_body(self) -> StatechartNode:
         arm, grasp = self._holding_arm_and_grasp()
         # A release runs the grasp backwards: down from above the target, then out
         # along the way the grasp was approached.
@@ -77,27 +76,29 @@ class PlaceAction(
             grasp.moved_to(self.target_location), arm.end_effector, grasp
         )
 
-        return [
-            self.tool_center_point_goal(
-                poses.retreat,
-                arm,
-                allow_gripper_collision=True,
-                max_linear_velocity=self.transport_linear_velocity,
-            ),
-            self.tool_center_point_goal(
-                poses.grasp,
-                arm,
-                allow_gripper_collision=True,
-                max_linear_velocity=self.placing_linear_velocity,
-            ),
-            self.gripper_goal(
-                GripperState.OPEN,
-                arm.end_effector,
-                allow_gripper_collision=True,
-                finger_velocity=self.release_opening_velocity,
-            ),
-            self._retract(arm, poses.pre_grasp),
-        ]
+        return Sequence(
+            [
+                self.tool_center_point_goal(
+                    poses.retreat,
+                    arm,
+                    allow_gripper_collision=True,
+                    max_linear_velocity=self.transport_linear_velocity,
+                ),
+                self.tool_center_point_goal(
+                    poses.grasp,
+                    arm,
+                    allow_gripper_collision=True,
+                    max_linear_velocity=self.placing_linear_velocity,
+                ),
+                self.gripper_goal(
+                    GripperState.OPEN,
+                    arm.end_effector,
+                    allow_gripper_collision=True,
+                    finger_velocity=self.release_opening_velocity,
+                ),
+                self._retract(arm, poses.pre_grasp),
+            ]
+        )
 
     def _retract(self, arm: Arm, retract_pose: Pose) -> Sequence:
         """

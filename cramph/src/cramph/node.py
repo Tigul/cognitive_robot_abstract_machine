@@ -57,7 +57,7 @@ from krrood.adapters.json_serializer import (
     SubclassJSONSerializer,
 )
 from krrood.exceptions import DataclassException
-from krrood.patterns.field_metadata import JSONMetadata
+from krrood.patterns.field_metadata import JSONMetadata, ParameterMetadata
 from krrood.symbolic_math.symbolic_math import (
     FloatVariable,
     GenericSymbolicType,
@@ -757,7 +757,11 @@ class StatechartNode(SubclassJSONSerializer):
     Whether observing False means this node can no longer reach its goal, so that it fails.
     """
 
-    name: str = field(default=None, kw_only=True)
+    name: str = field(
+        default=None,
+        kw_only=True,
+        metadata=ParameterMetadata(is_parameter=False).as_dict(),
+    )
     """
     A name for the node within a statechart.
     The name is not unique, use `.unique_name`, if you need a unique identifier.

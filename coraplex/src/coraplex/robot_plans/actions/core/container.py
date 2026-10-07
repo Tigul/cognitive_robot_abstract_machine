@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from typing_extensions import Any, Dict, List
+from typing_extensions import Any, Dict
 
 from krrood.entity_query_language.core.base_expressions import SymbolicExpression
 from krrood.entity_query_language.core.variable import Variable
@@ -15,6 +15,7 @@ from krrood.entity_query_language.factories import (
 from coraplex.config.action_conf import ActionConfig
 from coraplex.datastructures.dataclasses import Context
 from coraplex.querying.predicates import GripperIsFree
+from cramph.composites import Sequence
 from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.actions.core.pick_up import GraspingAction
@@ -53,22 +54,25 @@ class OpenAction(Action):
     The gap in meters between the handle and the gripper before it closes on it.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
+    def create_action_body(self) -> StatechartNode:
         end_effector = self.arm.end_effector
-        return [
-            GraspingAction(
-                GraspCandidate.from_body_origin(self.handle),
-                self.arm,
-                approach_clearance=self.approach_clearance,
-            ),
-            Open(tip_link=end_effector.tool_frame, environment_link=self.handle.root),
-            MoveGripper(
-                end_effector=end_effector,
-                state=GripperState.OPEN,
-                allow_gripper_collision=True,
-            ),
-        ]
+        return Sequence(
+            [
+                GraspingAction(
+                    GraspCandidate.from_body_origin(self.handle),
+                    self.arm,
+                    approach_clearance=self.approach_clearance,
+                ),
+                Open(
+                    tip_link=end_effector.tool_frame, environment_link=self.handle.root
+                ),
+                MoveGripper(
+                    end_effector=end_effector,
+                    state=GripperState.OPEN,
+                    allow_gripper_collision=True,
+                ),
+            ]
+        )
 
     @staticmethod
     def pre_condition(
@@ -126,26 +130,27 @@ class CloseAction(Action):
     The gap in meters between the handle and the gripper before it closes on it.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
+    def create_action_body(self) -> StatechartNode:
         end_effector = self.arm.end_effector
-        return [
-            GraspingAction(
-                GraspCandidate.from_body_origin(self.handle),
-                self.arm,
-                approach_clearance=self.approach_clearance,
-            ),
-            Close(
-                tip_link=end_effector.tool_frame,
-                environment_link=self.handle.root,
-                goal_joint_state=ActionConfig.closed_container_joint_state,
-            ),
-            MoveGripper(
-                end_effector=end_effector,
-                state=GripperState.OPEN,
-                allow_gripper_collision=True,
-            ),
-        ]
+        return Sequence(
+            [
+                GraspingAction(
+                    GraspCandidate.from_body_origin(self.handle),
+                    self.arm,
+                    approach_clearance=self.approach_clearance,
+                ),
+                Close(
+                    tip_link=end_effector.tool_frame,
+                    environment_link=self.handle.root,
+                    goal_joint_state=ActionConfig.closed_container_joint_state,
+                ),
+                MoveGripper(
+                    end_effector=end_effector,
+                    state=GripperState.OPEN,
+                    allow_gripper_collision=True,
+                ),
+            ]
+        )
 
     @staticmethod
     def post_condition(

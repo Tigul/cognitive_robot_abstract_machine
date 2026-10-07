@@ -272,6 +272,6 @@ def test_an_expanded_action_is_received_with_the_nodes_it_runs(pr2_apartment_con
     )
 
     received_action = received.get_node_by_index(action.index)
-    assert received_action._action_body is received.get_node_by_index(
-        action._action_body.index
+    assert received_action.action_body is received.get_node_by_index(
+        action.action_body.index
     )

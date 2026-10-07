@@ -39,7 +39,7 @@ from coraplex.exceptions import (
 from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.mixins import MovesToolCenterPoint
-from cramph.composites import Parallel, TryAll
+from cramph.composites import Parallel, Sequence, TryAll
 from giskardpy.motion_statechart.data_types import DefaultWeights
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     UpdateTemporaryCollisionRules,
@@ -153,13 +153,12 @@ class ToolMotionAction(FullBodyControlledAction, ABC, MovesToolCenterPoint):
             return []
         return self.tool.tool_alignment(target)
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
+    def create_action_body(self) -> StatechartNode:
         """
         :return: The goal moving the tool along the sampled waypoints while keeping it
             aligned with its target.
         """
-        return [self._tool_path_goal()]
+        return Sequence([self._tool_path_goal()])
 
     def _tool_path_goal(self) -> Parallel:
         """
@@ -400,27 +399,28 @@ class WipingAction(ToolMotionAction):
             return self.surface
         return self.target_pose
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
+    def create_action_body(self) -> StatechartNode:
         """
         :return: The goal moving the tool along the sampled waypoints, which also
             counts as done once the tool reached the final waypoint, since the last
             stretch of a wipe often stalls against the surface.
         """
-        return [
-            TryAll(
-                [
-                    self._tool_path_goal(),
-                    PositionReached(
-                        name=f"{self.name}/final waypoint reached",
-                        root_link=self.world.root,
-                        tip_link=self.tool.root,
-                        goal_point=self._waypoints[-1],
-                        threshold=self.final_waypoint_success_tolerance,
-                    ),
-                ]
-            )
-        ]
+        return Sequence(
+            [
+                TryAll(
+                    [
+                        self._tool_path_goal(),
+                        PositionReached(
+                            name=f"{self.name}/final waypoint reached",
+                            root_link=self.world.root,
+                            tip_link=self.tool.root,
+                            goal_point=self._waypoints[-1],
+                            threshold=self.final_waypoint_success_tolerance,
+                        ),
+                    ]
+                )
+            ]
+        )
 
 
 @dataclass(kw_only=True, eq=False, repr=False)
@@ -610,22 +610,23 @@ class PouringAction(FullBodyControlledAction, MovesToolCenterPoint):
             reference_frame=self.world.root,
         )
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
+    def create_action_body(self) -> StatechartNode:
         """
         :return: The goals moving the source container to the pre-pour pose and then
             tilting it into the pouring pose.
         """
         pre_pour_pose, pour_pose = self._pour_poses()
-        return [
-            self.tool_center_point_goal(
-                pre_pour_pose,
-                self.arm,
-                allow_gripper_collision=True,
-            ),
-            self.tool_center_point_goal(
-                pour_pose,
-                self.arm,
-                allow_gripper_collision=True,
-            ),
-        ]
+        return Sequence(
+            [
+                self.tool_center_point_goal(
+                    pre_pour_pose,
+                    self.arm,
+                    allow_gripper_collision=True,
+                ),
+                self.tool_center_point_goal(
+                    pour_pose,
+                    self.arm,
+                    allow_gripper_collision=True,
+                ),
+            ]
+        )

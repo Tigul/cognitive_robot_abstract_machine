@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 
-from typing_extensions import Any, Dict, List
+from typing_extensions import Any, Dict
 
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import (
@@ -96,8 +96,7 @@ class ReachAction(
     :class:`PickUpAction` to open before its slower final approach.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
+    def create_action_body(self) -> StatechartNode:
         poses = self.grasp_pose_sequence(
             self.grasp.grasp_pose, self.arm.end_effector, self.grasp
         )
@@ -120,7 +119,7 @@ class ReachAction(
                 max_linear_velocity=self.final_approach_linear_velocity,
             )
         )
-        return children
+        return Sequence(children)
 
     @staticmethod
     def post_condition(
@@ -196,21 +195,22 @@ class PickUpAction(
             ],
         )
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
+    def create_action_body(self) -> StatechartNode:
         lift_to_pose = self.grasp_pose_sequence(
             self.grasp.grasp_pose, self.arm.end_effector, self.grasp
         ).retreat
-        return [
-            self._grasp_attempt(),
-            self.tool_center_point_goal(
-                lift_to_pose,
-                self.arm,
-                allow_gripper_collision=True,
-                movement_type=MovementType.TRANSLATION,
-                max_linear_velocity=self.lift_linear_velocity,
-            ),
-        ]
+        return Sequence(
+            [
+                self._grasp_attempt(),
+                self.tool_center_point_goal(
+                    lift_to_pose,
+                    self.arm,
+                    allow_gripper_collision=True,
+                    movement_type=MovementType.TRANSLATION,
+                    max_linear_velocity=self.lift_linear_velocity,
+                ),
+            ]
+        )
 
     @staticmethod
     def pre_condition(
@@ -263,30 +263,31 @@ class GraspingAction(
     :attr:`~giskardpy.motion_statechart.goals.gripper.MoveGripper.tolerate_stall`).
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        return [
-            ReachAction(
-                grasp=self.grasp,
-                arm=self.arm,
-                approach_clearance=self.approach_clearance,
-                retreat_distance=self.retreat_distance,
-                pre_approach_linear_velocity=self.pre_approach_linear_velocity,
-                final_approach_linear_velocity=self.final_approach_linear_velocity,
-                open_gripper_at_pre_pose=True,
-                position_threshold=self.position_threshold,
-                orientation_threshold=self.orientation_threshold,
-                grasp_detection_threshold=self.grasp_detection_threshold,
-            ),
-            self.gripper_goal(
-                GripperState.CLOSE,
-                self.arm.end_effector,
-                allow_gripper_collision=True,
-                finger_velocity=self.grasp_closing_velocity,
-                stall_minimum_time=self.grasp_stall_minimum_time,
-                tolerate_stall=self.tolerate_grasp_stall,
-            ),
-        ]
+    def create_action_body(self) -> StatechartNode:
+        return Sequence(
+            [
+                ReachAction(
+                    grasp=self.grasp,
+                    arm=self.arm,
+                    approach_clearance=self.approach_clearance,
+                    retreat_distance=self.retreat_distance,
+                    pre_approach_linear_velocity=self.pre_approach_linear_velocity,
+                    final_approach_linear_velocity=self.final_approach_linear_velocity,
+                    open_gripper_at_pre_pose=True,
+                    position_threshold=self.position_threshold,
+                    orientation_threshold=self.orientation_threshold,
+                    grasp_detection_threshold=self.grasp_detection_threshold,
+                ),
+                self.gripper_goal(
+                    GripperState.CLOSE,
+                    self.arm.end_effector,
+                    allow_gripper_collision=True,
+                    finger_velocity=self.grasp_closing_velocity,
+                    stall_minimum_time=self.grasp_stall_minimum_time,
+                    tolerate_stall=self.tolerate_grasp_stall,
+                ),
+            ]
+        )
 
     @staticmethod
     def pre_condition(

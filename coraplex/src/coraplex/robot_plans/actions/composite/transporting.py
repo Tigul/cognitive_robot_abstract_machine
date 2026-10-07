@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from typing_extensions import List, Self
+from typing_extensions import Self
 
 from krrood.entity_query_language.factories import a, variable
 from coraplex.datastructures.dataclasses import Context
 from coraplex.locations.locations import ReachabilityLocation
 from coraplex.plans.underspecified import UnderspecifiedNode
+from cramph.composites import Sequence
 from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
@@ -98,15 +99,16 @@ class TransportAction(Action):
             ),
         )
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        return [
-            ParkArmsAction(self.robot.all_arms),
-            UnderspecifiedNode.for_step(self.pick_up),
-            ParkArmsAction(self.robot.all_arms),
-            UnderspecifiedNode.for_step(self.place),
-            ParkArmsAction(self.robot.all_arms),
-        ]
+    def create_action_body(self) -> StatechartNode:
+        return Sequence(
+            [
+                ParkArmsAction(self.robot.all_arms),
+                UnderspecifiedNode.for_step(self.pick_up),
+                ParkArmsAction(self.robot.all_arms),
+                UnderspecifiedNode.for_step(self.place),
+                ParkArmsAction(self.robot.all_arms),
+            ]
+        )
 
 
 @dataclass(eq=False, repr=False)
@@ -126,12 +128,13 @@ class PickAndPlaceAction(Action):
     The step that puts down what :attr:`pick_up` picked up.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        return [
-            UnderspecifiedNode.for_step(self.pick_up),
-            UnderspecifiedNode.for_step(self.place),
-        ]
+    def create_action_body(self) -> StatechartNode:
+        return Sequence(
+            [
+                UnderspecifiedNode.for_step(self.pick_up),
+                UnderspecifiedNode.for_step(self.place),
+            ]
+        )
 
 
 @dataclass(eq=False, repr=False)
@@ -179,13 +182,14 @@ class MoveAndPlaceAction(Action):
             ),
         )
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        return [
-            UnderspecifiedNode.for_step(self.navigate),
-            UnderspecifiedNode.for_step(self.face_and_look_at),
-            UnderspecifiedNode.for_step(self.place),
-        ]
+    def create_action_body(self) -> StatechartNode:
+        return Sequence(
+            [
+                UnderspecifiedNode.for_step(self.navigate),
+                UnderspecifiedNode.for_step(self.face_and_look_at),
+                UnderspecifiedNode.for_step(self.place),
+            ]
+        )
 
 
 @dataclass(eq=False, repr=False)
@@ -290,13 +294,14 @@ class MoveAndPickUpAction(Action):
             )
         )
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        return [
-            UnderspecifiedNode.for_step(self.navigate),
-            UnderspecifiedNode.for_step(self.face_and_look_at),
-            UnderspecifiedNode.for_step(self.pick_up),
-        ]
+    def create_action_body(self) -> StatechartNode:
+        return Sequence(
+            [
+                UnderspecifiedNode.for_step(self.navigate),
+                UnderspecifiedNode.for_step(self.face_and_look_at),
+                UnderspecifiedNode.for_step(self.pick_up),
+            ]
+        )
 
 
 @dataclass(eq=False, repr=False)
@@ -339,10 +344,11 @@ class MoveAndOpenAction(Action):
             open_container=OpenAction(handle=handle, arm=arm),
         )
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        return [
-            UnderspecifiedNode.for_step(self.navigate),
-            UnderspecifiedNode.for_step(self.face_and_look_at),
-            UnderspecifiedNode.for_step(self.open_container),
-        ]
+    def create_action_body(self) -> StatechartNode:
+        return Sequence(
+            [
+                UnderspecifiedNode.for_step(self.navigate),
+                UnderspecifiedNode.for_step(self.face_and_look_at),
+                UnderspecifiedNode.for_step(self.open_container),
+            ]
+        )

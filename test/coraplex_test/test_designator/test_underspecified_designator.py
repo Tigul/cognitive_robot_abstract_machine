@@ -131,11 +131,10 @@ class RecordingAction(Action):
     None.
     """
 
-    @property
-    def _sub_nodes(self) -> List[StatechartNode]:
-        return [
-            FunctionCall(function=self._record_attempt, failure_types=(PlanFailure,))
-        ]
+    def create_action_body(self) -> StatechartNode:
+        return Sequence(
+            [FunctionCall(function=self._record_attempt, failure_types=(PlanFailure,))]
+        )
 
     def _record_attempt(self) -> None:
         """
