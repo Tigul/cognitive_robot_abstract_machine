@@ -25,9 +25,7 @@ from coraplex.querying.predicates import (
 )
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.mixins import (
-    ArmDrivenToGoal,
     GraspParameters,
-    HasApproachesGraspPoses,
     PickUpTuningParameters,
     ReachTuningParameters,
 )
@@ -45,8 +43,6 @@ logger = logging.getLogger(__name__)
 class ReachAction(
     ActionDescription,
     GraspParameters,
-    ArmDrivenToGoal,
-    HasApproachesGraspPoses,
     ReachTuningParameters,
 ):
     """
@@ -124,8 +120,6 @@ class ReachAction(
 class PickUpAction(
     ActionDescription,
     GraspParameters,
-    ArmDrivenToGoal,
-    HasApproachesGraspPoses,
     PickUpTuningParameters,
 ):
     """
@@ -225,8 +219,6 @@ class PickUpAction(
 class GraspingAction(
     ActionDescription,
     GraspParameters,
-    ArmDrivenToGoal,
-    HasApproachesGraspPoses,
     PickUpTuningParameters,
 ):
     """

@@ -19,6 +19,7 @@ from coraplex.robot_plans.mixins import (
     GripperStallTolerated,
     GripperStateSet,
     HandleOperatedOn,
+    HasApproachesGraspPoses,
     HandleOperationParameters,
     ObjectActedOn,
     PlaceTuningParameters,
@@ -41,6 +42,8 @@ def test_bundle_mixins_compose_leaf_mixins():
     # bundles inherit their constituent leaf mixins ...
     assert issubclass(GraspParameters, UsedGrasp)
     assert issubclass(GraspParameters, UsedArm)
+    assert issubclass(GraspParameters, HasApproachesGraspPoses)
+    assert issubclass(GraspParameters, ArmDrivenToGoal)
     assert issubclass(GripperActuationParameters, GripperStateSet)
     assert issubclass(GripperActuationParameters, UsedEndEffector)
     assert issubclass(HandleOperationParameters, HandleOperatedOn)
