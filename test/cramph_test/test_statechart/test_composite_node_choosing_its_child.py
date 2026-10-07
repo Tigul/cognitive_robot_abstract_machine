@@ -257,8 +257,9 @@ class ExtensionHoldingStill(ExecutorExtension):
     Whether :meth:`before_recompile` ran.
     """
 
-    def before_recompile(self, executor: StatechartExecutor) -> None:
+    def before_recompile(self, executor: StatechartExecutor) -> bool:
         self.is_holding_still = True
+        return True
 
 
 @dataclass

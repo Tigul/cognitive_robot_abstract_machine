@@ -168,13 +168,16 @@ class ExecutorExtension:
         :param context: The context handed to every node of the executed statecharts.
         """
 
-    def before_recompile(self, executor: StatechartExecutor) -> None:
+    def before_recompile(self, executor: StatechartExecutor) -> bool:
         """
         Called before a statechart that already compiled compiles again, or before a
-        node of it chooses its child, either of which blocks the tick.
+        node of it chooses its child, either of which blocks the tick. The statechart
+        keeps ticking, calling this every tick, until every extension is at rest.
 
         :param executor: The executor this extension belongs to.
+        :return: Whether what this extension drives is at rest; it is unless overridden.
         """
+        return True
 
     def after_compile(self, executor: StatechartExecutor) -> None:
         """
@@ -303,12 +306,14 @@ class StatechartExecutor(RecompileCallback):
         self.after_recompile()
         self.statechart.tick()
 
-    def before_recompile(self) -> None:
+    def before_recompile(self) -> bool:
         """
-        Tell every extension that the statechart is about to compile again.
+        Tell every extension that the statechart is about to block its tick.
+
+        :return: Whether every extension is at rest.
         """
-        for extension in self.extensions:
-            extension.before_recompile(self)
+        answers = [extension.before_recompile(self) for extension in self.extensions]
+        return all(answers)
 
     def after_recompile(self) -> None:
         """

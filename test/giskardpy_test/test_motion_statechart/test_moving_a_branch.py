@@ -1,6 +1,18 @@
 from __future__ import annotations
 
+from dataclasses import dataclass, field
+
 import numpy as np
+from typing_extensions import List, Optional
+
+from cramph.composites import (
+    ChildChooser,
+    ChildChooserAccess,
+    CompositeNodeChoosingItsChild,
+)
+from cramph.monitors import CountTicks
+from cramph.node import StatechartNode
+from cramph.nodes_for_testing import ConstTrueNode
 
 from cramph.composites import Sequence
 from cramph.context import StatechartContext
@@ -15,7 +27,10 @@ from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
-from semantic_digital_twin.world_description.connections import FixedConnection
+from semantic_digital_twin.world_description.connections import (
+    Connection6DoF,
+    FixedConnection,
+)
 from semantic_digital_twin.world_description.world_entity import Body
 
 # %% helpers
@@ -109,19 +124,124 @@ def test_building_the_nodes_again_registers_no_further_variables(
     assert len(executor.context.float_variable_data.data) == variable_count
 
 
-# %% standing still while the chart compiles again
+# %% coming to rest before the chart blocks its tick
+
+MAXIMUM_TICKS = 500
+"""
+How many ticks a test waits for the robot to come to rest before it gives up.
+"""
 
 
-def test_motion_control_stops_the_commanded_motion_before_the_chart_compiles_again(
+@dataclass
+class ChooserNotingTheSpeed(ChildChooser):
+    """
+    Chooses one prepared child, noting how fast the robot was moving when it was asked.
+    """
+
+    world: World
+    """
+    The world whose robot moves.
+    """
+
+    child: StatechartNode
+    """
+    The child to choose.
+    """
+
+    speeds_when_asked: List[float] = field(default_factory=list)
+    """
+    The fastest velocity of any degree of freedom, once per question.
+    """
+
+    def choose_child(
+        self, node: CompositeNodeChoosingItsChild, context
+    ) -> Optional[StatechartNode]:
+        self.speeds_when_asked.append(_fastest_velocity(self.world))
+        return self.child
+
+
+def _fastest_velocity(world: World) -> float:
+    """
+    :return: The fastest velocity of any degree of freedom of `world`.
+    """
+    return float(np.max(np.abs(world.state.velocities)))
+
+
+def test_a_moving_robot_decelerates_to_rest_before_a_child_is_chosen(
     cylinder_bot_world: World,
 ):
+    """
+    Choosing blocks the tick, so the robot is brought to rest first, by the controller
+    slowing it down rather than by its velocities being cut to zero.
+    """
+    world = cylinder_bot_world
+    robot = world.get_kinematic_structure_entity_by_name("bot")
+    executor = StatechartExecutor(
+        context=StatechartContext(world=world), extensions=[MotionControl()]
+    )
+    chooser = ChooserNotingTheSpeed(world=world, child=ConstTrueNode())
+    executor.context.add_extension(ChildChooserAccess(chooser=chooser))
+    statechart = Statechart(context=executor.context)
+    statechart.add_node(
+        CartesianPose(
+            root_link=world.root,
+            tip_link=robot,
+            goal_pose=Pose.from_xyz_rpy(x=5, reference_frame=world.root),
+        )
+    )
+    statechart.add_node(driving_a_while := CountTicks(ticks=20))
+    statechart.add_node(choosing := CompositeNodeChoosingItsChild(name="choosing"))
+    choosing.start_condition = driving_a_while.observes_true
+    executor.compile(statechart)
+
+    speeds_while_holding = []
+    for _ in range(MAXIMUM_TICKS):
+        if chooser.speeds_when_asked:
+            break
+        executor.tick()
+        holding_still = (
+            choosing.life_cycle_state == LifeCycleValues.RUNNING
+            and not chooser.speeds_when_asked
+        )
+        if holding_still:
+            speeds_while_holding.append(_fastest_velocity(world))
+
+    [speed_when_chosen] = chooser.speeds_when_asked
+    assert speed_when_chosen <= MotionControl.speed_at_rest
+    assert len(speeds_while_holding) > 2
+    assert speeds_while_holding[0] > MotionControl.speed_at_rest
+    assert speeds_while_holding == sorted(speeds_while_holding, reverse=True)
+
+
+def test_a_degree_of_freedom_the_controller_does_not_command_leaves_the_robot_at_rest(
+    cylinder_bot_world: World,
+):
+    """
+    Only what the controller drives has to come to rest; a free body sliding about is
+    not the robot moving.
+    """
+    world = cylinder_bot_world
+    robot = world.get_kinematic_structure_entity_by_name("bot")
+    free_box = Body(name=PrefixedName("free_box"))
+    with world.modify_world():
+        world.add_connection(
+            free_connection := Connection6DoF.create_with_dofs(
+                world=world, parent=world.root, child=free_box
+            )
+        )
     motion_control = MotionControl()
     executor = StatechartExecutor(
-        context=StatechartContext(world=cylinder_bot_world),
-        extensions=[motion_control],
+        context=StatechartContext(world=world), extensions=[motion_control]
     )
-    cylinder_bot_world.state.velocities[:] = 1.0
+    statechart = Statechart(context=executor.context)
+    statechart.add_node(
+        CartesianPose(
+            root_link=world.root,
+            tip_link=robot,
+            goal_pose=Pose.from_xyz_rpy(x=0.2, reference_frame=world.root),
+        )
+    )
+    executor.compile(statechart)
+    world.state[free_connection.dofs[0].id].velocity = 1.0
 
-    motion_control.before_recompile(executor)
-
-    assert np.all(cylinder_bot_world.state.velocities == 0)
+    assert motion_control.before_recompile(executor)

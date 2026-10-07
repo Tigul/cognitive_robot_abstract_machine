@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
 
-from cramph.executor import ExecutorExtension, StatechartExecutor
+from cramph.executor import StatechartExecutor
 from giskardpy.middleware.ros2.action_server import ActionServerHandler
 from giskardpy.middleware.ros2.command_publishing import CommandPublisher
 from giskardpy.middleware.ros2.exceptions import (
@@ -65,9 +65,6 @@ class ControlLoop:
     """
     Sends the computed velocities to the robot at the end of every cycle.
     """
-
-    def __post_init__(self):
-        self.executor.extensions.append(HaltWhileRecompiling(control_loop=self))
 
     @property
     def world(self) -> World:
@@ -142,19 +139,3 @@ class ControlLoop:
             command_publisher.stop()
         MotionControl.set_velocity_acceleration_jerk_to_zero(self.world)
         self.world.notify_state_change()
-
-
-@dataclass
-class HaltWhileRecompiling(ExecutorExtension):
-    """
-    Halts the robot before the motion statechart compiles again, because the control
-    loop sends no command until it is done.
-    """
-
-    control_loop: ControlLoop
-    """
-    The control loop whose robot is halted.
-    """
-
-    def before_recompile(self, executor: StatechartExecutor) -> None:
-        self.control_loop.stop()

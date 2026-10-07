@@ -76,6 +76,10 @@ waits for the problem above.
 client, including the nodes waiting for a child. It is parked with the ROS 2 goals.
 
 - `test/giskardpy_test/test_ros2_stuff/test_world_updates.py`:
-  `TestRealWorldUpdatesDuringAMotion`, `TestModelChangesOfTheMotionItself`
+  `TestRealWorldUpdatesDuringAMotion`, `TestModelChangesOfTheMotionItself`.
+  `test_the_robot_is_halted_before_the_motion_is_built_again` expects the control loop
+  to halt its command publishers before a recompile. The robot is now decelerated to
+  rest by the controller instead (`MotionControl.before_recompile`), so the test has to
+  assert that once it is picked up again.
 - The feedback assertions of `test_motion_server.py` and `test_child_choices.py`, parked
   with those modules above.

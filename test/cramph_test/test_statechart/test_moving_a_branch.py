@@ -160,8 +160,9 @@ class ExtensionRecordingCompiles(ExecutorExtension):
     The hooks that ran, in order, each by its method name.
     """
 
-    def before_recompile(self, executor: StatechartExecutor) -> None:
+    def before_recompile(self, executor: StatechartExecutor) -> bool:
         self.events.append(self.before_recompile.__name__)
+        return True
 
     def after_compile(self, executor: StatechartExecutor) -> None:
         self.events.append(self.after_compile.__name__)

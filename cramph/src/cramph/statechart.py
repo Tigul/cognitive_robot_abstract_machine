@@ -10,6 +10,7 @@ import numpy as np
 import rustworkx as rx
 from typing_extensions import (
     Any,
+    Callable,
     ClassVar,
     List,
     MutableMapping,
@@ -1120,10 +1121,15 @@ class RecompileCallback(ABC):
     """
 
     @abstractmethod
-    def before_recompile(self) -> None:
+    def before_recompile(self) -> bool:
         """
-        React to the statechart being about to compile again, or to a node choosing its
-        child, either of which blocks its tick until it is done.
+        Start holding still, because the statechart is about to compile again or a node
+        is about to choose its child, either of which blocks its tick until it is done.
+
+        The statechart keeps ticking, asking again every tick, until every callback
+        answers that it is at rest; only then does it block its tick.
+
+        :return: Whether what this callback drives is at rest.
         """
 
     @abstractmethod
@@ -1286,6 +1292,12 @@ class Statechart(SubclassJSONSerializer):
     )
     """
     Told whenever this statechart compiles again after it had compiled.
+    """
+
+    _held_still: bool = field(default=False, init=False, repr=False)
+    """
+    Whether every :class:`RecompileCallback` answered that it is at rest, for the step
+    blocking the tick that runs right now.
     """
 
     _changed_since_compile: bool = field(default=False, init=False, repr=False)
@@ -1797,8 +1809,7 @@ class Statechart(SubclassJSONSerializer):
         """
         is_recompile = self.is_compiled
         if is_recompile:
-            for callback in list(self._recompile_callbacks):
-                callback.before_recompile()
+            self._hold_still()
         self.sanity_check()
         self._compile_nodes(self._nodes[self._compiled_node_count :])
         if is_recompile:
@@ -1873,7 +1884,36 @@ class Statechart(SubclassJSONSerializer):
         from where it was.
         """
         if self._world_structure_changed():
-            self.compile()
+            self._when_held_still(self.compile)
+
+    def _hold_still(self) -> bool:
+        """
+        Ask every :class:`RecompileCallback` to hold still, unless they already answered
+        that they are at rest for the step running now.
+
+        :return: Whether all of them are at rest.
+        """
+        if self._held_still:
+            return True
+        answers = [
+            callback.before_recompile() for callback in self._recompile_callbacks
+        ]
+        return all(answers)
+
+    def _when_held_still(self, step: Callable[[], None]) -> None:
+        """
+        Run `step`, which blocks the tick, once every :class:`RecompileCallback` is at
+        rest; until then the statechart goes on ticking and asks again next tick.
+
+        :param step: What blocks the tick.
+        """
+        if not self._hold_still():
+            return
+        self._held_still = True
+        try:
+            step()
+        finally:
+            self._held_still = False
 
     @staticmethod
     def _check_children_of_goals(goals: List[CompositeNode]) -> None:
@@ -1972,17 +2012,23 @@ class Statechart(SubclassJSONSerializer):
         Lets every node waiting for a child choose one, in one :meth:`modify` block,
         so the statechart compiles at most once for all of them.
 
-        Choosing blocks the tick the way compiling does, so every
-        :class:`RecompileCallback` is told first, which lets what it drives hold still
-        while a choice is made against the world.
+        Choosing blocks the tick the way compiling does, so it waits until every
+        :class:`RecompileCallback` is at rest, and a choice is made against a world that
+        holds still.
         """
         waiting_nodes = [
             node for node in self._choosing_nodes if node.is_waiting_for_a_child
         ]
         if not waiting_nodes:
             return
-        for callback in list(self._recompile_callbacks):
-            callback.before_recompile()
+        self._when_held_still(lambda: self._choose_children_of(waiting_nodes))
+
+    def _choose_children_of(
+        self, waiting_nodes: List[CompositeNodeChoosingItsChild]
+    ) -> None:
+        """
+        Let every node of `waiting_nodes` choose its child, compiling once for all.
+        """
         with self.modify():
             for node in waiting_nodes:
                 node.choose_child(self.context)

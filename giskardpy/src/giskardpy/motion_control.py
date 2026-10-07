@@ -2,9 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from typing_extensions import ClassVar
+
 import numpy as np
 
 from cramph.context import StatechartContext
+from cramph.data_types import LifeCycleValues
 from cramph.executor import ExecutorExtension, StatechartExecutor
 from giskardpy.motion_statechart.context import MotionControlContext
 from giskardpy.motion_statechart.exceptions import WorldStateArrayReplacedError
@@ -42,10 +45,21 @@ class MotionControl(ExecutorExtension):
     one tick.
     """
 
+    speed_at_rest: ClassVar[float] = 1e-3
+    """
+    The fastest a degree of freedom may move for the robot to count as at rest.
+    """
+
     # %% init False
     qp_controller: QPController | None = field(default=None, init=False)
     """
     The controller computing the commands, None while no node adds constraints.
+    """
+
+    _holding_still: bool = field(default=False, init=False)
+    """
+    Whether the statechart asked in this tick to hold still, so the commands follow no
+    node of it and the controller brings the robot to rest.
     """
 
     _compiled_world_state_data: np.ndarray | None = field(default=None, init=False)
@@ -66,20 +80,32 @@ class MotionControl(ExecutorExtension):
         )
         context.set_tick_duration(self.qp_controller_config.control_dt)
 
-    def before_recompile(self, executor: StatechartExecutor) -> None:
+    def before_recompile(self, executor: StatechartExecutor) -> bool:
         """
-        Stop the commanded motion, since no command is computed while the statechart
-        compiles again.
+        Stop following the statechart for this tick, so the controller slows the robot
+        down within its limits, since no command is computed while the statechart blocks
+        its tick.
+
+        :return: Whether every degree of freedom the controller commands is at rest.
         """
-        self.set_velocity_acceleration_jerk_to_zero(executor.context.world)
+        self._holding_still = True
+        if self.qp_controller is None:
+            return True
+        state = executor.context.world.state
+        return all(
+            abs(state[degree_of_freedom.id].velocity) <= self.speed_at_rest
+            for degree_of_freedom in self.qp_controller.active_dofs
+        )
 
     def after_compile(self, executor: StatechartExecutor) -> None:
+        self._holding_still = False
         world = executor.context.world
         self._compiled_world_state_data = world.state._data
         self._compile_qp_controller(executor)
         world.collision_manager.update_collision_matrix()
 
     def before_tick(self, executor: StatechartExecutor) -> None:
+        self._holding_still = False
         self._raise_if_world_state_array_was_replaced(executor.context.world)
         if executor.context.require_extension(
             MotionControlContext
@@ -92,7 +118,7 @@ class MotionControl(ExecutorExtension):
         world = executor.context.world
         next_command = self.qp_controller.compute_command(
             world_state=world.state._data,
-            life_cycle_state=executor.statechart.life_cycle_state.data,
+            life_cycle_state=self._life_cycle_state_followed(executor),
             float_variables=executor.context.float_variable_data.data,
         )
         world.apply_control_commands(
@@ -100,6 +126,17 @@ class MotionControl(ExecutorExtension):
             self.qp_controller.config.control_dt,
             self.qp_controller.config.max_derivative,
         )
+
+    def _life_cycle_state_followed(self, executor: StatechartExecutor) -> np.ndarray:
+        """
+        :return: The life cycle state the commands follow: the statechart's own, or,
+            while holding still, one in which no node runs, so no constraint of the
+            statechart applies.
+        """
+        life_cycle_state = executor.statechart.life_cycle_state.data
+        if not self._holding_still:
+            return life_cycle_state
+        return np.full_like(life_cycle_state, LifeCycleValues.NOT_STARTED)
 
     def after_run(self, executor: StatechartExecutor) -> None:
         self.set_velocity_acceleration_jerk_to_zero(executor.context.world)
