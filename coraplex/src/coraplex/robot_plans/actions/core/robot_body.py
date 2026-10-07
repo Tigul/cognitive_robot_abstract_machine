@@ -158,7 +158,7 @@ class MoveManipulatorAction(ActionDescription, EndEffectorPoseParameters):
     def _action_plan(self) -> PlanNode:
         return execute_single(
             MoveManipulatorMotion(
-                self.target_pose,
+                target_pose=self.target_pose,
                 end_effector=self.end_effector,
                 allow_gripper_collision=self.allow_gripper_collision,
                 position_threshold=self.position_threshold,

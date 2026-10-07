@@ -5,15 +5,18 @@ from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import (
+    MoveManipulatorAction,
     ParkArmsAction,
     SetGripperAction,
 )
 from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
+    MoveManipulatorMotion,
     MoveToolCenterPointMotion,
 )
 from coraplex.robot_plans.mixins import (
     ArmDrivenToGoal,
+    EndEffectorPoseParameters,
     GraspParameters,
     GripperActuationParameters,
     GripperStallTolerated,
@@ -31,6 +34,7 @@ from coraplex.robot_plans.mixins import (
 )
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle, Milk
+from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 
 def test_action_inherits_parameter_mixins():
@@ -177,3 +181,22 @@ def test_only_the_gripper_motion_tolerates_a_stall():
     """
     assert issubclass(MoveGripperMotion, GripperStallTolerated)
     assert issubclass(GripperStallTolerated, GripperActuationParameters)
+
+
+def test_manipulator_action_and_motion_share_their_end_effector_pose_parameters(
+    pr2_apartment_context,
+):
+    """
+    The motion takes the same end effector, target pose, collision permission and
+    tolerances as the action that commands it.
+    """
+    world, view, context = pr2_apartment_context
+    assert issubclass(MoveManipulatorAction, EndEffectorPoseParameters)
+    assert issubclass(MoveManipulatorMotion, EndEffectorPoseParameters)
+
+    end_effector = context.robot.left_arm.end_effector
+    target_pose = Pose(reference_frame=world.root)
+    motion = MoveManipulatorMotion(end_effector=end_effector, target_pose=target_pose)
+
+    assert motion.end_effector is end_effector
+    assert motion.target_pose is target_pose

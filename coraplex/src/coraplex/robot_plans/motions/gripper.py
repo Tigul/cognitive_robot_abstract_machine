@@ -29,10 +29,9 @@ from coraplex.exceptions import MissingToolFrame, MissingWaypoints
 from coraplex.robot_plans.mixins import (
     ArmDrivenToGoal,
     CartesianMovementLimited,
+    EndEffectorPoseParameters,
     GripperCollisionAllowed,
     GripperStallTolerated,
-    ToolCenterPointGoalThresholds,
-    UsedEndEffector,
 )
 from coraplex.robot_plans.motions.base import BaseMotion
 from coraplex.datastructures.enums import (
@@ -325,19 +324,9 @@ class MoveTCPWaypointsAlignedMotion(BaseMotion, ArmDrivenToGoal):
 
 
 @dataclass
-class MoveManipulatorMotion(
-    BaseMotion,
-    UsedEndEffector,
-    GripperCollisionAllowed,
-    ToolCenterPointGoalThresholds,
-):
+class MoveManipulatorMotion(BaseMotion, EndEffectorPoseParameters):
     """
     Moves the Tool center point (TCP) of the robot.
-    """
-
-    target: Pose
-    """
-    Target pose to which the TCP should be moved.
     """
 
     @property
@@ -352,7 +341,7 @@ class MoveManipulatorMotion(
         task = CartesianPose(
             root_link=root,
             tip_link=self.end_effector.tool_frame,
-            goal_pose=self.target,
+            goal_pose=self.target_pose,
             translation_threshold=self.resolved_position_threshold(),
             orientation_threshold=self.resolved_orientation_threshold(),
             binding_policy=GoalBindingPolicy.Bind_on_start,
