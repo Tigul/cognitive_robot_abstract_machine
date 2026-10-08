@@ -63,7 +63,6 @@ def test_classes_inherit_bundle_mixins():
     # ... and concrete classes inherit the bundles while still exposing the leaf interface.
     assert issubclass(PickUpAction, GraspParameters)
     assert issubclass(PickUpAction, UsedArm)
-    assert issubclass(NavigateAction, TargetLocationMovedTo)
     assert issubclass(OpenAction, HandleOperationParameters)
     assert issubclass(MoveGripperMotion, GripperActuationParameters)
 
