@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import Iterable, Iterator, Optional, Self, Tuple, TYPE_CHECKING, Union
 
 import numpy as np
+import trimesh
 from typing_extensions import List
 
 from krrood.ormatic.utils import classproperty
@@ -712,17 +713,51 @@ class Elevator(HasCaseAsRootBody, HasDoors, HasMechanicalJoint):
                 door.mechanical_joint.root.parent_connection.dof.limits.lower.position
             )
 
+    def _supporting_faces(
+        self,
+        upward_threshold: float,
+        clearance_threshold: float,
+        min_surface_area: float,
+    ) -> Optional[trimesh.Trimesh]:
+        """
+        The cabin's floor, which a rider stands on, rather than its roof: of the faces
+        things could be placed on, those directly below the cabin's centre.
+        """
+        faces = super()._supporting_faces(
+            upward_threshold, clearance_threshold, min_surface_area
+        )
+        if faces is None:
+            return None
+        below_centre, _, _ = self.root.combined_mesh.ray.intersects_location(
+            ray_origins=[[0.0, 0.0, 0.0]], ray_directions=[[0.0, 0.0, -1.0]]
+        )
+        if len(below_centre) == 0:
+            return None
+        floor_height = below_centre[:, 2].max()
+        on_floor = np.isclose(
+            faces.triangles_center[:, 2],
+            floor_height,
+            atol=1e-6,
+        )
+        if not on_floor.any():
+            return None
+        return faces.submesh([np.nonzero(on_floor)[0]], append=True)
+
     def drive_position_for_floor(self, floor: Level) -> float:
         """
-        The drive position at which the elevator serves the given floor.
+        The drive position at which the elevator serves the given floor: the cabin's
+        floor is flush with the level's floor, so a rider rolls straight in and out.
 
-        The half height accounts for the case body's origin sitting at its ground rather
-        than at its centre.
+        The drive moves the cabin along the world's z-axis, so the position is the
+        current one shifted by the height between the two floors.
 
         :param floor: The floor the elevator should serve.
         :return: The position to drive the elevator's mechanical joint to.
         """
-        return float(floor.floor_plane[0].z)
+        cabin_floor_height = float(self.require_supporting_surface().global_pose.z)
+        return float(self.mechanical_joint.position) + (
+            float(floor.floor_plane[0].z) - cabin_floor_height
+        )
 
     def drive_to_floor(self, floor: Level):
         """

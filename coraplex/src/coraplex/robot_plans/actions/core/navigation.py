@@ -253,7 +253,9 @@ class ElevatorNavigation(ActionDescription):
                 pause_until(
                     [
                         NavigateAction(
-                            target_location=Pose2D(reference_frame=self.elevator.root)
+                            target_location=self._on_cabin_floor(
+                                Pose2D(reference_frame=self.elevator.root)
+                            )
                         )
                     ],
                     monitor=self._elevator_open_at_floor(self._current_floor),
@@ -290,13 +292,23 @@ class ElevatorNavigation(ActionDescription):
     @property
     def _pose_infront_of_elevator(self) -> Pose2D:
         """
-        Where the robot stands in front of the cabin's opening, in the cabin's frame.
+        Where the robot stands in front of the cabin's opening.
         """
-        return Pose2D(
-            x=self.elevator.hole_direction[0]
-            * (self.elevator.scale.x / 2 + self.exit_clearance),
-            reference_frame=self.elevator.root,
+        return self._on_cabin_floor(
+            Pose2D(
+                x=self.elevator.hole_direction[0]
+                * (self.elevator.scale.x / 2 + self.exit_clearance),
+                reference_frame=self.elevator.root,
+            )
         )
+
+    def _on_cabin_floor(self, spot: Pose2D) -> Pose2D:
+        """
+        :param spot: A spot given relative to the cabin's centre.
+        :return: The same spot, expressed on the cabin's floor, which is flush with the
+            level the cabin stops at.
+        """
+        return self.world.transform(spot, self.elevator.require_supporting_surface())
 
     def _elevator_open_at_floor(self, target_floor: Level) -> Parallel:
         """
