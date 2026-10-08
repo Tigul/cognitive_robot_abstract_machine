@@ -68,6 +68,7 @@ from coraplex.plans.executors import SimulatedPlanExecutor
 from cramph.statechart import Statechart
 
 extensions = [RobotAccess(pr2), StatementGrounding(sampling_seed=0)]
+context = SimulatedPlanExecutor(world, context_extensions=extensions).context
 
 def run(plan):
     """
@@ -250,7 +251,7 @@ description = TransportAction.from_graspable_by_closest_grasps(
     world.get_semantic_annotations_by_type(Milk)[0],
     Pose.from_xyz_quaternion(3.0, 2.2, 1.04, 0.0, 0.0, 1.0, 0.0, reference_frame=world.root),
     pr2.left_arm,
-    pr2,
+    context,
     seed=0,
 )
 run(Sequence([MoveTorsoAction(TorsoState.HIGH),

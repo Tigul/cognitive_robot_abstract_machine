@@ -34,7 +34,7 @@ import numpy as np
 from typing_extensions import List, Type
 
 from coraplex.plans.context_extensions import RobotAccess
-from coraplex.plans.plan_transformation import PlanTransformation
+from coraplex.plans.plan_transformation import PlanRewriting
 from cramph.context import ContextExtension, StatechartContext
 from cramph.statechart import Statechart
 from coraplex.datastructures.enums import DetectionTechnique
@@ -107,10 +107,6 @@ class StretchApartmentDemonstration(RobotDemonstration):
 
     ros_node_name: str = "stretch_demo_node"
 
-    plan_transformations: List[PlanTransformation] = field(
-        default_factory=lambda: [DetectBeforeGrasp()]
-    )
-
     def build_simulated_world(self) -> World:
         """
         Put the Stretch on its drive in a world holding nothing but a map body.
@@ -153,9 +149,12 @@ class StretchApartmentDemonstration(RobotDemonstration):
 
     def build_context_extensions(self, world: World) -> List[ContextExtension]:
         """
-        Give the plan the Stretch in ``world``.
+        Give the plan the Stretch in ``world``, detecting an object before grasping it.
         """
-        return [RobotAccess(world.get_semantic_annotations_by_type(self.used_robot)[0])]
+        return [
+            RobotAccess(world.get_semantic_annotations_by_type(self.used_robot)[0]),
+            PlanRewriting(transformations=[DetectBeforeGrasp()]),
+        ]
 
     def build_statechart(self, context: StatechartContext) -> Statechart:
         """

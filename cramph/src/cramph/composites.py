@@ -79,6 +79,18 @@ class Attempt(CompositeNode):
     being *well* has to be negated before it can be passed here.
     """
 
+    @classmethod
+    def deciding(cls, node: StatechartNode) -> StatechartNode:
+        """
+        :param node: A node to run until it is decided.
+        :return: `node` itself if it decides its own success, otherwise an attempt
+            without failure monitors deciding it, which fails only if `node` fails on its
+            own.
+        """
+        if node.success_decided_by == SuccessDecider.ITSELF:
+            return node
+        return cls(name=f"{node.name}/attempt", task=node, failure_monitors=[])
+
     @property
     def any_failure_monitor_fired(self) -> Scalar:
         """
@@ -190,12 +202,9 @@ class CompositeNodeOverSelfDecidingNodes(CompositeNode, ABC):
         """
         self._check_caller_wired_no_transitions(node)
         self._check_node_doesnt_belong_to_different_parent(node)
-        if node.success_decided_by == SuccessDecider.ITSELF:
-            self._place_child_in_statechart(node)
-            return node
-        attempt = Attempt(name=f"{node.name}/attempt", task=node, failure_monitors=[])
-        self._place_child_in_statechart(attempt)
-        return attempt
+        child = Attempt.deciding(node)
+        self._place_child_in_statechart(child)
+        return child
 
     def _check_attempt_can_fail(self, node: StatechartNode) -> None:
         """

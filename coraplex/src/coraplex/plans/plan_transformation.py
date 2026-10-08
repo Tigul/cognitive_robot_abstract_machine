@@ -5,11 +5,12 @@ from abc import abstractmethod, ABC
 from dataclasses import dataclass, field
 
 from typing_extensions import (
+    Any,
+    Dict,
     Generic,
     List,
     Optional,
     Set,
-    Tuple,
     Type,
     TypeVar,
 )
@@ -35,9 +36,9 @@ class PlanTransformation(Generic[MatchedType], SubClassSafeGeneric, ABC):
     Rewrites the part of a plan around a node, before the statechart running the plan is
     compiled.
 
-    The bound type says which nodes it rewrites: the nodes of that type. Only actions
-    and underspecified nodes are offered to a transformation, each once, after it has
-    been expanded, see :class:`PlanRewriting`.
+    The bound type says which nodes it rewrites: the nodes of that type. Every node of
+    a plan is offered to a transformation once, after it has been expanded, see
+    :class:`PlanRewriting`.
     """
 
     @property
@@ -153,14 +154,9 @@ class PlanRewriting(ContextExtension):
     plan that joins it later is rewritten too.
     """
 
-    transformations: List[PlanTransformation]
+    transformations: List[PlanTransformation] = field(default_factory=list)
     """
     The transformations the nodes are offered to.
-    """
-
-    offered_types: Tuple[Type[StatechartNode], ...]
-    """
-    The kinds of node that are offered to the transformations.
     """
 
     _offered: Set[StatechartNode] = field(default_factory=set, init=False, repr=False)
@@ -168,6 +164,13 @@ class PlanRewriting(ContextExtension):
     The nodes offered already, so that rewriting a part of the plan again offers only
     what is new.
     """
+
+    def __deepcopy__(self, memo: Dict[int, Any]) -> PlanRewriting:
+        """
+        :return: A rewriting by the same transformations that has offered nothing yet,
+            since the nodes offered so far belong to the statechart this one rewrites.
+        """
+        return PlanRewriting(transformations=list(self.transformations))
 
     def rewrite(self, root: StatechartNode) -> None:
         """
@@ -189,7 +192,7 @@ class PlanRewriting(ContextExtension):
             not been offered yet, or None if there is none.
         """
         for node in [root, *root.descendants]:
-            if isinstance(node, self.offered_types) and node not in self._offered:
+            if node not in self._offered:
                 return node
         return None
 

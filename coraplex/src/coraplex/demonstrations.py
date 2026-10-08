@@ -21,7 +21,6 @@ from typing_extensions import List, Type
 
 from coraplex.datastructures.enums import VisualizationBackend
 from coraplex.plans.executors import PlanExecutor, SimulatedPlanExecutor
-from coraplex.plans.plan_transformation import PlanTransformation
 from coraplex.visualization import VisualizationSession, WorldVisualization
 from cramph.context import ContextExtension, StatechartContext
 from cramph.statechart import Statechart
@@ -174,11 +173,6 @@ class RobotDemonstration(ABC):
     copy of the world a candidate is tried in.
     """
 
-    plan_transformations: List[PlanTransformation] = field(default_factory=list)
-    """
-    The transformations rewriting the plan once it is expanded.
-    """
-
     repetitions: int = 1
     """
     How often the plan is performed against the scene.
@@ -223,7 +217,8 @@ class RobotDemonstration(ABC):
         """
         Build what the plan's nodes read from their context, at least the
         :class:`~coraplex.plans.context_extensions.RobotAccess` of the robot resolved in
-        ``world``.
+        ``world``, and the :class:`~coraplex.plans.plan_transformation.PlanRewriting`
+        if the plan is to be rewritten.
         """
 
     @abstractmethod
@@ -290,7 +285,6 @@ class RobotDemonstration(ABC):
                     ros_node=self.ros_node,
                     collision_avoidance=self.collision_avoidance,
                     debug=self.debug,
-                    plan_transformations=self.plan_transformations,
                 )
                 statechart = self.build_statechart(executor.context)
                 if self.visualization is not None:

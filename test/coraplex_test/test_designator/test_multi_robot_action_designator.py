@@ -12,6 +12,7 @@ from coraplex.datastructures.enums import (
 )
 from coraplex.datastructures.trajectory import PoseTrajectory
 from coraplex.exceptions import NoFloorBelowRobot
+from coraplex.plans.plan_transformation import PlanRewriting
 from cramph.statechart import Statechart
 from cramph.composites import Parallel, Sequence, TryAll, TryInOrder
 from cramph.threaded_nodes import FunctionCall
@@ -82,6 +83,7 @@ from semantic_digital_twin.world import World
 
 from ...conftest import SAMPLING_SEED
 from ...plan_running import (
+    context_of,
     robot_extensions,
     run_plan,
     simulated_executor,
@@ -713,7 +715,7 @@ def test_transport(multiple_robot_apartment_context, rclpy_node):
             reference_frame=world.root,
         ),
         right_or_only_arm(robot),
-        robot,
+        context_of(extensions),
         seed=SAMPLING_SEED,
     )
     plan = Sequence([MoveTorsoAction(TorsoState.HIGH), description])
@@ -758,7 +760,7 @@ def test_transport_open_container(multiple_robot_apartment_context, rclpy_node):
         world.get_semantic_annotations_by_type(Spoon)[0],
         target_pose,
         right_or_only_arm(robot),
-        robot,
+        context_of(extensions),
         seed=SAMPLING_SEED,
     )
     plan = Sequence(
@@ -768,7 +770,7 @@ def test_transport_open_container(multiple_robot_apartment_context, rclpy_node):
             description,
         ]
     )
-    run_plan(plan, extensions, plan_transformations=plan_transformations)
+    run_plan(plan, [*extensions, PlanRewriting(transformations=plan_transformations)])
     spoon_position = world.get_body_by_name("spoon.stl").global_pose
     np.testing.assert_allclose(spoon_position, target_pose, atol=0.02)
 

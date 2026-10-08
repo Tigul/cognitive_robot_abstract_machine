@@ -33,7 +33,15 @@ from semantic_digital_twin.world_description.geometry import Box, Scale
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import Body
 
+from coraplex.plans.plan_transformation import PlanRewriting
+from coraplex.robot_plans.plan_transformations import (
+    KeepTheTorsoUprightWhileUsingATool,
+)
+from semantic_digital_twin.adapters.urdf import URDFParser
+from semantic_digital_twin.robots.justin import Justin
+
 from .conftest import expand
+from ..plan_running import robot_extensions, simulated_executor, statechart_of
 
 
 def _add_box_body(world, name, size, position):
@@ -353,11 +361,65 @@ def test_a_wipe_counts_as_done_once_the_tool_reached_its_final_waypoint(
         target_pose=Pose.from_xyz_rpy(x=2.4, y=2.2, z=1.0, reference_frame=world.root),
     )
 
-    goal = _tool_path_goals(action, extensions)[0]
+    expand(action, extensions)
 
     [final_waypoint_reached] = [
-        node for node in _nodes_below(goal) if isinstance(node, PositionReached)
+        node for node in _nodes_below(action) if isinstance(node, PositionReached)
     ]
     assert final_waypoint_reached.tip_link is tool_body
     assert final_waypoint_reached.goal_point is action._waypoints[-1]
     assert final_waypoint_reached.threshold == action.final_waypoint_success_tolerance
+
+
+# %% keeping the torso upright
+
+
+@pytest.fixture(scope="module")
+def justin_world():
+    world = URDFParser.from_file(Justin.get_ros_file_path()).parse()
+    Justin.from_world(world)
+    return world
+
+
+def _rewritten_mixing(world, robot):
+    """
+    :return: A mixing action of `robot` in `world`, expanded and rewritten by
+        :class:`~coraplex.robot_plans.plan_transformations.KeepTheTorsoUprightWhileUsingATool`.
+    """
+    container = _add_box_body(world, "mixed_container", (0.2, 0.2, 0.1), (1, 0, 1))
+    tool_body = _add_box_body(world, "mixing_tool", (0.04, 0.04, 0.2), (1, 0.3, 1))
+    action = MixingAction(
+        container=container, arm=robot.all_arms[0], tool=Whisk(root=tool_body)
+    )
+    executor = simulated_executor(
+        [
+            *robot_extensions(robot),
+            PlanRewriting(transformations=[KeepTheTorsoUprightWhileUsingATool()]),
+        ]
+    )
+    executor.prepare(statechart_of(executor, action))
+    return action
+
+
+def test_justin_keeps_its_torso_upright_while_it_uses_a_tool(justin_world):
+    robot = justin_world.get_semantic_annotations_by_type(Justin)[0]
+
+    action = _rewritten_mixing(justin_world, robot)
+
+    torso_tip = robot.mobile_base.torso.tip
+    torso_alignments = [
+        alignment
+        for alignment in _alignments_of(action)
+        if alignment.tip_link is torso_tip
+    ]
+    assert len(torso_alignments) == 1
+
+
+def test_a_robot_other_than_justin_keeps_its_torso_as_it_is(tool_action_world):
+    world, robot, extensions, container, tool_body = tool_action_world
+    action = MixingAction(
+        container=container, arm=robot.right_arm, tool=Whisk(root=tool_body)
+    )
+    expand(action, extensions)
+
+    assert not KeepTheTorsoUprightWhileUsingATool().is_applicable(action)

@@ -10,7 +10,7 @@ from coraplex.datastructures.enums import (
     InsertionPosition,
     ReachFraction,
 )
-from coraplex.exceptions import ReachHasNoFinalApproach
+from coraplex.exceptions import ReachHasNoFinalApproach, ToolPathNotFound
 from coraplex.locations.locations import ReachabilityLocation
 from coraplex.plans.underspecified import UnderspecifiedNode
 from coraplex.plans.plan_transformation import (
@@ -20,6 +20,7 @@ from coraplex.plans.plan_transformation import (
 )
 from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.actions.composite.facing import FaceAndLookAtAction
+from coraplex.robot_plans.actions.composite.tool_based import ToolMotionAction
 from coraplex.robot_plans.actions.composite.transporting import (
     MoveAndOpenAction,
     MoveAndPickUpAction,
@@ -34,7 +35,15 @@ from coraplex.robot_plans.actions.core.navigation import (
 )
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction, ReachAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
+from cramph.composites import Parallel
 from cramph.node import StatechartNode
+from giskardpy.motion_statechart.data_types import DefaultWeights
+from giskardpy.motion_statechart.tasks.align_planes import AlignPlanes
+from giskardpy.motion_statechart.tasks.cartesian_tasks import (
+    CartesianPose,
+    CartesianPosition,
+    CartesianPositionTrajectory,
+)
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import a, variable
 from krrood.entity_query_language.query.match import Match
@@ -44,10 +53,11 @@ from semantic_digital_twin.grasping.grasp_candidates import (
     GraspCandidate,
     HasGraspCandidates,
 )
+from semantic_digital_twin.robots.justin import Justin
 from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Drawer
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.spatial_types.spatial_types import Pose, Vector3
 from coraplex.plans.context_extensions import RobotAccess, StatementGrounding
 from cramph.context import StatechartContext
 
@@ -75,14 +85,30 @@ class DetectBeforeGrasp(InsertionTransformation[ReachAction]):
     def final_approach(self, plan_node: ReachAction) -> StatechartNode:
         """
         :param plan_node: The reach
-        :raises ReachHasNoFinalApproach: If the reach has not been expanded into its
-            steps.
-        :return: The reach's last step, which brings the gripper onto the object.
+        :raises ReachHasNoFinalApproach: If no step of the reach moves its tool center
+            point, which it has none of before it is expanded.
+        :return: The last step of the reach moving the tool center point of its arm,
+            which brings the gripper onto the object, whatever a transformation put
+            after it.
         """
         body = plan_node.action_body
-        if body is None or not body.nodes:
-            raise ReachHasNoFinalApproach(plan_node)
-        return body.nodes[-1]
+        steps = [] if body is None else body.children
+        for step in reversed(steps):
+            if self._moves_the_tool_center_point(step, plan_node.arm):
+                return step
+        raise ReachHasNoFinalApproach(plan_node)
+
+    @staticmethod
+    def _moves_the_tool_center_point(step: StatechartNode, arm: Arm) -> bool:
+        """
+        :return: Whether a Cartesian goal in `step` moves the tool center point of
+            `arm`.
+        """
+        return any(
+            isinstance(node, (CartesianPose, CartesianPosition))
+            and node.tip_link is arm.end_effector.tool_frame
+            for node in [step, *step.descendants]
+        )
 
     def anchor(self, plan_node: ReachAction) -> StatechartNode:
         return self.final_approach(plan_node)
@@ -166,7 +192,7 @@ class DrawerOpening(
                         handle_pose,
                         arm,
                         ReachFraction.ACCESSING,
-                        robot=context.require_extension(RobotAccess).robot,
+                        context=context,
                         seed=context.require_extension(
                             StatementGrounding
                         ).sampling_seed,
@@ -205,9 +231,7 @@ class OpenDrawerBeforePickUp(DrawerOpening[PickUpAction]):
         graspable = plan_node.grasp.graspable
         nodes = []
         for drawer in self._closed_drawers_containing(graspable, plan_node.world):
-            nodes.extend(
-                self.opening_nodes(drawer, plan_node.arm, plan_node.statechart.context)
-            )
+            nodes.extend(self.opening_nodes(drawer, plan_node.arm, plan_node.context))
         drive_to_the_object = a(NavigateAction)(
             target_location=variable(
                 Pose,
@@ -216,7 +240,7 @@ class OpenDrawerBeforePickUp(DrawerOpening[PickUpAction]):
                 domain=ReachabilityLocation(
                     Pose(reference_frame=graspable.root),
                     plan_node.arm,
-                    robot=plan_node.robot,
+                    context=plan_node.context,
                     seed=plan_node.sampling_seed,
                 ),
             ),
@@ -269,9 +293,7 @@ class OpenDrawerBeforeMoveAndPickUp(DrawerOpening[MoveAndPickUpAction]):
     ) -> bool:
         target = self._pick_up_target(plan_node)
         return target is not None and bool(
-            self._closed_drawers_containing(
-                target.graspable, plan_node.statechart.context.world
-            )
+            self._closed_drawers_containing(target.graspable, plan_node.context.world)
         )
 
     def nodes_to_insert(
@@ -280,15 +302,13 @@ class OpenDrawerBeforeMoveAndPickUp(DrawerOpening[MoveAndPickUpAction]):
         target = self._pick_up_target(plan_node)
         nodes = []
         for drawer in self._closed_drawers_containing(
-            target.graspable, plan_node.statechart.context.world
+            target.graspable, plan_node.context.world
         ):
-            nodes.extend(
-                self.opening_nodes(drawer, target.arm, plan_node.statechart.context)
-            )
+            nodes.extend(self.opening_nodes(drawer, target.arm, plan_node.context))
         if isinstance(plan_node, UnderspecifiedNode):
             # The candidates are grounded after the opening, which leaves the arms at
             # the handle, where they would stand in collision at every standing pose.
-            robot = plan_node.statechart.context.require_extension(RobotAccess).robot
+            robot = plan_node.context.require_extension(RobotAccess).robot
             nodes.append(ParkArmsAction(robot.all_arms))
         return nodes
 
@@ -398,3 +418,47 @@ class ParkArmsBeforeFirstAction(InsertionTransformation[Action]):
             ),
             None,
         )
+
+
+# %% keeping the torso upright while using a tool
+
+
+@dataclass
+class KeepTheTorsoUprightWhileUsingATool(InsertionTransformation[ToolMotionAction]):
+    """
+    Keeps Justin's torso upright while it moves a tool, which no other robot needs: its
+    torso would otherwise lean into the motion.
+    """
+
+    @property
+    def position(self) -> InsertionPosition:
+        return InsertionPosition.LAST_CHILD
+
+    def is_applicable(self, plan_node: ToolMotionAction) -> bool:
+        return isinstance(plan_node.robot, Justin)
+
+    def anchor(self, plan_node: ToolMotionAction) -> StatechartNode:
+        """
+        :return: The goal holding the tool on its path, beside which the torso is held.
+        :raises ToolPathNotFound: If the action holds no goal moving the tool along a
+            path.
+        """
+        for node in plan_node.descendants:
+            if isinstance(node, Parallel) and any(
+                isinstance(child, CartesianPositionTrajectory) for child in node.nodes
+            ):
+                return node
+        raise ToolPathNotFound(plan_node)
+
+    def nodes_to_insert(self, plan_node: ToolMotionAction) -> List[StatechartNode]:
+        root = plan_node.controlled_root
+        torso_tip = plan_node.robot.mobile_base.torso.tip
+        return [
+            AlignPlanes(
+                tip_link=torso_tip,
+                root_link=root,
+                tip_normal=Vector3.X(torso_tip),
+                goal_normal=Vector3.Z(root),
+                weight=DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE.value,
+            )
+        ]

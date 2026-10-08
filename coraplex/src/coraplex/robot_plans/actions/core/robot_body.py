@@ -89,7 +89,7 @@ class SetGripperAction(Action, MovesGripper):
     """
 
     def create_action_body(self) -> StatechartNode:
-        return Sequence([self.gripper_goal(self.motion, self.gripper)])
+        return self.gripper_goal(self.motion, self.gripper)
 
 
 @dataclass(eq=False, repr=False)
@@ -107,18 +107,14 @@ class ParkArmsAction(Action, HasMaxJointVelocity):
         park_state = self.park_joint_state()
         joint_goal = JointPositionList(goal_state=park_state)
         if self.max_joint_velocity is None:
-            return Sequence([joint_goal])
-        return Sequence(
+            return joint_goal
+        return Parallel(
             [
-                Parallel(
-                    [
-                        joint_goal,
-                        JointVelocityLimit(
-                            connections=list(park_state.connections),
-                            max_velocity=self.max_joint_velocity,
-                        ),
-                    ]
-                )
+                joint_goal,
+                JointVelocityLimit(
+                    connections=list(park_state.connections),
+                    max_velocity=self.max_joint_velocity,
+                ),
             ]
         )
 
@@ -215,17 +211,11 @@ class MoveManipulatorAction(Action, MovesToolCenterPoint):
             binding_policy=GoalBindingPolicy.Bind_on_start,
         )
         if not self.allow_gripper_collision:
-            return Sequence([goal])
-        return Sequence(
+            return goal
+        return Parallel(
             [
-                Parallel(
-                    [
-                        goal,
-                        UpdateTemporaryCollisionRules.for_end_effector(
-                            self.end_effector
-                        ),
-                    ]
-                )
+                goal,
+                UpdateTemporaryCollisionRules.for_end_effector(self.end_effector),
             ]
         )
 

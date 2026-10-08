@@ -14,6 +14,8 @@ from coraplex.locations.costmaps import (
     RingCostmap,
     VisibilityCostmap,
 )
+from coraplex.plans.context_extensions import RobotAccess
+from cramph.context import StatechartContext
 from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
@@ -25,9 +27,10 @@ class CostmapLocation(Location, ABC):
     they are sampled.
     """
 
-    robot: AbstractRobot = field(kw_only=True)
+    context: StatechartContext = field(kw_only=True)
     """
-    The robot to stand, whose world the costmap is built from.
+    The context of the plan the location is sampled for, whose robot is the one to stand
+    and whose world the costmap is built from.
     """
 
     map_resolution: float = field(default=0.02, kw_only=True)
@@ -39,6 +42,13 @@ class CostmapLocation(Location, ABC):
     """
     Number of cells along each side of that costmap.
     """
+
+    @property
+    def robot(self) -> AbstractRobot:
+        """
+        :return: The robot to stand.
+        """
+        return self.context.require_extension(RobotAccess).robot
 
     @abstractmethod
     def costmap(self) -> Costmap:
@@ -56,7 +66,7 @@ class CostmapLocation(Location, ABC):
         :return: Where `pose` is in the world frame now, so a pose given relative to a
             body follows that body.
         """
-        world = self.robot._world
+        world = self.context.world
         return world.transform(pose, world.root)
 
 
@@ -153,7 +163,7 @@ class VisibilityLocation(CostmapLocation):
         visibility = VisibilityCostmap(
             minimum_height=camera.minimal_height,
             maximum_height=camera.maximal_height,
-            world=self.robot._world,
+            world=self.context.world,
             width=self.map_cells,
             height=self.map_cells,
             resolution=self.map_resolution,

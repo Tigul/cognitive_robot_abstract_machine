@@ -1,9 +1,11 @@
 import logging
+from dataclasses import dataclass
 
 import pytest
 
 from coraplex.plans.context_extensions import RobotAccess, StatementGrounding
 from coraplex.plans.executors import SimulatedPlanExecutor
+from coraplex.plans.plan_transformation import PlanRewriting, PlanTransformation
 
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
 from semantic_digital_twin.datastructures.definitions import TorsoState
@@ -98,9 +100,46 @@ def test_the_robot_of_a_copied_world_is_its_own_copy(pr2_apartment_context):
     world, robot, _ = pr2_apartment_context
     copy = world.__deepcopy__({})
 
-    copied_access = RobotAccess(robot).for_world(copy)
+    copied_access = copy.rebind_world_entities(RobotAccess(robot))
 
     assert copied_access.robot is copy.get_semantic_annotation_by_id(robot.id)
+
+
+@dataclass
+class TransformationCountingItsApplications(PlanTransformation[MoveTorsoAction]):
+    """
+    Rewrites nothing, and counts how often it was applied.
+    """
+
+    applications: int = 0
+    """
+    How often it was applied.
+    """
+
+    def is_applicable(self, plan_node: MoveTorsoAction) -> bool:
+        return True
+
+    def apply(self, plan_node: MoveTorsoAction) -> None:
+        self.applications += 1
+
+
+def test_a_copied_plan_rewriting_offers_the_nodes_offered_already_again(
+    pr2_apartment_context,
+):
+    """
+    A trial rewrites its candidate in a statechart of its own, so what the plan's
+    rewriting offered already must not keep the copy from offering it again.
+    """
+    world, _, extensions = pr2_apartment_context
+    counting = TransformationCountingItsApplications()
+    rewriting = PlanRewriting(transformations=[counting])
+    torso = MoveTorsoAction(TorsoState.HIGH)
+    statechart_of(simulated_executor(extensions), torso)
+    rewriting.rewrite(torso)
+
+    world.rebind_world_entities(rewriting).rewrite(torso)
+
+    assert counting.applications == 2
 
 
 # %% the seed an action samples its locations with

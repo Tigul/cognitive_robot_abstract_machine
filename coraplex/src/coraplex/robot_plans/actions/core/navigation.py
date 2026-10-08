@@ -81,9 +81,7 @@ class NavigateAction(DrivesBase):
     """
 
     def create_action_body(self) -> StatechartNode:
-        return Sequence(
-            [self._drive_to(self.robot.mobile_base.pose_facing(self.target_location))]
-        )
+        return self._drive_to(self.robot.mobile_base.pose_facing(self.target_location))
 
     @staticmethod
     def pre_condition(
@@ -144,15 +142,11 @@ class LookAtAction(Action):
 
     def create_action_body(self) -> StatechartNode:
         camera = self.camera or self.robot.get_default_camera()
-        return Sequence(
-            [
-                Pointing(
-                    root_link=self.robot.get_torso().root,
-                    tip_link=camera.root,
-                    goal_point=self.target.to_position(),
-                    pointing_axis=camera.forward_facing_axis,
-                )
-            ]
+        return Pointing(
+            root_link=self.robot.get_torso().root,
+            tip_link=camera.root,
+            goal_point=self.target.to_position(),
+            pointing_axis=camera.forward_facing_axis,
         )
 
 
@@ -171,26 +165,22 @@ class FaceAtAction(Action):
     """
 
     def create_action_body(self) -> StatechartNode:
-        return Sequence(
+        return Parallel(
             [
-                Parallel(
-                    [
-                        Pointing(
-                            root_link=self.world.root,
-                            tip_link=self.robot.root,
-                            goal_point=self._target_at_base_height(),
-                            pointing_axis=Vector3(
-                                *self.robot.mobile_base.forward_axis.to_np()[:3],
-                                reference_frame=self.robot.root,
-                            ),
-                        ),
-                        CartesianPosition(
-                            root_link=self.world.root,
-                            tip_link=self.robot.root,
-                            goal_point=Point3(reference_frame=self.robot.root),
-                        ),
-                    ]
-                )
+                Pointing(
+                    root_link=self.world.root,
+                    tip_link=self.robot.root,
+                    goal_point=self._target_at_base_height(),
+                    pointing_axis=Vector3(
+                        *self.robot.mobile_base.forward_axis.to_np()[:3],
+                        reference_frame=self.robot.root,
+                    ),
+                ),
+                CartesianPosition(
+                    root_link=self.world.root,
+                    tip_link=self.robot.root,
+                    goal_point=Point3(reference_frame=self.robot.root),
+                ),
             ]
         )
 

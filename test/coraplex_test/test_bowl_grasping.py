@@ -15,6 +15,7 @@ from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 from ..conftest import SAMPLING_SEED
+from ..plan_running import context_of, robot_extensions
 
 # %% fixtures
 
@@ -120,7 +121,7 @@ def test_transporting_a_bowl_grasps_it_at_its_rim(pr2_and_bowl):
         bowl,
         Pose.from_xyz_rpy(5.0, 3.3, 0.75, reference_frame=world.root),
         robot.left_arm,
-        robot,
+        context_of(robot_extensions(robot)),
         seed=SAMPLING_SEED,
     )
 

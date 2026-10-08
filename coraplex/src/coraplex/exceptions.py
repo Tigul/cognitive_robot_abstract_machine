@@ -162,6 +162,25 @@ class ReachHasNoFinalApproach(DataclassException):
 
 
 @dataclass
+class ToolPathNotFound(DataclassException):
+    """
+    Raised when the goal moving a tool along its path is asked for, but no such goal
+    lies below the tool action's node.
+    """
+
+    plan_node: StatechartNode
+    """
+    The node of the tool action.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.plan_node} has no goal moving its tool along a path below it."
+
+    def suggest_correction(self) -> str:
+        return "ask for the tool path only once the tool action has been expanded"
+
+
+@dataclass
 class MissingWaypoints(DataclassException):
     """
     Raised when a waypoint motion or tool action produced no waypoints to follow.

@@ -15,7 +15,7 @@ from coraplex.plans.executors import (
     RobotPlanExecutor,
     SimulatedPlanExecutor,
 )
-from cramph.context import ContextExtension
+from cramph.context import ContextExtension, StatechartContext
 from cramph.node import StatechartNode
 from cramph.statechart import Statechart
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
@@ -98,6 +98,19 @@ def world_of(extensions: List[ContextExtension]) -> World:
     :return: The world of the robot in `extensions`.
     """
     return robot_of(extensions)._world
+
+
+def context_of(extensions: List[ContextExtension]) -> StatechartContext:
+    """
+    :param extensions: The context extensions of a plan, holding a
+        :class:`~coraplex.plans.context_extensions.RobotAccess`.
+    :return: A context holding `extensions`, over the world of their robot, for building
+        the parts of a plan that read the context before the plan joins a statechart.
+    """
+    context = StatechartContext(world=world_of(extensions))
+    for extension in extensions:
+        context.add_extension(extension)
+    return context
 
 
 def statechart_of(executor: PlanExecutor, *plan_nodes: StatechartNode) -> Statechart:

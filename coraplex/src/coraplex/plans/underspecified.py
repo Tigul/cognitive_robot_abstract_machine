@@ -12,6 +12,7 @@ from typing_extensions import (
     Optional,
     TYPE_CHECKING,
     Tuple,
+    Type,
 )
 
 from coraplex.datastructures.enums import ActionTrialVisualization
@@ -130,9 +131,10 @@ class ActionTrial:
     those model and state changes instead of being taken anew. Collision rules changed
     after the copy was taken are not carried over.
 
-    Trials never publish to a synchronizer and always run simulated, in an executor
-    :meth:`~coraplex.plans.executors.PlanExecutor.for_trial` makes. While the executor is
-    debugging, the copy is shown in RViz under its own frame prefix and marker topic.
+    Trials never publish to a synchronizer and always run simulated, in an executor of
+    :attr:`trial_executor_type` over the copy, with the context extensions of
+    :attr:`executor` rebound to the copy. While the executor is debugging, the copy is
+    shown in RViz under its own frame prefix and marker topic.
     """
 
     executor: PlanExecutor
@@ -141,6 +143,11 @@ class ActionTrial:
 
     Only ever read from: a trial never mutates its world, and the candidates themselves
     are left untouched too, so they can still run for real afterwards.
+    """
+
+    trial_executor_type: Type[PlanExecutor]
+    """
+    The executor that runs a candidate in the copy, which simulates the robot.
     """
 
     copy_marker_alpha: float = field(default=0.9, kw_only=True)
@@ -203,7 +210,7 @@ class ActionTrial:
 
         with world.reset_state_context():
             try:
-                executor = self.executor.for_trial(world)
+                executor = self._trial_executor(world)
                 statechart = Statechart(context=executor.context)
                 # The candidate runs in a sequence of its own, the way it runs for real,
                 # so the nodes a plan transformation puts beside it are tried with it.
@@ -218,6 +225,22 @@ class ActionTrial:
                 # Undo the model changes before leaving the reset context restores the
                 # state, which needs the degrees of freedom it was snapshotted with.
                 world.rollback_to_version(version)
+
+    def _trial_executor(self, world: World) -> PlanExecutor:
+        """
+        :param world: The copy a candidate is tried in.
+        :return: An executor running a candidate in `world`, configured like
+            :attr:`executor`, the robot and everything else its context extensions refer
+            to rebound to `world`.
+        """
+        return self.trial_executor_type(
+            world,
+            context_extensions=[
+                world.rebind_world_entities(extension)
+                for extension in self.executor.context_extensions
+            ],
+            collision_avoidance=self.executor.collision_avoidance,
+        )
 
     @classmethod
     def _on_the_copy(
@@ -457,6 +480,11 @@ class UnderspecifiedChildChooser(ChildChooser):
     The executor whose statechart holds the nodes, which also tries their candidates.
     """
 
+    trial_executor_type: Type[PlanExecutor]
+    """
+    The executor the candidates are tried in, see :class:`ActionTrial`.
+    """
+
     trial: ActionTrial = field(init=False)
     """
     The trial every node tries its candidates against.
@@ -470,7 +498,9 @@ class UnderspecifiedChildChooser(ChildChooser):
     """
 
     def __post_init__(self):
-        self.trial = ActionTrial(executor=self.executor)
+        self.trial = ActionTrial(
+            executor=self.executor, trial_executor_type=self.trial_executor_type
+        )
 
     def choose_child(
         self, node: CompositeNodeChoosingItsChild, context: StatechartContext

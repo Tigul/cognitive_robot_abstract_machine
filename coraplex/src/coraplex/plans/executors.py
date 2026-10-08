@@ -16,7 +16,6 @@ from coraplex.plans.context_extensions import (
     ExecutionMode,
     MotionToleranceConfig,
     StatementGrounding,
-    WorldCopyableExtension,
 )
 from coraplex.plans.failures import (
     CandidateLimitReached,
@@ -26,12 +25,11 @@ from coraplex.plans.failures import (
     MotionViolatedCollisionAvoidance,
 )
 from coraplex.plans.plan_callbacks import PlanCallback, PlanCallbackDispatcher
-from coraplex.plans.plan_transformation import PlanRewriting, PlanTransformation
+from coraplex.plans.plan_transformation import PlanRewriting
 from coraplex.plans.underspecified import (
     UnderspecifiedChildChooser,
     UnderspecifiedNode,
 )
-from coraplex.robot_plans.actions.base import Action
 from cramph.composites import ChildChooserAccess
 from cramph.context import ContextExtension, StatechartContext
 from cramph.data_types import LifeCycleValues
@@ -93,17 +91,11 @@ class PlanExecutor(Executor, ABC):
     What the plan's nodes read from the context, such as the
     :class:`~coraplex.plans.context_extensions.RobotAccess` of the robot performing it.
 
-    A :class:`~coraplex.plans.context_extensions.StatementGrounding` and a
-    :class:`~coraplex.plans.context_extensions.MotionToleranceConfig` with default
-    values are added unless one is given.
-    """
-
-    plan_transformations: List[PlanTransformation] = field(
-        default_factory=list, kw_only=True
-    )
-    """
-    The transformations rewriting the plan once it is expanded, and every action that
-    joins it while it runs.
+    A :class:`~coraplex.plans.context_extensions.StatementGrounding`, a
+    :class:`~coraplex.plans.context_extensions.MotionToleranceConfig` and a
+    :class:`~coraplex.plans.plan_transformation.PlanRewriting` with default values are
+    added unless one is given; the latter holds the transformations rewriting the plan
+    once it is expanded, and every action that joins it while it runs.
     """
 
     ros_node: Optional[Node] = field(default=None, kw_only=True)
@@ -153,7 +145,11 @@ class PlanExecutor(Executor, ABC):
         self.context = StatechartContext(world=self.world)
         for extension in self.context_extensions:
             self.context.add_extension(extension)
-        for default_extension in (StatementGrounding(), MotionToleranceConfig()):
+        for default_extension in (
+            StatementGrounding(),
+            MotionToleranceConfig(),
+            PlanRewriting(),
+        ):
             if self.context.get_extension(type(default_extension)) is None:
                 self.context.add_extension(default_extension)
         self.context.add_extension(
@@ -162,32 +158,11 @@ class PlanExecutor(Executor, ABC):
                 collision_avoidance=self.collision_avoidance,
             )
         )
-        self.context.add_extension(
-            PlanRewriting(
-                transformations=self.plan_transformations,
-                offered_types=(Action, UnderspecifiedNode),
-            )
+        self.child_chooser = UnderspecifiedChildChooser(
+            executor=self, trial_executor_type=SimulatedPlanExecutor
         )
-        self.child_chooser = UnderspecifiedChildChooser(executor=self)
         self.context.add_extension(ChildChooserAccess(chooser=self.child_chooser))
         super().__post_init__()
-
-    def for_trial(self, world: World) -> SimulatedPlanExecutor:
-        """
-        :param world: A copy of :attr:`world`.
-        :return: An executor running candidates simulated in `world`, configured like
-            this one.
-        """
-        return SimulatedPlanExecutor(
-            world,
-            context_extensions=[
-                extension.for_world(world)
-                for extension in self.context_extensions
-                if isinstance(extension, WorldCopyableExtension)
-            ],
-            plan_transformations=self.plan_transformations,
-            collision_avoidance=self.collision_avoidance,
-        )
 
     def prepare(self, statechart: Statechart) -> None:
         """

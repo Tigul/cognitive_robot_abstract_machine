@@ -241,7 +241,7 @@ def build_plan(executor: SimulatedPlanExecutor) -> StatechartNode:
                             4.9, 3.3, 0.8, yaw=1.57, reference_frame=world.root
                         ),
                         pr2.left_arm,
-                        pr2,
+                        executor.context,
                     ),
                 ]
             ),
@@ -249,13 +249,13 @@ def build_plan(executor: SimulatedPlanExecutor) -> StatechartNode:
                 bowl_annotation,
                 Pose.from_xyz_rpy(5.0, 3.3, 0.75, yaw=1.57, reference_frame=world.root),
                 pr2.left_arm,
-                pr2,
+                executor.context,
             ),
             TransportAction.from_graspable_by_closest_grasps(
                 spoon_annotation,
                 Pose.from_xyz_rpy(5.1, 3.3, 0.75, yaw=1.57, reference_frame=world.root),
                 pr2.left_arm,
-                pr2,
+                executor.context,
             ),
         ]
     )

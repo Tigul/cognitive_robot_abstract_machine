@@ -16,13 +16,14 @@ from coraplex.robot_plans.actions.core.robot_body import (
     ParkArmsAction,
     SetGripperAction,
 )
-from cramph.composites import Parallel, Sequence
+from cramph.composites import Attempt, Parallel, Sequence
 from cramph.data_types import LifeCycleValues, ObservationStateValues
 from cramph.exceptions import CompositeNodeWithoutChildrenError
 from cramph.executor import StatechartExecutor
 from cramph.node import EndStatechart, StatechartNode
 from cramph.nodes_for_testing import (
     NodeFailingOnObservingFalse,
+    NodeObservingAFixedValue,
     NodeSucceedingOnObservingTrue,
 )
 from cramph.statechart import Statechart
@@ -172,6 +173,50 @@ def test_an_action_body_can_be_a_single_node(simple_pr2_context):
 
     assert action.action_body is step
     assert action.life_cycle_state == LifeCycleValues.SUCCEEDED
+
+
+def test_an_action_whose_body_its_owner_decides_succeeds_once_the_body_arrives(
+    simple_pr2_context,
+):
+    """
+    A single task never ends on its own, so the action decides it, through the attempt
+    it runs the task in.
+    """
+    _, _, extensions = simple_pr2_context
+    task = NodeObservingAFixedValue(
+        name="task", observation=ObservationStateValues.TRUE
+    )
+    action = ActionRunningOneNode(node=task)
+    statechart = _expanded(action, extensions)
+
+    _run_until(statechart, EndStatechart.when_true(action))
+
+    assert isinstance(action.action_body, Attempt)
+    assert action.action_body.task is task
+    assert action.life_cycle_state == LifeCycleValues.SUCCEEDED
+
+
+def test_an_action_whose_body_its_owner_decides_waits_while_the_body_is_away(
+    simple_pr2_context,
+):
+    """
+    A task that has not arrived yet observes False, which is not a failure of the
+    action running it.
+    """
+    _, _, extensions = simple_pr2_context
+    task = NodeObservingAFixedValue(
+        name="task", observation=ObservationStateValues.FALSE
+    )
+    action = ActionRunningOneNode(node=task)
+    statechart = _expanded(action, extensions)
+    statechart.add_node(EndStatechart.when_true(action))
+    executor = StatechartExecutor(context=statechart.context)
+    executor.compile(statechart)
+
+    for _ in range(3):
+        executor.tick()
+
+    assert action.life_cycle_state == LifeCycleValues.RUNNING
 
 
 def test_action_succeeds_once_its_last_step_succeeded(simple_pr2_context):

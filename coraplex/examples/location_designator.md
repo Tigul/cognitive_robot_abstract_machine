@@ -44,6 +44,7 @@ from coraplex.plans.executors import SimulatedPlanExecutor
 from cramph.statechart import Statechart
 
 extensions = [RobotAccess(pr2_view), StatementGrounding(sampling_seed=0)]
+context = SimulatedPlanExecutor(world, context_extensions=extensions).context
 
 def run(plan):
     """
@@ -85,7 +86,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 location = ReachabilityLocation(
     Pose(reference_frame=world.get_body_by_name("milk.stl")),
     pr2_view.left_arm,
-    robot=pr2_view, seed=0,
+    context=context, seed=0,
 )
 
 run(NavigateAction(location.ground()))
@@ -123,7 +124,7 @@ location = ReachabilityLocation(
     Pose(reference_frame=drawer.handle.root),
     pr2_view.left_arm,
     ReachFraction.ACCESSING,
-    robot=pr2_view, seed=0,
+    context=context, seed=0,
 )
 
 print(location.ground())
@@ -138,7 +139,7 @@ with its default camera. It only needs the target.
 from coraplex.locations.locations import VisibilityLocation
 
 location = VisibilityLocation(
-    Pose(reference_frame=world.get_body_by_name("milk.stl")), robot=pr2_view, seed=0
+    Pose(reference_frame=world.get_body_by_name("milk.stl")), context=context, seed=0
 )
 
 run(NavigateAction(location.ground()))
@@ -158,7 +159,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Point3
 
 location = VisibilityLocation(
     Pose(Point3.from_iterable([-1, 0, 1.2]), reference_frame=world.root),
-    robot=pr2_view, seed=0,
+    context=context, seed=0,
     number_of_samples=5,
 )
 
@@ -182,7 +183,7 @@ navigate = a(NavigateAction)(
         domain=ReachabilityLocation(
             Pose(reference_frame=world.get_body_by_name("milk.stl")),
             pr2_view.left_arm,
-            robot=pr2_view, seed=0,
+            context=context, seed=0,
         ),
     )
 )
@@ -202,7 +203,7 @@ how far, in cells, its candidates spread around the stand-off distance.
 location = ReachabilityLocation(
     Pose(reference_frame=world.get_body_by_name("milk.stl")),
     pr2_view.left_arm,
-    robot=pr2_view, seed=0,
+    context=context, seed=0,
     map_resolution=0.04,
     map_cells=100,
     ring_standard_deviation=8,

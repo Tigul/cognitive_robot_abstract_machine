@@ -13,6 +13,7 @@ from coraplex.exceptions import (
 from cramph.exceptions import NotRunByLanguageNodeError
 from coraplex.plans.plan_transformation import (
     InsertionTransformation,
+    PlanRewriting,
     PlanTransformation,
     logger as transformation_logger,
 )
@@ -63,7 +64,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world import World
 
 from ..test_transporting import pick_and_place_of_the_milk
-from ...plan_running import simulated_executor, statechart_of
+from ...plan_running import context_of, simulated_executor, statechart_of
 from ...sampling import SAMPLING_SEED
 from cramph.context import ContextExtension
 
@@ -82,7 +83,7 @@ def rewritten(
     :return: The plan, rewritten.
     """
     executor = simulated_executor(
-        extensions, plan_transformations=list(plan_transformations)
+        [*extensions, PlanRewriting(transformations=list(plan_transformations))]
     )
     executor.prepare(statechart_of(executor, plan))
     return plan
@@ -604,6 +605,28 @@ def test_the_perception_precedes_the_final_approach(pr2_apartment_context):
     ]
 
 
+def test_the_perception_precedes_the_final_approach_a_step_was_put_behind(
+    pr2_apartment_context,
+):
+    """
+    The final approach is the last step moving the tool center point, so a step another
+    transformation put behind it does not take its place.
+    """
+    world, view, extensions = pr2_apartment_context
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    plan_transformations = [MoveGripperLastInTheReachBody(), DetectBeforeGrasp()]
+
+    plan = rewritten(reach_action(milk, view), extensions, plan_transformations)
+
+    assert kinds_of_the_steps_of(plan) == [
+        CartesianPose,
+        LookAtAction,
+        DetectAction,
+        CartesianPose,
+        MoveGripper,
+    ]
+
+
 def test_a_reach_not_yet_expanded_has_no_final_approach(pr2_apartment_context):
     world, view, extensions = pr2_apartment_context
     milk = world.get_semantic_annotations_by_type(Milk)[0]
@@ -1029,7 +1052,7 @@ def test_the_drawer_is_opened_once_in_front_of_a_move_and_pick_up_still_to_be_gr
     plan_transformations = [OpenDrawerBeforeMoveAndPickUp()]
 
     move_and_pick_up = MoveAndPickUpAction.from_graspable_by_closest_grasps(
-        spoon, view.right_arm, view, seed=SAMPLING_SEED
+        spoon, view.right_arm, context_of(extensions), seed=SAMPLING_SEED
     )
     plan = rewritten(
         Sequence([UnderspecifiedNode(statement=move_and_pick_up)]),
@@ -1061,7 +1084,7 @@ def test_the_drawer_is_opened_in_front_of_a_transports_pick_up_before_it_is_grou
         spoon,
         Pose(reference_frame=world.root),
         view.right_arm,
-        view,
+        context_of(extensions),
         seed=SAMPLING_SEED,
     )
     plan = rewritten(Sequence([transport]), extensions, plan_transformations)
@@ -1132,7 +1155,11 @@ def test_a_transport_of_an_object_in_no_drawer_is_left_alone(pr2_apartment_conte
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     plan_transformations = [OpenDrawerBeforeMoveAndPickUp()]
     transport = TransportAction.from_graspable_by_closest_grasps(
-        milk, Pose(reference_frame=world.root), view.right_arm, view, seed=SAMPLING_SEED
+        milk,
+        Pose(reference_frame=world.root),
+        view.right_arm,
+        context_of(extensions),
+        seed=SAMPLING_SEED,
     )
 
     plan = rewritten(Sequence([transport]), extensions, plan_transformations)

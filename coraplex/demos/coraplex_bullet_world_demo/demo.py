@@ -21,7 +21,7 @@ from enum import StrEnum
 from typing_extensions import List, Optional, Tuple, Type
 
 from coraplex.plans.context_extensions import RobotAccess, StatementGrounding
-from coraplex.plans.plan_transformation import PlanTransformation
+from coraplex.plans.plan_transformation import PlanRewriting
 from coraplex.demonstrations import RobotDemonstration
 from coraplex.plans.executors import PlanExecutor, SimulatedPlanExecutor
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
@@ -217,10 +217,6 @@ class BulletWorldDemonstration(RobotDemonstration):
 
     ros_node_name: str = "bullet_world_demo_node"
 
-    plan_transformations: List[PlanTransformation] = field(
-        default_factory=lambda: [OpenDrawerBeforeMoveAndPickUp()]
-    )
-
     robot_start: HomogeneousTransformationMatrix = field(
         default_factory=lambda: HomogeneousTransformationMatrix.from_xyz_rpy(
             1.1, 2.5, 0
@@ -314,6 +310,7 @@ class BulletWorldDemonstration(RobotDemonstration):
         return [
             RobotAccess(world.get_semantic_annotations_by_type(self.used_robot)[0]),
             StatementGrounding(sampling_seed=SAMPLING_SEED),
+            PlanRewriting(transformations=[OpenDrawerBeforeMoveAndPickUp()]),
         ]
 
     def segment_events(self, world: World) -> AbstractContextManager:
@@ -351,21 +348,21 @@ class BulletWorldDemonstration(RobotDemonstration):
                         self.milk.annotation_in(world),
                         self.milk.target_location(world),
                         left_arm,
-                        robot,
+                        context,
                         seed=SAMPLING_SEED,
                     ),
                     TransportAction.from_graspable_by_closest_grasps(
                         self.bowl.annotation_in(world),
                         self.bowl.target_location(world),
                         left_arm,
-                        robot,
+                        context,
                         seed=SAMPLING_SEED,
                     ),
                     TransportAction.from_graspable_by_closest_grasps(
                         self.spoon.annotation_in(world),
                         self.spoon.target_location(world),
                         left_arm,
-                        robot,
+                        context,
                         seed=SAMPLING_SEED,
                     ),
                 ]

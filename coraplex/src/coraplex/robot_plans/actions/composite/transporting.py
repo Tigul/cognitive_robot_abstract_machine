@@ -8,6 +8,7 @@ from krrood.entity_query_language.factories import a, variable
 from coraplex.locations.locations import ReachabilityLocation
 from coraplex.plans.underspecified import UnderspecifiedNode
 from cramph.composites import Sequence
+from cramph.context import StatechartContext
 from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.mixins import HasApproachesGraspPoses
@@ -23,7 +24,7 @@ from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from krrood.entity_query_language.query.match import Match
-from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm
+from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.grasping.grasp_candidates import (
     GraspCandidate,
     HasGraspCandidates,
@@ -55,7 +56,7 @@ class TransportAction(Action):
         graspable: HasGraspCandidates,
         target_location: Pose,
         arm: Arm,
-        robot: AbstractRobot,
+        context: StatechartContext,
         number_of_grasps: int = IsAmongTheClosestGraspsTo.number_of_grasps,
         seed: Optional[int] = None,
     ) -> Self:
@@ -67,7 +68,8 @@ class TransportAction(Action):
         :param graspable: The object to transport.
         :param target_location: Where to put the object down.
         :param arm: The arm that carries the object.
-        :param robot: The robot performing the steps.
+        :param context: The context of the plan the steps run in, whose robot performs
+            them.
         :param number_of_grasps: How many of the object's grasps closest to a standing
             pose are tried from there.
         :param seed: Seed for sampling the standing poses; ``None`` samples afresh.
@@ -78,7 +80,7 @@ class TransportAction(Action):
             pick_up=MoveAndPickUpAction.from_graspable_by_closest_grasps(
                 graspable=graspable,
                 arm=arm,
-                robot=robot,
+                context=context,
                 number_of_grasps=number_of_grasps,
                 seed=seed,
             ),
@@ -87,7 +89,10 @@ class TransportAction(Action):
                     target_location=variable(
                         Pose,
                         domain=ReachabilityLocation(
-                            target_pose=target_location, arm=arm, robot=robot, seed=seed
+                            target_pose=target_location,
+                            arm=arm,
+                            context=context,
+                            seed=seed,
                         ),
                     )
                 ),
@@ -251,7 +256,7 @@ class MoveAndPickUpAction(Action):
         cls,
         graspable: HasGraspCandidates,
         arm: Arm,
-        robot: AbstractRobot,
+        context: StatechartContext,
         number_of_grasps: int = IsAmongTheClosestGraspsTo.number_of_grasps,
         seed: Optional[int] = None,
     ) -> Match:
@@ -264,7 +269,8 @@ class MoveAndPickUpAction(Action):
 
         :param graspable: The object to pick up.
         :param arm: The arm to pick up with.
-        :param robot: The robot performing the steps.
+        :param context: The context of the plan the steps run in, whose robot performs
+            them.
         :param number_of_grasps: How many of the object's grasps closest to a standing
             pose are tried from there.
         :param seed: Seed for sampling the standing poses; ``None`` samples afresh.
@@ -277,7 +283,7 @@ class MoveAndPickUpAction(Action):
                 target_location=variable(
                     Pose,
                     domain=ReachabilityLocation(
-                        target_pose=object_pose, arm=arm, robot=robot, seed=seed
+                        target_pose=object_pose, arm=arm, context=context, seed=seed
                     ),
                 )
             ),

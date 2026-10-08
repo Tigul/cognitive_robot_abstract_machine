@@ -21,7 +21,7 @@ from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.world_description.geometry import Box, Scale
 from semantic_digital_twin.world_description.shape_collection import ShapeCollection
 from semantic_digital_twin.world_description.world_entity import Body
-from ..plan_running import robot_extensions
+from ..plan_running import context_of, robot_extensions
 from ..sampling import SAMPLING_SEED
 
 # %% test doubles
@@ -169,7 +169,9 @@ def test_a_ring_from_the_arm_reach_distance_stands_off_by_the_reach_fraction(
     # tolerance.
     arm = robot.right_arm
     expected_distance = float(arm.approximate_length()) * REACH_FRACTION
-    location = ReachabilityLocation(target, arm, robot=robot, seed=SAMPLING_SEED)
+    location = ReachabilityLocation(
+        target, arm, context=context_of(extensions), seed=SAMPLING_SEED
+    )
 
     ring = RingCostmap.from_arm_reach_distance(
         arm,
@@ -213,7 +215,11 @@ def test_a_reachability_location_stands_around_the_reach_fraction_of_the_arm(
     )
     arm = robot.right_arm
     location = ReachabilityLocation(
-        target, arm, robot=robot, seed=0, reach_fraction=REACH_FRACTION
+        target,
+        arm,
+        context=context_of(extensions),
+        seed=0,
+        reach_fraction=REACH_FRACTION,
     )
     ring = RingCostmap.from_arm_reach_distance(
         arm,
@@ -246,7 +252,7 @@ def test_a_reachability_location_offers_no_standing_pose_farther_than_the_arm_is
         *REACHABILITY_TARGET_POSITION, reference_frame=world.root
     )
     arm = robot.right_arm
-    location = ReachabilityLocation(target, arm, robot=robot, seed=0)
+    location = ReachabilityLocation(target, arm, context=context_of(extensions), seed=0)
     sampled = islice(
         location.costmap().sample(location.number_of_samples, location.seed),
         POSES_CHECKED,
@@ -275,7 +281,7 @@ def test_a_reachability_location_offers_the_poses_in_reach_in_the_order_sampled(
         *REACHABILITY_TARGET_POSITION, reference_frame=world.root
     )
     arm = robot.right_arm
-    location = ReachabilityLocation(target, arm, robot=robot, seed=0)
+    location = ReachabilityLocation(target, arm, context=context_of(extensions), seed=0)
     in_reach = [
         pose.to_position().to_np()[:2]
         for pose in islice(
@@ -326,7 +332,7 @@ def test_a_reachability_location_is_sampled_around_its_target(single_robot_world
     )
 
     location = ReachabilityLocation(
-        target, robot.right_arm, robot=robot, seed=SAMPLING_SEED
+        target, robot.right_arm, context=context_of(extensions), seed=SAMPLING_SEED
     )
 
     np.testing.assert_allclose(
@@ -345,7 +351,7 @@ def test_a_reachability_location_samples_afresh_without_one(single_robot_world):
     location = ReachabilityLocation(
         _box_in(world).root.global_pose,
         robot.right_arm,
-        robot=robot,
+        context=context_of(extensions),
     )
 
     assert location.seed is None
@@ -365,7 +371,7 @@ def test_a_costmap_location_builds_its_costmap_only_when_sampled_from(
     location = ReachabilityLocation(
         _box_in(world).root.global_pose,
         robot.right_arm,
-        robot=robot,
+        context=context_of(extensions),
         seed=SAMPLING_SEED,
     )
     built = []
@@ -393,7 +399,7 @@ def test_a_target_given_in_a_body_frame_follows_the_body(single_robot_world):
     location = ReachabilityLocation(
         Pose(reference_frame=box),
         robot.right_arm,
-        robot=robot,
+        context=context_of(extensions),
         seed=SAMPLING_SEED,
     )
     with world.modify_world():
@@ -418,7 +424,7 @@ def test_a_visibility_location_offers_poses_facing_its_target(single_robot_world
     target = Pose.from_xyz_rpy(
         *REACHABILITY_TARGET_POSITION, reference_frame=world.root
     )
-    location = VisibilityLocation(target, robot=robot, seed=0)
+    location = VisibilityLocation(target, context=context_of(extensions), seed=0)
 
     for pose in islice(location.candidates(), POSES_CHECKED):
         heading = pose.to_rotation_matrix().to_np()[:2, 0]

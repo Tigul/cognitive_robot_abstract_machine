@@ -41,7 +41,12 @@ from semantic_digital_twin.world_description.geometry import VolumetricBoundingB
 
 from ..conftest import expand, motion_nodes_of, tool_center_point_goal
 from cramph.exceptions import PlanCancelled
-from ...plan_running import run_plan, simulated_executor, statechart_of
+from ...plan_running import (
+    context_of,
+    run_plan,
+    simulated_executor,
+    statechart_of,
+)
 from ...sampling import SAMPLING_SEED
 from cramph.context import ContextExtension
 
@@ -284,7 +289,7 @@ def test_a_transport_runs_with_its_underspecified_steps(
                 world.get_semantic_annotations_by_type(Milk)[0],
                 Pose.from_xyz_rpy(2.37, 2.5, 1.05, reference_frame=world.root),
                 view.right_arm,
-                view,
+                context_of(extensions),
                 seed=SAMPLING_SEED,
             ),
         ]

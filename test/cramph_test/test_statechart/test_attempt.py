@@ -20,6 +20,7 @@ from cramph.nodes_for_testing import (
     ConstTrueNode,
     NodeDeclaringItsOwnFailure,
     NodeObservingNothingYet,
+    NodeSucceedingOnObservingTrue,
 )
 from semantic_digital_twin.world import World
 
@@ -369,3 +370,22 @@ def test_a_task_that_fails_on_its_own_makes_its_sequence_report_a_failure():
     assert task.parent_node.life_cycle_state == LifeCycleValues.FAILED
     assert sequence.life_cycle_state == LifeCycleValues.FAILED
     assert sequence.last_observation_state == ObservationStateValues.FALSE
+
+
+# %% deciding a node
+
+
+def test_a_node_deciding_itself_needs_no_attempt_to_decide_it():
+    node = NodeSucceedingOnObservingTrue(
+        name="deciding itself", observation=ObservationStateValues.TRUE
+    )
+
+    assert Attempt.deciding(node) is node
+
+
+def test_a_node_its_owner_decides_is_decided_by_an_attempt_that_cannot_give_up():
+    node = ConstTrueNode(name="decided by its owner")
+
+    attempt = Attempt.deciding(node)
+
+    assert (attempt.task, attempt.failure_monitors) == (node, [])

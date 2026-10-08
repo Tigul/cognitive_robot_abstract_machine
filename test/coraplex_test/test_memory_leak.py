@@ -17,7 +17,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from cramph.composites import Sequence
 
 from ..conftest import SAMPLING_SEED
-from ..plan_running import robot_extensions, run_plan
+from ..plan_running import context_of, robot_extensions, run_plan
 
 
 def test_ref_chain_after_copy(pr2_apartment_context):
@@ -54,17 +54,18 @@ def test_ref_chain_after_copy_with_execute_complex_plan(pr2_apartment_context):
     copy_world.name = "copy_world"
 
     copy_robot = copy_world.get_semantic_annotation_by_id(view.id)
+    copy_extensions = robot_extensions(copy_robot)
 
     milk = copy_world.get_semantic_annotations_by_type(Milk)[0]
     description = TransportAction.from_graspable_by_closest_grasps(
         milk,
         Pose.from_xyz_quaternion(3.1, 2.2, 0.95, 0.0, 0.0, 1.0, 0.0, world.root),
         copy_robot.right_arm,
-        copy_robot,
+        context_of(copy_extensions),
         seed=SAMPLING_SEED,
     )
     plan = Sequence([MoveTorsoAction(TorsoState.HIGH), description])
-    run_plan(plan, robot_extensions(copy_robot))
+    run_plan(plan, copy_extensions)
 
     gc.collect()
     chain = objgraph.find_ref_chain(world, lambda x: x is copy_world)

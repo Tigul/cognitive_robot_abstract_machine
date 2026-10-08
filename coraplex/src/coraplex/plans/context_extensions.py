@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 
-from typing_extensions import Optional, Self, TYPE_CHECKING
+from typing_extensions import Optional
 
 from cramph.context import ContextExtension
 from krrood.entity_query_language.backends import (
@@ -15,30 +15,11 @@ from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
 
-if TYPE_CHECKING:
-    from semantic_digital_twin.world import World
-
-
-# %% extensions a plan's context carries over to a copy of its world
+# %% what a plan's nodes read from the context
 
 
 @dataclass
-class WorldCopyableExtension(ContextExtension):
-    """
-    A context extension a plan's statechart context carries, which a trial carries over
-    to the context it runs a candidate in, over a copy of the world.
-    """
-
-    def for_world(self, world: World) -> Self:
-        """
-        :param world: A copy of the world this extension's context runs in.
-        :return: This extension, referring to `world` wherever it refers to the world.
-        """
-        return self
-
-
-@dataclass
-class RobotAccess(WorldCopyableExtension):
+class RobotAccess(ContextExtension):
     """
     Gives the nodes of a statechart the robot that performs the plan.
     """
@@ -63,12 +44,9 @@ class RobotAccess(WorldCopyableExtension):
             return self.robot._world.root
         return self.robot.root
 
-    def for_world(self, world: World) -> Self:
-        return replace(self, robot=world.get_semantic_annotation_by_id(self.robot.id))
-
 
 @dataclass
-class StatementGrounding(WorldCopyableExtension):
+class StatementGrounding(ContextExtension):
     """
     How the underspecified statements of a plan are grounded into actions.
     """
@@ -97,7 +75,7 @@ class StatementGrounding(WorldCopyableExtension):
 
 
 @dataclass
-class MotionToleranceConfig(WorldCopyableExtension):
+class MotionToleranceConfig(ContextExtension):
     """
     Default goal-achievement tolerances for motions that leave their own thresholds
     unset.

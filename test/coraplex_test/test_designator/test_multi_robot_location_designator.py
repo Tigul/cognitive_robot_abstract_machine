@@ -30,7 +30,7 @@ from semantic_digital_twin.spatial_types import (
 from semantic_digital_twin.world import World
 
 from ...conftest import SAMPLING_SEED
-from ...plan_running import robot_extensions, run_plan
+from ...plan_running import context_of, robot_extensions, run_plan
 from cramph.context import ContextExtension
 
 # No alternative motion mappings: they are being redesigned on top of the giskard goals
@@ -167,7 +167,10 @@ def test_new_reachability_location_body(
     arm = right_or_only_arm(robot)
     milk = world.get_body_by_name("milk.stl")
     location = ReachabilityLocation(
-        Pose(reference_frame=milk), arm, robot=robot, seed=SAMPLING_SEED
+        Pose(reference_frame=milk),
+        arm,
+        context=context_of(extensions),
+        seed=SAMPLING_SEED,
     )
 
     pose = next(iter(location))
@@ -185,7 +188,9 @@ def test_visibility_location_pose(multiple_robot_simple_apartment_context):
     world.notify_state_change()
 
     location = VisibilityLocation(
-        world.get_body_by_name("milk.stl").global_pose, robot=robot, seed=SAMPLING_SEED
+        world.get_body_by_name("milk.stl").global_pose,
+        context=context_of(extensions),
+        seed=SAMPLING_SEED,
     )
 
     pose = next(iter(location))
@@ -203,7 +208,7 @@ def test_visibility_location_body(multiple_robot_simple_apartment_context):
 
     location = VisibilityLocation(
         Pose(reference_frame=world.get_body_by_name("milk.stl")),
-        robot=robot,
+        context=context_of(extensions),
         seed=SAMPLING_SEED,
     )
 

@@ -49,7 +49,6 @@ from giskardpy.motion_statechart.tasks.align_planes import AlignPlanes
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPositionTrajectory,
 )
-from semantic_digital_twin.robots.justin import Justin
 from coraplex.robot_plans.actions.composite.tool_paths import (
     ToolPath,
     ToolPathSegment,
@@ -158,7 +157,7 @@ class ToolMotionAction(FullBodyControlledAction, ABC, MovesToolCenterPoint):
         :return: The goal moving the tool along the sampled waypoints while keeping it
             aligned with its target.
         """
-        return Sequence([self._tool_path_goal()])
+        return self._tool_path_goal()
 
     def _tool_path_goal(self) -> Parallel:
         """
@@ -194,30 +193,10 @@ class ToolMotionAction(FullBodyControlledAction, ABC, MovesToolCenterPoint):
                     [
                         CartesianPositionTrajectory(**trajectory_arguments),
                         *alignments,
-                        *self._upright_torso_alignment(root),
                     ]
                 ),
             ]
         )
-
-    def _upright_torso_alignment(self, root: Body) -> List[AlignPlanes]:
-        """
-        :param root: The link the alignment is expressed relative to.
-        :return: The task keeping Justin's torso upright while it works, which no other
-            robot needs.
-        """
-        if not isinstance(self.robot, Justin):
-            return []
-        torso_tip = self.robot.mobile_base.torso.tip
-        return [
-            AlignPlanes(
-                tip_link=torso_tip,
-                root_link=root,
-                tip_normal=Vector3.X(torso_tip),
-                goal_normal=Vector3.Z(root),
-                weight=DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE.value,
-            )
-        ]
 
 
 @dataclass(kw_only=True, eq=False, repr=False)
@@ -405,20 +384,16 @@ class WipingAction(ToolMotionAction):
             counts as done once the tool reached the final waypoint, since the last
             stretch of a wipe often stalls against the surface.
         """
-        return Sequence(
+        return TryAll(
             [
-                TryAll(
-                    [
-                        self._tool_path_goal(),
-                        PositionReached(
-                            name=f"{self.name}/final waypoint reached",
-                            root_link=self.world.root,
-                            tip_link=self.tool.root,
-                            goal_point=self._waypoints[-1],
-                            threshold=self.final_waypoint_success_tolerance,
-                        ),
-                    ]
-                )
+                self._tool_path_goal(),
+                PositionReached(
+                    name=f"{self.name}/final waypoint reached",
+                    root_link=self.world.root,
+                    tip_link=self.tool.root,
+                    goal_point=self._waypoints[-1],
+                    threshold=self.final_waypoint_success_tolerance,
+                ),
             ]
         )
 
