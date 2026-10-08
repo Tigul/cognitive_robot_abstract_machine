@@ -107,9 +107,9 @@ ALTERNATIVE_MOTION_MAPPINGS = [
 
 def heading_towards(
     world_P_stand: Iterable[float], world_P_target: Iterable[float], world: World
-) -> Pose:
+) -> Pose2D:
     """
-    A pose at ``world_P_stand`` whose x-axis points at ``world_P_target``.
+    A spot on the floor at ``world_P_stand`` whose heading points at ``world_P_target``.
 
     This is the form
     :class:`~coraplex.robot_plans.actions.core.navigation.NavigateAction` and
@@ -119,8 +119,8 @@ def heading_towards(
     to look there.
     """
     world_V_heading = np.asarray(world_P_target)[:2] - np.asarray(world_P_stand)[:2]
-    return Pose.from_xyz_rpy(
-        *np.asarray(world_P_stand)[:3],
+    return Pose2D(
+        *np.asarray(world_P_stand)[:2],
         yaw=float(np.arctan2(world_V_heading[1], world_V_heading[0])),
         reference_frame=world.root,
     )
@@ -310,9 +310,7 @@ def test_navigate_multi(multiple_robot_apartment_context, rclpy_node):
 
     plan = execute_single(
         NavigateAction(
-            target_location=Pose(
-                Point3.from_iterable(target_position), reference_frame=world.root
-            )
+            target_location=Pose2D(*target_position[:2], reference_frame=world.root)
         ),
         context=context,
     )
@@ -685,10 +683,12 @@ def test_open(multiple_robot_apartment_context):
             MoveTorsoAction(torso_state=TorsoState.HIGH),
             ParkArmsAction(context.robot.all_arms),
             NavigateAction(
-                target_location=Pose(
-                    Point3.from_iterable([1.6, 1.9, 0]),
-                    Quaternion.from_iterable([0, 0, 0.3, 1]),
-                    reference_frame=world.root,
+                target_location=Pose2D.from_pose(
+                    Pose(
+                        Point3.from_iterable([1.6, 1.9, 0]),
+                        Quaternion.from_iterable([0, 0, 0.3, 1]),
+                        reference_frame=world.root,
+                    )
                 )
             ),
             OpenAction(
@@ -840,7 +840,7 @@ def test_multi_robot_gcs_navigation(multiple_robot_apartment_context, rclpy_node
 
     plan = execute_single(
         PathPlanningNavigateAction(
-            Pose.from_xyz_rpy(*target_position, 0, reference_frame=world.root)
+            target_location=Pose2D(*target_position, reference_frame=world.root)
         ),
         context=context,
     )
@@ -863,7 +863,7 @@ def test_gcs_navigation_arrives_at_each_waypoint_facing_the_next_one(
     world, robot, context = multiple_robot_apartment_context
 
     action = PathPlanningNavigateAction(
-        Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root)
+        target_location=Pose2D(5, 1, reference_frame=world.root)
     )
     execute_single(action, context=context)
 
@@ -896,7 +896,7 @@ def test_gcs_navigation_plans_on_the_floor_the_robot_stands_on(
     world, robot, context = multiple_robot_apartment_context
 
     action = PathPlanningNavigateAction(
-        Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root)
+        target_location=Pose2D(5, 1, reference_frame=world.root)
     )
     execute_single(action, context=context)
 
@@ -912,9 +912,9 @@ def test_gcs_navigation_plans_on_the_floor_the_robot_stands_on(
     assert floor_box.max_z == pytest.approx(float(base_pose.z))
 
     waypoints = action._waypoints()
-    assert [waypoint.reference_frame for waypoint in waypoints] == [floor.root] * len(
-        waypoints
-    )
+    assert [waypoint.reference_frame for waypoint in waypoints] == [
+        floor.supporting_surface
+    ] * len(waypoints)
 
 
 def test_gcs_navigation_takes_a_waypoints_height_from_that_waypoints_frame(
@@ -927,7 +927,7 @@ def test_gcs_navigation_takes_a_waypoints_height_from_that_waypoints_frame(
     world, robot, context = multiple_robot_apartment_context
 
     action = PathPlanningNavigateAction(
-        Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root)
+        target_location=Pose2D(5, 1, reference_frame=world.root)
     )
     execute_single(action, context=context)
 
@@ -953,7 +953,7 @@ def test_gcs_navigation_needs_a_floor_below_the_robot(
     world.notify_state_change()
 
     action = PathPlanningNavigateAction(
-        Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root)
+        target_location=Pose2D(5, 1, reference_frame=world.root)
     )
     execute_single(action, context=context)
 

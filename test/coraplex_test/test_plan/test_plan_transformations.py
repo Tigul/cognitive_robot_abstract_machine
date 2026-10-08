@@ -57,7 +57,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Milk,
     Spoon,
 )
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.spatial_types.spatial_types import Pose, Pose2D
 from semantic_digital_twin.world import World
 
 from .test_graph_parsing import detect_actions_of, reach_action
@@ -859,7 +859,7 @@ def test_the_drawer_is_opened_before_a_move_and_pick_up_rather_than_inside_it(
     context.plan_transformations.append(OpenDrawerBeforeMoveAndPickUp())
 
     move_and_pick_up = MoveAndPickUpAction.from_standing_position(
-        standing_position=Pose(reference_frame=world.root),
+        standing_position=Pose2D(reference_frame=world.root),
         grasp=spoon.grasp_candidates()[0],
         arm=view.right_arm,
     )
@@ -1119,7 +1119,7 @@ def test_a_move_and_pick_up_whose_grasps_are_on_several_objects_is_opened_per_ca
 
     standing_pose = Pose(reference_frame=world.root)
     move_and_pick_up = a(MoveAndPickUpAction)(
-        navigate=NavigateAction(target_location=standing_pose),
+        navigate=NavigateAction(target_location=Pose2D.from_pose(standing_pose)),
         face_and_look_at=FaceAndLookAtAction(
             face_at=FaceAtAction(target=standing_pose),
             look_at=LookAtAction(target=standing_pose),
@@ -1146,7 +1146,7 @@ def test_a_move_and_pick_up_of_an_object_in_no_drawer_is_left_alone(
     milk = world.get_semantic_annotations_by_type(Milk)[0]
     context.plan_transformations.append(OpenDrawerBeforeMoveAndPickUp())
     move_and_pick_up = MoveAndPickUpAction.from_standing_position(
-        standing_position=Pose(reference_frame=world.root),
+        standing_position=Pose2D(reference_frame=world.root),
         grasp=milk.grasp_candidates()[0],
         arm=view.right_arm,
     )

@@ -28,7 +28,7 @@ from semantic_digital_twin.grasping.grasp_candidates import (
     CanBeGrasped,
 )
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.spatial_types.spatial_types import Pose, Pose2D
 
 
 @dataclass
@@ -80,7 +80,7 @@ class TransportAction(ActionDescription):
             place=a(MoveAndPlaceAction)(
                 navigate=a(NavigateAction)(
                     target_location=variable(
-                        Pose,
+                        Pose2D,
                         domain=ReachabilityLocation(
                             target_pose=target_location, arm=arm, context=context
                         ),
@@ -155,7 +155,7 @@ class MoveAndPlaceAction(ActionDescription):
     @classmethod
     def from_standing_position(
         cls,
-        standing_position: Pose,
+        standing_position: Pose2D,
         target_location: Pose,
         object_designator: CanBeGrasped,
     ) -> Self:
@@ -205,7 +205,7 @@ class MoveAndPickUpAction(ActionDescription):
     @classmethod
     def from_standing_position(
         cls,
-        standing_position: Pose,
+        standing_position: Pose2D,
         grasp: GraspCandidate,
         arm: Arm,
         approach_clearance: float = HasApproachesGraspPoses.approach_clearance,
@@ -261,7 +261,7 @@ class MoveAndPickUpAction(ActionDescription):
         step = a(cls)(
             navigate=a(NavigateAction)(
                 target_location=variable(
-                    Pose,
+                    Pose2D,
                     domain=ReachabilityLocation(
                         target_pose=object_pose, arm=arm, context=context
                     ),
@@ -312,7 +312,7 @@ class MoveAndOpenAction(ActionDescription):
 
     @classmethod
     def from_standing_position(
-        cls, standing_position: Pose, handle: Handle, arm: Arm
+        cls, standing_position: Pose2D, handle: Handle, arm: Arm
     ) -> Self:
         """
         :param standing_position: Where the robot stands while opening.

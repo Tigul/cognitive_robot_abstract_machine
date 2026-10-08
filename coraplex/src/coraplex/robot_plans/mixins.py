@@ -24,7 +24,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Tool,
 )
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.spatial_types.spatial_types import Pose, Pose2D
 
 
 @dataclass(eq=False)
@@ -104,12 +104,24 @@ class GripperCollisionAllowed(DesignatorParameterMixin):
 @dataclass(eq=False)
 class TargetLocationMovedTo(DesignatorParameterMixin):
     """
-    Mixin for behaviours that move the robot or an object to a destination pose.
+    Mixin for behaviours that move an object to a destination pose.
     """
 
     target_location: Pose = field(kw_only=True)
     """
     The destination pose the behaviour moves to.
+    """
+
+
+@dataclass(eq=False)
+class NavigationTarget(DesignatorParameterMixin):
+    """
+    Mixin for behaviours that drive the robot's base to a spot on the floor.
+    """
+
+    target_location: Pose2D = field(kw_only=True)
+    """
+    Where the robot's base ends up: its position on the floor and its heading.
     """
 
 

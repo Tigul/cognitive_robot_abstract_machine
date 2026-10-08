@@ -167,10 +167,11 @@ of them.
 
 ```python
 from krrood.entity_query_language.factories import a, variable
+from semantic_digital_twin.spatial_types.spatial_types import Pose2D
 
 navigate = a(NavigateAction)(
     target_location=variable(
-        Pose,
+        Pose2D,
         domain=ReachabilityLocation(
             Pose(reference_frame=world.get_body_by_name("milk.stl")),
             pr2_view.left_arm,

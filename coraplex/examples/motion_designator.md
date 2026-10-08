@@ -44,9 +44,9 @@ designator.
 from coraplex.robot_plans.motions import MoveMotion
 from coraplex.execution_environment import simulated_robot
 from coraplex.plans.factories import *
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.spatial_types.spatial_types import Pose, Pose2D
 
-motion_description = MoveMotion(target=Pose.from_xyz_quaternion(pos_x=1., reference_frame=world.root))
+motion_description = MoveMotion(target_location=Pose2D(1., reference_frame=world.root))
 
 with simulated_robot:
     execute_single(motion_description, context=context).perform()

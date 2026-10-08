@@ -178,7 +178,7 @@ class MoveToReach(
         )
 
     @property
-    def standing_pose(self) -> Pose:
+    def standing_pose(self) -> Pose2D:
         """
         Calculates the pose where the robot should stand to reach the target.
 
@@ -206,9 +206,4 @@ class MoveToReach(
         world_T_robot = self.world.transform(
             reference_T_robot.to_pose(), self.world.root
         )
-        return Pose.from_xyz_rpy(
-            x=world_T_robot.x,
-            y=world_T_robot.y,
-            yaw=world_T_robot.yaw,
-            reference_frame=self.world.root,
-        )
+        return Pose2D.from_pose(world_T_robot)

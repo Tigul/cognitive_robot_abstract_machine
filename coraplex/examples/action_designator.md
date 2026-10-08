@@ -55,7 +55,7 @@ from semantic_digital_twin.adapters.urdf import URDFParser
 from semantic_digital_twin.adapters.mesh import STLParser
 from semantic_digital_twin.world import World
 from semantic_digital_twin.robots.pr2 import PR2
-from semantic_digital_twin.spatial_types.spatial_types import HomogeneousTransformationMatrix, Pose
+from semantic_digital_twin.spatial_types.spatial_types import HomogeneousTransformationMatrix, Pose, Pose2D
 from coraplex.datastructures.dataclasses import Context
 from coraplex.testing import setup_world
 
@@ -77,7 +77,7 @@ world in which the designator are executed as well as the robot which executes t
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.plans.factories import sequential, execute_single
 
-pose = Pose.from_xyz_quaternion(1.3, 2, 0, 0, 0, 0, 1, reference_frame=world.root)
+pose = Pose2D(1.3, 2, reference_frame=world.root)
 
 # This is the Designator Description
 navigate_description = NavigateAction(target_location=pose)
@@ -188,7 +188,7 @@ with simulated_robot:
         [ParkArmsAction(pr2.all_arms),
          MoveTorsoAction(torso_state=TorsoState.HIGH),
          NavigateAction(
-             target_location=Pose.from_xyz_rpy(1.5, 2.4, 0.0, reference_frame=world.root)
+             target_location=Pose2D(1.5, 2.4, reference_frame=world.root)
          ),
          PickUpAction(
              grasp=next(iter(milk.grasp_candidates())),
@@ -294,9 +294,9 @@ with simulated_robot:
     sequential([
         MoveTorsoAction(torso_state=TorsoState.HIGH),
         ParkArmsAction(pr2.all_arms),
-        NavigateAction(target_location=Pose.from_xyz_quaternion(1.7074915981292725, 2.6873629093170166, 0.0,
+        NavigateAction(target_location=Pose2D.from_pose(Pose.from_xyz_quaternion(1.7074915981292725, 2.6873629093170166, 0.0,
                                                 -0.0, 0.0, 0.5253598267689507, -0.850880163370435,
-                                                reference_frame=world.root)),
+                                                reference_frame=world.root))),
         OpenAction(handle=handle, arm=pr2.right_arm)], context=context).perform()
 ```
 
@@ -316,8 +316,8 @@ with simulated_robot:
     sequential([
         MoveTorsoAction(torso_state=TorsoState.HIGH),
         ParkArmsAction(pr2.all_arms),
-        NavigateAction(target_location=Pose.from_xyz_quaternion(1.72, 2.65, 0.0,
+        NavigateAction(target_location=Pose2D.from_pose(Pose.from_xyz_quaternion(1.72, 2.65, 0.0,
                                                 -0.0, 0.0, 0.5253598267689507, -0.850880163370435,
-                                                reference_frame=world.root)),
+                                                reference_frame=world.root))),
         CloseAction(handle=handle, arm=pr2.right_arm)], context=context).perform()
 ```

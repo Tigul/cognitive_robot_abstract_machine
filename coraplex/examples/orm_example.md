@@ -58,6 +58,7 @@ from coraplex.testing import setup_world
 from semantic_digital_twin.robots.pr2 import PR2, TorsoState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 from coraplex.datastructures.dataclasses import Context
+from semantic_digital_twin.spatial_types.spatial_types import Pose2D
 
 world = setup_world()
 pr2_view = PR2.from_world(world)
@@ -66,12 +67,12 @@ context = Context(world, pr2_view)
 milk = world.get_semantic_annotations_by_type(Milk)[0]
 description = TransportAction(
     pick_up=MoveAndPickUpAction.from_standing_position(
-        standing_position=Pose.from_xyz_rpy(1.63, 1.98, 0.0, reference_frame=world.root),
+        standing_position=Pose2D(1.63, 1.98, reference_frame=world.root),
         grasp=milk.grasp_candidates()[0],
         arm=pr2_view.left_arm,
     ),
     place=MoveAndPlaceAction.from_standing_position(
-        standing_position=Pose.from_xyz_rpy(1.64, 3.24, 0.0, reference_frame=world.root),
+        standing_position=Pose2D(1.64, 3.24, reference_frame=world.root),
         target_location=Pose.from_xyz_quaternion(
             2.4, 3, 1.05, 0.0, 0.0, 0.0, 1.0, reference_frame=world.root
         ),

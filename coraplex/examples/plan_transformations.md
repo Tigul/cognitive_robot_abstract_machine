@@ -59,7 +59,7 @@ plan is built by `notify`, which expands the whole plan without executing it.
 from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.core.pick_up import ReachAction
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.spatial_types.spatial_types import Pose2D
 
 milk = world.get_semantic_annotations_by_type(Milk)[0]
 grasp = milk.grasp_candidates()[0]
@@ -244,7 +244,7 @@ class ParkArmsBeforeNavigating(InsertionTransformation[NavigateAction]):
 context.plan_transformations = [ParkArmsBeforeNavigating()]
 
 navigate = execute_single(
-    NavigateAction(target_location=Pose.from_xyz_rpy(1.5, 2.4, 0.0, reference_frame=world.root)),
+    NavigateAction(target_location=Pose2D(1.5, 2.4, reference_frame=world.root)),
     context=context,
 )
 navigate.notify()
@@ -283,7 +283,7 @@ class ParkArmsAfterNavigating(ParkArmsBeforeNavigating):
 context.plan_transformations = [ParkArmsAfterNavigating()]
 
 navigate = execute_single(
-    NavigateAction(target_location=Pose.from_xyz_rpy(1.5, 2.4, 0.0, reference_frame=world.root)),
+    NavigateAction(target_location=Pose2D(1.5, 2.4, reference_frame=world.root)),
     context=context,
 )
 navigate.notify()
@@ -320,7 +320,7 @@ class ParkArmsBeforeLongDrives(ParkArmsBeforeNavigating):
 ```python
 context.plan_transformations = [ParkArmsBeforeLongDrives()]
 
-navigate = execute_single(NavigateAction(target_location=pr2.root.global_pose), context=context)
+navigate = execute_single(NavigateAction(target_location=Pose2D.from_pose(pr2.root.global_pose)), context=context)
 navigate.notify()
 
 show(navigate)

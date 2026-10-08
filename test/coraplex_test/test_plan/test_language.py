@@ -39,11 +39,12 @@ from giskardpy.motion_statechart.nodes_for_testing.nodes_for_testing import (
 )
 from semantic_digital_twin.datastructures.definitions import TorsoState
 from semantic_digital_twin.spatial_types import Pose
+from semantic_digital_twin.spatial_types.spatial_types import Pose2D
 from semantic_digital_twin.robots.pr2 import PR2Joint
 
 
 def test_factory_construction():
-    act = NavigateAction(target_location=Pose())
+    act = NavigateAction(target_location=Pose2D())
     act2 = MoveTorsoAction(torso_state=TorsoState.HIGH)
     act3 = DetectAction(DetectionTechnique.TYPES)
 
@@ -53,7 +54,7 @@ def test_factory_construction():
 
 
 def test_simplify_tree():
-    act = NavigateAction(target_location=Pose())
+    act = NavigateAction(target_location=Pose2D())
     act2 = MoveTorsoAction(torso_state=TorsoState.HIGH)
     act3 = DetectAction(DetectionTechnique.TYPES)
     act4 = DetectAction(DetectionTechnique.TYPES)
@@ -65,7 +66,7 @@ def test_simplify_tree():
 
 
 def test_parallel_construction():
-    act = NavigateAction(target_location=Pose())
+    act = NavigateAction(target_location=Pose2D())
     act2 = MoveTorsoAction(torso_state=TorsoState.HIGH)
     act3 = DetectAction(DetectionTechnique.TYPES)
 
@@ -78,7 +79,7 @@ def test_parallel_construction():
 
 
 def test_try_in_order_construction():
-    act = NavigateAction(target_location=Pose())
+    act = NavigateAction(target_location=Pose2D())
     act2 = MoveTorsoAction(torso_state=TorsoState.HIGH)
     act3 = DetectAction(DetectionTechnique.TYPES)
 
@@ -89,7 +90,7 @@ def test_try_in_order_construction():
 
 
 def test_try_all_construction():
-    act = NavigateAction(target_location=Pose())
+    act = NavigateAction(target_location=Pose2D())
     act2 = MoveTorsoAction(torso_state=TorsoState.HIGH)
     act3 = DetectAction(DetectionTechnique.TYPES)
 
@@ -100,7 +101,7 @@ def test_try_all_construction():
 
 
 def test_combination_construction():
-    act = NavigateAction(target_location=Pose())
+    act = NavigateAction(target_location=Pose2D())
     act2 = MoveTorsoAction(torso_state=TorsoState.HIGH)
     act3 = DetectAction(DetectionTechnique.TYPES)
     root = parallel([sequential([act, act2]), act3])
@@ -122,9 +123,7 @@ def test_repeat_construction(pr2_apartment_context):
 
 def test_perform_execute_single(pr2_apartment_context):
     world, robot_view, context = pr2_apartment_context
-    act = NavigateAction(
-        target_location=Pose.from_xyz_rpy(0.3, -1.3, 0, reference_frame=world.root)
-    )
+    act = NavigateAction(target_location=Pose2D(0.3, -1.3, reference_frame=world.root))
     act2 = MoveTorsoAction(torso_state=TorsoState.HIGH)
     act3 = ParkArmsAction(context.robot.all_arms)
 
@@ -234,9 +233,7 @@ def test_exception_sequential(pr2_apartment_context):
     def raise_except():
         raise PlanFailure()
 
-    act = NavigateAction(
-        target_location=Pose.from_xyz_rpy(1, -1, reference_frame=world.root)
-    )
+    act = NavigateAction(target_location=Pose2D(1, -1, reference_frame=world.root))
     act2 = code(raise_except)
 
     plan = sequential(
@@ -260,9 +257,7 @@ def test_exception_try_in_order(pr2_apartment_context):
     def raise_except():
         raise PlanFailure()
 
-    act = NavigateAction(
-        target_location=Pose.from_xyz_rpy(1, -1, reference_frame=world.root)
-    )
+    act = NavigateAction(target_location=Pose2D(1, -1, reference_frame=world.root))
     act2 = code(raise_except)
 
     plan = try_in_order([act, act2], context).plan
@@ -278,9 +273,7 @@ def test_exception_try_all(pr2_apartment_context):
     def raise_except():
         raise PlanFailure()
 
-    act = NavigateAction(
-        target_location=Pose.from_xyz_rpy(x=-2, reference_frame=world.root)
-    )
+    act = NavigateAction(target_location=Pose2D(x=-2, reference_frame=world.root))
     act2 = code(raise_except)
 
     plan = try_all([act, act2], context).plan
@@ -399,7 +392,7 @@ def test_repeat_of_a_non_converging_motion_is_attempted(pr2_apartment_context):
     rejected: it is attempted until it succeeds or the attempts run out.
     """
     world, robot_view, context = pr2_apartment_context
-    target = Pose.from_xyz_rpy(1, -1, reference_frame=world.root)
+    target = Pose2D(1, -1, reference_frame=world.root)
 
     plan = repeat(
         [NavigateAction(target_location=target)], maximum_repetitions=2, context=context

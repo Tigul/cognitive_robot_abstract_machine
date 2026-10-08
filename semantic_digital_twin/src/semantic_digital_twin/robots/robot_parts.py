@@ -77,7 +77,7 @@ from semantic_digital_twin.spatial_types import (
     RotationMatrix,
     HomogeneousTransformationMatrix,
 )
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.spatial_types.spatial_types import Pose, Pose2D
 from semantic_digital_twin.spatial_types.derivatives import DerivativeMap
 from semantic_digital_twin.world_description.connections import (
     ActiveConnection,
@@ -874,7 +874,7 @@ class MobileBase(
         """
         return RotationMatrix.from_vectors(x=self.forward_axis, z=Vector3.Z())
 
-    def pose_facing(self, heading: Pose) -> Pose:
+    def pose_facing(self, heading: Pose | Pose2D) -> Pose:
         """
         The base pose whose :attr:`forward_axis` points along ``heading``.
 

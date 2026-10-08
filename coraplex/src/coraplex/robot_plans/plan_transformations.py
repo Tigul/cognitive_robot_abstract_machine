@@ -48,7 +48,7 @@ from semantic_digital_twin.grasping.grasp_candidates import (
 from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Drawer
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.spatial_types.spatial_types import Pose, Pose2D
 
 if TYPE_CHECKING:
     from coraplex.datastructures.dataclasses import Context
@@ -163,7 +163,7 @@ class DrawerOpening(
         open_the_drawer = a(MoveAndOpenAction)(
             navigate=a(NavigateAction)(
                 target_location=variable(
-                    Pose,
+                    Pose2D,
                     domain=ReachabilityLocation(
                         handle_pose, arm, ReachFraction.ACCESSING, context=context
                     ),
@@ -206,7 +206,7 @@ class OpenDrawerBeforePickUp(DrawerOpening[PickUpAction]):
             nodes.extend(self.opening_nodes(drawer, pick_up.arm, pick_up.context))
         drive_to_the_object = a(NavigateAction)(
             target_location=variable(
-                Pose,
+                Pose2D,
                 # A location samples its poses only once the drive is grounded, by
                 # which time the drawers this rewrite opens stand open.
                 domain=ReachabilityLocation(

@@ -1235,7 +1235,11 @@ class HasSupportingSurface(IsStorageSpace):
                 if self.calculate_supporting_surface() is None:
                     raise NoSupportingSurfaceError(self)
 
-        origin = HomogeneousTransformationMatrix(reference_frame=self.root)
+        # The surface's own frame lies on its top, so the free space and the paths
+        # through it are expressed relative to what the robot stands on.
+        origin = HomogeneousTransformationMatrix(
+            reference_frame=self.supporting_surface
+        )
         surface_box = self.supporting_surface.area.as_bounding_box_collection_at_origin(
             origin
         ).bounding_box()
@@ -1253,7 +1257,7 @@ class HasSupportingSurface(IsStorageSpace):
                     origin,
                 )
             ],
-            self.root,
+            self.supporting_surface,
         )
 
         semantic_obstacle_annotation = SemanticEnvironmentAnnotation(

@@ -1,7 +1,10 @@
 import dataclasses
 
 from coraplex.robot_plans.actions.core.container import OpenAction
-from coraplex.robot_plans.actions.core.navigation import NavigateAction
+from coraplex.robot_plans.actions.core.navigation import (
+    NavigateAction,
+    PathPlanningNavigateAction,
+)
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import (
@@ -9,6 +12,7 @@ from coraplex.robot_plans.actions.core.robot_body import (
     ParkArmsAction,
     SetGripperAction,
 )
+from coraplex.robot_plans.motions.navigation import MoveMotion
 from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
     MoveManipulatorMotion,
@@ -23,6 +27,7 @@ from coraplex.robot_plans.mixins import (
     GripperStateSet,
     HandleOperatedOn,
     HasApproachesGraspPoses,
+    NavigationTarget,
     HandleOperationParameters,
     ObjectActedOn,
     PlaceTuningParameters,
@@ -200,3 +205,16 @@ def test_manipulator_action_and_motion_share_their_end_effector_pose_parameters(
 
     assert motion.end_effector is end_effector
     assert motion.target_pose is target_pose
+
+
+def test_navigation_behaviours_take_a_planar_target():
+    """
+    Driving the base, whether straight, along a planned path or as a single motion,
+    takes the same planar target.
+    """
+    for navigation in (NavigateAction, PathPlanningNavigateAction, MoveMotion):
+        assert issubclass(navigation, NavigationTarget)
+        assert (
+            field_types(navigation)["target_location"]
+            == NavigationTarget.__annotations__["target_location"]
+        )

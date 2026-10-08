@@ -50,8 +50,8 @@ from giskardpy.motion_statechart.tasks.pointing import Pointing
 from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
-from semantic_digital_twin.spatial_types import Point3, Quaternion
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.spatial_types import Point3
+from semantic_digital_twin.spatial_types.spatial_types import Pose, Pose2D
 from ..conftest import left_or_only_arm
 
 try:
@@ -89,11 +89,7 @@ def test_pick_up_motion(pr2_apartment_context):
         children=[
             ActionNode(
                 designator=NavigateAction(
-                    target_location=Pose(
-                        Point3.from_iterable([1.7, 1.5, 0]),
-                        Quaternion.from_iterable([0, 0, 0, 1]),
-                        test_world.root,
-                    ),
+                    target_location=Pose2D(1.7, 1.5, reference_frame=test_world.root),
                 )
             ),
             MoveTorsoAction(torso_state=TorsoState.HIGH),
@@ -125,7 +121,7 @@ def test_pick_up_motion(pr2_apartment_context):
 def test_move_motion_chart(pr2_apartment_context):
     world, view, context = pr2_apartment_context
     motion = MoveMotion(
-        Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
+        target_location=Pose2D(1, 1, yaw=0.5, reference_frame=world.root)
     )
     plan = execute_single(
         motion,
@@ -134,8 +130,9 @@ def test_move_motion_chart(pr2_apartment_context):
 
     msc = motion.motion_chart
 
-    assert msc
-    np.testing.assert_equal(msc.goal_pose.to_position().to_np(), np.array([1, 1, 1, 1]))
+    np.testing.assert_allclose(
+        msc.goal_pose.to_np(), motion.target_location.to_pose().to_np()
+    )
 
 
 def test_move_tool_center_point_motion_uses_tight_threshold(pr2_apartment_context):
@@ -711,9 +708,7 @@ def test_place_action_lets_the_carried_object_touch_what_it_lands_on(
 def test_alternative_mapping(hsr_apartment_world):
     world, view, context = hsr_apartment_world
     context.alternative_motion_mappings = [HSRBMoveMotion]
-    move_motion = MoveMotion(
-        Pose(Point3.from_iterable([1, 1, 1]), reference_frame=world.root)
-    )
+    move_motion = MoveMotion(target_location=Pose2D(1, 1, reference_frame=world.root))
 
     plan = execute_single(move_motion, context=context)
 
@@ -823,7 +818,7 @@ def test_stretch_base_motion_follows_the_execution_environment(
     """
     world, robot, context = stretch_apartment_context
     context.alternative_motion_mappings = [StretchMoveSim, StretchMoveReal]
-    motion = MoveMotion(Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
+    motion = MoveMotion(target_location=Pose2D(1, 1, reference_frame=world.root))
     execute_single(motion, context=context)
 
     with real_robot:
