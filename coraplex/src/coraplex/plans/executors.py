@@ -12,7 +12,6 @@ from coraplex.datastructures.enums import ExecutionType
 from coraplex.exceptions import (
     MotionDidNotFinish,
     PlanNotCompiled,
-    StatechartHoldsNoPlan,
     UnknownExecutionType,
 )
 from coraplex.plans.context_extensions import (
@@ -38,7 +37,10 @@ from coraplex.robot_plans.actions.base import Action
 from cramph.composites import ChildChooserAccess
 from cramph.context import ContextExtension, StatechartContext
 from cramph.data_types import LifeCycleValues
-from cramph.exceptions import StatechartOfDifferentContextError
+from cramph.exceptions import (
+    EmptyStatechartError,
+    StatechartOfDifferentContextError,
+)
 from cramph.executor import StatechartExecutor
 from cramph.node import StatechartNode
 from cramph.statechart import Statechart
@@ -216,13 +218,13 @@ class PlanExecutor(ABC):
         :param statechart: The statechart holding the plan, built in :attr:`context`.
         :raises StatechartOfDifferentContextError: If `statechart` was not built in
             :attr:`context`.
-        :raises StatechartHoldsNoPlan: If `statechart` holds no node.
+        :raises EmptyStatechartError: If `statechart` holds no node.
         """
         if statechart.context is not self.context:
             raise StatechartOfDifferentContextError()
         self.plan_nodes = list(statechart.top_level_nodes)
         if not self.plan_nodes:
-            raise StatechartHoldsNoPlan()
+            raise EmptyStatechartError()
         self.statechart = statechart
         rewriting = self.context.require_extension(PlanRewriting)
         for plan_node in self.plan_nodes:

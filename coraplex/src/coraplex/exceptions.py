@@ -94,19 +94,6 @@ class PlanNotCompiled(DataclassException):
 
 
 @dataclass
-class StatechartHoldsNoPlan(DataclassException):
-    """
-    Raised when an executor is asked to run a statechart that holds no node.
-    """
-
-    def error_message(self) -> str:
-        return "The statechart to execute holds no node, so there is no plan to run."
-
-    def suggest_correction(self) -> str:
-        return "add the plan's nodes to the statechart before compiling it."
-
-
-@dataclass
 class NotAnUnderspecifiedNode(DataclassException):
     """
     Raised when a node asks for a child to be grounded that carries no underspecified
@@ -154,25 +141,6 @@ class CannotMatchOnType(DataclassException):
 
     def suggest_correction(self) -> str:
         return "bind the transformation to a plan node type or a designator type"
-
-
-@dataclass
-class CannotInsertBesideRoot(DataclassException):
-    """
-    Raised when a node is to be inserted before or after a node that no plan language
-    node runs, which leaves nothing that could hold the new neighbour.
-    """
-
-    root: StatechartNode
-    """
-    The node that was given as the reference node.
-    """
-
-    def error_message(self) -> str:
-        return f"{self.root} is run by no plan language node that could hold a sibling."
-
-    def suggest_correction(self) -> str:
-        return "insert the node as the last child of a plan language node instead"
 
 
 @dataclass

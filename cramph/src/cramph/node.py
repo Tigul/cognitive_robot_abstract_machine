@@ -67,6 +67,7 @@ from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 
 if TYPE_CHECKING:
     from cramph.statechart import Statechart
+    from semantic_digital_twin.world import World
 
 logger = logging.getLogger(__name__)
 
@@ -1347,6 +1348,22 @@ class StatechartNode(SubclassJSONSerializer):
         :param statechart: The statechart this node now belongs to.
         """
         self._statechart = statechart
+
+    @property
+    def context(self) -> StatechartContext:
+        """
+        :return: The context of the statechart this node belongs to.
+        :raises NotInStatechartError: If this node belongs to no statechart yet.
+        """
+        return self.statechart.context
+
+    @property
+    def world(self) -> World:
+        """
+        :return: The world the statechart this node belongs to runs in.
+        :raises NotInStatechartError: If this node belongs to no statechart yet.
+        """
+        return self.context.world
 
     def create_structure_copy(self) -> StatechartNode:
         """

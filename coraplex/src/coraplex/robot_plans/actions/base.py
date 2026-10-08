@@ -20,7 +20,6 @@ from krrood.entity_query_language.core.variable import Variable
 from krrood.patterns.field_metadata import JSONMetadata
 from krrood.symbolic_math.symbolic_math import Scalar
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
-from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
@@ -75,20 +74,6 @@ class Action(CompositeNode, DesignatorParameters, ABC):
         :return: The node running what this action does, None until it was expanded.
         """
         return self._action_body
-
-    @property
-    def context(self) -> StatechartContext:
-        """
-        :return: The context of the statechart this action runs in.
-        """
-        return self.statechart.context
-
-    @property
-    def world(self) -> World:
-        """
-        :return: The world this action is executed in.
-        """
-        return self.statechart.context.world
 
     @property
     def robot(self) -> AbstractRobot:

@@ -3,9 +3,20 @@ from __future__ import annotations
 import pytest
 from typing_extensions import List
 
-from cramph.composites import Parallel, Sequence, TryAll, TryInOrder
+from cramph.composites import (
+    Attempt,
+    CramLanguageNode,
+    Parallel,
+    Sequence,
+    TryAll,
+    TryInOrder,
+)
 from cramph.data_types import LifeCycleValues, ObservationStateValues
-from cramph.exceptions import NodeAlreadyAChildError, NodeIsNotAChildError
+from cramph.exceptions import (
+    NodeAlreadyAChildError,
+    NodeIsNotAChildError,
+    NotRunByLanguageNodeError,
+)
 from cramph.executor import StatechartExecutor
 from cramph.node import EndStatechart, StatechartNode
 from cramph.nodes_for_testing import (
@@ -232,6 +243,44 @@ def test_a_parallel_can_still_arrive_through_a_node_inserted_after_it_joined(
     assert failing.life_cycle_state == LifeCycleValues.FAILED
     assert parallel.life_cycle_state == LifeCycleValues.RUNNING
     assert parallel.observation_state == ObservationStateValues.TRUE
+
+
+# %% the language node running a node
+
+
+def test_the_language_node_running_a_nested_node_is_the_first_one_above_it(
+    statechart_executor: StatechartExecutor,
+):
+    statechart = Statechart(context=statechart_executor.context)
+    nested = _succeeding("nested")
+    attempt = Attempt(name="attempt", task=nested, failure_monitors=[])
+    statechart.add_node(sequence := Sequence(nodes=[attempt]))
+
+    assert CramLanguageNode.running(nested) is sequence
+
+
+def test_a_step_inserted_before_a_nested_node_runs_before_what_holds_it(
+    statechart_executor: StatechartExecutor,
+):
+    statechart = Statechart(context=statechart_executor.context)
+    first, nested = _succeeding("1"), _succeeding("nested")
+    attempt = Attempt(name="attempt", task=nested, failure_monitors=[])
+    statechart.add_node(sequence := Sequence(nodes=[attempt]))
+
+    CramLanguageNode.running(nested).insert_before(nested, first)
+    _run(statechart_executor, statechart, sequence)
+
+    assert _start_order(statechart, [attempt, first]) == [first, attempt]
+
+
+def test_a_node_no_language_node_runs_has_none_running_it(
+    statechart_executor: StatechartExecutor,
+):
+    statechart = Statechart(context=statechart_executor.context)
+    statechart.add_node(top_level := _succeeding("top level"))
+
+    with pytest.raises(NotRunByLanguageNodeError):
+        CramLanguageNode.running(top_level)
 
 
 # %% misuse

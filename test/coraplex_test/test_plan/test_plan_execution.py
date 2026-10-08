@@ -7,11 +7,12 @@ from datetime import timedelta
 
 import pytest
 
+from cramph.exceptions import EmptyStatechartError
+
 from coraplex.datastructures.enums import ExecutionType
 from coraplex.exceptions import (
     MotionDidNotFinish,
     PlanNotCompiled,
-    StatechartHoldsNoPlan,
     UnknownExecutionType,
 )
 from coraplex.plans.executors import (
@@ -127,7 +128,7 @@ def test_a_statechart_without_a_plan_is_refused(pr2_apartment_context):
     world, robot_view, extensions = pr2_apartment_context
     executor = simulated_executor(extensions)
 
-    with pytest.raises(StatechartHoldsNoPlan):
+    with pytest.raises(EmptyStatechartError):
         executor.compile(statechart_of(executor))
 
 

@@ -7,10 +7,10 @@ from typing_extensions import Iterable, List, Optional
 
 from coraplex.datastructures.enums import InsertionPosition, ReachFraction
 from coraplex.exceptions import (
-    CannotInsertBesideRoot,
     CannotMatchOnType,
     ReachHasNoFinalApproach,
 )
+from cramph.exceptions import NotRunByLanguageNodeError
 from coraplex.plans.plan_transformation import (
     InsertionTransformation,
     PlanTransformation,
@@ -563,7 +563,7 @@ def test_a_neighbour_of_a_node_no_language_node_runs_is_rejected(
     world, view, extensions = pr2_apartment_context
     plan_transformations = [MoveGripperBeforeEveryAction()]
 
-    with pytest.raises(CannotInsertBesideRoot):
+    with pytest.raises(NotRunByLanguageNodeError):
         rewritten(MoveTorsoAction(TorsoState.HIGH), extensions, plan_transformations)
 
 

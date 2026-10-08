@@ -15,8 +15,8 @@ from typing_extensions import (
 )
 
 from coraplex.datastructures.enums import InsertionPosition
-from coraplex.exceptions import CannotInsertBesideRoot, CannotMatchOnType
-from cramph.composites import Attempt, CramLanguageNode
+from coraplex.exceptions import CannotMatchOnType
+from cramph.composites import CramLanguageNode
 from cramph.context import ContextExtension
 from cramph.node import StatechartNode
 from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
@@ -125,32 +125,18 @@ class InsertionTransformation(
         """
         Inserts a node at :attr:`position` relative to the anchor node.
 
-        :param anchor: The node the given node is placed relative to; a neighbour has to
-            be run by a plan language node, and a last child has to be put below one.
+        :param anchor: The node the given node is placed relative to; a neighbour goes
+            into the plan language node running it, and a last child below the anchor
+            itself.
         :param node: The node to insert
         """
         match self.position:
             case InsertionPosition.BEFORE:
-                self._language_node_running(anchor).insert_before(anchor, node)
+                CramLanguageNode.running(anchor).insert_before(anchor, node)
             case InsertionPosition.AFTER:
-                self._language_node_running(anchor).insert_after(anchor, node)
+                CramLanguageNode.running(anchor).insert_after(anchor, node)
             case InsertionPosition.LAST_CHILD:
                 anchor.add_node(node)
-
-    @staticmethod
-    def _language_node_running(node: StatechartNode) -> CramLanguageNode:
-        """
-        :param node: A node of a plan.
-        :return: The plan language node running `node`, directly or through the
-            :class:`~cramph.composites.Attempt` that holds it.
-        :raises CannotInsertBesideRoot: If no plan language node runs `node`.
-        """
-        parent = node.parent_node
-        if isinstance(parent, Attempt) and parent.task is node:
-            parent = parent.parent_node
-        if not isinstance(parent, CramLanguageNode):
-            raise CannotInsertBesideRoot(node)
-        return parent
 
 
 # %% rewriting a plan

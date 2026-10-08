@@ -194,15 +194,17 @@ def test_moving_a_branch_puts_the_body_below_its_new_parent(
     assert move.life_cycle_state == LifeCycleValues.SUCCEEDED
 
 
-def test_a_node_moving_a_branch_has_the_chart_rebuilt_in_the_same_tick(
+def test_a_node_moving_a_branch_has_the_chart_rebuilt_on_the_next_tick(
     sliding_world: SlidingWorld, sliding_executor: StatechartExecutor
 ):
     counting = NodeCountingItsBuilds(name="counting")
     move = MoveBranch(body=sliding_world.box, new_parent=sliding_world.slider)
-
     _compile(sliding_executor, counting, move)
+    builds_in_the_moving_tick = counting.build_count
 
-    assert counting.build_count == 2
+    sliding_executor.tick()
+
+    assert (builds_in_the_moving_tick, counting.build_count) == (1, 2)
 
 
 # %% following the world's structure

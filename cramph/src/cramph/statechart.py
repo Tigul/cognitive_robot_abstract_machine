@@ -1986,16 +1986,16 @@ class Statechart(SubclassJSONSerializer):
         tick ends the statechart only after that, even if a
         :class:`StateHistoryObserver` of the record failed.
 
-        If the kinematic structure of the world changed, before this tick or in one of
-        its callbacks, every node is built again right away, see
-        :meth:`~cramph.node.StatechartNode.build`.
+        If the kinematic structure of the world changed since the previous tick, every
+        node is built again before this tick settles, see
+        :meth:`~cramph.node.StatechartNode.build`; a change made by a callback of this
+        tick is picked up by the next one.
         """
         self._rebuild_if_world_structure_changed()
         changes = self._compiled_tick.settle(self.context)
         for change in changes:
             change.run_callback(self.context)
         self._let_waiting_nodes_choose_their_child()
-        self._rebuild_if_world_structure_changed()
         try:
             self.history.append(
                 next_item=StateHistoryItem(

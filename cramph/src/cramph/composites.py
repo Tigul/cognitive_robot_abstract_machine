@@ -15,6 +15,7 @@ from cramph.data_types import (
     SuccessDecider,
 )
 from cramph.exceptions import (
+    NotRunByLanguageNodeError,
     AttemptCannotFailError,
     NodeAlreadyAChildError,
     NodeIsNotAChildError,
@@ -245,22 +246,24 @@ class CramLanguageNode(CompositeNode, ABC):
 
     def insert_before(self, reference: StatechartNode, node: StatechartNode) -> None:
         """
-        Hands this goal a node to run right before `reference`.
+        Hands this goal a node to run right before `reference`, or before the child
+        holding it.
 
-        :param reference: A node this goal runs.
+        :param reference: A node this goal runs, or a node below one.
         :param node: The node to insert.
-        :raises NodeIsNotAChildError: If this goal does not run `reference`.
+        :raises NodeIsNotAChildError: If `reference` is not below this goal.
         :raises NodeAlreadyAChildError: If this goal already runs `node`.
         """
         self._insert_at(self._position_of(reference), node)
 
     def insert_after(self, reference: StatechartNode, node: StatechartNode) -> None:
         """
-        Hands this goal a node to run right after `reference`.
+        Hands this goal a node to run right after `reference`, or after the child
+        holding it.
 
-        :param reference: A node this goal runs.
+        :param reference: A node this goal runs, or a node below one.
         :param node: The node to insert.
-        :raises NodeIsNotAChildError: If this goal does not run `reference`.
+        :raises NodeIsNotAChildError: If `reference` is not below this goal.
         :raises NodeAlreadyAChildError: If this goal already runs `node`.
         """
         self._insert_at(self._position_of(reference) + 1, node)
@@ -284,6 +287,19 @@ class CramLanguageNode(CompositeNode, ABC):
         self.nodes[position] = self._adopt(node)
         self._wire_children()
         self.statechart.remove_node(replaced)
+
+    @staticmethod
+    def running(node: StatechartNode) -> CramLanguageNode:
+        """
+        :param node: A node of a statechart.
+        :return: The first plan language node on the path from `node` up to the root,
+            which can hold a neighbour of whatever holds `node` below it.
+        :raises NotRunByLanguageNodeError: If no plan language node is above `node`.
+        """
+        for ancestor in node.path:
+            if isinstance(ancestor, CramLanguageNode):
+                return ancestor
+        raise NotRunByLanguageNodeError(node=node)
 
     def find_child_running(self, node: StatechartNode) -> StatechartNode:
         """
@@ -343,9 +359,13 @@ class CramLanguageNode(CompositeNode, ABC):
 
     def _position_of(self, reference: StatechartNode) -> int:
         """
-        :return: The position of the child running `reference`.
+        :return: The position of the child that is `reference` or holds it.
+        :raises NodeIsNotAChildError: If no child is or holds `reference`.
         """
-        return self.nodes.index(self.find_child_running(reference))
+        for holder in [reference, *reference.path]:
+            if holder in self.nodes:
+                return self.nodes.index(holder)
+        raise NodeIsNotAChildError(node=self, child=reference)
 
     def _check_does_not_run(self, node: StatechartNode) -> None:
         """

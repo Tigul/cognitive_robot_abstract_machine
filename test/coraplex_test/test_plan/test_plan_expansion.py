@@ -40,7 +40,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Point3, Pose
 from semantic_digital_twin.world_description.geometry import VolumetricBoundingBox
 
 from ..conftest import expand, motion_nodes_of, tool_center_point_goal
-from coraplex.plans.failures import PlanCancelled
+from cramph.exceptions import PlanCancelled
 from ...plan_running import run_plan, simulated_executor, statechart_of
 from ...sampling import SAMPLING_SEED
 from cramph.context import ContextExtension

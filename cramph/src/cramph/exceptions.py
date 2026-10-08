@@ -685,6 +685,23 @@ class NodeAlreadyAChildError(NodeInitializationError):
 
 
 @dataclass
+class NotRunByLanguageNodeError(NodeInitializationError):
+    """
+    Raised when the plan language node running a node is asked for, but no plan language
+    node is above it, which leaves nothing that could hold a neighbour of it.
+    """
+
+    def error_message(self) -> str:
+        return f"No plan language node runs {self.node.name}."
+
+    def suggest_correction(self) -> str:
+        return (
+            f"Put {self.node.name} below a plan language node, or add the new node as "
+            f"the last child of one."
+        )
+
+
+@dataclass
 class RemovedNodeStillReferencedError(StatechartError):
     """
     Raised when a node is removed from a statechart while a node that stays still refers
@@ -734,3 +751,72 @@ class NodeStateVariableNotSerializableError(JSONSerializationError):
 
     def suggest_correction(self) -> str:
         return ""
+
+
+# %% a statechart that ran but did not reach its goal
+
+
+@dataclass
+class ExecutionFailure(DataclassException):
+    """
+    Raised when a statechart was run but did not reach its goal, as opposed to an error
+    in how it was built.
+
+    Whoever runs a statechart can recover from it, for example by trying something else.
+    """
+
+    def error_message(self) -> str:
+        return "The statechart did not reach its goal."
+
+    def suggest_correction(self) -> str:
+        return ""
+
+
+@dataclass
+class RepetitionsExhausted(ExecutionFailure):
+    """
+    Raised when a repeating node ran out of attempts.
+    """
+
+    repeated_node: StatechartNode
+    """
+    The node that never succeeded.
+    """
+
+    maximum_repetitions: int
+    """
+    How many attempts were allowed.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.repeated_node} was attempted {self.maximum_repetitions} "
+            f"times without succeeding."
+        )
+
+    def suggest_correction(self) -> str:
+        return (
+            "Allow more repetitions, or check whether the children can succeed at all "
+            "from the state each attempt starts in."
+        )
+
+
+@dataclass
+class PlanCancelled(ExecutionFailure):
+    """
+    Raised when a monitor cancelled the part of a plan it was watching.
+    """
+
+    monitor: StatechartNode
+    """
+    The monitor that cancelled the plan.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.monitor} cancelled the plan."
+
+    def suggest_correction(self) -> str:
+        return (
+            "The world is no longer in the state the rest of the plan assumed, so plan "
+            "again from the state the robot is in now."
+        )

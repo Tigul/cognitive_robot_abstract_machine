@@ -18,7 +18,6 @@ from coraplex.datastructures.enums import ActionTrialVisualization
 from coraplex.exceptions import NotAnUnderspecifiedNode
 from coraplex.plans.context_extensions import StatementGrounding
 from coraplex.plans.designator import DesignatorParameters
-from coraplex.plans.failures import PlanFailure
 from coraplex.plans.plan_transformation import PlanRewriting
 from coraplex.visualization import RvizVisualization
 from cramph.composites import (
@@ -28,6 +27,7 @@ from cramph.composites import (
     Sequence,
 )
 from cramph.context import StatechartContext
+from cramph.exceptions import ExecutionFailure
 from cramph.node import StatechartNode
 from cramph.statechart import Statechart
 from giskardpy.motion_statechart.monitors.progress_monitors import Stalled
@@ -194,7 +194,8 @@ class ActionTrial:
         each attempt undoes only its own modifications.
 
         :param action: The grounded action to try out.
-        :return: True if `action` runs to completion without raising a `PlanFailure`.
+        :return: True if `action` runs to completion without raising an
+            :class:`~cramph.exceptions.ExecutionFailure`.
         """
         world = self._copy()
         candidate = self._on_the_copy(action, world)
@@ -210,7 +211,7 @@ class ActionTrial:
                 executor.compile(statechart)
                 executor.execute()
                 return True
-            except PlanFailure as failure:
+            except ExecutionFailure as failure:
                 logger.info(f"{action} failed its trial: {failure}")
                 return False
             finally:

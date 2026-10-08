@@ -8,7 +8,8 @@ from cramph.data_types import LifeCycleValues, ObservationStateValues
 
 from coraplex.datastructures.enums import DetectionTechnique
 
-from coraplex.plans.failures import PlanCancelled, PlanFailure, RepetitionsExhausted
+from coraplex.plans.failures import PlanFailure
+from cramph.exceptions import PlanCancelled, RepetitionsExhausted
 from cramph.composites import (
     CancelledWhenTrue,
     Parallel,

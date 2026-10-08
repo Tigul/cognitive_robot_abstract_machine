@@ -9,7 +9,7 @@ from giskardpy.motion_statechart.exceptions import (
     CollisionViolatedError,
     NoProgressError,
 )
-from krrood.exceptions import DataclassException
+from cramph.exceptions import ExecutionFailure
 from semantic_digital_twin.robots.robot_parts import Arm, EndEffector
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class PlanFailure(DataclassException):
+class PlanFailure(ExecutionFailure):
     """
     Base class for all exceptions that are related to plan errors.
     Can also be raised directly as a generic plan failure.
@@ -153,56 +153,6 @@ class CandidateLimitReached(EmptyUnderspecified):
         return (
             "Allow more candidates, through the step's own limit or the context's "
             "candidates_to_try, or check whether any candidate can succeed at all."
-        )
-
-
-@dataclass
-class RepetitionsExhausted(PlanFailure):
-    """
-    Thrown when a repeating plan node ran out of attempts.
-    """
-
-    repeated_node: StatechartNode
-    """
-    The node that never succeeded.
-    """
-
-    maximum_repetitions: int
-    """
-    How many attempts were allowed.
-    """
-
-    def error_message(self) -> str:
-        return (
-            f"{self.repeated_node} was attempted {self.maximum_repetitions} "
-            f"times without succeeding."
-        )
-
-    def suggest_correction(self) -> str:
-        return (
-            "Allow more repetitions, or check whether the children can succeed at all "
-            "from the state each attempt starts in."
-        )
-
-
-@dataclass
-class PlanCancelled(PlanFailure):
-    """
-    Thrown when a monitor cancelled the plan it was watching.
-    """
-
-    monitor: StatechartNode
-    """
-    The monitor that cancelled the plan.
-    """
-
-    def error_message(self) -> str:
-        return f"{self.monitor} cancelled the plan."
-
-    def suggest_correction(self) -> str:
-        return (
-            "The world is no longer in the state the rest of the plan assumed, so plan "
-            "again from the state the robot is in now."
         )
 
 

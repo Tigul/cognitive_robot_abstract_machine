@@ -235,7 +235,7 @@ making progress, until the task succeeds or its stop monitor fires. Counting the
 attempts run out.
 
 ```python
-from coraplex.plans.failures import RepetitionsExhausted
+from cramph.exceptions import RepetitionsExhausted
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
 from cramph.composites import Sequence
 from cramph.monitors import CountNodeResets
@@ -271,7 +271,7 @@ For the example we will move the torso up and down, and stop it after 2 seconds 
 gives up on the plan, executing it raises {class}`~coraplex.plans.failures.PlanCancelled`.
 
 ```python
-from coraplex.plans.failures import PlanCancelled
+from cramph.exceptions import PlanCancelled
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction
 from cramph.composites import CancelledWhenTrue, Sequence
 from cramph.monitors import CountSimulationTimeSeconds
