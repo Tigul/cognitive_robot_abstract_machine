@@ -2,7 +2,7 @@
 Stretch fetches a cereal box from a shelf, places it on a bedside table and puts it
 back again.
 
-Running with :attr:`~coraplex.datastructures.enums.ExecutionType.REAL` drives the actual
+Running with :class:`~coraplex.plans.executors.RobotPlanExecutor` drives the actual
 robot and fetches the world from the running world server. The default runs the whole plan
 in simulation against a world built from the Stretch URDF, so nothing on the network is
 needed.
@@ -31,17 +31,19 @@ classifying annotator to that engine removes both without changing this demo.
 from dataclasses import dataclass, field
 
 import numpy as np
-from typing_extensions import List
+from typing_extensions import List, Type
 
 from coraplex.plans.context_extensions import RobotAccess
 from coraplex.plans.plan_transformation import PlanTransformation
 from cramph.context import ContextExtension, StatechartContext
 from cramph.statechart import Statechart
-from coraplex.datastructures.enums import (
-    DetectionTechnique,
-    ExecutionType,
-)
+from coraplex.datastructures.enums import DetectionTechnique
 from coraplex.demonstrations import RobotDemonstration
+from coraplex.plans.executors import (
+    PlanExecutor,
+    RobotPlanExecutor,
+    SimulatedPlanExecutor,
+)
 from coraplex.robot_plans.actions.core.misc import DetectAction
 from coraplex.robot_plans.actions.core.navigation import LookAtAction, NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
@@ -262,20 +264,21 @@ class StretchApartmentDemonstration(RobotDemonstration):
 
 
 def main(
-    execution_type: ExecutionType = ExecutionType.SIMULATED, repetitions: int = 1
+    executor_type: Type[PlanExecutor] = SimulatedPlanExecutor, repetitions: int = 1
 ) -> None:
     """
     Run the demonstration.
 
-    :param execution_type: Whether to drive the real robot or simulate it.
+    :param executor_type: The executor running the plan, which decides whether it
+        drives the real robot or simulates it.
     :param repetitions: How often to transport the cereal there and back again.
     """
-    # StretchApartmentDemonstration(used_robot=PR2, execution_type=execution_type).run()
-    # StretchApartmentDemonstration(used_robot=HSRB, execution_type=execution_type).run()
+    # StretchApartmentDemonstration(used_robot=PR2, executor_type=executor_type).run()
+    # StretchApartmentDemonstration(used_robot=HSRB, executor_type=executor_type).run()
     StretchApartmentDemonstration(
-        used_robot=Stretch, execution_type=execution_type, repetitions=repetitions
+        used_robot=Stretch, executor_type=executor_type, repetitions=repetitions
     ).run()
 
 
 if __name__ == "__main__":
-    main(execution_type=ExecutionType.REAL, repetitions=LIVE_DEMONSTRATION_REPETITIONS)
+    main(executor_type=RobotPlanExecutor, repetitions=LIVE_DEMONSTRATION_REPETITIONS)

@@ -213,19 +213,60 @@ class ExecutorExtension:
 GenericExecutorExtension = TypeVar("GenericExecutorExtension", bound=ExecutorExtension)
 
 
+# %% executing a statechart
+
+
 @dataclass
-class StatechartExecutor(RecompileCallback):
+class Executor(ABC):
+    """
+    Executes a statechart built in its :attr:`context`: :meth:`compile` takes the
+    statechart, and :meth:`execute` runs it until it ended.
+    """
+
+    context: StatechartContext
+    """
+    The context handed to every node of the statechart.
+    """
+
+    # %% init False
+    statechart: Statechart | None = field(init=False, default=None)
+    """
+    The statechart that is executed, set by :meth:`compile`.
+    """
+
+    def __post_init__(self):
+        """
+        Lets every executor in a hierarchy finish its initialization through
+        ``super().__post_init__()``.
+        """
+
+    def compile(self, statechart: Statechart) -> None:
+        """
+        Takes `statechart` as the one :meth:`execute` runs.
+
+        :param statechart: The statechart to execute.
+        :raises StatechartOfDifferentContextError: If `statechart` was not built in
+            :attr:`context`.
+        """
+        if statechart.context is not self.context:
+            raise StatechartOfDifferentContextError()
+        self.statechart = statechart
+
+    @abstractmethod
+    def execute(self) -> None:
+        """
+        Runs the compiled statechart until it ended.
+        """
+
+
+@dataclass
+class StatechartExecutor(Executor, RecompileCallback):
     """
     Compiles a statechart and ticks it, counting the ticks.
 
     A statechart it runs may take new nodes while it runs, see
     :meth:`~cramph.statechart.Statechart.modify`, and builds its nodes again when the
     kinematic structure of its world changes; the extensions then compile again.
-    """
-
-    context: StatechartContext
-    """
-    The context handed to every node of the statechart.
     """
 
     pacer: Pacer = field(default_factory=NoPacing, kw_only=True)
@@ -238,13 +279,8 @@ class StatechartExecutor(RecompileCallback):
     Add behaviour around compiling and ticking, called in the order they are listed.
     """
 
-    # %% init False
-    statechart: Statechart | None = field(init=False, default=None)
-    """
-    The statechart that is executed, set by :meth:`compile`.
-    """
-
     def __post_init__(self):
+        super().__post_init__()
         for extension in self.extensions:
             extension.extend_context(self.context)
         self.pacer.pace_ticks_of(self.context)
@@ -288,7 +324,7 @@ class StatechartExecutor(RecompileCallback):
     def tick_count(self, value: int):
         self.context.float_variable_data.set_value(self.context.tick_variable, value)
 
-    def compile(self, statechart: Statechart):
+    def compile(self, statechart: Statechart) -> None:
         """
         Compiles `statechart` and ticks it once, so that nodes whose start condition is
         constant true start immediately.
@@ -297,9 +333,7 @@ class StatechartExecutor(RecompileCallback):
         :raises StatechartOfDifferentContextError: If `statechart` was not built in
             :attr:`context`.
         """
-        if statechart.context is not self.context:
-            raise StatechartOfDifferentContextError()
-        self.statechart = statechart
+        super().compile(statechart)
         self.tick_count = 0
         self.statechart.compile()
         self.statechart.add_recompile_callback(self)
@@ -333,6 +367,12 @@ class StatechartExecutor(RecompileCallback):
         self.statechart.tick()
         for extension in self.extensions:
             extension.after_tick(self)
+
+    def execute(self) -> None:
+        """
+        Ticks the compiled statechart until it ended, see :meth:`tick_until_end`.
+        """
+        self.tick_until_end()
 
     def tick_until_end(self, timeout: int = 1_000):
         """

@@ -22,8 +22,8 @@ from typing_extensions import List, Optional, Tuple, Type
 
 from coraplex.plans.context_extensions import RobotAccess, StatementGrounding
 from coraplex.plans.plan_transformation import PlanTransformation
-from coraplex.datastructures.enums import ExecutionType
 from coraplex.demonstrations import RobotDemonstration
+from coraplex.plans.executors import PlanExecutor, SimulatedPlanExecutor
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction, MoveTorsoAction
 from coraplex.robot_plans.plan_transformations import OpenDrawerBeforeMoveAndPickUp
@@ -375,7 +375,7 @@ class BulletWorldDemonstration(RobotDemonstration):
 
 
 def main(
-    execution_type: ExecutionType = ExecutionType.SIMULATED,
+    executor_type: Type[PlanExecutor] = SimulatedPlanExecutor,
     collision_avoidance: bool = True,
     event_segmentation: bool = True,
     debug: bool = False,
@@ -383,7 +383,8 @@ def main(
     """
     Run the demonstration.
 
-    :param execution_type: Whether to drive the real robot or simulate it.
+    :param executor_type: The executor running the plan, which decides whether it
+        drives the real robot or simulates it.
     :param collision_avoidance: Whether the statechart avoids collisions.
     :param event_segmentation: Whether SegMind segments the run into events.
     :param debug: Whether to run in debug mode, publishing every copy of the world a
@@ -391,7 +392,7 @@ def main(
     """
     BulletWorldDemonstration(
         used_robot=PR2,
-        execution_type=execution_type,
+        executor_type=executor_type,
         collision_avoidance=collision_avoidance,
         event_segmentation=event_segmentation,
         debug=debug,

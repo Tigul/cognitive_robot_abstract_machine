@@ -7,9 +7,6 @@ import time
 import rclpy
 from rclpy.executors import MultiThreadedExecutor
 
-from coraplex.datastructures.enums import (
-    ExecutionType,
-)
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
@@ -42,7 +39,7 @@ giskard_process = subprocess.Popen(
 
 time.sleep(8)  # Wait for the launch file to start
 
-execition_mode = ExecutionType.REAL
+drives_real_robot = True
 
 print("Init ROS")
 rclpy.init()
@@ -54,14 +51,14 @@ executor.add_node(node)
 thread = threading.Thread(target=executor.spin, daemon=True, name="rclpy-executor")
 thread.start()
 
-if execition_mode == ExecutionType.REAL:
+if drives_real_robot:
     # 300s matches giskardpy's own client (giskardpy/middleware/ros2/python_interface.py), which waits
     # this long for the same race: this demo's giskard/world-fetcher server is still parsing the URDF
     # and starting up when the client's default 10s budget would otherwise expire.
     world = fetch_world_from_service(node=node, timeout_seconds=300)
 
     WorldSynchronizer(_world=world, node=node)
-elif execition_mode == ExecutionType.SIMULATED:
+else:
     world = URDFParser.from_file(Tracy.get_ros_file_path()).parse()
     Tracy.from_world(world)
     VizMarkerPublisher(_world=world, node=node)

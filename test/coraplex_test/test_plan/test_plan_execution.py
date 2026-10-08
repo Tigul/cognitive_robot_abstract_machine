@@ -9,14 +9,11 @@ import pytest
 
 from cramph.exceptions import EmptyStatechartError
 
-from coraplex.datastructures.enums import ExecutionType
 from coraplex.exceptions import (
     MotionDidNotFinish,
     PlanNotCompiled,
-    UnknownExecutionType,
 )
 from coraplex.plans.executors import (
-    PlanExecutor,
     RobotPlanExecutor,
     SimulatedPlanExecutor,
 )
@@ -143,19 +140,13 @@ def test_a_statechart_of_another_context_is_refused(pr2_apartment_context):
 
 
 @pytest.mark.parametrize(
-    "execution_type, executor_type",
-    [
-        (ExecutionType.SIMULATED, SimulatedPlanExecutor),
-        (ExecutionType.REAL, RobotPlanExecutor),
-    ],
+    "executor_type, drives_a_simulated_robot",
+    [(SimulatedPlanExecutor, True), (RobotPlanExecutor, False)],
 )
-def test_each_execution_type_has_its_executor(execution_type, executor_type):
-    assert PlanExecutor.type_for(execution_type) is executor_type
-
-
-def test_an_execution_type_without_an_executor_is_refused():
-    with pytest.raises(UnknownExecutionType):
-        PlanExecutor.type_for(ExecutionType.NO_EXECUTION)
+def test_an_executor_says_whether_it_drives_a_simulated_robot(
+    executor_type, drives_a_simulated_robot
+):
+    assert executor_type.simulated is drives_a_simulated_robot
 
 
 # %% how long a plan may take

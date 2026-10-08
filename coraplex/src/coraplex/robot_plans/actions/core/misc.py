@@ -5,7 +5,11 @@ from dataclasses import dataclass
 from typing_extensions import Optional, Type
 
 from coraplex.plans.context_extensions import ExecutionMode
-from coraplex.datastructures.enums import DetectionTechnique, DetectionState
+from coraplex.datastructures.enums import (
+    DetectionState,
+    DetectionTechnique,
+    PerceptionSource,
+)
 from coraplex.perception import PerceptionQuery, PerceptionTask
 from cramph.composites import Sequence
 from cramph.node import StatechartNode
@@ -89,9 +93,11 @@ class DetectAction(Action):
             [
                 PerceptionTask(
                     query=self._build_query(),
-                    execution_type=self.context.require_extension(
-                        ExecutionMode
-                    ).execution_type,
+                    answered_by=(
+                        PerceptionSource.WORLD_MODEL
+                        if self.context.require_extension(ExecutionMode).simulated
+                        else PerceptionSource.ROBOKUDO
+                    ),
                     accept_first_if_multiple=self.accept_first_if_multiple,
                 )
             ]

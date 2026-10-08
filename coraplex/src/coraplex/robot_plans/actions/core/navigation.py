@@ -11,7 +11,6 @@ from coraplex.exceptions import NoFloorBelowRobot, NotOnASingleLevelException
 from cramph.node import StatechartNode
 from cramph.world_modification_nodes import MoveBranch
 from coraplex.robot_plans.actions.base import Action
-from coraplex.datastructures.enums import ExecutionType
 from cramph.composites import Parallel, PausedUntilTrue, Sequence
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.monitors.joint_monitors import (
@@ -57,10 +56,7 @@ class DrivesBase(Action, ABC):
             directly, because there is no drive to follow the pose; a real one commands
             the pose and lets the controller drive there.
         """
-        if (
-            self.context.require_extension(ExecutionMode).execution_type
-            == ExecutionType.SIMULATED
-        ):
+        if self.context.require_extension(ExecutionMode).simulated:
             return SetOdometry(
                 base_pose=target.to_homogeneous_matrix(),
                 odom_connection=self.robot.root.parent_connection,

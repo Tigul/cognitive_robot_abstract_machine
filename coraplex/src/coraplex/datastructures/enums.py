@@ -94,15 +94,20 @@ class FindBodyInRegionMethod(Enum):
     """
 
 
-class ExecutionType(Enum):
+class PerceptionSource(Enum):
     """
-    Enum for Execution Process Module types.
+    The kinds of source a perception query can be answered by.
     """
 
-    REAL = auto()
-    SIMULATED = auto()
-    SEMI_REAL = auto()
-    NO_EXECUTION = auto()
+    WORLD_MODEL = auto()
+    """
+    The world model, read the way a perfect sensor would see it, for a simulated robot.
+    """
+
+    ROBOKUDO = auto()
+    """
+    A RoboKudo pipeline, for the real robot.
+    """
 
 
 class VisualizationBackend(StrEnum):

@@ -52,10 +52,24 @@ executor.execute()
 
 A plan for the real robot is built and run the same way in a
 `RobotPlanExecutor(world, context_extensions=[RobotAccess(robot)], ros_node=node)`.
-{meth}`~coraplex.plans.executors.PlanExecutor.type_for` returns the executor of an
-{class}`~coraplex.datastructures.enums.ExecutionType`, for code that is told how to execute at run time. The nodes of
-a plan read how they are executed from the {class}`~coraplex.plans.context_extensions.ExecutionMode` the executor puts
-into the context.
+Code that is told how to execute at run time takes the executor type, as
+{attr}`~coraplex.demonstrations.RobotDemonstration.executor_type` does. The nodes of a plan read whether the robot is
+simulated from the {class}`~coraplex.plans.context_extensions.ExecutionMode` the executor puts into the context.
+
+Both executors build on cramph's {class}`~cramph.executor.Executor`. The simulated one is a
+{class}`~cramph.executor.StatechartExecutor` that ticks the chart itself, and its
+{class}`~giskardpy.motion_control.MotionControl` extension holds the controller configuration:
+
+```python
+from giskardpy.motion_control import MotionControl
+from giskardpy.qp.qp_controller_config import QPControllerConfig
+
+executor = SimulatedPlanExecutor(
+    world,
+    context_extensions=[RobotAccess(robot)],
+    extensions=[MotionControl(QPControllerConfig(target_frequency=50))],
+)
+```
 
 Collision avoidance is a setting of the executor:
 
@@ -81,9 +95,9 @@ executor = SimulatedPlanExecutor(
 Some robots need a different implementation of a motion.
 
 ```{warning}
-The {class}`~coraplex.alternative_motion_mapping.AlternativeMotion` mechanism keyed off the motion designators that
-this layer replaced, so the mappings in {mod}`coraplex.alternative_motion_mappings` no longer import. Robot-specific
-overrides are being rebuilt on top of the giskard goals.
+The motion designators that robot-specific motions used to replace are gone, so the mappings kept in
+`coraplex/alternative_motion_mappings` no longer import. They stay as a reference while robot-specific overrides
+are rebuilt on top of the giskard goals.
 ```
 
 ## Key takeaways

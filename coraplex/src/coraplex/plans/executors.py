@@ -6,13 +6,11 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 
 from rclpy.node import Node
-from typing_extensions import ClassVar, List, Optional, Type
+from typing_extensions import ClassVar, List, Optional
 
-from coraplex.datastructures.enums import ExecutionType
 from coraplex.exceptions import (
     MotionDidNotFinish,
     PlanNotCompiled,
-    UnknownExecutionType,
 )
 from coraplex.plans.context_extensions import (
     ExecutionMode,
@@ -37,11 +35,8 @@ from coraplex.robot_plans.actions.base import Action
 from cramph.composites import ChildChooserAccess
 from cramph.context import ContextExtension, StatechartContext
 from cramph.data_types import LifeCycleValues
-from cramph.exceptions import (
-    EmptyStatechartError,
-    StatechartOfDifferentContextError,
-)
-from cramph.executor import StatechartExecutor
+from cramph.exceptions import EmptyStatechartError
+from cramph.executor import Executor, StatechartExecutor
 from cramph.node import StatechartNode
 from cramph.statechart import Statechart
 from giskardpy.motion_control import MotionControl
@@ -57,7 +52,7 @@ from giskardpy.motion_statechart.graph_node import ConvergingTask, EndMotion
 from giskardpy.motion_statechart.monitors.progress_monitors import StillProgressing
 from giskardpy.middleware.ros2.python_interface import GiskardWrapper
 from giskardpy.motion_statechart.ros_context import RosNodeAccess
-from giskardpy.qp.qp_controller_config import QPControllerConfig
+from krrood.ormatic.utils import classproperty
 from semantic_digital_twin.world import World
 
 logger = logging.getLogger(__name__)
@@ -67,7 +62,7 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class PlanExecutor(ABC):
+class PlanExecutor(Executor, ABC):
     """
     Executes a plan: the top-level nodes of a statechart built in :attr:`context`.
 
@@ -80,9 +75,10 @@ class PlanExecutor(ABC):
     runs, see :class:`~coraplex.plans.underspecified.UnderspecifiedChildChooser`.
     """
 
-    execution_type: ClassVar[ExecutionType]
+    context: StatechartContext = field(init=False)
     """
-    How this executor executes a plan.
+    The context the plan's statechart is built and run in, built from
+    :attr:`context_extensions`.
     """
 
     world: World
@@ -131,11 +127,6 @@ class PlanExecutor(ABC):
     The callbacks observing every plan this executor runs.
     """
 
-    context: StatechartContext = field(init=False)
-    """
-    The context the plan's statechart is built and run in.
-    """
-
     child_chooser: UnderspecifiedChildChooser = field(init=False)
     """
     Grounds the underspecified actions of the plan while it runs.
@@ -146,10 +137,12 @@ class PlanExecutor(ABC):
     The top-level nodes of the plan compiled last.
     """
 
-    statechart: Optional[Statechart] = field(default=None, init=False)
-    """
-    The statechart running the plan compiled last.
-    """
+    @classproperty
+    def simulated(cls) -> bool:
+        """
+        :return: Whether this executor runs plans against a simulated robot.
+        """
+        return issubclass(cls, SimulatedPlanExecutor)
 
     def __post_init__(self):
         if self.debug and self.ros_node is None:
@@ -165,7 +158,7 @@ class PlanExecutor(ABC):
                 self.context.add_extension(default_extension)
         self.context.add_extension(
             ExecutionMode(
-                execution_type=self.execution_type,
+                simulated=self.simulated,
                 collision_avoidance=self.collision_avoidance,
             )
         )
@@ -177,21 +170,7 @@ class PlanExecutor(ABC):
         )
         self.child_chooser = UnderspecifiedChildChooser(executor=self)
         self.context.add_extension(ChildChooserAccess(chooser=self.child_chooser))
-
-    @staticmethod
-    def type_for(execution_type: ExecutionType) -> Type[PlanExecutor]:
-        """
-        :param execution_type: How a plan is to be executed.
-        :return: The executor executing a plan that way.
-        :raises UnknownExecutionType: If `execution_type` has no executor.
-        """
-        match execution_type:
-            case ExecutionType.SIMULATED:
-                return SimulatedPlanExecutor
-            case ExecutionType.REAL:
-                return RobotPlanExecutor
-            case _:
-                raise UnknownExecutionType(execution_type)
+        super().__post_init__()
 
     def for_trial(self, world: World) -> SimulatedPlanExecutor:
         """
@@ -220,12 +199,10 @@ class PlanExecutor(ABC):
             :attr:`context`.
         :raises EmptyStatechartError: If `statechart` holds no node.
         """
-        if statechart.context is not self.context:
-            raise StatechartOfDifferentContextError()
+        Executor.compile(self, statechart)
         self.plan_nodes = list(statechart.top_level_nodes)
         if not self.plan_nodes:
             raise EmptyStatechartError()
-        self.statechart = statechart
         rewriting = self.context.require_extension(PlanRewriting)
         for plan_node in self.plan_nodes:
             rewriting.rewrite(plan_node)
@@ -269,7 +246,7 @@ class PlanExecutor(ABC):
         statechart.history.add_observer(
             PlanCallbackDispatcher(plan_nodes=self.plan_nodes, callbacks=self.callbacks)
         )
-        self._compile(statechart)
+        super().compile(statechart)
 
     def execute(self) -> None:
         """
@@ -288,7 +265,7 @@ class PlanExecutor(ABC):
         if self.statechart is None:
             raise PlanNotCompiled()
         try:
-            self._execute()
+            self._run()
         except NoProgressError as stalled:
             raise MotionMadeNoProgress(stalled) from stalled
         except CollisionViolatedError as violation:
@@ -298,64 +275,35 @@ class PlanExecutor(ABC):
                 callback.on_finish(self.statechart)
 
     @abstractmethod
-    def _compile(self, statechart: Statechart) -> None:
-        """
-        Prepare the prepared `statechart` for :meth:`_execute`.
-        """
-
-    @abstractmethod
-    def _execute(self) -> None:
+    def _run(self) -> None:
         """
         Run the compiled plan until it ended.
         """
 
 
 @dataclass
-class SimulatedPlanExecutor(PlanExecutor):
+class SimulatedPlanExecutor(PlanExecutor, StatechartExecutor):
     """
-    Ticks the plan's statechart in :attr:`world`, with cramph's executor driving the
-    robot's motions with Giskard's controller.
+    Ticks the plan's statechart in :attr:`world`, driving the robot's motions with the
+    :class:`~giskardpy.motion_control.MotionControl` among its :attr:`extensions`, which
+    is added with its default controller unless one is given.
     """
-
-    execution_type: ClassVar[ExecutionType] = ExecutionType.SIMULATED
 
     simulation_time_limit: ClassVar[timedelta] = timedelta(minutes=2)
     """
     The simulated time after which a plan is given up on, however it is progressing.
     """
 
-    qp_controller_config: QPControllerConfig = field(
-        default_factory=lambda: QPControllerConfig(
-            target_frequency=50, prediction_horizon=4, verbose=False
-        ),
-        kw_only=True,
-    )
-    """
-    The controller configuration the plan's motions are simulated with.
-    """
-
-    statechart_executor: StatechartExecutor = field(init=False)
-    """
-    The executor ticking the statechart.
-    """
-
     def __post_init__(self):
+        for default_extension in (RosNodeAccess(self.ros_node), MotionControl()):
+            if not any(
+                type(extension) is type(default_extension)
+                for extension in self.extensions
+            ):
+                self.extensions.append(default_extension)
         super().__post_init__()
-        self.statechart_executor = StatechartExecutor(
-            context=self.context,
-            extensions=[
-                RosNodeAccess(self.ros_node),
-                MotionControl(qp_controller_config=self.qp_controller_config),
-            ],
-        )
 
-    def _compile(self, statechart: Statechart) -> None:
-        """
-        Compile the statechart against the executor, which ticks it once.
-        """
-        self.statechart_executor.compile(statechart)
-
-    def _execute(self) -> None:
+    def _run(self) -> None:
         """
         Tick the statechart until it or the plan ended.
 
@@ -369,13 +317,13 @@ class SimulatedPlanExecutor(PlanExecutor):
         """
         maximum_ticks = (
             self.simulation_time_limit.total_seconds()
-            / self.qp_controller_config.control_dt
+            / self.context.require_tick_duration()
         )
         try:
             while not self._is_over():
-                if self.statechart_executor.tick_count >= maximum_ticks:
+                if self.tick_count >= maximum_ticks:
                     raise MotionExceededSimulationTimeLimit(self.simulation_time_limit)
-                self.statechart_executor.tick()
+                self.tick()
         finally:
             MotionControl.set_velocity_acceleration_jerk_to_zero(self.world)
             self.statechart.cleanup_nodes()
@@ -437,16 +385,11 @@ class RobotPlanExecutor(PlanExecutor):
     """
     Sends the plan's statechart to Giskard, grounding every underspecified action
     Giskard reaches against the world as it is then.
+
+    Giskard compiles the statechart once it receives it.
     """
 
-    execution_type: ClassVar[ExecutionType] = ExecutionType.REAL
-
-    def _compile(self, statechart: Statechart) -> None:
-        """
-        Nothing to compile: Giskard compiles the statechart once it receives it.
-        """
-
-    def _execute(self) -> None:
+    def _run(self) -> None:
         """
         Send the statechart to Giskard and wait until it ended.
         """

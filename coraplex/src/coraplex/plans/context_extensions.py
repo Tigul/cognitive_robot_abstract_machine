@@ -4,7 +4,6 @@ from dataclasses import dataclass, field, replace
 
 from typing_extensions import Optional, Self, TYPE_CHECKING
 
-from coraplex.datastructures.enums import ExecutionType
 from cramph.context import ContextExtension
 from krrood.entity_query_language.backends import (
     EntityQueryLanguageGenerativeBackend,
@@ -130,9 +129,9 @@ class ExecutionMode(ContextExtension):
     How the executor running a statechart executes it, added by that executor.
     """
 
-    execution_type: ExecutionType
+    simulated: bool
     """
-    Whether the plan drives the real robot or a simulated one.
+    Whether the plan drives a simulated robot rather than the real one.
     """
 
     collision_avoidance: bool = False

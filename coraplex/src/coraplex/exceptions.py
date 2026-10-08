@@ -7,7 +7,6 @@ from typing_extensions import TYPE_CHECKING, List, Type
 from krrood.entity_query_language.factories import ConditionType, get_false_statements
 from krrood.exceptions import DataclassException
 from coraplex.datastructures.enums import (
-    ExecutionType,
     VisualizationBackend,
     VisualizationOption,
 )
@@ -279,24 +278,6 @@ class ObjectIsNotHeld(DataclassException):
 
     def suggest_correction(self) -> str:
         return "place the object after a pick-up of it."
-
-
-@dataclass
-class UnknownExecutionType(DataclassException):
-    """
-    Raised when an executable is run with an execution type it does not handle.
-    """
-
-    execution_type: ExecutionType
-    """
-    The execution type that is not supported.
-    """
-
-    def error_message(self) -> str:
-        return f"Unknown execution type: {self.execution_type}"
-
-    def suggest_correction(self) -> str:
-        return ""
 
 
 @dataclass

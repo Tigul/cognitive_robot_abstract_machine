@@ -19,8 +19,8 @@ from rclpy.executors import SingleThreadedExecutor
 from rclpy.node import Node
 from typing_extensions import List, Type
 
-from coraplex.datastructures.enums import ExecutionType, VisualizationBackend
-from coraplex.plans.executors import PlanExecutor
+from coraplex.datastructures.enums import VisualizationBackend
+from coraplex.plans.executors import PlanExecutor, SimulatedPlanExecutor
 from coraplex.plans.plan_transformation import PlanTransformation
 from coraplex.visualization import VisualizationSession, WorldVisualization
 from cramph.context import ContextExtension, StatechartContext
@@ -151,9 +151,10 @@ class RobotDemonstration(ABC):
     Name of the node a real run registers.
     """
 
-    execution_type: ExecutionType = ExecutionType.SIMULATED
+    executor_type: Type[PlanExecutor] = SimulatedPlanExecutor
     """
-    Whether the plan drives the real robot or a simulated one.
+    The executor running the plan, which decides whether it drives the real robot or a
+    simulated one.
     """
 
     collision_avoidance: bool = False
@@ -259,7 +260,7 @@ class RobotDemonstration(ABC):
         self.ros_session = RobotDemonstrationRosSession.start(self.ros_node_name)
         VisualizationSession.register(self.stop_visualization)
 
-        if self.execution_type is not ExecutionType.REAL:
+        if self.executor_type.simulated:
             world = self.build_simulated_world()
             self.visualization = WorldVisualization.from_environment(
                 world,
@@ -283,7 +284,7 @@ class RobotDemonstration(ABC):
             if not self.is_scene_populated(world):
                 self.populate_scene(world)
             for _ in range(self.repetitions):
-                executor = PlanExecutor.type_for(self.execution_type)(
+                executor = self.executor_type(
                     world,
                     context_extensions=self.build_context_extensions(world),
                     ros_node=self.ros_node,

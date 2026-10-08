@@ -14,7 +14,6 @@ import pytest
 import rclpy
 from typing_extensions import Iterator, List
 
-from coraplex.datastructures.enums import ExecutionType
 from coraplex.demonstrations import RobotDemonstration, RobotDemonstrationRosSession
 from semantic_digital_twin.robots.minimal_robot import MinimalRobot
 from semantic_digital_twin.world import World
@@ -23,6 +22,7 @@ from cramph.threaded_nodes import FunctionCall
 from ..plan_running import robot_extensions
 from cramph.context import ContextExtension, StatechartContext
 from coraplex.plans.context_extensions import ExecutionMode
+from coraplex.plans.executors import SimulatedPlanExecutor
 from cramph.statechart import Statechart
 
 
@@ -63,9 +63,9 @@ class RecordingDemonstration(RobotDemonstration):
     How often the ROS session was released.
     """
 
-    observed_execution_type: ExecutionType | None = field(default=None)
+    observed_simulated: bool | None = field(default=None)
     """
-    Execution type in force while the plan ran.
+    Whether the robot was simulated while the plan ran.
     """
 
     observed_collision_avoidance: bool | None = field(default=None)
@@ -120,7 +120,7 @@ class RecordingDemonstration(RobotDemonstration):
         if self.fail_the_plan:
             raise PlanDeliberatelyFailed()
         execution_mode = context.require_extension(ExecutionMode)
-        self.observed_execution_type = execution_mode.execution_type
+        self.observed_simulated = execution_mode.simulated
         self.observed_collision_avoidance = execution_mode.collision_avoidance
         self.observed_segmenting_events = self.segmenting_events
         self.observed_log_level = logging.getLogger("coraplex").level
@@ -185,19 +185,19 @@ def test_scene_is_not_spawned_again_into_a_world_that_has_it(cylinder_bot_world)
 
 def test_plan_runs_in_the_demonstrations_execution_environment(cylinder_bot_world):
     """
-    The plan is what the execution type and collision avoidance settings exist for, so
-    they have to be in force while it runs.
+    The plan is what the executor and collision avoidance settings exist for, so they
+    have to be in force while it runs.
     """
     demonstration = RecordingDemonstration(
         world=cylinder_bot_world,
         used_robot=MinimalRobot,
-        execution_type=ExecutionType.SIMULATED,
+        executor_type=SimulatedPlanExecutor,
         collision_avoidance=True,
     )
 
     demonstration.run()
 
-    assert demonstration.observed_execution_type is ExecutionType.SIMULATED
+    assert demonstration.observed_simulated is SimulatedPlanExecutor.simulated
     assert demonstration.observed_collision_avoidance is True
 
 

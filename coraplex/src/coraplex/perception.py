@@ -31,14 +31,13 @@ from semantic_digital_twin.world_description.world_entity import (
 )
 from typing_extensions import Any, Dict, Optional, Self, Type, List, TYPE_CHECKING
 
-from coraplex.datastructures.enums import ExecutionType
+from coraplex.datastructures.enums import PerceptionSource
 from coraplex.exceptions import (
     AmbiguousDetection,
     NothingDetected,
     PerceivedObjectNotInWorld,
     PerceptionSourceUnavailable,
     UnidentifiedDetections,
-    UnknownExecutionType,
 )
 from coraplex.ros import create_action_client
 
@@ -303,23 +302,19 @@ class PerceptionInterface(ABC):
         return detections[0]
 
     @staticmethod
-    def for_execution_type(
-        execution_type: Optional[ExecutionType], ros_node: Optional[Node] = None
+    def for_source(
+        source: PerceptionSource, ros_node: Optional[Node] = None
     ) -> PerceptionInterface:
         """
-        Pick the source that matches how the plan is being executed.
-
-        :param execution_type: Whether the plan drives the real robot or a simulated
-            one; None when nothing is executing the plan.
-        :param ros_node: Node a real source reaches its perception pipeline through.
+        :param source: The kind of source that answers the queries.
+        :param ros_node: Node a RoboKudo pipeline is reached through.
         :return: The source to answer queries with.
-        :raises UnknownExecutionType: If the execution type has no source.
         """
-        if execution_type in (ExecutionType.SIMULATED, ExecutionType.NO_EXECUTION):
-            return WorldPerception()
-        if execution_type == ExecutionType.REAL:
-            return RoboKudoPerception(ros_node=ros_node)
-        raise UnknownExecutionType(execution_type)
+        match source:
+            case PerceptionSource.WORLD_MODEL:
+                return WorldPerception()
+            case PerceptionSource.ROBOKUDO:
+                return RoboKudoPerception(ros_node=ros_node)
 
 
 @dataclass
@@ -482,14 +477,13 @@ class PerceptionTask(StatechartNode):
     What to look for and where.
     """
 
-    execution_type: Optional[ExecutionType] = field(kw_only=True)
+    answered_by: PerceptionSource = field(kw_only=True)
     """
-    Which source answers the query.
+    Which kind of source answers the query.
 
-    Carried by the node rather than read from the execution environment, because on the
-    real robot the chart is answered in the controller's process, where that environment
-    does not exist. None when the chart was built without one, which :meth:`set_up`
-    rejects.
+    Carried by the node rather than read from the context, because on the real robot the
+    chart is answered in the controller's process, whose context does not say how the
+    plan is executed.
     """
 
     perception_source: Optional[PerceptionInterface] = field(init=False, default=None)
@@ -512,8 +506,8 @@ class PerceptionTask(StatechartNode):
 
     def set_up(self, context: StatechartContext) -> None:
         super().set_up(context)
-        self.perception_source = PerceptionInterface.for_execution_type(
-            self.execution_type,
+        self.perception_source = PerceptionInterface.for_source(
+            self.answered_by,
             context.require_extension(RosContextExtension).ros_node,
         )
 

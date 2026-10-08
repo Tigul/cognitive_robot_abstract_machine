@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from typing_extensions import List
 
-from coraplex.datastructures.enums import DetectionTechnique
+from coraplex.datastructures.enums import DetectionTechnique, PerceptionSource
 from coraplex.perception import PerceptionQuery, PerceptionTask
 from coraplex.robot_plans.actions.composite.transporting import TransportAction
 from coraplex.robot_plans.actions.core.misc import DetectAction
@@ -323,7 +323,7 @@ def test_perceiving_runs_between_the_motions_around_it(pr2_apartment_context):
         Sequence(
             [
                 tool_center_point_goal(view, view.left_arm),
-                PerceptionTask(query=query, execution_type=None),
+                PerceptionTask(query=query, answered_by=PerceptionSource.WORLD_MODEL),
                 tool_center_point_goal(view, view.right_arm),
             ]
         ),

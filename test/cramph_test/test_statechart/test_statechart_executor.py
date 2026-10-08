@@ -46,6 +46,22 @@ def test_generic_nodes_tick_until_the_statechart_ends(
     assert statechart_executor.tick_count == first_step.ticks + second_step.ticks + 1
 
 
+def test_executing_ticks_the_compiled_statechart_until_it_ends(
+    statechart_executor: StatechartExecutor,
+):
+    step = CountTicks(ticks=2)
+    statechart = Statechart(context=statechart_executor.context)
+    statechart.add_node(step)
+    statechart.add_node(EndStatechart.when_true(step))
+    statechart_executor.compile(statechart)
+
+    statechart_executor.execute()
+
+    assert statechart.is_ended()
+    # +1 for EndStatechart to observe True
+    assert statechart_executor.tick_count == step.ticks + 1
+
+
 def test_end_statechart_ends_the_tick_after_it_starts(
     statechart_executor: StatechartExecutor,
 ):

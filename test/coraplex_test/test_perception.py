@@ -25,7 +25,7 @@ from typing_extensions import List, Tuple
 
 from coraplex.datastructures.enums import (
     DetectionTechnique,
-    ExecutionType,
+    PerceptionSource,
 )
 from coraplex.exceptions import (
     AmbiguousDetection,
@@ -33,7 +33,6 @@ from coraplex.exceptions import (
     PerceivedObjectNotInWorld,
     PerceptionSourceUnavailable,
     UnidentifiedDetections,
-    UnknownExecutionType,
 )
 from coraplex.perception import (
     ROBOKUDO_QUERY_ACTION_NAME,
@@ -92,19 +91,20 @@ class SpecializedMilk(Milk):
 
 
 @pytest.mark.parametrize(
-    "execution_type, expected_source",
+    "source_kind, expected_source",
     [
-        (ExecutionType.SIMULATED, WorldPerception),
-        (ExecutionType.NO_EXECUTION, WorldPerception),
-        (ExecutionType.REAL, RoboKudoPerception),
+        (PerceptionSource.WORLD_MODEL, WorldPerception),
+        (PerceptionSource.ROBOKUDO, RoboKudoPerception),
     ],
 )
-def test_source_is_chosen_by_execution_type(execution_type, expected_source):
+def test_each_kind_of_perception_source_answers_through_its_own_interface(
+    source_kind, expected_source
+):
     """
-    The plan does not change between sim and real; the execution type alone decides
+    The plan does not change between sim and real; the kind of source alone decides
     where detections come from.
     """
-    source = PerceptionInterface.for_execution_type(execution_type, ros_node=None)
+    source = PerceptionInterface.for_source(source_kind, ros_node=None)
 
     assert type(source) is expected_source
 
@@ -781,7 +781,7 @@ def test_perception_task_is_a_plain_statechart_node(
     world, view, extensions = pr2_apartment_context
     query = PerceptionQuery(Milk, whole_scene_region, view, world)
 
-    task = PerceptionTask(query=query, execution_type=ExecutionType.SIMULATED)
+    task = PerceptionTask(query=query, answered_by=PerceptionSource.WORLD_MODEL)
 
     assert not isinstance(task, MotionStatechartNode)
 
@@ -795,7 +795,7 @@ def test_perception_task_moves_the_detected_body(
     """
     world, view, extensions = pr2_apartment_context
     query = PerceptionQuery(Milk, whole_scene_region, view, world)
-    task = PerceptionTask(query=query, execution_type=ExecutionType.REAL)
+    task = PerceptionTask(query=query, answered_by=PerceptionSource.ROBOKUDO)
 
     run_perception_task(task, build_perception_task(task, world, rclpy_node))
 
@@ -841,7 +841,7 @@ def test_perception_task_reports_a_failed_query_as_itself(
     """
     world, view, extensions = pr2_apartment_context
     query = PerceptionQuery(Milk, whole_scene_region, view, world)
-    task = PerceptionTask(query=query, execution_type=ExecutionType.SIMULATED)
+    task = PerceptionTask(query=query, answered_by=PerceptionSource.WORLD_MODEL)
     build_context = build_perception_task(task, world, rclpy_node)
     task.perception_source = UnanswerablePerception(
         PerceptionSourceUnavailable(ROBOKUDO_QUERY_ACTION_NAME)
@@ -860,7 +860,7 @@ def test_perception_task_answers_its_query_only_once(
     """
     world, view, extensions = pr2_apartment_context
     query = PerceptionQuery(Milk, whole_scene_region, view, world)
-    task = PerceptionTask(query=query, execution_type=ExecutionType.REAL)
+    task = PerceptionTask(query=query, answered_by=PerceptionSource.ROBOKUDO)
     build_context = build_perception_task(task, world, rclpy_node)
 
     run_perception_task(task, build_context)
@@ -896,11 +896,11 @@ def test_perception_task_survives_a_json_round_trip(
     world, view, extensions = pr2_apartment_context
     receiving_world = deepcopy(world)
     query = PerceptionQuery(Milk, whole_scene_region, view, world)
-    task = PerceptionTask(query=query, execution_type=ExecutionType.REAL)
+    task = PerceptionTask(query=query, answered_by=PerceptionSource.ROBOKUDO)
 
     restored = from_json(to_json(task), **receiving_world_kwargs(receiving_world))
 
-    assert restored.execution_type == ExecutionType.REAL
+    assert restored.answered_by == PerceptionSource.ROBOKUDO
     assert restored.query.semantic_annotation is Milk
     assert restored.query.world is receiving_world
     assert restored.query.robot is receiving_world.get_world_entity_with_id_by_id(
@@ -909,28 +909,12 @@ def test_perception_task_survives_a_json_round_trip(
     assert restored.query.region.origin.reference_frame is receiving_world.root
 
 
-def test_perception_task_without_an_execution_type_is_rejected(
-    pr2_apartment_context, whole_scene_region, rclpy_node
-):
-    """
-    A chart built while nothing is executing the plan has no source to answer with,
-    which has to be said plainly rather than silently defaulting to reading the world
-    model.
-    """
-    world, view, extensions = pr2_apartment_context
-    query = PerceptionQuery(Milk, whole_scene_region, view, world)
-    task = PerceptionTask(query=query, execution_type=None)
-
-    with pytest.raises(UnknownExecutionType):
-        build_perception_task(task, world, rclpy_node)
-
-
-def test_detect_action_takes_the_execution_type_of_the_environment(
+def test_detect_action_reads_the_world_model_when_the_robot_is_simulated(
     pr2_apartment_context,
 ):
     """
     The action is written once and run in both worlds, so which source answers it is
-    decided by the environment executing the plan rather than by the plan itself.
+    decided by the executor running the plan rather than by the plan itself.
     """
     world, view, extensions = pr2_apartment_context
     plan = DetectAction(DetectionTechnique.TYPES, object_sem_annotation=Milk)
@@ -941,7 +925,7 @@ def test_detect_action_takes_the_execution_type_of_the_environment(
         if isinstance(node, PerceptionTask)
     ]
     assert [type(task) for task in tasks] == [PerceptionTask]
-    assert tasks[0].execution_type is ExecutionType.SIMULATED
+    assert tasks[0].answered_by is PerceptionSource.WORLD_MODEL
 
 
 @pytest.mark.parked
@@ -960,7 +944,7 @@ def test_perception_task_survives_a_chart_round_trip(
     query = PerceptionQuery(Milk, whole_scene_region, view, world)
     chart = Statechart(context=StatechartContext(world=world))
     chart.add_node(
-        task := PerceptionTask(query=query, execution_type=ExecutionType.REAL)
+        task := PerceptionTask(query=query, answered_by=PerceptionSource.ROBOKUDO)
     )
     chart.add_node(EndMotion.when_true(task))
 
@@ -974,7 +958,7 @@ def test_perception_task_survives_a_chart_round_trip(
         node for node in restored_chart.nodes if isinstance(node, PerceptionTask)
     ]
     assert len(restored_tasks) == 1
-    assert restored_tasks[0].execution_type == ExecutionType.REAL
+    assert restored_tasks[0].answered_by == PerceptionSource.ROBOKUDO
     assert restored_tasks[0].query.world is receiving_world
     assert restored_tasks[
         0
@@ -992,7 +976,7 @@ def test_detection_in_a_chart_corrects_a_reach_planned_before_it(
     world, view, extensions = pr2_apartment_context
     milk_body = world.get_body_by_name("milk.stl")
     query = PerceptionQuery(Milk, whole_scene_region, view, world)
-    detection = PerceptionTask(query=query, execution_type=ExecutionType.REAL)
+    detection = PerceptionTask(query=query, answered_by=PerceptionSource.ROBOKUDO)
     reach = CartesianPosition(
         root_link=world.root,
         tip_link=view.right_arm.end_effector.tool_frame,
