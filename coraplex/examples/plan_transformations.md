@@ -296,6 +296,9 @@ case asks, and is only asked about the nodes it matches. Here the arms are only 
 drives that actually take the robot somewhere:
 
 ```python
+from semantic_digital_twin.spatial_types.spatial_types import Point2
+
+
 @dataclass
 class ParkArmsBeforeLongDrives(ParkArmsBeforeNavigating):
     """
@@ -311,9 +314,8 @@ class ParkArmsBeforeLongDrives(ParkArmsBeforeNavigating):
     def is_applicable(self, plan_node: PlanNode) -> bool:
         navigate = plan_node.designator
         target = navigate.world.transform(navigate.target_location, navigate.world.root)
-        distance = navigate.robot.root.global_pose.position.euclidean_distance(
-            target.position
-        )
+        robot_position = Point2.from_pose(navigate.robot.root.global_pose)
+        distance = robot_position.euclidean_distance(target.position)
         return float(distance) > self.minimum_distance
 ```
 
