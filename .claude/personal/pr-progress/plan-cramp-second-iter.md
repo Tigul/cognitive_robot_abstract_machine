@@ -1,28 +1,20 @@
-## Round 2 review of ichumuh#8 by Tigul (2026-10-07/08, 49 comments, head ab618997e)
+## Round 2 review of ichumuh#8 by Tigul (2026-10-07/08, 49 comments) - DONE
 
-Plan approved 2026-10-08 (~/.claude/plans/we-did-another-review-buzzing-walrus.md).
-Decisions: context always available (nodes read self.context; locations and
-factories take the context; trial copies context via copy_onto(world));
-"statechart gets context via executor" deferred (future_problems);
-new abstract cramph Executor base; Match in language nodes = investigate only.
-Steps (one commit each):
-1. cramph: drop 2nd rebuild in tick, hold-still into compile, move
-   RepetitionsExhausted/PlanCancelled/StatechartHoldsNoPlan/CannotInsertBesideRoot
-   to cramph, context/world accessors on StatechartNode  [done 70c53b54a; hold-still-in-compile NOT done: deferred compile would tick stale state arrays -> reply only]
-2. cramph Executor base; Simulated/Robot executors on it; delete ExecutionType,
-   PerceptionSource enum on PerceptionTask + ExecutionMode.simulated; executor_type;
-   alternative_motion_mapping.py deleted, robot mappings kept (user)  [done 5a78516a6]
-3. context: PlanRewriting as extension, delete WorldCopyableExtension/for_world,
-   trial rebinds extensions (rebind_world_entities), ActionTrial w/o for_trial,
-   locations/factories take context  [done 2e67f85bd]
-4. actions: no wrapper Sequences (Action adopts self-deciding, reads observation),
-   action_body computed, general language-node lookup, TCP check in final_approach,
-   upright torso as transformation; MoveTorso keeps Sequence (user)  [done 2e67f85bd]
-5. underspecified: merge UnderspecifiedCandidates into node, drop for_step  [todo]
-6. delete plan_callbacks (cramera via ExecutorExtension, bridge holds statechart),
-   orm/model.py, renames, docs, future_problems entries  [todo]
-Then: full suites serially, reply on all threads, push, PR stays draft.
+Pushed to Tigul/plan-cramp-second-iter (755dc70d9): 70c53b54a cramph
+failures/tick/accessors, 2f8ddeca0 Executor base + ExecutionType removed,
+2e67f85bd context everywhere + bare action bodies, 159c2f635 underspecified
+node grounds itself, 755dc70d9 plan_callbacks -> cramph ExecutorExtension,
+renames/docs/future_problems. Replies on all 51 (2026-10-09); left open:
+orm_example (statechart context from executor, deferred), locations context
+model, X|Match typing (ORMatic drops unions), Match in language nodes
+(investigated, awaiting choice), MoveTorso keeps Sequence (user), hold-still
+in compile (not feasible as is). PR description updated; PR stays draft.
+Pre-existing: test_demonstrations fails after cramera_test in one session
+(live server port in use) - same on 159c2f635.
+User decisions this round: context always available; Executor base in cramph;
+Match investigate only; delete alternative_motion_mapping.py but keep robot
+mappings; keep MoveTorso Sequence; replace plan_callbacks now.
 
-### Previous round (Simon, 2026-10-06): done, pushed ab618997e; 3 threads left
-open with questions to Simon. Open questions for user: remove TransitionKind.of /
-ThreadPayloadMonitor (tests only)? querying.py undefined names; speed_at_rest.
+### Previous round (Simon, 2026-10-06): done, ab618997e; 3 threads open to Simon.
+Open questions for user: remove TransitionKind.of / ThreadPayloadMonitor
+(tests only)? querying.py undefined names; speed_at_rest.
