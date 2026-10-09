@@ -194,9 +194,9 @@ class IsAmongTheClosestGraspsTo(Predicate):
         world = self.grasp.graspable.root._world
 
         # Transform to np for speed, as this is called a lot
-        world_P_standing = (
-            world.transform(self.standing_position, world.root).to_position().to_np()
-        )
+        world_P_standing = world.transform(
+            self.standing_position.pose, world.root
+        ).position.to_np()
         world_T_object = self.grasp.graspable.root.global_transform.to_np()
 
         position = next(

@@ -241,7 +241,7 @@ def is_pose_free_for_robot(robot: AbstractRobot, pose: Pose2D) -> bool:
     """
     return not PlaceIsOccupied(
         robot.mobile_base.bounding_box,
-        pose.to_pose(),
+        pose.pose,
         robot._world,
         robot.bodies_with_collision
         + [

@@ -878,9 +878,10 @@ class MobileBase(
         its x-axis, so the same heading serves bases modelled with different axes. Its
         position is kept as it is.
         """
+        reference_T_heading = heading.homogeneous_matrix
         return HomogeneousTransformationMatrix.from_point_rotation_matrix(
-            heading.position,
-            heading.rotation_matrix @ self.base_R_front.inverse(),
+            reference_T_heading.position,
+            reference_T_heading.rotation_matrix @ self.base_R_front.inverse(),
             reference_frame=heading.reference_frame,
         ).pose
 

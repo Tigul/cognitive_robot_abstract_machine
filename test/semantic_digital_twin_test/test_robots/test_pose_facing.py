@@ -233,7 +233,7 @@ def test_a_planar_heading_places_the_base_as_its_pose_does(
 
     np.testing.assert_allclose(
         mobile_base.pose_facing(heading).to_np(),
-        mobile_base.pose_facing(heading.to_pose()).to_np(),
+        mobile_base.pose_facing(heading.pose).to_np(),
         atol=1e-9,
     )
 

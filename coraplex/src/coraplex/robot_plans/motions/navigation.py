@@ -41,7 +41,7 @@ class MoveMotion(BaseMotion, NavigationTargetParameter):
             else CartesianPose(
                 root_link=self.world.root,
                 tip_link=self.robot.root,
-                goal_pose=self.target_location.to_pose(),
+                goal_pose=self.target_location.pose,
             )
         )
 

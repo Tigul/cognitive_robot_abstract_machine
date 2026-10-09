@@ -131,7 +131,7 @@ def test_move_motion_chart(pr2_apartment_context):
     msc = motion.motion_chart
 
     np.testing.assert_allclose(
-        msc.goal_pose.to_np(), motion.target_location.to_pose().to_np()
+        msc.goal_pose.to_np(), motion.target_location.pose.to_np()
     )
 
 

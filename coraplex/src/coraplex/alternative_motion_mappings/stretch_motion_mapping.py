@@ -95,7 +95,7 @@ class StretchMoveSim(MoveMotion, AlternativeMotion[Stretch]):
     @property
     def _motion_chart(self):
         return DifferentialDriveBaseGoal(
-            goal_pose=self.target_location.to_pose(), threshold=0.01
+            goal_pose=self.target_location.pose, threshold=0.01
         )
 
 
@@ -113,11 +113,11 @@ class StretchMoveReal(MoveMotion, AlternativeMotion[Stretch]):
     @property
     def _motion_chart(self) -> DifferentialDriveBaseGoal:
         return DifferentialDriveBaseGoal(
-            goal_pose=self.target_location.to_pose(), threshold=0.1
+            goal_pose=self.target_location.pose, threshold=0.1
         )
         # Commented out for now since we use the giskard goal which also works for smaller distances
         # return NavigateActionServerTask(
-        #     target_pose=self.target_location.to_pose(),
+        #     target_pose=self.target_location.pose,
         #     base_link=self.robot.root,
         #     action_topic="/navigate_to_pose",
         #     message_type=NavigateToPose,
