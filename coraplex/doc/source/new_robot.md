@@ -19,5 +19,5 @@ the available parts and how a robot is composed from them can be found in the {d
 ## Motion Execution
 
 The giskard goals and tasks in {mod}`giskardpy.motion_statechart` are what actually control the robot, and the ones
-an action already builds suffice to control a new robot in simulation. The {doc}`process_modules` page explains how an
+an action already builds suffice to control a new robot in simulation. The {doc}`motion_execution` page explains how an
 action's goals are collected into a giskard motion state chart and executed.

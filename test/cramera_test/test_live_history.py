@@ -69,7 +69,7 @@ class TestMotionHistoryPublication:
         motion_execution.compile()
         motion_execution.compile()
 
-        assert motion_execution.chart.history.observers == [motion_execution.callback]
+        assert motion_execution.chart.history.observers == [motion_execution.publishing]
 
     def test_a_reset_clears_the_progress_of_the_plan(
         self, motion_execution: MotionExecution
@@ -95,10 +95,10 @@ class TestMotionHistoryPublication:
         """
         motion_execution.compile()
         motion_execution.record(LifeCycleValues.RUNNING)
-        assert motion_execution.chart.history.observers == [motion_execution.callback]
+        assert motion_execution.chart.history.observers == [motion_execution.publishing]
 
-        motion_execution.callback.on_finish(motion_execution.chart)
-        motion_execution.callback.on_finish(motion_execution.chart)
+        motion_execution.publishing.finish()
+        motion_execution.publishing.finish()
         published = motion_execution.bridge.chart_state
         motion_execution.record(LifeCycleValues.NOT_STARTED)
 
@@ -112,9 +112,9 @@ class TestMotionHistoryPublication:
         Stopping a viewer also detaches histories of unfinished plans.
         """
         visualization = LiveVisualization(world=world, bridge=motion_execution.bridge)
-        callback = visualization.plan_callback()
-        callback.on_compile([motion_execution.plan], motion_execution.chart)
-        assert motion_execution.chart.history.observers == [callback]
+        publishing = visualization.executor_extension()
+        publishing.observe(motion_execution.chart)
+        assert motion_execution.chart.history.observers == [publishing]
 
         visualization.stop()
         visualization.stop()
@@ -172,8 +172,7 @@ class TestHistoryRecordingAlignment:
         world_sync.on_state_change()
 
         motion_execution.record(LifeCycleValues.SUCCEEDED)
-        motion_execution.callback.on_end(motion_execution.motion)
-        motion_execution.callback.on_finish(motion_execution.chart)
+        motion_execution.publishing.finish()
 
         frames = bridge.recording.stop()
         world_sync.stop()
@@ -182,6 +181,6 @@ class TestHistoryRecordingAlignment:
             frames[0].statechart.nodes[0].life_cycle == LifeCycleValues.SUCCEEDED.name
         )
         assert not any(
-            observer is motion_execution.callback
+            observer is motion_execution.publishing
             for observer in motion_execution.chart.history.observers
         )

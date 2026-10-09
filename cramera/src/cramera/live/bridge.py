@@ -565,9 +565,9 @@ class Bridge:
     Object key → absolute mesh path served via the ``/mesh`` endpoint.
     """
 
-    _plan_nodes: List[StatechartNode] = field(default_factory=list)
+    _statechart: Optional[Statechart] = None
     """
-    The top-level nodes of the plan observed through its execution callbacks.
+    The statechart running the observed plan, whose top-level nodes root its trees.
     """
 
     _chart_observer: ChartObserver = field(default_factory=ChartObserver)
@@ -661,13 +661,13 @@ class Bridge:
         """
         self._chart_title = type(action).__name__
 
-    def begin_plan(self, plan_nodes: List[StatechartNode]) -> None:
+    def begin_plan(self, statechart: Statechart) -> None:
         """
-        Record the plan that started performing and publish its trees.
+        Record the statechart whose plan started performing and publish its trees.
 
-        :param plan_nodes: The top-level nodes of the plan that started performing.
+        :param statechart: The statechart running the plan.
         """
-        self._plan_nodes = list(plan_nodes)
+        self._statechart = statechart
         self.snapshot_plan()
 
     def observe_model_change(self) -> None:
@@ -1304,11 +1304,11 @@ class Bridge:
         """
         Publish plan lifecycle values and derive unstarted parents from their children.
         """
-        if not self._plan_nodes:
+        if self._statechart is None:
             return
         nodes: List[PlanNodeEntry] = []
         order: List[str] = []
-        for plan_node in self._plan_nodes:
+        for plan_node in self._statechart.top_level_nodes:
             self._serialize_plan_node(plan_node, None, nodes, order)
         with self._lock:
             self.plan_state = PlanSnapshot(signature="|".join(order), nodes=nodes)

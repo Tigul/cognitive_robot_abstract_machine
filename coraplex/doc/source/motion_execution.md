@@ -1,14 +1,9 @@
 # Motion Execution in CoraPlex
 
-Motion execution is CoraPlex's bridge from symbolic intentions to concrete robot motions. It translates the motion
-designators produced by a plan into giskard motion state charts and runs them, either in simulation or on a real robot.
-By keeping the "how" of actuation behind a common abstraction, plans remain robot-agnostic and execution-aware without
-being robot-specific.
-
-```{note}
-Earlier versions of CoraPlex used a `ProcessModule`/`ProcessModuleManager` mechanism. That layer has been
-replaced by the motion / executable / execution-environment model described here.
-```
+Motion execution is CoraPlex's bridge from symbolic intentions to concrete robot motions. The actions of a plan expand
+into giskard goals and tasks, all of them nodes of one statechart, and an executor runs that statechart, either in
+simulation or on a real robot. By keeping the "how" of actuation behind the executor, plans remain robot-agnostic and
+execution-aware without being robot-specific.
 
 ## Motions
 

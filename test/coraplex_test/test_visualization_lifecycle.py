@@ -146,17 +146,17 @@ def test_plugin_stop_failure_detaches_observers_and_allows_restart(
     selected.attach_plan(executor)
     with pytest.raises(RuntimeError):
         selected.stop()
-    assert executor.callbacks == []
+    assert executor.extensions == []
     assert not selected.is_rendering
     selected.start()
     try:
         assert selected.provider is not provider
         selected.attach_plan(executor)
-        assert executor.callbacks == selected.provider.callbacks
+        assert executor.extensions == selected.provider.extensions
     finally:
         selected.stop()
     failure.assert_called_once_with()
-    assert executor.callbacks == []
+    assert executor.extensions == []
 
 
 def test_plugin_entry_point_must_load_a_provider_class(installed_scene: Mock) -> None:
@@ -170,5 +170,5 @@ def test_stopped_plugin_does_not_attach_observers(installed_scene: Mock) -> None
     selected = visualization_module.PluginVisualization(World())
     executor = an_executor()
     selected.attach_plan(executor)
-    assert executor.callbacks == []
+    assert executor.extensions == []
     installed_scene.assert_not_called()

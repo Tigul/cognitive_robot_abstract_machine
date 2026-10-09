@@ -83,3 +83,53 @@ client, including the nodes waiting for a child. It is parked with the ROS 2 goa
   assert that once it is picked up again.
 - The feedback assertions of `test_motion_server.py` and `test_child_choices.py`, parked
   with those modules above.
+
+## Design questions set aside
+
+These park no tests; they are design changes the review of ichumuh#8 raised and that
+were deliberately left for later.
+
+### A statechart that takes its context from its executor
+
+Building a plan's statechart still reads `Statechart(context=executor.context)`. The
+statechart could instead get its context from the executor compiling it, but a node
+expands the moment it joins a statechart (`Statechart.add_node`), and expanding reads
+the context, so the context would have to be known before the executor is, or
+expansion would have to move to compile time. That is a cramph change of its own.
+
+### Underspecified statements as steps of a plan language node
+
+A composite action whose step may be an `a(...)` statement wraps the statement in an
+`UnderspecifiedNode` itself (`ActionOfSteps._node_running`). The plan language nodes
+could accept a krrood `Match` among their children directly. Two ways to get there:
+
+- cramph defines a node carrying a krrood `Match` (cramph may import krrood), which
+  every `CramLanguageNode` wraps a `Match` child in when it adopts it, and coraplex's
+  `UnderspecifiedNode` becomes, or extends, that node. The statement then lives in
+  cramph although only coraplex grounds it.
+- cramph defines a context extension that converts a child a language node cannot run
+  into one it can, which coraplex registers for `Match`. Nothing about statements
+  enters cramph, but a language node then needs its context to adopt its children,
+  which it only has once it joined a statechart.
+
+Separately, the steps of the composite actions are typed as the action they hold
+(`pick_up: MoveAndPickUpAction`) although they may hold a `Match`. Typing them
+`MoveAndPickUpAction | Match` makes ORMatic leave the field out of the data access
+object, so a stored transport loses its steps; ORMatic needs to map such a union first.
+
+### The trial's own sequence around a candidate
+
+`ActionTrial.succeeds` runs a candidate in a `Sequence` of its own, so that the nodes a
+plan transformation puts beside it are tried with it, the way the candidate runs for
+real inside the `Attempt` of its `UnderspecifiedNode`. Simon would rather not wrap the
+candidate; doing without it needs plan transformations that can insert beside a node
+no language node runs.
+
+### Holding still inside `Statechart.compile`
+
+Waiting for every `RecompileCallback` to come to rest happens around a world-structure
+rebuild and before a node chooses its child (`Statechart._when_held_still`), not inside
+`Statechart.compile` itself. A compile that waits has to leave the statechart ticking
+with nodes it has not compiled yet, but the state arrays grow the moment a node joins
+and the compiled tick keeps reading the arrays it was compiled against, so the tick
+would run on stale state until the compile happened.

@@ -10,10 +10,14 @@ from unittest.mock import Mock
 import pytest
 
 from cramph.context import StatechartContext
-from cramph.data_types import LifeCycleValues
+from cramph.data_types import LifeCycleValues, ObservationStateValues
 from cramph.executor import StatechartExecutor
-from cramph.node import CancelStatechart
-from cramph.nodes_for_testing import ConstTrueNode, NodeAssertionError
+from cramph.node import CancelStatechart, StatechartNode
+from cramph.nodes_for_testing import (
+    ConstTrueNode,
+    NodeAssertionError,
+    NodeSucceedingOnObservingTrue,
+)
 from cramph.statechart import (
     StateHistory,
     StateHistoryItem,
@@ -253,3 +257,47 @@ def test_failed_settle_does_not_publish_partial_snapshot(
     assert caught.value is failure
     assert history_chart.history.history == snapshots
     assert recorder.snapshots == []
+
+
+# %% which nodes started and ended in the newest snapshot
+
+
+def _compiled_with(
+    statechart_context: StatechartContext, node: StatechartNode
+) -> StatechartExecutor:
+    """
+    :return: An executor that compiled a statechart running only `node`, which ticks it
+        once.
+    """
+    executor = StatechartExecutor(context=statechart_context)
+    statechart = Statechart(context=executor.context)
+    statechart.add_node(node)
+    executor.compile(statechart)
+    return executor
+
+
+def test_a_node_that_just_started_is_among_those_started_in_the_newest_snapshot(
+    statechart_context: StatechartContext,
+):
+    running = ConstTrueNode(name="running")
+
+    history = _compiled_with(statechart_context, running).statechart.history
+
+    assert (
+        history.nodes_started_in_latest_item(),
+        history.nodes_ended_in_latest_item(),
+    ) == ([running], [])
+
+
+def test_a_node_that_just_ended_is_among_those_ended_in_the_newest_snapshot(
+    statechart_context: StatechartContext,
+):
+    succeeding = NodeSucceedingOnObservingTrue(
+        name="succeeding", observation=ObservationStateValues.TRUE
+    )
+
+    executor = _compiled_with(statechart_context, succeeding)
+
+    executor.tick()
+
+    assert executor.statechart.history.nodes_ended_in_latest_item() == [succeeding]

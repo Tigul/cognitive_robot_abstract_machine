@@ -11,12 +11,11 @@ import atexit
 from dataclasses import dataclass, field
 from functools import partial
 
-from typing_extensions import Any, Callable, List, Optional
+from typing_extensions import Any, Callable, Optional
 
 from coraplex.plans.designator import DesignatorParameters
-from coraplex.plans.plan_callbacks import PlanCallback
 from coraplex.visualization import PlanVisualization, VisualizationSession
-from cramph.node import StatechartNode
+from cramph.executor import ExecutorExtension, StatechartExecutor
 from cramph.statechart import StateHistory, StateHistoryObserver, Statechart
 from semantic_digital_twin.callbacks.callback import (
     ModelChangeCallback,
@@ -87,80 +86,74 @@ class WorldModelSync(ModelChangeCallback):
 
 
 @dataclass
-class BridgePlanCallback(PlanCallback, StateHistoryObserver):
+class StatechartPublishing(ExecutorExtension, StateHistoryObserver):
     """
-    Publish the progress of the plans an executor runs, and of the statechart running
-    each of them.
+    Publish the progress of the statecharts an executor runs, and of the plan each of
+    them runs.
     """
 
     bridge: Bridge = field(kw_only=True)
     """
-    The bridge the plan's execution is published to.
+    The bridge the execution is published to.
     """
 
     _statechart: Optional[Statechart] = field(default=None, init=False, repr=False)
     """
-    The statechart running the plan, whose history this observes.
+    The statechart being published, whose history this observes.
     """
 
-    def on_compile(
-        self, plan_nodes: List[StatechartNode], statechart: Statechart
-    ) -> None:
+    def after_compile(self, executor: StatechartExecutor) -> None:
         """
-        Publish the plan's trees and statechart before its first node runs.
+        Start publishing the statechart `executor` compiled, unless it already is.
+        """
+        if executor.statechart is self._statechart:
+            return
+        self.observe(executor.statechart)
 
-        :param plan_nodes: The top-level nodes of the plan about to run.
-        :param statechart: The statechart running it.
+    def after_run(self, executor: StatechartExecutor) -> None:
+        """
+        Publish the statechart as the run left it, see :meth:`finish`.
+        """
+        self.finish()
+
+    def finish(self) -> None:
+        """
+        Publish the observed statechart as its run left it, and stop observing it.
+        """
+        self.bridge.observe_chart(self._statechart)
+        if self.bridge.recording is not None:
+            self.bridge.recording.update_statechart(self.bridge.executing_statechart())
+        self.stop()
+
+    def observe(self, statechart: Statechart) -> None:
+        """
+        Publish the plan's trees and the statechart before its first node runs, and
+        follow its history from then on.
+
+        :param statechart: The statechart about to run.
         """
         self.stop()
         self._statechart = statechart
         statechart.history.add_observer(self)
-        self.bridge.begin_plan(plan_nodes)
+        self.bridge.begin_plan(statechart)
         self.bridge.observe_chart(statechart)
-
-    def on_start(self, node: StatechartNode) -> None:
-        """
-        Publish execution of the started node.
-
-        :param node: The plan node that started.
-        """
-        if isinstance(node, DesignatorParameters):
-            self.bridge.observe_action_started(node)
-        self.bridge.snapshot_plan()
-
-    def on_end(self, node: StatechartNode) -> None:
-        """
-        Publish the completed node's final status.
-
-        :param node: The plan node that completed.
-        """
-        self.bridge.snapshot_plan()
-        if self.bridge.recording is not None:
-            self.bridge.recording.update_statechart(self.bridge.executing_statechart())
-
-    def on_finish(self, statechart: Statechart) -> None:
-        """
-        Publish the statechart as the plan's execution left it, and stop observing it.
-
-        :param statechart: The statechart that ran the plan.
-        """
-        self.bridge.observe_chart(statechart)
-        if self.bridge.recording is not None:
-            self.bridge.recording.update_statechart(self.bridge.executing_statechart())
-        self.stop()
 
     def on_state_change(self, history: StateHistory) -> None:
         """
-        Publish the chart and plan after a snapshot of the statechart changed.
+        Publish the chart and the plan after a snapshot of the statechart changed,
+        naming the chart after the action that started last.
 
         :param history: The subscribed history containing the changed state.
         """
+        for node in history.nodes_started_in_latest_item():
+            if isinstance(node, DesignatorParameters):
+                self.bridge.observe_action_started(node)
         self.bridge.observe_chart(self._statechart)
         self.bridge.snapshot_plan()
 
     def stop(self) -> None:
         """
-        Remove the subscription to the history of the statechart running the plan.
+        Remove the subscription to the history of the published statechart.
         """
         if self._statechart is not None:
             self._statechart.history.remove_observer(self)
@@ -242,11 +235,11 @@ class LiveVisualization(PlanVisualization):
     The registered finalizer for this session's capture.
     """
 
-    _plan_callbacks: list[BridgePlanCallback] = field(
+    _publishings: list[StatechartPublishing] = field(
         default_factory=list, init=False, repr=False
     )
     """
-    The callbacks whose history subscriptions belong to this session.
+    The executor extensions whose history subscriptions belong to this session.
     """
 
     def start(self) -> LiveVisualization:
@@ -282,24 +275,24 @@ class LiveVisualization(PlanVisualization):
         VisualizationSession.register(self.stop)
         return self
 
-    def plan_callback(self) -> BridgePlanCallback:
+    def executor_extension(self) -> StatechartPublishing:
         """
-        The callback that publishes the execution of an executor's plans to the viewer,
-        each plan's tree as soon as it is compiled.
+        The extension that publishes the statecharts an executor runs to the viewer,
+        each plan's trees as soon as it is compiled.
 
-        :return: The callback to register with the executor.
+        :return: The extension to add to the executor.
         """
-        callback = BridgePlanCallback(bridge=self.bridge)
-        self._plan_callbacks.append(callback)
-        return callback
+        publishing = StatechartPublishing(bridge=self.bridge)
+        self._publishings.append(publishing)
+        return publishing
 
     def stop(self) -> None:
         """
         Finalize this session's recording and release its callbacks and server.
         """
-        for callback in self._plan_callbacks:
-            callback.stop()
-        self._plan_callbacks.clear()
+        for publishing in self._publishings:
+            publishing.stop()
+        self._publishings.clear()
         if self._exit_callback is not None:
             atexit.unregister(self._exit_callback)
             self._exit_callback = None

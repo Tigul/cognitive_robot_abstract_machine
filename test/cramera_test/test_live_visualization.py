@@ -1,6 +1,6 @@
 """
 Tests of the cramera visualization backend: binding the bridge to a world through the
-world's own callbacks and publishing plan execution through plan callbacks.
+world's own callbacks and publishing plan execution through an executor extension.
 """
 
 from __future__ import annotations
@@ -16,14 +16,19 @@ from semantic_digital_twin.world_description.connections import (
 )
 from semantic_digital_twin.world_description.world_entity import Body
 
+from coraplex.plans.designator import DesignatorParameters
+from cramph.context import StatechartContext
 from cramph.data_types import LifeCycleValues
+from cramph.executor import StatechartExecutor
+from cramph.nodes_for_testing import ConstTrueNode
+from cramph.statechart import Statechart
 
 from cramera import paths
 from cramera.live import visualization as visualization_module
 from cramera.live.bridge import Bridge, TaskStatusName
 from cramera.live.recording import Recording, RecordingState
 from cramera.live.visualization import (
-    BridgePlanCallback,
+    StatechartPublishing,
     LiveVisualization,
     WorldModelSync,
     WorldStateSync,
@@ -180,19 +185,31 @@ class TestWorldSync:
 # %% plan synchronization
 
 
-class TestBridgePlanCallback:
+@dataclass(eq=False, repr=False)
+class ActionNamingTheChart(ConstTrueNode, DesignatorParameters):
+    """
+    A node that is an action, as far as naming the published chart goes.
+    """
+
+
+class TestStatechartPublishing:
     def test_compiling_publishes_the_plan_tree(self, motion_execution):
         motion_execution.compile()
 
         assert nodes_by_kind(motion_execution.bridge)["Sequence"] is not None
 
-    def test_a_started_action_names_the_chart(self, motion_execution):
-        action = make_plan_node("ActionNode", designator=ActionDescription.of())
-        motion_execution.compile()
+    def test_a_started_action_names_the_chart(self, world):
+        bridge = Bridge()
+        publishing = StatechartPublishing(bridge=bridge)
+        statechart = Statechart(context=StatechartContext(world=world))
+        statechart.add_node(action := ActionNamingTheChart(name="action"))
+        executor = StatechartExecutor(
+            context=statechart.context, extensions=[publishing]
+        )
 
-        motion_execution.callback.on_start(action)
+        executor.compile(statechart)
 
-        assert motion_execution.bridge._chart_title == "ActionNode"
+        assert bridge._chart_title == type(action).__name__
 
     def test_a_history_change_publishes_the_statechart(self, motion_execution):
         motion_execution.compile()
@@ -203,11 +220,8 @@ class TestBridgePlanCallback:
 
     def test_a_started_node_republishes_the_plan(self, motion_execution):
         motion_execution.compile()
-        motion_execution.motion.statechart.life_cycle_state[motion_execution.motion] = (
-            LifeCycleValues.RUNNING
-        )
 
-        motion_execution.callback.on_start(motion_execution.motion)
+        motion_execution.record(LifeCycleValues.RUNNING)
 
         assert (
             nodes_by_kind(motion_execution.bridge)["ConstTrueNode"]["status"]
@@ -341,13 +355,13 @@ class TestLiveVisualization:
         assert bridge.live_server is None
         assert state_sync not in world.state.state_change_callbacks
 
-    def test_plan_callback_publishes_the_plan_tree(self, world, monkeypatch):
+    def test_the_executor_extension_publishes_to_the_bridge(self, world, monkeypatch):
         bridge = Bridge()
         monkeypatch.setattr(
             visualization_module, "serve", lambda passed_bridge, port: ServerRecorder()
         )
         live = LiveVisualization(world=world, bridge=bridge).start()
-        callback = live.plan_callback()
+        publishing = live.executor_extension()
 
-        assert isinstance(callback, BridgePlanCallback)
-        assert callback.bridge is bridge
+        assert isinstance(publishing, StatechartPublishing)
+        assert publishing.bridge is bridge

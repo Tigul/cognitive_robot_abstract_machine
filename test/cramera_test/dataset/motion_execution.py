@@ -17,7 +17,7 @@ from cramph.statechart import StateHistoryItem, Statechart
 from semantic_digital_twin.world import World
 
 from cramera.live.bridge import Bridge
-from cramera.live.visualization import BridgePlanCallback
+from cramera.live.visualization import StatechartPublishing
 
 # %% motion execution fixture
 
@@ -25,7 +25,7 @@ from cramera.live.visualization import BridgePlanCallback
 @dataclass
 class MotionExecution:
     """
-    A plan and the statechart running it, observed by one visualization callback.
+    A plan and the statechart running it, observed by one visualization extension.
     """
 
     plan: Sequence
@@ -48,16 +48,17 @@ class MotionExecution:
     The published plan and chart state.
     """
 
-    callback: BridgePlanCallback
+    publishing: StatechartPublishing
     """
-    The subscriber observing this plan's history.
+    The extension observing this plan's history.
     """
 
     def compile(self) -> None:
         """
-        Tell the callback the plan is about to run, as an executor does on compile.
+        Tell the extension the statechart is about to run, as an executor does once it
+        compiled it.
         """
-        self.callback.on_compile([self.plan], self.chart)
+        self.publishing.observe(self.chart)
 
     def record(self, state: LifeCycleValues) -> None:
         """
@@ -85,5 +86,5 @@ def motion_execution() -> MotionExecution:
     chart = Statechart(context=StatechartContext(world=World()))
     chart.add_node(plan)
     bridge = Bridge()
-    callback = BridgePlanCallback(bridge=bridge)
-    return MotionExecution(plan, motion, chart, bridge, callback)
+    publishing = StatechartPublishing(bridge=bridge)
+    return MotionExecution(plan, motion, chart, bridge, publishing)

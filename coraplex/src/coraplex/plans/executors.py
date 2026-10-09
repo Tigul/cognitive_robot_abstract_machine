@@ -24,7 +24,6 @@ from coraplex.plans.failures import (
     MotionMadeNoProgress,
     MotionViolatedCollisionAvoidance,
 )
-from coraplex.plans.plan_callbacks import PlanCallback, PlanCallbackDispatcher
 from coraplex.plans.plan_transformation import PlanRewriting
 from coraplex.plans.underspecified import (
     UnderspecifiedChildChooser,
@@ -112,11 +111,6 @@ class PlanExecutor(Executor, ABC):
     """
     Whether debug messages are logged and every copy of the world a candidate is tried
     in is published to RViz, which needs :attr:`ros_node`.
-    """
-
-    callbacks: List[PlanCallback] = field(default_factory=list, kw_only=True)
-    """
-    The callbacks observing every plan this executor runs.
     """
 
     child_chooser: UnderspecifiedChildChooser = field(init=False)
@@ -216,11 +210,6 @@ class PlanExecutor(Executor, ABC):
         :param statechart: The statechart holding the plan, built in :attr:`context`.
         """
         self.prepare(statechart)
-        for callback in self.callbacks:
-            callback.on_compile(self.plan_nodes, statechart)
-        statechart.history.add_observer(
-            PlanCallbackDispatcher(plan_nodes=self.plan_nodes, callbacks=self.callbacks)
-        )
         super().compile(statechart)
 
     def execute(self) -> None:
@@ -245,9 +234,6 @@ class PlanExecutor(Executor, ABC):
             raise MotionMadeNoProgress(stalled) from stalled
         except CollisionViolatedError as violation:
             raise MotionViolatedCollisionAvoidance(violation) from violation
-        finally:
-            for callback in self.callbacks:
-                callback.on_finish(self.statechart)
 
     @abstractmethod
     def _run(self) -> None:
@@ -301,8 +287,7 @@ class SimulatedPlanExecutor(PlanExecutor, StatechartExecutor):
                 self.tick()
         finally:
             MotionControl.set_velocity_acceleration_jerk_to_zero(self.world)
-            self.statechart.cleanup_nodes()
-            self.context.cleanup()
+            self.finish_run()
         if self._plan_succeeded():
             return
         self._raise_if_out_of_candidates()

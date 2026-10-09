@@ -16,7 +16,8 @@ from coraplex.exceptions import (
     UnknownVisualizationOption,
     VisualizationBackendUnavailable,
 )
-from coraplex.plans.plan_callbacks import PlanCallback
+from cramph.context import StatechartContext
+from cramph.executor import ExecutorExtension, StatechartExecutor
 from coraplex.visualization import (
     PlanVisualization,
     WorldVisualization,
@@ -31,7 +32,6 @@ import coraplex.testing as testing_module
 from semantic_digital_twin.world import World
 
 from .test_demonstrations import RecordingDemonstration
-from coraplex.plans.executors import PlanExecutor, RobotPlanExecutor
 
 
 # %% optional provider
@@ -51,9 +51,9 @@ class ObservedScene(PlanVisualization):
     Whether the host stopped the scene.
     """
 
-    callbacks: list[PlanCallback] = field(default_factory=list)
+    extensions: list[ExecutorExtension] = field(default_factory=list)
     """
-    The plan callbacks this scene created, one per executor attached to it.
+    The executor extensions this scene created, one per executor attached to it.
     """
 
     def start(self):
@@ -69,21 +69,21 @@ class ObservedScene(PlanVisualization):
         """
         self.stopped = True
 
-    def plan_callback(self) -> PlanCallback:
+    def executor_extension(self) -> ExecutorExtension:
         """
-        Create an observer for the plans of one executor.
+        Create an observer for the statecharts of one executor.
         """
-        callback = PlanCallback()
-        self.callbacks.append(callback)
-        return callback
+        extension = ExecutorExtension()
+        self.extensions.append(extension)
+        return extension
 
 
-def an_executor() -> PlanExecutor:
+def an_executor() -> StatechartExecutor:
     """
-    :return: An executor whose plans a visualization can observe, without a world of
-        its own to run them in.
+    :return: An executor whose statecharts a visualization can observe, with no
+        extension of its own.
     """
-    return RobotPlanExecutor(Mock(spec=World))
+    return StatechartExecutor(context=StatechartContext(world=World()))
 
 
 @pytest.fixture
@@ -127,11 +127,11 @@ def test_explicit_backend_selection_uses_installed_provider(
     )
     assert provider.world is world
     assert provider.started
-    assert len(provider.callbacks) == 1
-    assert executor.callbacks == provider.callbacks
+    assert len(provider.extensions) == 1
+    assert executor.extensions == provider.extensions
     selected.stop()
     assert provider.stopped
-    assert executor.callbacks == []
+    assert executor.extensions == []
     assert not selected.is_rendering
 
 
@@ -202,7 +202,7 @@ def test_demonstration_keeps_all_repetitions_and_explicit_viewer(
     try:
         demonstration.run()
         selected = demonstration.visualization
-        assert len(selected.provider.callbacks) == demonstration.repetitions
+        assert len(selected.provider.extensions) == demonstration.repetitions
         assert selected.is_rendering
     finally:
         demonstration.stop_visualization()
@@ -349,8 +349,8 @@ def test_attaching_same_executor_twice_observes_it_once(installed_scene) -> None
     try:
         selected.attach_plan(executor)
         selected.attach_plan(executor)
-        assert len(selected.provider.callbacks) == 1
-        assert executor.callbacks == selected.provider.callbacks
+        assert len(selected.provider.extensions) == 1
+        assert executor.extensions == selected.provider.extensions
     finally:
         selected.stop()
 
@@ -363,7 +363,7 @@ def test_stop_accepts_a_callback_already_removed_by_caller(installed_scene) -> N
     provider = selected.provider
     executor = an_executor()
     selected.attach_plan(executor)
-    executor.callbacks.clear()
+    executor.extensions.clear()
     selected.stop()
     assert provider.stopped
     assert not selected.is_rendering

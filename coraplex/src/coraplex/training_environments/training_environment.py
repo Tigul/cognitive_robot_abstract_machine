@@ -55,17 +55,18 @@ from semantic_digital_twin.world_description.world_entity import Body
 @dataclass
 class TrainingEpisode:
     """
-    The plan one episode of training executes, and the executor executing it.
+    The underspecified action one episode of training executes, and the executor
+    executing it.
     """
 
-    plan: UnderspecifiedNode
+    action: UnderspecifiedNode
     """
     The underspecified action whose grounded variants the episode tries.
     """
 
     executor: SimulatedPlanExecutor
     """
-    The executor running the plan in the world built for the episode.
+    The executor running the action in the world built for the episode.
     """
 
 
@@ -104,12 +105,11 @@ class TrainingEnvironment(ABC):
     @abstractmethod
     def setup_episode(self, limit: int = 10, **kwargs) -> TrainingEpisode:
         """
-        Create a plan with an underspecified node as a root, in a world of its own.
-
-        This plan is used to generate variants of the actions.
+        Create an underspecified action, in a world of its own, whose grounded variants
+        the episode tries.
 
         :param limit: The maximum number of actions that should be executed.
-        :return: The plan and the context it is executed in.
+        :return: The action and the executor executing it.
         """
 
     def generate_episodes(self, number_of_actions: int = 10):
@@ -133,7 +133,6 @@ class TrainingEnvironment(ABC):
         :return: The number of actions executed in the episode.
         """
         episode = self.setup_episode(limit)
-        plan = episode.plan
 
         if self.visualize:
             import rclpy
@@ -145,17 +144,17 @@ class TrainingEnvironment(ABC):
 
         executor = episode.executor
         statechart = Statechart(context=executor.context)
-        statechart.add_node(plan)
+        statechart.add_node(episode.action)
         try:
             executor.compile(statechart)
             executor.execute()
         except EmptyUnderspecified:
             # No working solution found in this episode
             pass
-        self.executed_plans.append(plan)
+        self.executed_plans.append(episode.action)
 
-        self.tried_actions.extend(plan.chosen_actions)
-        number_of_executed_variants = len(plan.chosen_actions)
+        self.tried_actions.extend(episode.action.chosen_actions)
+        number_of_executed_variants = len(episode.action.chosen_actions)
 
         if self.visualize:
             pub.stop()
@@ -243,7 +242,7 @@ class MoveToReachTrainingEnvironment(TrainingEnvironment):
         )
 
         return TrainingEpisode(
-            plan=UnderspecifiedNode(statement=move_to_reach), executor=executor
+            action=UnderspecifiedNode(statement=move_to_reach), executor=executor
         )
 
     def setup_backend(self, underspecified_action: Match) -> ProbabilisticBackend:

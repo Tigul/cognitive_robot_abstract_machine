@@ -1044,6 +1044,55 @@ class StateHistory:
         for observer in tuple(self.observers):
             observer.on_state_change(self)
 
+    def nodes_started_in_latest_item(self) -> List[StatechartNode]:
+        """
+        :return: The nodes the newest snapshot shows running, or past running, that had
+            not started in the snapshot before it, in index order.
+        """
+        return [
+            change.node
+            for change in self._life_cycle_changes_of_latest_item()
+            if change.previous_state == LifeCycleValues.NOT_STARTED
+        ]
+
+    def nodes_ended_in_latest_item(self) -> List[StatechartNode]:
+        """
+        :return: The nodes that reached a terminal life cycle state in the newest
+            snapshot, in index order.
+        """
+        return [
+            change.node
+            for change in self._life_cycle_changes_of_latest_item()
+            if change.new_state.is_terminal
+        ]
+
+    def _life_cycle_changes_of_latest_item(self) -> List[LifeCycleChange]:
+        """
+        :return: Every change of a life cycle state from the snapshot before the newest
+            one to the newest one; a node that joined since changed from not started.
+        """
+        if not self.history:
+            return []
+        current = self.history[-1]
+        previous = self.history[-2] if len(self.history) > 1 else None
+        changes = []
+        for node in current.life_cycle_state.keys():
+            previous_state = (
+                previous.life_cycle_state[node]
+                if previous is not None and previous.records(node)
+                else LifeCycleValues.NOT_STARTED
+            )
+            current_state = current.life_cycle_state[node]
+            if previous_state != current_state:
+                changes.append(
+                    LifeCycleChange(
+                        node=node,
+                        previous_state=previous_state,
+                        new_state=current_state,
+                    )
+                )
+        return changes
+
     def get_life_cycle_history_of_node(
         self, node: StatechartNode
     ) -> list[LifeCycleValues]:

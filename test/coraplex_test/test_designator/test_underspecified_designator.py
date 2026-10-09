@@ -20,7 +20,7 @@ from coraplex.plans.failures import (
     PlanFailure,
 )
 from cramph.threaded_nodes import FunctionCall
-from coraplex.plans.plan_callbacks import PlanCallback
+from cramph.statechart import StateHistory, StateHistoryObserver
 from coraplex.plans.underspecified import (
     ActionTrial,
     UnderspecifiedChildChooser,
@@ -392,13 +392,18 @@ def test_the_underspecified_steps_of_one_plan_are_tried_against_one_copy(
 
 
 @dataclass
-class _FailsWhenThePlanEnds(PlanCallback):
+class _FailsWhenThePlanEnds(StateHistoryObserver):
     """
     An observer that fails once the root of the plan it observes ends.
     """
 
-    def on_end(self, node: StatechartNode) -> None:
-        if node.parent_node is None:
+    plan: StatechartNode
+    """
+    The root of the observed plan.
+    """
+
+    def on_state_change(self, history: StateHistory) -> None:
+        if self.plan in history.nodes_ended_in_latest_item():
             raise RuntimeError("observer failed at the end of the plan")
 
 
@@ -452,9 +457,11 @@ def test_a_plan_releases_its_trial_copy_even_when_an_observer_fails(
     """
     world, robot, extensions = apartment_world_pr2_copy_with_context
     plan = _plan_of_two_underspecified_steps(world)
-    executor = simulated_executor(extensions, callbacks=[_FailsWhenThePlanEnds()])
+    executor = simulated_executor(extensions)
+    statechart = statechart_of(executor, plan)
+    statechart.history.add_observer(_FailsWhenThePlanEnds(plan=plan))
 
-    executor.compile(statechart_of(executor, plan))
+    executor.compile(statechart)
     with pytest.raises(RuntimeError):
         executor.execute()
 

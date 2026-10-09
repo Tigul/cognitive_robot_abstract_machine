@@ -203,8 +203,8 @@ class ExecutorExtension:
 
     def after_run(self, executor: StatechartExecutor) -> None:
         """
-        Called once :meth:`StatechartExecutor.tick_until_end` stops, before the nodes
-        are cleaned up.
+        Called once a run stops, see :meth:`StatechartExecutor.finish_run`, before the
+        nodes are cleaned up.
 
         :param executor: The executor this extension belongs to.
         """
@@ -390,7 +390,14 @@ class StatechartExecutor(Executor, RecompileCallback):
                     return
             raise TimeoutError("Timeout reached while waiting for end of statechart.")
         finally:
-            for extension in self.extensions:
-                extension.after_run(self)
-            self.statechart.cleanup_nodes()
-            self.context.cleanup()
+            self.finish_run()
+
+    def finish_run(self) -> None:
+        """
+        Tell every extension that the run stopped, then clean up the nodes and the
+        context, however the run stopped.
+        """
+        for extension in self.extensions:
+            extension.after_run(self)
+        self.statechart.cleanup_nodes()
+        self.context.cleanup()

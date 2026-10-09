@@ -33,6 +33,7 @@ from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.geometry import Color, Scale
 from coraplex.plans.context_extensions import RobotAccess
 from coraplex.plans.executors import SimulatedPlanExecutor
+from cramph.context import StatechartContext
 from cramph.statechart import Statechart
 from cramph.composites import Sequence
 
@@ -143,42 +144,48 @@ def standing_pose_in_front_of(pose: Pose, world: World) -> Pose:
     )
 
 
-def build_plan(
-    world: World, robot: UnitreeG1, source: Pose, destination: Pose, turn: float
-) -> Sequence:
+def build_statechart(
+    context: StatechartContext, source: Pose, destination: Pose, turn: float
+) -> Statechart:
     """
-    :param world: The world the plan acts in.
-    :param robot: The robot carrying out the plan.
+    :param context: The context the plan runs in, holding the robot carrying it out.
     :param source: Where the parcel stands when the plan starts.
     :param destination: Where the parcel is to be put down.
     :param turn: The yaw the robot turns by on the spot before it walks to the
         destination, so it does not walk through the pallet stack it took the parcel
         from.
-    :return: The plan carrying the parcel from one pallet stack to the other.
+    :return: The statechart carrying the parcel from one pallet stack to the other.
     """
+    world = context.world
+    robot = context.require_extension(RobotAccess).robot
     parcel = world.get_semantic_annotations_by_type(Parcel)[0]
-
-    return Sequence(
-        [
-            ParkArmsAction(robot.all_arms),
-            NavigateAction(standing_pose_in_front_of(source, world)),
-            PickUpAction(GraspCandidate.from_body_origin(parcel), robot.torso.left_arm),
-            ParkArmsAction(robot.all_arms),
-            straighten_torso(robot),
-            NavigateAction(Pose.from_xyz_rpy(yaw=turn, reference_frame=robot.root)),
-            NavigateAction(standing_pose_in_front_of(destination, world)),
-            PlaceAction(
-                parcel,
-                Pose(
-                    destination.to_position(),
-                    destination.to_quaternion(),
-                    reference_frame=world.root,
+    statechart = Statechart(context=context)
+    statechart.add_node(
+        Sequence(
+            [
+                ParkArmsAction(robot.all_arms),
+                NavigateAction(standing_pose_in_front_of(source, world)),
+                PickUpAction(
+                    GraspCandidate.from_body_origin(parcel), robot.torso.left_arm
                 ),
-            ),
-            ParkArmsAction(robot.all_arms),
-            straighten_torso(robot),
-        ]
+                ParkArmsAction(robot.all_arms),
+                straighten_torso(robot),
+                NavigateAction(Pose.from_xyz_rpy(yaw=turn, reference_frame=robot.root)),
+                NavigateAction(standing_pose_in_front_of(destination, world)),
+                PlaceAction(
+                    parcel,
+                    Pose(
+                        destination.to_position(),
+                        destination.to_quaternion(),
+                        reference_frame=world.root,
+                    ),
+                ),
+                ParkArmsAction(robot.all_arms),
+                straighten_torso(robot),
+            ]
+        )
     )
+    return statechart
 
 
 def lowest_collision_point_of(robot: UnitreeG1, world: World) -> float:
@@ -199,14 +206,15 @@ def lowest_collision_point_of(robot: UnitreeG1, world: World) -> float:
 # %% running the demo
 
 
-def run(plan: Sequence, world: World, robot: UnitreeG1) -> None:
+def run(
+    source: Pose, destination: Pose, turn: float, world: World, robot: UnitreeG1
+) -> None:
     """
-    Run `plan` of `robot` in `world`, simulated.
+    Carry the parcel from `source` to `destination` with `robot` in `world`, simulated,
+    see :func:`build_statechart`.
     """
     executor = SimulatedPlanExecutor(world, context_extensions=[RobotAccess(robot)])
-    statechart = Statechart(context=executor.context)
-    statechart.add_node(plan)
-    executor.compile(statechart)
+    executor.compile(build_statechart(executor.context, source, destination, turn))
     executor.execute()
 
 
@@ -220,12 +228,9 @@ assert abs(lowest_collision_point_of(robot, world)) < 1e-3
 start_visualization(world)
 
 for _ in range(10):
-    for plan in (
-        build_plan(world, robot, PICK_POSE, PLACE_POSE, turn=-1.57),
-        build_plan(world, robot, PLACE_POSE, PICK_POSE, turn=1.57),
-    ):
-        run(plan, world, robot)
-run(build_plan(world, robot, PICK_POSE, PLACE_POSE, turn=-1.57), world, robot)
+    run(PICK_POSE, PLACE_POSE, -1.57, world, robot)
+    run(PLACE_POSE, PICK_POSE, 1.57, world, robot)
+run(PICK_POSE, PLACE_POSE, -1.57, world, robot)
 
 parcel_position = world.get_body_by_name("parcel").global_pose
 print(f"parcel delivered to {np.round(parcel_position.to_position(), 3)}")
