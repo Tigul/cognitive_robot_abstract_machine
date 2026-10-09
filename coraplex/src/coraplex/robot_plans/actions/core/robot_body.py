@@ -19,11 +19,11 @@ from coraplex.datastructures.trajectory import PoseTrajectory
 from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.base import ActionDescription, DescriptionType
 from coraplex.robot_plans.mixins import (
-    ArmDrivenToGoal,
+    ArmGoalParameters,
     EndEffectorPoseParameters,
     GripperActuationParameters,
-    HasMaxJointVelocity,
-    TorsoStateSet,
+    MaxJointVelocityParameter,
+    TorsoStateParameter,
 )
 from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
@@ -37,7 +37,7 @@ from semantic_digital_twin.datastructures.definitions import (
 
 
 @dataclass
-class MoveTorsoAction(ActionDescription, TorsoStateSet):
+class MoveTorsoAction(ActionDescription, TorsoStateParameter):
     """
     Move the torso of the robot up and down.
     """
@@ -79,7 +79,7 @@ class SetGripperAction(ActionDescription, GripperActuationParameters):
 
 
 @dataclass
-class ParkArmsAction(ActionDescription, HasMaxJointVelocity):
+class ParkArmsAction(ActionDescription, MaxJointVelocityParameter):
     """
     Park the arms of the robot.
     """
@@ -115,7 +115,7 @@ class ParkArmsAction(ActionDescription, HasMaxJointVelocity):
 
 
 @dataclass
-class FollowToolCenterPointPathAction(ActionDescription, ArmDrivenToGoal):
+class FollowToolCenterPointPathAction(ActionDescription, ArmGoalParameters):
     """
     Represents an action to move a robotic arm's TCP (Tool Center Point) along a path of
     poses.

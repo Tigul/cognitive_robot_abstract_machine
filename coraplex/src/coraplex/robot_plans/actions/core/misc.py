@@ -12,9 +12,9 @@ from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import MoveManipulatorAction
 from coraplex.robot_plans.mixins import (
-    HasApproachesGraspPoses,
-    ToolCenterPointGoalThresholds,
-    UsedEndEffector,
+    GraspApproachParameters,
+    GoalThresholdParameters,
+    EndEffectorParameter,
 )
 from coraplex.robot_plans.motions.misc import DetectingMotion
 from semantic_digital_twin.spatial_types import (
@@ -135,9 +135,9 @@ class DetectAction(ActionDescription):
 @dataclass
 class MoveToReach(
     ActionDescription,
-    UsedEndEffector,
-    HasApproachesGraspPoses,
-    ToolCenterPointGoalThresholds,
+    EndEffectorParameter,
+    GraspApproachParameters,
+    GoalThresholdParameters,
 ):
     """
     Let the robot move to a position facing the target and reach with a end_effector.

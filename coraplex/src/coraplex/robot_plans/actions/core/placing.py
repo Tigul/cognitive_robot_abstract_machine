@@ -21,11 +21,11 @@ from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.mixins import (
-    HasApproachesGraspPoses,
-    ObjectActedOn,
+    GraspApproachParameters,
+    GraspableObjectParameter,
     PlaceTuningParameters,
-    TargetLocationMovedTo,
-    ToolCenterPointGoalThresholds,
+    PlacementTargetParameter,
+    GoalThresholdParameters,
 )
 from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
@@ -41,10 +41,10 @@ from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 @dataclass
 class PlaceAction(
     ActionDescription,
-    ObjectActedOn,
-    TargetLocationMovedTo,
-    ToolCenterPointGoalThresholds,
-    HasApproachesGraspPoses,
+    GraspableObjectParameter,
+    PlacementTargetParameter,
+    GoalThresholdParameters,
+    GraspApproachParameters,
     PlaceTuningParameters,
 ):
     """

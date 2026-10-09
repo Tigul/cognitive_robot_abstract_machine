@@ -27,11 +27,11 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import Body
 from coraplex.exceptions import MissingToolFrame, MissingWaypoints
 from coraplex.robot_plans.mixins import (
-    ArmDrivenToGoal,
-    CartesianMovementLimited,
+    ArmGoalParameters,
+    CartesianVelocityLimitParameters,
     EndEffectorPoseParameters,
-    GripperCollisionAllowed,
-    GripperStallTolerated,
+    GripperCollisionParameter,
+    GripperStallToleranceParameters,
 )
 from coraplex.robot_plans.motions.base import BaseMotion
 from coraplex.datastructures.enums import (
@@ -41,7 +41,9 @@ from coraplex.datastructures.enums import (
 
 
 @dataclass
-class MoveGripperMotion(BaseMotion, GripperStallTolerated, GripperCollisionAllowed):
+class MoveGripperMotion(
+    BaseMotion, GripperStallToleranceParameters, GripperCollisionParameter
+):
     """
     Opens or closes the gripper.
     """
@@ -92,9 +94,9 @@ class MoveGripperMotion(BaseMotion, GripperStallTolerated, GripperCollisionAllow
 @dataclass
 class MoveToolCenterPointMotion(
     BaseMotion,
-    ArmDrivenToGoal,
-    GripperCollisionAllowed,
-    CartesianMovementLimited,
+    ArmGoalParameters,
+    GripperCollisionParameter,
+    CartesianVelocityLimitParameters,
 ):
     """
     Moves the Tool center point (TCP) of the robot.
@@ -177,7 +179,7 @@ class MoveToolCenterPointMotion(
 
 
 @dataclass
-class MoveTCPWaypointsMotion(BaseMotion, ArmDrivenToGoal, GripperCollisionAllowed):
+class MoveTCPWaypointsMotion(BaseMotion, ArmGoalParameters, GripperCollisionParameter):
     """
     Moves the Tool center point (TCP) of the robot.
     """
@@ -222,7 +224,7 @@ class MoveTCPWaypointsMotion(BaseMotion, ArmDrivenToGoal, GripperCollisionAllowe
 
 
 @dataclass
-class MoveTCPWaypointsAlignedMotion(BaseMotion, ArmDrivenToGoal):
+class MoveTCPWaypointsAlignedMotion(BaseMotion, ArmGoalParameters):
     """
     Moves the tool center point (TCP) of the robot along waypoints while keeping the
     given plane alignments.

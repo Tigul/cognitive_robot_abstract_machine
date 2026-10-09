@@ -3,12 +3,12 @@ from dataclasses import dataclass
 from giskardpy.motion_statechart.goals.open_close import Open, Close
 from semantic_digital_twin.world_description.world_entity import Body
 
-from coraplex.robot_plans.mixins import UsedArm
+from coraplex.robot_plans.mixins import ArmParameter
 from coraplex.robot_plans.motions.base import BaseMotion
 
 
 @dataclass
-class OpeningMotion(BaseMotion, UsedArm):
+class OpeningMotion(BaseMotion, ArmParameter):
     """
     Designator for opening container.
     """
@@ -28,7 +28,7 @@ class OpeningMotion(BaseMotion, UsedArm):
 
 
 @dataclass
-class ClosingMotion(BaseMotion, UsedArm):
+class ClosingMotion(BaseMotion, ArmParameter):
     """
     Designator for closing a container.
     """

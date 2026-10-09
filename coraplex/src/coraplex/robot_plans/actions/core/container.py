@@ -20,7 +20,7 @@ from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.actions.core.pick_up import GraspingAction
 from coraplex.robot_plans.mixins import (
     HandleOperationParameters,
-    HasApproachesGraspPoses,
+    GraspApproachParameters,
 )
 from coraplex.robot_plans.motions.container import OpeningMotion, ClosingMotion
 from coraplex.robot_plans.motions.gripper import MoveGripperMotion
@@ -37,7 +37,7 @@ class OpenAction(ActionDescription, HandleOperationParameters):
     Opens a container like object.
     """
 
-    approach_clearance: float = HasApproachesGraspPoses.approach_clearance
+    approach_clearance: float = GraspApproachParameters.approach_clearance
     """
     The gap in meters between the handle and the gripper before it closes on it.
     """
@@ -101,7 +101,7 @@ class CloseAction(ActionDescription, HandleOperationParameters):
     Closes a container like object.
     """
 
-    approach_clearance: float = HasApproachesGraspPoses.approach_clearance
+    approach_clearance: float = GraspApproachParameters.approach_clearance
     """
     The gap in meters between the handle and the gripper before it closes on it.
     """

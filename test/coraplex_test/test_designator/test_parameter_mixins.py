@@ -12,30 +12,32 @@ from coraplex.robot_plans.actions.core.robot_body import (
     ParkArmsAction,
     SetGripperAction,
 )
+from coraplex.robot_plans.motions.base import BaseMotion
 from coraplex.robot_plans.motions.navigation import MoveMotion
+from coraplex.robot_plans.motions.robot_body import MoveJointsMotion
 from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
     MoveManipulatorMotion,
     MoveToolCenterPointMotion,
 )
 from coraplex.robot_plans.mixins import (
-    ArmDrivenToGoal,
+    ArmGoalParameters,
     EndEffectorPoseParameters,
     GraspParameters,
     GripperActuationParameters,
-    GripperStallTolerated,
-    GripperStateSet,
-    HandleOperatedOn,
-    HasApproachesGraspPoses,
-    NavigationTarget,
+    GripperStallToleranceParameters,
+    GripperStateParameter,
+    HandleParameter,
+    GraspApproachParameters,
+    NavigationTargetParameter,
     HandleOperationParameters,
-    ObjectActedOn,
+    GraspableObjectParameter,
     PlaceTuningParameters,
-    TargetLocationMovedTo,
-    ToolCenterPointGoalThresholds,
-    UsedArm,
-    UsedEndEffector,
-    UsedGrasp,
+    PlacementTargetParameter,
+    GoalThresholdParameters,
+    ArmParameter,
+    EndEffectorParameter,
+    GraspCandidateParameter,
 )
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle, Milk
@@ -43,26 +45,26 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 
 def test_action_inherits_parameter_mixins():
-    assert issubclass(PickUpAction, UsedArm)
-    assert issubclass(PickUpAction, UsedGrasp)
+    assert issubclass(PickUpAction, ArmParameter)
+    assert issubclass(PickUpAction, GraspCandidateParameter)
 
 
 def test_bundle_mixins_compose_leaf_mixins():
     # bundles inherit their constituent leaf mixins ...
-    assert issubclass(GraspParameters, UsedGrasp)
-    assert issubclass(GraspParameters, UsedArm)
-    assert issubclass(GraspParameters, HasApproachesGraspPoses)
-    assert issubclass(GraspParameters, ArmDrivenToGoal)
-    assert issubclass(GripperActuationParameters, GripperStateSet)
-    assert issubclass(GripperActuationParameters, UsedEndEffector)
-    assert issubclass(HandleOperationParameters, HandleOperatedOn)
-    assert issubclass(HandleOperationParameters, UsedArm)
+    assert issubclass(GraspParameters, GraspCandidateParameter)
+    assert issubclass(GraspParameters, ArmParameter)
+    assert issubclass(GraspParameters, GraspApproachParameters)
+    assert issubclass(GraspParameters, ArmGoalParameters)
+    assert issubclass(GripperActuationParameters, GripperStateParameter)
+    assert issubclass(GripperActuationParameters, EndEffectorParameter)
+    assert issubclass(HandleOperationParameters, HandleParameter)
+    assert issubclass(HandleOperationParameters, ArmParameter)
 
 
 def test_classes_inherit_bundle_mixins():
     # ... and concrete classes inherit the bundles while still exposing the leaf interface.
     assert issubclass(PickUpAction, GraspParameters)
-    assert issubclass(PickUpAction, UsedArm)
+    assert issubclass(PickUpAction, ArmParameter)
     assert issubclass(OpenAction, HandleOperationParameters)
     assert issubclass(MoveGripperMotion, GripperActuationParameters)
 
@@ -92,8 +94,8 @@ def test_move_gripper_motion_exposes_its_end_effector(pr2_apartment_context):
 
     assert motion.end_effector is end_effector
     assert motion.motion is GripperState.OPEN
-    assert issubclass(MoveGripperMotion, UsedEndEffector)
-    assert issubclass(MoveGripperMotion, GripperStateSet)
+    assert issubclass(MoveGripperMotion, EndEffectorParameter)
+    assert issubclass(MoveGripperMotion, GripperStateParameter)
 
 
 def test_open_action_operates_on_handle(pr2_apartment_context):
@@ -105,8 +107,8 @@ def test_open_action_operates_on_handle(pr2_apartment_context):
 
     assert action.handle is handle
     assert action.arm is arm
-    assert issubclass(OpenAction, HandleOperatedOn)
-    assert issubclass(OpenAction, UsedArm)
+    assert issubclass(OpenAction, HandleParameter)
+    assert issubclass(OpenAction, ArmParameter)
 
 
 # %% runtime resolution of the inherited field types
@@ -130,11 +132,12 @@ def test_inherited_parameters_keep_their_declared_types():
     hints = field_types(PlaceAction)
 
     assert (
-        hints["object_designator"] is ObjectActedOn.__annotations__["object_designator"]
+        hints["object_designator"]
+        is GraspableObjectParameter.__annotations__["object_designator"]
     )
     assert (
         hints["target_location"]
-        is TargetLocationMovedTo.__annotations__["target_location"]
+        is PlacementTargetParameter.__annotations__["target_location"]
     )
     assert (
         hints["placing_linear_velocity"]
@@ -150,14 +153,14 @@ def test_behaviours_driving_a_tool_center_point_carry_their_own_tolerances():
     The goal tolerances belong to driving an arm to a goal, so a behaviour that does
     that has them without naming a second mixin.
     """
-    assert issubclass(MoveToolCenterPointMotion, ArmDrivenToGoal)
-    assert issubclass(ArmDrivenToGoal, UsedArm)
-    assert issubclass(ArmDrivenToGoal, ToolCenterPointGoalThresholds)
+    assert issubclass(MoveToolCenterPointMotion, ArmGoalParameters)
+    assert issubclass(ArmGoalParameters, ArmParameter)
+    assert issubclass(ArmGoalParameters, GoalThresholdParameters)
 
     hints = field_types(MoveToolCenterPointMotion)
     assert (
         hints["position_threshold"]
-        == ToolCenterPointGoalThresholds.__annotations__["position_threshold"]
+        == GoalThresholdParameters.__annotations__["position_threshold"]
     )
 
 
@@ -166,13 +169,13 @@ def test_behaviours_without_a_tool_center_point_goal_have_no_tolerances():
     Parking the arms and setting a gripper drive no tool center point, so folding the
     tolerances into the arm parameters must not reach them.
     """
-    assert not issubclass(ParkArmsAction, ToolCenterPointGoalThresholds)
+    assert not issubclass(ParkArmsAction, GoalThresholdParameters)
     assert "position_threshold" not in {
         parameter.name for parameter in dataclasses.fields(ParkArmsAction)
     }
 
     assert issubclass(SetGripperAction, GripperActuationParameters)
-    assert not issubclass(SetGripperAction, GripperStallTolerated)
+    assert not issubclass(SetGripperAction, GripperStallToleranceParameters)
     assert "tolerate_stall" not in {
         parameter.name for parameter in dataclasses.fields(SetGripperAction)
     }
@@ -183,8 +186,8 @@ def test_only_the_gripper_motion_tolerates_a_stall():
     Stalling is something the motion commanding the fingers tolerates, so the stall
     parameters sit on the gripper actuation the motion uses rather than beside it.
     """
-    assert issubclass(MoveGripperMotion, GripperStallTolerated)
-    assert issubclass(GripperStallTolerated, GripperActuationParameters)
+    assert issubclass(MoveGripperMotion, GripperStallToleranceParameters)
+    assert issubclass(GripperStallToleranceParameters, GripperActuationParameters)
 
 
 def test_manipulator_action_and_motion_share_their_end_effector_pose_parameters(
@@ -212,8 +215,20 @@ def test_navigation_behaviours_take_a_planar_target():
     takes the same planar target.
     """
     for navigation in (NavigateAction, PathPlanningNavigateAction, MoveMotion):
-        assert issubclass(navigation, NavigationTarget)
+        assert issubclass(navigation, NavigationTargetParameter)
         assert (
             field_types(navigation)["target_location"]
-            == NavigationTarget.__annotations__["target_location"]
+            == NavigationTargetParameter.__annotations__["target_location"]
         )
+
+
+def test_move_joints_motion_takes_only_joint_targets_and_a_velocity_cap():
+    """
+    Moving joints needs the joints, their target positions and an optional speed cap; it
+    carries no end effector alignment.
+    """
+    joint_fields = {
+        parameter.name for parameter in dataclasses.fields(MoveJointsMotion)
+    } - {parameter.name for parameter in dataclasses.fields(BaseMotion)}
+
+    assert joint_fields == {"names", "positions", "max_joint_velocity"}

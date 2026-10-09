@@ -29,13 +29,17 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose, Pose2D
 
 @dataclass(eq=False)
 class DesignatorParameterMixin:
-    ...
+    """
+    Base of the reusable designator parameters: mixins that add keyword-only fields, and
+    the helpers that read them, to an action or motion.
+    """
+
 
 # %% behaviour parameters
 
 
 @dataclass(eq=False)
-class UsedArm(DesignatorParameterMixin):
+class ArmParameter(DesignatorParameterMixin):
     """
     Mixin for behaviours that operate one of the robot's arms.
     """
@@ -47,7 +51,7 @@ class UsedArm(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class UsedGrasp(DesignatorParameterMixin):
+class GraspCandidateParameter(DesignatorParameterMixin):
     """
     Mixin for behaviours that close a gripper on something. The grasp names the object it
     is on, so that is not asked for separately.
@@ -63,7 +67,7 @@ class UsedGrasp(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class ObjectActedOn(DesignatorParameterMixin):
+class GraspableObjectParameter(DesignatorParameterMixin):
     """
     Mixin for behaviours that act on a single graspable object.
     """
@@ -76,7 +80,7 @@ class ObjectActedOn(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class HandleOperatedOn(DesignatorParameterMixin):
+class HandleParameter(DesignatorParameterMixin):
     """
     Mixin for behaviours that grasp and articulate a handle, such as opening or closing a
     container.
@@ -90,7 +94,7 @@ class HandleOperatedOn(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class GripperCollisionAllowed(DesignatorParameterMixin):
+class GripperCollisionParameter(DesignatorParameterMixin):
     """
     Mixin for behaviours that may permit the gripper to collide with the environment.
     """
@@ -102,7 +106,7 @@ class GripperCollisionAllowed(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class TargetLocationMovedTo(DesignatorParameterMixin):
+class PlacementTargetParameter(DesignatorParameterMixin):
     """
     Mixin for behaviours that move an object to a destination pose.
     """
@@ -114,7 +118,7 @@ class TargetLocationMovedTo(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class NavigationTarget(DesignatorParameterMixin):
+class NavigationTargetParameter(DesignatorParameterMixin):
     """
     Mixin for behaviours that drive the robot's base to a spot on the floor.
     """
@@ -126,7 +130,7 @@ class NavigationTarget(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class TargetPoseReached(DesignatorParameterMixin):
+class TargetPoseParameter(DesignatorParameterMixin):
     """
     Mixin for behaviours that drive an end effector to a target pose.
     """
@@ -138,7 +142,7 @@ class TargetPoseReached(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class TargetLookedAt(DesignatorParameterMixin):
+class LookTargetParameter(DesignatorParameterMixin):
     """
     Mixin for behaviours that orient the robot toward a pose.
     """
@@ -150,7 +154,7 @@ class TargetLookedAt(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class UsedMovementType(DesignatorParameterMixin):
+class MovementTypeParameter(DesignatorParameterMixin):
     """
     Mixin for behaviours whose Cartesian motion follows a selectable movement type.
     """
@@ -162,7 +166,7 @@ class UsedMovementType(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class GripperStateSet(DesignatorParameterMixin):
+class GripperStateParameter(DesignatorParameterMixin):
     """
     Mixin for behaviours that set the gripper to an open or closed state.
     """
@@ -174,7 +178,7 @@ class GripperStateSet(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class UsedEndEffector(DesignatorParameterMixin):
+class EndEffectorParameter(DesignatorParameterMixin):
     """
     Mixin for behaviours that act through a specific end effector.
     """
@@ -186,7 +190,7 @@ class UsedEndEffector(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class UsedCamera(DesignatorParameterMixin):
+class CameraParameter(DesignatorParameterMixin):
     """
     Mixin for behaviours that point a camera.
     """
@@ -198,7 +202,7 @@ class UsedCamera(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class UsedTool(DesignatorParameterMixin):
+class ToolParameter(DesignatorParameterMixin):
     """
     Mixin for behaviours that manipulate an object with a held tool.
     """
@@ -210,7 +214,7 @@ class UsedTool(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class TorsoStateSet(DesignatorParameterMixin):
+class TorsoStateParameter(DesignatorParameterMixin):
     """
     Mixin for behaviours that set the torso to a defined state.
     """
@@ -222,32 +226,7 @@ class TorsoStateSet(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class LinkAlignmentApplied(DesignatorParameterMixin):
-    """
-    Mixin for behaviours that can align an end-effector link with a goal axis.
-
-    .. note:: The directional axes differ in representation between behaviours (axis identifier
-        versus normal vector) and therefore stay declared on the concrete classes.
-    """
-
-    align: Optional[bool] = field(default=False, kw_only=True)
-    """
-    Whether the end effector is aligned with a goal axis.
-    """
-
-    tip_link: Optional[str] = field(default=None, kw_only=True)
-    """
-    The name of the tip link to align.
-    """
-
-    root_link: Optional[str] = field(default=None, kw_only=True)
-    """
-    The name of the root link to align against.
-    """
-
-
-@dataclass(eq=False)
-class ToolCenterPointGoalThresholds(DesignatorParameterMixin):
+class GoalThresholdParameters(DesignatorParameterMixin):
     """
     Mixin for behaviours that count their tool-center-point goal as reached within a
     tolerance, falling back to
@@ -286,7 +265,7 @@ class ToolCenterPointGoalThresholds(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class GraspDetectionThreshold(DesignatorParameterMixin):
+class GraspDetectionThresholdParameter(DesignatorParameterMixin):
     """
     Mixin for behaviours that check whether an object is held between the gripper's
     fingers.
@@ -300,8 +279,8 @@ class GraspDetectionThreshold(DesignatorParameterMixin):
     """
 
 
-@dataclass
-class HasMaxJointVelocity(DesignatorParameterMixin):
+@dataclass(eq=False)
+class MaxJointVelocityParameter(DesignatorParameterMixin):
     """
     Adds an optional joint velocity cap to an action or motion.
 
@@ -343,8 +322,8 @@ class GraspPoseSequence:
     """
 
 
-@dataclass
-class HasApproachesGraspPoses(DesignatorParameterMixin):
+@dataclass(eq=False)
+class GraspApproachParameters(DesignatorParameterMixin):
     """
     Turns a grasp frame (x-axis along the approach, see
     :class:`~semantic_digital_twin.grasping.grasp_candidates.GraspCandidate`) into the
@@ -464,7 +443,7 @@ class HasApproachesGraspPoses(DesignatorParameterMixin):
 
 
 @dataclass(eq=False)
-class ArmDrivenToGoal(UsedArm, ToolCenterPointGoalThresholds):
+class ArmGoalParameters(ArmParameter, GoalThresholdParameters):
     """
     Bundle of the parameters for driving an arm's tool center point to a goal: the arm and
     how close to the goal it has to come.
@@ -472,7 +451,9 @@ class ArmDrivenToGoal(UsedArm, ToolCenterPointGoalThresholds):
 
 
 @dataclass(eq=False)
-class GraspParameters(UsedGrasp, ArmDrivenToGoal, HasApproachesGraspPoses):
+class GraspParameters(
+    GraspCandidateParameter, ArmGoalParameters, GraspApproachParameters
+):
     """
     Bundle of the parameters for taking hold of an object: the grasp, which names the
     object, the arm that takes hold by it, how close its tool center point has to come
@@ -481,7 +462,7 @@ class GraspParameters(UsedGrasp, ArmDrivenToGoal, HasApproachesGraspPoses):
 
 
 @dataclass(eq=False)
-class HandleOperationParameters(HandleOperatedOn, UsedArm):
+class HandleOperationParameters(HandleParameter, ArmParameter):
     """
     Bundle of the parameters for articulating a handle with an arm: the handle and the arm.
     """
@@ -489,10 +470,10 @@ class HandleOperationParameters(HandleOperatedOn, UsedArm):
 
 @dataclass(eq=False)
 class EndEffectorPoseParameters(
-    UsedEndEffector,
-    TargetPoseReached,
-    GripperCollisionAllowed,
-    ToolCenterPointGoalThresholds,
+    EndEffectorParameter,
+    TargetPoseParameter,
+    GripperCollisionParameter,
+    GoalThresholdParameters,
 ):
     """
     Bundle of the parameters for driving an end effector to a target pose: the end effector,
@@ -502,7 +483,7 @@ class EndEffectorPoseParameters(
 
 
 @dataclass(eq=False)
-class CameraTargetParameters(UsedCamera, TargetLookedAt):
+class CameraTargetParameters(CameraParameter, LookTargetParameter):
     """
     Bundle of the parameters for pointing a camera at a target: the camera and the pose it is
     pointed at.
@@ -510,7 +491,7 @@ class CameraTargetParameters(UsedCamera, TargetLookedAt):
 
 
 @dataclass(eq=False)
-class GripperActuationParameters(GripperStateSet, UsedEndEffector):
+class GripperActuationParameters(GripperStateParameter, EndEffectorParameter):
     """
     Bundle of the parameters for setting a gripper to an open or closed state: the gripper
     state and the end effector whose gripper is set.
@@ -518,7 +499,7 @@ class GripperActuationParameters(GripperStateSet, UsedEndEffector):
 
 
 @dataclass(eq=False)
-class GripperStallTolerated(GripperActuationParameters):
+class GripperStallToleranceParameters(GripperActuationParameters):
     """
     Bundle of the parameters for setting a gripper that may stall short of its target: the
     gripper state, the end effector, and how a stall is tolerated.
@@ -550,7 +531,7 @@ class GripperStallTolerated(GripperActuationParameters):
 
 
 @dataclass(eq=False)
-class CartesianMovementLimited(UsedMovementType):
+class CartesianVelocityLimitParameters(MovementTypeParameter):
     """
     Bundle of the parameters for a speed-capped Cartesian movement: the type of movement
     and the speeds the tool center point may not exceed.
@@ -577,8 +558,8 @@ class CartesianMovementLimited(UsedMovementType):
 # %% per-action tuning
 
 
-@dataclass
-class ReachTuningParameters(GraspDetectionThreshold):
+@dataclass(eq=False)
+class ReachTuningParameters(GraspDetectionThresholdParameter):
     """
     Tunable approach speeds and grasp sensitivity for reaching towards a target.
     """
@@ -599,7 +580,7 @@ class ReachTuningParameters(GraspDetectionThreshold):
     """
 
 
-@dataclass
+@dataclass(eq=False)
 class PickUpTuningParameters(ReachTuningParameters):
     """
     Tunable grasp speeds and target-object friction for picking an object up.
@@ -643,8 +624,8 @@ class PickUpTuningParameters(ReachTuningParameters):
     """
 
 
-@dataclass
-class PlaceTuningParameters(GraspDetectionThreshold):
+@dataclass(eq=False)
+class PlaceTuningParameters(GraspDetectionThresholdParameter):
     """
     Tunable transport, placing and release speeds, and grasp sensitivity, for putting an
     object down.

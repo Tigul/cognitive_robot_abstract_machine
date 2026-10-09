@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Optional
 
 from typing_extensions import List
 
@@ -12,15 +11,13 @@ from giskardpy.motion_statechart.tasks.joint_tasks import (
 from giskardpy.motion_statechart.tasks.pointing import Pointing
 from coraplex.robot_plans.mixins import (
     CameraTargetParameters,
-    HasMaxJointVelocity,
-    LinkAlignmentApplied,
+    MaxJointVelocityParameter,
 )
 from coraplex.robot_plans.motions.base import BaseMotion
-from semantic_digital_twin.spatial_types import Vector3
 
 
 @dataclass
-class MoveJointsMotion(BaseMotion, LinkAlignmentApplied, HasMaxJointVelocity):
+class MoveJointsMotion(BaseMotion, MaxJointVelocityParameter):
     """
     Moves any joint on the robot.
     """
@@ -32,18 +29,6 @@ class MoveJointsMotion(BaseMotion, LinkAlignmentApplied, HasMaxJointVelocity):
     positions: List[float]
     """
     Target positions of joints, should correspond to the list of names.
-    """
-
-    tip_normal: Optional[Vector3] = None
-    """
-    Normalized vector representing the current orientation axis of the end-effector
-    (optional).
-    """
-
-    root_normal: Optional[Vector3] = None
-    """
-    Normalized vector representing the desired orientation axis to align with
-    (optional).
     """
 
     def perform(self):
