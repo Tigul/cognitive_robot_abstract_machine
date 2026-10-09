@@ -81,7 +81,7 @@ plan = execute_single(NavigateAction(target_location=location.ground()), context
 with simulated_robot:
     plan.perform()
 
-pr2_view.root.parent_connection.origin = origin_pose.to_homogeneous_matrix()
+pr2_view.root.parent_connection.origin = origin_pose.homogeneous_matrix
 ```
 
 {meth}`~coraplex.locations.base.Location.ground` returns the first candidate. It is a pose near the countertop where
@@ -137,7 +137,7 @@ plan = execute_single(NavigateAction(target_location=location.ground()), context
 with simulated_robot:
     plan.perform()
 
-pr2_view.root.parent_connection.origin = origin_pose.to_homogeneous_matrix()
+pr2_view.root.parent_connection.origin = origin_pose.homogeneous_matrix
 ```
 
 ## Iterating the Candidates
@@ -183,7 +183,7 @@ navigate = a(NavigateAction)(
 with simulated_robot:
     sequential([navigate], context=context).perform()
 
-pr2_view.root.parent_connection.origin = origin_pose.to_homogeneous_matrix()
+pr2_view.root.parent_connection.origin = origin_pose.homogeneous_matrix
 ```
 
 ## Tuning the Costmaps

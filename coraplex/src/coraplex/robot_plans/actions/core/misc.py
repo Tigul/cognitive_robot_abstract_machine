@@ -184,7 +184,7 @@ class MoveToReach(
 
         :return: The calculated standing pose on the floor.
         """
-        reference_T_target = self.reference_T_grasp.to_homogeneous_matrix()
+        reference_T_target = self.reference_T_grasp.homogeneous_matrix
         target_V_robot = -Vector3(
             x=self.target_pose_offset_robot.x, y=self.target_pose_offset_robot.y
         )
@@ -203,7 +203,5 @@ class MoveToReach(
             reference_frame=self.reference_T_grasp.reference_frame,
         )
         reference_T_robot = reference_T_target @ target_T_robot
-        world_T_robot = self.world.transform(
-            reference_T_robot.to_pose(), self.world.root
-        )
+        world_T_robot = self.world.transform(reference_T_robot.pose, self.world.root)
         return Pose2D.from_pose(world_T_robot)

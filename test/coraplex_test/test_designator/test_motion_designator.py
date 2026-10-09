@@ -742,7 +742,7 @@ def test_looking_motion_pointing_parameters(pr2_apartment_context):
     )
     assert pointing.pointing_axis.reference_frame is camera.root
     assert pointing.goal_point.reference_frame is world.root
-    assert np.array_equal(pointing.goal_point.to_np(), target.to_position().to_np())
+    assert np.array_equal(pointing.goal_point.to_np(), target.position.to_np())
 
 
 # %% stretch tool center point
