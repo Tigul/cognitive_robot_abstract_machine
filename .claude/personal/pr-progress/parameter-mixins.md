@@ -36,6 +36,13 @@ Done:
 - costmap tests -> Pose2D candidates; cramera test gripper= -> end_effector=
 - all CI-failing modules + both demos pass locally
 
+## plan_transformations.md notebook fix (2026-10-09) — uncommitted
+- notebook compared Point3 (robot pose) with Point2 (Pose2D target); Point2 had
+  no generic_vector/euclidean_distance
+- euclidean_distance moved to Point base, abstract generic_vector, Point2 implements
+  it; 2 new tests in test_point2.py; notebook measures the drive with
+  Point2.from_pose; notebook passes via coraplex/scripts/test_notebook_examples.sh
+
 Next:
 - push when the user asks; set PR back to draft; then reply to + resolve the 4
   review threads (4227921325/4227928570 alignment, 4227930644 doc, 4228314292 naming)
