@@ -30,7 +30,12 @@ Done:
   HasApproachesGraspPoses->GraspApproachParameters); all mixins eq=False
 - ORM regenerated; affected tests pass (DAiSy fixture errors = xacro ur_type env issue)
 
+## CI fix after main merge 78210f0e9d — committed locally (not pushed)
+- pose_facing broke for Pose2D (Point2 position) -> every navigating plan failed
+- stale to_pose()/to_position() replaced by upstream properties
+- costmap tests -> Pose2D candidates; cramera test gripper= -> end_effector=
+- all CI-failing modules + both demos pass locally
+
 Next:
-- push when the user asks; then reply to + resolve the 4 review threads
-  (4227921325/4227928570 alignment, 4227930644 doc, 4228314292 naming), and
-  keep the PR a draft
+- push when the user asks; set PR back to draft; then reply to + resolve the 4
+  review threads (4227921325/4227928570 alignment, 4227930644 doc, 4228314292 naming)
