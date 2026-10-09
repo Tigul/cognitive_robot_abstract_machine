@@ -22,5 +22,15 @@ Done:
   URDF; not touched by either branch); ORM errors fixed by regenerate_all_orm.py
 - formatted; merge committed locally as 41579d52e8 (not pushed)
 
+## Review round 1 (2026-10-09) — committed locally as b3a2c5c5c6 (not pushed)
+- MoveJointsMotion: removed unused alignment fields + LinkAlignmentApplied
+- DesignatorParameterMixin documented
+- mixins renamed to ...Parameter / ...Parameters (e.g. UsedArm->ArmParameter,
+  UsedGrasp->GraspCandidateParameter, ObjectActedOn->GraspableObjectParameter,
+  HasApproachesGraspPoses->GraspApproachParameters); all mixins eq=False
+- ORM regenerated; affected tests pass (DAiSy fixture errors = xacro ur_type env issue)
+
 Next:
-- push when the user asks
+- push when the user asks; then reply to + resolve the 4 review threads
+  (4227921325/4227928570 alignment, 4227930644 doc, 4228314292 naming), and
+  keep the PR a draft
