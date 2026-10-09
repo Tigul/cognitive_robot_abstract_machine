@@ -68,15 +68,112 @@ class UnderspecifiedNode(CompositeNodeChoosingItsChild):
     actions rather than grounding them itself.
     """
 
-    @classmethod
-    def for_step(cls, step: StatechartNode | Match) -> StatechartNode:
+    _proposals: Optional[Iterator[DesignatorParameters]] = field(
+        default=None, init=False, repr=False
+    )
+    """
+    The grounded actions of the statement, open from the first pull until they are
+    exhausted or released by :meth:`stop_grounding`.
+    """
+
+    _candidates_pulled: int = field(default=0, init=False, repr=False)
+    """
+    How many actions the current run through the statement has grounded.
+    """
+
+    @property
+    def grounding(self) -> StatementGrounding:
         """
-        :param step: A node, or an underspecified statement of an action.
-        :return: `step` itself, or the node grounding the statement when it runs.
+        :return: How the statement is grounded, as the context of the statechart says.
         """
-        if isinstance(step, Match):
-            return cls(statement=step)
-        return step
+        return self.context.require_extension(StatementGrounding)
+
+    @property
+    def candidate_limit(self) -> int:
+        """
+        :return: How many actions are grounded: the statement's own limit, or the
+            context's if it has none.
+        """
+        return self.statement._limit_ or self.grounding.candidates_to_try
+
+    @property
+    def reached_candidate_limit(self) -> bool:
+        """
+        :return: Whether the last run through the statement stopped because it grounded
+            :attr:`candidate_limit` actions.
+        """
+        return self._candidates_pulled == self.candidate_limit
+
+    def ground_next_child(self, trial: ActionTrial) -> Optional[StatechartNode]:
+        """
+        Grounds the statement into the next action that succeeds its trial, against the
+        world as it is now.
+
+        An action that fails its trial is discarded without ever touching the real
+        world, so a bad parameterization cannot poison a later attempt. The statement is
+        left suspended in between, so the next call resumes where this one stopped.
+
+        :param trial: The trial every grounded action is tried in first.
+        :return: The node running that action, given up on once it stops approaching its
+            goal, or None once the statement ran out of actions that succeed their
+            trial.
+        """
+        proposal = self._pull_next_proposal()
+        while proposal is not None:
+            if trial.succeeds(proposal):
+                return self._attempt_of(proposal)
+            proposal = self._pull_next_proposal()
+        self.stop_grounding()
+        return None
+
+    def stop_grounding(self) -> None:
+        """
+        Releases the statement's grounded actions once no further child will be asked
+        for.
+
+        A suspended generator keeps every value its frame holds alive, so closing it
+        frees whatever the statement only holds to ground actions with. The next
+        :meth:`ground_next_child` grounds the statement anew.
+        """
+        if self._proposals is None:
+            return
+        self._proposals.close()
+        self._proposals = None
+
+    def cleanup(self, context: StatechartContext) -> None:
+        self.stop_grounding()
+
+    def _pull_next_proposal(self) -> Optional[DesignatorParameters]:
+        """
+        :return: The next grounded action, or None once the statement is exhausted or
+            :attr:`candidate_limit` actions were grounded.
+        """
+        if self._proposals is None:
+            self._candidates_pulled = 0
+            self._proposals = self.grounding.query_backend.evaluate(self.statement)
+        if self.reached_candidate_limit:
+            self.stop_grounding()
+            return None
+        proposal = next(self._proposals, None)
+        if proposal is None:
+            self._proposals = None
+            return None
+        self._candidates_pulled += 1
+        return proposal
+
+    @staticmethod
+    def _attempt_of(proposal: DesignatorParameters) -> StatechartNode:
+        """
+        :return: `proposal`, in a sequence of its own for the nodes a plan
+            transformation puts beside it, given up on once it stops approaching its
+            goal, so this node can try the next action instead.
+        """
+        steps = Sequence(name=f"{proposal.name}/steps", nodes=[proposal])
+        return Attempt(
+            name=f"{proposal.name}/attempt",
+            task=steps,
+            failure_monitors=[Stalled(monitored_node=steps)],
+        )
 
     @property
     def chosen_actions(self) -> List[StatechartNode]:
@@ -338,136 +435,6 @@ class ActionTrial:
 # %% grounding underspecified actions while the statechart runs
 
 
-@dataclass(eq=False, repr=False)
-class UnderspecifiedCandidates:
-    """
-    The actions an :class:`UnderspecifiedNode` may run, grounded one at a time against
-    the world at the moment it asks, each tried in an :class:`ActionTrial` first.
-
-    Nothing is grounded before :meth:`advance` is called, and the statement is left
-    suspended between candidates, so a later :meth:`advance` resumes where it stopped.
-    At most :attr:`candidate_limit` actions are grounded.
-    """
-
-    node: UnderspecifiedNode
-    """
-    The node the actions are grounded for.
-    """
-
-    trial: ActionTrial
-    """
-    The trial every candidate is tried against, shared by every underspecified node of a
-    plan so they all try their candidates in one copy of the world.
-    """
-
-    current_candidate: Optional[StatechartNode] = field(
-        default=None, init=False, repr=False
-    )
-    """
-    The node running the action the latest successful :meth:`advance` grounded.
-    """
-
-    _proposals: Optional[Iterator[DesignatorParameters]] = field(
-        default=None, init=False, repr=False
-    )
-    """
-    The grounded actions of the statement, open from the first pull until they are
-    exhausted or released by :meth:`stop_generating`.
-    """
-
-    _candidates_pulled: int = field(default=0, init=False, repr=False)
-    """
-    How many actions the current run through the statement has grounded.
-    """
-
-    @property
-    def grounding(self) -> StatementGrounding:
-        """
-        :return: How the statement is grounded, as the executor's context says.
-        """
-        return self.trial.executor.context.require_extension(StatementGrounding)
-
-    @property
-    def candidate_limit(self) -> int:
-        """
-        :return: How many actions are grounded: the statement's own limit, or the
-            context's if it has none.
-        """
-        return self.node.statement._limit_ or self.grounding.candidates_to_try
-
-    @property
-    def reached_candidate_limit(self) -> bool:
-        """
-        :return: Whether the last run through the statement stopped because it grounded
-            :attr:`candidate_limit` actions.
-        """
-        return self._candidates_pulled == self.candidate_limit
-
-    def advance(self) -> bool:
-        """
-        Makes the next action that succeeds its trial the current candidate.
-
-        An action that fails its trial is discarded without ever touching the real
-        world, so a bad parameterization cannot poison a later attempt.
-
-        :return: True if a new candidate was created, False if the statement ran out of
-            actions that succeed their trial.
-        """
-        proposal = self._pull_next_proposal()
-        while proposal is not None:
-            if self.trial.succeeds(proposal):
-                self.current_candidate = self._create_candidate(proposal)
-                return True
-            proposal = self._pull_next_proposal()
-        return False
-
-    def stop_generating(self) -> None:
-        """
-        Releases the statement's grounded actions once no further candidate will be
-        requested.
-
-        A suspended generator keeps every value its frame holds alive, so closing it
-        frees whatever the statement only holds to ground actions with. The next
-        :meth:`advance` grounds the statement anew.
-        """
-        if self._proposals is None:
-            return
-        self._proposals.close()
-        self._proposals = None
-
-    def _pull_next_proposal(self) -> Optional[DesignatorParameters]:
-        """
-        :return: The next grounded action, or None once the statement is exhausted or
-            :attr:`candidate_limit` actions were grounded.
-        """
-        if self._proposals is None:
-            self._candidates_pulled = 0
-            self._proposals = self.grounding.query_backend.evaluate(self.node.statement)
-        if self.reached_candidate_limit:
-            self.stop_generating()
-            return None
-        proposal = next(self._proposals, None)
-        if proposal is None:
-            self._proposals = None
-            return None
-        self._candidates_pulled += 1
-        return proposal
-
-    @staticmethod
-    def _create_candidate(proposal: DesignatorParameters) -> StatechartNode:
-        """
-        :return: `proposal`, in a sequence of its own for the nodes a plan
-            transformation puts beside it, given up on once it stops approaching its
-            goal, so the node can try the next action instead.
-        """
-        steps = Sequence(name=f"{proposal.name}/steps", nodes=[proposal])
-        return Attempt(
-            name=f"{proposal.name}/attempt",
-            task=steps,
-            failure_monitors=[Stalled(monitored_node=steps)],
-        )
-
-
 @dataclass
 class UnderspecifiedChildChooser(ChildChooser):
     """
@@ -487,14 +454,8 @@ class UnderspecifiedChildChooser(ChildChooser):
 
     trial: ActionTrial = field(init=False)
     """
-    The trial every node tries its candidates against.
-    """
-
-    _candidates: Dict[UnderspecifiedNode, UnderspecifiedCandidates] = field(
-        default_factory=dict, init=False, repr=False
-    )
-    """
-    The candidates of every node that asked so far.
+    The trial every node tries its candidates against, so they all try them in one copy
+    of the world.
     """
 
     def __post_init__(self):
@@ -510,26 +471,10 @@ class UnderspecifiedChildChooser(ChildChooser):
         """
         if not isinstance(node, UnderspecifiedNode):
             raise NotAnUnderspecifiedNode(node=node)
-        candidates = self.candidates_of(node)
-        if candidates.advance():
-            return candidates.current_candidate
-        candidates.stop_generating()
-        return None
-
-    def candidates_of(self, node: UnderspecifiedNode) -> UnderspecifiedCandidates:
-        """
-        :return: The candidates of `node`, created when it first asks.
-        """
-        if node not in self._candidates:
-            self._candidates[node] = UnderspecifiedCandidates(
-                node=node, trial=self.trial
-            )
-        return self._candidates[node]
+        return node.ground_next_child(self.trial)
 
     def cleanup(self) -> None:
         """
-        Release every node's action iterator and the trial's world copy.
+        Release the trial's world copy.
         """
-        for candidates in self._candidates.values():
-            candidates.stop_generating()
         self.trial.discard()

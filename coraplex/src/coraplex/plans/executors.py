@@ -347,10 +347,9 @@ class SimulatedPlanExecutor(PlanExecutor, StatechartExecutor):
         for node in self.statechart.get_nodes_by_type(UnderspecifiedNode):
             if not node.ran_out_of_children:
                 continue
-            candidates = self.child_chooser.candidates_of(node)
-            if candidates.reached_candidate_limit:
+            if node.reached_candidate_limit:
                 raise CandidateLimitReached(
-                    node=node, candidate_limit=candidates.candidate_limit
+                    node=node, candidate_limit=node.candidate_limit
                 )
             raise EmptyUnderspecified(node=node)
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from abc import ABC
 from dataclasses import dataclass
 
 from typing_extensions import Optional, Self
@@ -32,9 +33,30 @@ from semantic_digital_twin.grasping.grasp_candidates import (
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
+# %% actions running other actions as their steps
+
 
 @dataclass(eq=False, repr=False)
-class TransportAction(Action):
+class ActionOfSteps(Action, ABC):
+    """
+    An action running other actions as its steps, each given either as the action or as
+    an underspecified statement of it.
+    """
+
+    @staticmethod
+    def _node_running(step: Action | Match) -> StatechartNode:
+        """
+        :param step: A step of this action.
+        :return: The step itself, or the node grounding its statement once it is
+            reached.
+        """
+        if isinstance(step, Match):
+            return UnderspecifiedNode(statement=step)
+        return step
+
+
+@dataclass(eq=False, repr=False)
+class TransportAction(ActionOfSteps):
     """
     Picks an object up with one step and puts it down with another.
     """
@@ -110,16 +132,16 @@ class TransportAction(Action):
         return Sequence(
             [
                 ParkArmsAction(self.robot.all_arms),
-                UnderspecifiedNode.for_step(self.pick_up),
+                self._node_running(self.pick_up),
                 ParkArmsAction(self.robot.all_arms),
-                UnderspecifiedNode.for_step(self.place),
+                self._node_running(self.place),
                 ParkArmsAction(self.robot.all_arms),
             ]
         )
 
 
 @dataclass(eq=False, repr=False)
-class PickAndPlaceAction(Action):
+class PickAndPlaceAction(ActionOfSteps):
     """
     Picks an object up with one step and puts it down with another, without moving the
     base of the robot.
@@ -127,42 +149,45 @@ class PickAndPlaceAction(Action):
 
     pick_up: PickUpAction
     """
-    The step that picks the object up.
+    The step that picks the object up, or an underspecified statement of it.
     """
 
     place: PlaceAction
     """
-    The step that puts down what :attr:`pick_up` picked up.
+    The step that puts down what :attr:`pick_up` picked up, or an underspecified
+    statement of it.
     """
 
     def create_action_body(self) -> StatechartNode:
         return Sequence(
             [
-                UnderspecifiedNode.for_step(self.pick_up),
-                UnderspecifiedNode.for_step(self.place),
+                self._node_running(self.pick_up),
+                self._node_running(self.place),
             ]
         )
 
 
 @dataclass(eq=False, repr=False)
-class MoveAndPlaceAction(Action):
+class MoveAndPlaceAction(ActionOfSteps):
     """
     Navigates to where the robot stands, faces the target and places the object there.
     """
 
     navigate: NavigateAction
     """
-    The step to where the robot stands while placing.
+    The step to where the robot stands while placing, or an underspecified statement of
+    it.
     """
 
     face_and_look_at: FaceAndLookAtAction
     """
-    The turn towards the target and the look at it.
+    The turn towards the target and the look at it, or an underspecified statement of
+    them.
     """
 
     place: PlaceAction
     """
-    The step that puts the object down.
+    The step that puts the object down, or an underspecified statement of it.
     """
 
     @classmethod
@@ -192,32 +217,34 @@ class MoveAndPlaceAction(Action):
     def create_action_body(self) -> StatechartNode:
         return Sequence(
             [
-                UnderspecifiedNode.for_step(self.navigate),
-                UnderspecifiedNode.for_step(self.face_and_look_at),
-                UnderspecifiedNode.for_step(self.place),
+                self._node_running(self.navigate),
+                self._node_running(self.face_and_look_at),
+                self._node_running(self.place),
             ]
         )
 
 
 @dataclass(eq=False, repr=False)
-class MoveAndPickUpAction(Action):
+class MoveAndPickUpAction(ActionOfSteps):
     """
     Navigates to where the robot stands, faces the object and picks it up.
     """
 
     navigate: NavigateAction
     """
-    The step to where the robot stands while picking up.
+    The step to where the robot stands while picking up, or an underspecified statement
+    of it.
     """
 
     face_and_look_at: FaceAndLookAtAction
     """
-    The turn towards the object and the look at it.
+    The turn towards the object and the look at it, or an underspecified statement of
+    them.
     """
 
     pick_up: PickUpAction
     """
-    The step that picks the object up.
+    The step that picks the object up, or an underspecified statement of it.
     """
 
     @classmethod
@@ -307,15 +334,15 @@ class MoveAndPickUpAction(Action):
     def create_action_body(self) -> StatechartNode:
         return Sequence(
             [
-                UnderspecifiedNode.for_step(self.navigate),
-                UnderspecifiedNode.for_step(self.face_and_look_at),
-                UnderspecifiedNode.for_step(self.pick_up),
+                self._node_running(self.navigate),
+                self._node_running(self.face_and_look_at),
+                self._node_running(self.pick_up),
             ]
         )
 
 
 @dataclass(eq=False, repr=False)
-class MoveAndOpenAction(Action):
+class MoveAndOpenAction(ActionOfSteps):
     """
     Navigates to where the robot stands, faces the handle and opens its container.
     """
@@ -332,7 +359,7 @@ class MoveAndOpenAction(Action):
 
     open_container: OpenAction
     """
-    The step that opens the container.
+    The step that opens the container, or an underspecified statement of it.
     """
 
     @classmethod
@@ -357,8 +384,8 @@ class MoveAndOpenAction(Action):
     def create_action_body(self) -> StatechartNode:
         return Sequence(
             [
-                UnderspecifiedNode.for_step(self.navigate),
-                UnderspecifiedNode.for_step(self.face_and_look_at),
-                UnderspecifiedNode.for_step(self.open_container),
+                self._node_running(self.navigate),
+                self._node_running(self.face_and_look_at),
+                self._node_running(self.open_container),
             ]
         )
