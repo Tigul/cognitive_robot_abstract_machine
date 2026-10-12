@@ -12,4 +12,8 @@ ObservedExecutor. Replied (not resolved) on 10 threads on #14.
 Left for Simon: transporting.py:40, actions/base.py:106, open_close.py:21.
 Known failures not caused here: test_tool_motion_frees_the_manipulator_holding_the_tool;
 DAiSy xacro ur_type errors.
+Merged ichumuh/cramph b897d8812 (commit d78520a5a): kept robot-specific module,
+FreeEndEffectorsOfParallelStepsTogether stays in plan_transformations.py,
+GiskardClientExecutor.default_context_extensions -> []. PR set back to draft.
+Stretch process-boundary test also fails on plain ichumuh/cramph.
 Next: nothing until the user asks (CI/review feedback).
