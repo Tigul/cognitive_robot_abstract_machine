@@ -16,4 +16,6 @@ Merged ichumuh/cramph b897d8812 (commit d78520a5a): kept robot-specific module,
 FreeEndEffectorsOfParallelStepsTogether stays in plan_transformations.py,
 GiskardClientExecutor.default_context_extensions -> []. PR set back to draft.
 Stretch process-boundary test also fails on plain ichumuh/cramph.
+Commit 67b55db54: default_extensions -> default_executor_extensions; reverted
+X | Match[X] step typing (ORMatic can't handle it). Replied on both #16 threads + #14 typing thread.
 Next: nothing until the user asks (CI/review feedback).
