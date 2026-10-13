@@ -30,4 +30,5 @@ Second change (same working tree, 2026-10-13): handle grasps sampled from geomet
 - bowl_and_cup drops `add_handle_frame`; future_problems entry removed.
 - Green: SDT annotations (183), coraplex test_plan, test_designator (146),
   transporting + bowl_and_cup (29).
-Next: user review; commit when asked (maybe split into two commits/PRs).
+Committed: statement node ac360cb82 (by user), handle grasps dd21667c8. Not pushed.
+Next: push / PR when the user asks.
