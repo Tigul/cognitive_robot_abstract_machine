@@ -21,3 +21,13 @@ plan transformations build `StatementNode` explicitly (AFTER-insertion anchors).
 
 Next: user review; commit when asked. Open: keep or drop the future_problems entry
 on step-field typing (user said Match is typed as what it matches).
+Second change (same working tree, 2026-10-13): handle grasps sampled from geometry.
+- SDT `Handle.grasp_candidates`: 4 grasps at origin, approach ⟂ bar (longest bbox
+  extent), fingers across the bar; NoGraspGeometry without collision.
+- coraplex `MovesHandle(Action, HasGraspChoice)` base: Open/CloseAction take
+  `grasp`, `from_handle(handle, arm) -> Match`; `MoveAndOpenAction.from_standing_position`
+  takes a grasp, new `from_handle_by_closest_grasps`; drawer transformation uses it.
+- bowl_and_cup drops `add_handle_frame`; future_problems entry removed.
+- Green: SDT annotations (183), coraplex test_plan, test_designator (146),
+  transporting + bowl_and_cup (29).
+Next: user review; commit when asked (maybe split into two commits/PRs).
