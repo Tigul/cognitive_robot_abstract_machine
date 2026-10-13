@@ -31,4 +31,6 @@ Second change (same working tree, 2026-10-13): handle grasps sampled from geomet
 - Green: SDT annotations (183), coraplex test_plan, test_designator (146),
   transporting + bowl_and_cup (29).
 Committed: statement node ac360cb82 (by user), handle grasps dd21667c8. Not pushed.
-Next: push / PR when the user asks.
+Merged simon/cramph (138964c02, future_problems conflict resolved), pushed to origin.
+Draft PR: https://github.com/ichumuh/cognitive_robot_abstract_machine/pull/19 (base cramph).
+Next: review feedback when asked.
