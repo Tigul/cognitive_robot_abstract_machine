@@ -41,4 +41,13 @@ fixed limit, demos drop 10 min overrides, `_attempt_of` uses `AttemptRewritingIt
 again (Stretch demo stall), Simon's Stretch tests ported to `StatementNode`.
 Green: both demos, cramph_test 748, cramera_test 1061, coraplex test_plan+demos 238.
 Pushed to origin; PR #19 back to draft, description updated.
-Next: review feedback when asked.
+Simon's review (2026-10-14) on #19: blockers 1-4 + smaller points. Handle-grasp point done
+in 70bfd601c: grasps at bar bbox centre; `MovesHandle.from_handle` ranks all 4 grasps by
+`GraspCloseness` to the robot at grounding (`GraspsClosestToTheRobot`, coraplex/querying/
+grasp_closeness.py); replied on PR. Open from review: split time-limit commit into own PR
+(he objects: per-tick scan, nested actions counted, weak test), rewrite happens twice
+(AttemptRewritingItsTask + observer: pick one), commented-out UnderspecifiedNode (gone),
+panel.js still lists UnderspecifiedNode, type hints `StatechartNode | Match`,
+candidate_limit as field, AGENTS style in new tests, per-pose grasp ordering in
+from_handle_by_closest_grasps.
+Next: the remaining review points when asked.
