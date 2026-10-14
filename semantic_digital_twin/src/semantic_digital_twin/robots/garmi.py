@@ -495,8 +495,8 @@ class GarmiLeftArm(Arm[GarmiLeftGripper]):
         """
         park_configuration = {
             GarmiJoint.LEFT_ARM_1: 0.0,
-            GarmiJoint.LEFT_ARM_2: -1.6,
-            GarmiJoint.LEFT_ARM_3: -1.0,
+            GarmiJoint.LEFT_ARM_2: -0.7853981633974483,
+            GarmiJoint.LEFT_ARM_3: 0.0,
             GarmiJoint.LEFT_ARM_4: -2.356194490192345,
             GarmiJoint.LEFT_ARM_5: 0.0,
             GarmiJoint.LEFT_ARM_6: 1.5707963267948966,
@@ -549,8 +549,8 @@ class GarmiRightArm(Arm[GarmiRightGripper]):
         """
         park_configuration = {
             GarmiJoint.RIGHT_ARM_1: 0.0,
-            GarmiJoint.RIGHT_ARM_2: -1.6,
-            GarmiJoint.RIGHT_ARM_3: 1.0,
+            GarmiJoint.RIGHT_ARM_2: -0.7853981633974483,
+            GarmiJoint.RIGHT_ARM_3: 0.0,
             GarmiJoint.RIGHT_ARM_4: -2.356194490192345,
             GarmiJoint.RIGHT_ARM_5: 0.0,
             GarmiJoint.RIGHT_ARM_6: 1.5707963267948966,
