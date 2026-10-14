@@ -61,10 +61,10 @@ from Action nodes in the statechart at compile + after_recompile (no per-tick sc
 New test test_the_simulation_time_limit_grows_when_an_action_joins; renamed
 ..._more_actions_it_holds. Green: test_plan+demonstrations 213, designator+transporting
 176, both demos.
-Action conditions removed (uncommitted, 2026-10-14): all pre_/post_condition methods,
+Action conditions removed (c91fcc427, pushed, PR description updated, 2026-10-14): all pre_/post_condition methods,
 ConditionNotSatisfied, DesignatorParameters.bound_variables/_create_variables,
 GripperIsFree/GripperIsNotFree/ToolFrameIsAtGrasp, test_action_conditions.py,
 doc conditions.md (+toc, index/designators bullets). GripperHolds+GripperOccupancy kept
 (PlaceAction uses them). ORM regenerated. Green: designator 139, test_plan+actions 223,
 transporting/bowl/placing/orm 41, both demos.
-Next: commit/push when asked; remaining review points.
+Next: remaining review points when asked.
