@@ -55,4 +55,10 @@ place; `ChosenChildObserver` removed from cramph (+ its cramph test), `PlanRewri
 plain ContextExtension, test_the_opening_joins... builds AttemptRewritingItsTask. ORM
 regenerated. Green: cramph_test 747, coraplex test_plan 198, designator/transporting/
 bowl/failure 181, both demos.
-Next: remaining review points when asked.
+Time-limit refinement (uncommitted, 2026-10-14): user keeps per-action budget over
+Simon's fixed per-demo limit; default 40 s; `simulation_time_limit` is a field counted
+from Action nodes in the statechart at compile + after_recompile (no per-tick scan).
+New test test_the_simulation_time_limit_grows_when_an_action_joins; renamed
+..._more_actions_it_holds. Green: test_plan+demonstrations 213, designator+transporting
+176, both demos. PR description time-limit section to update once pushed.
+Next: commit/push when asked; remaining review points.
