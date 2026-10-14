@@ -50,4 +50,9 @@ grasp_closeness.py); replied on PR. Open from review: split time-limit commit in
 panel.js still lists UnderspecifiedNode, type hints `StatechartNode | Match`,
 candidate_limit as field, AGENTS style in new tests, per-pose grasp ordering in
 from_handle_by_closest_grasps.
-Next: the remaining review points when asked.
+Double rewrite (uncommitted, 2026-10-14): user chose AttemptRewritingItsTask as the only
+place; `ChosenChildObserver` removed from cramph (+ its cramph test), `PlanRewriting` is a
+plain ContextExtension, test_the_opening_joins... builds AttemptRewritingItsTask. ORM
+regenerated. Green: cramph_test 747, coraplex test_plan 198, designator/transporting/
+bowl/failure 181, both demos.
+Next: commit/push when asked; remaining review points.
