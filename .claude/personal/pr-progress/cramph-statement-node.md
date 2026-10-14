@@ -67,4 +67,8 @@ GripperIsFree/GripperIsNotFree/ToolFrameIsAtGrasp, test_action_conditions.py,
 doc conditions.md (+toc, index/designators bullets). GripperHolds+GripperOccupancy kept
 (PlaceAction uses them). ORM regenerated. Green: designator 139, test_plan+actions 223,
 transporting/bowl/placing/orm 41, both demos.
-Next: remaining review points when asked.
+Stretch mappings (uncommitted, 2026-10-14): investigated future_problems Stretch entries;
+stale Stretch skips in test_transport/test_transport_open_container removed (8 passed, all
+robots) + stale "No alternative motion mappings" comments; future_problems: both Stretch
+entries merged into one real-robot-only check.
+Next: commit/push when asked; remaining review points.
