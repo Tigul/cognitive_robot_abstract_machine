@@ -8,4 +8,5 @@ after_run), cramera LiveVisualization collapsed into one extension. Full plan:
 - [x] callers: demonstrations, underspecified trial, testing.selected_visualizations, demos
 - [x] cramera tests ported; coraplex vis tests 49 pass, cramera 1059 pass
 - [x] test_plan 199 pass
-- [x] committed 529db839a, draft PR ichumuh#21 (base cramph). Next: wait for review / CI
+- [x] committed 529db839a, draft PR ichumuh#21 (base cramph)
+- [x] 95a14b50c: RViz thin wrapper using executor RosContextExtension node; demos open RobotDemonstrationRosSession; PR body updated. Next: review / CI
