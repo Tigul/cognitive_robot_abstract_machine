@@ -7,4 +7,5 @@ after_run), cramera LiveVisualization collapsed into one extension. Full plan:
 - [x] cramera LiveVisualization + runner (session/pause removed)
 - [x] callers: demonstrations, underspecified trial, testing.selected_visualizations, demos
 - [x] cramera tests ported; coraplex vis tests 49 pass, cramera 1059 pass
-- [x] test_plan 199 pass. Next: user review, then commit + draft PR (base simon/cramph?)
+- [x] test_plan 199 pass
+- [x] committed 529db839a, draft PR ichumuh#21 (base cramph). Next: wait for review / CI
