@@ -33,4 +33,12 @@ Second change (same working tree, 2026-10-13): handle grasps sampled from geomet
 Committed: statement node ac360cb82 (by user), handle grasps dd21667c8. Not pushed.
 Merged simon/cramph (138964c02, future_problems conflict resolved), pushed to origin.
 Draft PR: https://github.com/ichumuh/cognitive_robot_abstract_machine/pull/19 (base cramph).
+Third change (2026-10-14): simulation time limit per started action (2b3983b6c):
+`SimulatedPlanExecutor.simulation_time_per_action` (60 s), `simulation_time_limit` is a
+property = budget x started Action nodes. Merged ichumuh/cramph (a00e08062, 8ae057c60);
+merge fixes 1c779eecd: `RobotDemonstration.simulation_time_per_action` replaces Simon's
+fixed limit, demos drop 10 min overrides, `_attempt_of` uses `AttemptRewritingItsTask`
+again (Stretch demo stall), Simon's Stretch tests ported to `StatementNode`.
+Green: both demos, cramph_test 748, cramera_test 1061, coraplex test_plan+demos 238.
+Pushed to origin; PR #19 back to draft, description updated.
 Next: review feedback when asked.
