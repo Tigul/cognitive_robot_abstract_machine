@@ -10,3 +10,4 @@ after_run), cramera LiveVisualization collapsed into one extension. Full plan:
 - [x] test_plan 199 pass
 - [x] committed 529db839a, draft PR ichumuh#21 (base cramph)
 - [x] 95a14b50c: RViz thin wrapper using executor RosContextExtension node; demos open RobotDemonstrationRosSession; PR body updated. Next: review / CI
+- [x] review (ichumuh, CHANGES_REQUESTED) addressed in 10f789f4f after merging simon/cramph: RvizVisualization.ros_node field, trials get no node, trial tests ported, cramera-live inspection restored (LiveVisualization keeps server/recording until stop, demo shares one viz, runner sigwait), RViz-dark accepted+documented; PR body updated, reply comment posted, PR still draft. Next: CI / re-review
