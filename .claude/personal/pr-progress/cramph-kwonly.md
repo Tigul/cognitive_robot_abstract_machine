@@ -7,4 +7,5 @@ Plan:
 3. [x] 770 positional call sites rewritten (resolved against old signatures from a HEAD worktree); robokudo untouched (py_trees)
 4. [x] docs md examples rewritten, ORM regenerated, format_docstrings run
 5. [x] tests: cramph 835 ok; giskardpy 1078 ok + 4 pre-existing failures (also fail on HEAD); coraplex 710 ok; cramera 1064 ok; experiments 328 ok. robokudo not runnable locally (cv_bridge/numpy), no robokudo files changed
-6. [ ] commit + PR when user asks (all changes uncommitted)
+6. [x] committed c7d210cb67, pushed to origin (Tigul), draft PR ichumuh#26 into cramph
+Next: user checks PyCharm warnings are gone; handle review when asked.
