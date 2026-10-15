@@ -6,5 +6,5 @@ Plan:
 2. [x] kw_only=True on 205 src + 26 test node/mixin decorators; field-level kw_only stripped
 3. [x] 770 positional call sites rewritten (resolved against old signatures from a HEAD worktree); robokudo untouched (py_trees)
 4. [x] docs md examples rewritten, ORM regenerated, format_docstrings run
-5. [ ] tests: cramph OK (835 passed); giskardpy running; then coraplex, cramera, experiments
-6. [ ] commit (uncommitted so far), no PR opened yet
+5. [x] tests: cramph 835 ok; giskardpy 1078 ok + 4 pre-existing failures (also fail on HEAD); coraplex 710 ok; cramera 1064 ok; experiments 328 ok. robokudo not runnable locally (cv_bridge/numpy), no robokudo files changed
+6. [ ] commit + PR when user asks (all changes uncommitted)
