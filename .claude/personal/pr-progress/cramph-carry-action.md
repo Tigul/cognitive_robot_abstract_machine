@@ -36,6 +36,9 @@ one-shot after each look (user stashed that question). Pre-existing failure:
 giskardpy test_attached_self_collision_avoid_stick; flaky:
 test_collisions_are_computed_with_collision_avoidance_node.
 
+Done (2026-10-16): PickUpAction.from_above (1dd6d43bb3), used by bowl-and-cup
+and multi-robot tests. User dropped the real-robot cleanup question.
+
 Next: further cleanup as the user asks; user marks ready when satisfied. Open follow-up ideas: keep held objects
 upright during ParkArmsAction inside TransportAction; Tiago/HSR top-down reach
 limits (joint-limit avoidance in giskardpy) - not in scope.
