@@ -43,6 +43,22 @@ Done:
   it; 2 new tests in test_point2.py; notebook measures the drive with
   Point2.from_pose; notebook passes via coraplex/scripts/test_notebook_examples.sh
 
+## Review round 2 (2026-10-16) — flat Has*Parameter mixins, uncommitted
+- user decided (after reviews by ichumuh/LucaKro on bundle discoverability): no
+  bundles; every mixin declares its own fields only and is named Has...Parameter(s)
+  (plain Has<Subject> collides with semdt HasHandle/HasEndEffector). Reasoning
+  modules may define their own combined concepts later.
+- 8 bundles deleted; GripperStallTolerance split into HasMaxFingerVelocityParameter
+  + HasStallToleranceParameters; CartesianVelocityLimit split from HasMovementType;
+  tuning mixins no longer inherit each other / grasp detection threshold
+- bases ordered so every designator's dataclass field order equals the old MRO
+  (verified against HEAD for all 42 designators)
+- test_parameter_mixins: new test that no mixin stacks another; bundle asserts moved
+- ORM regenerated; test_designator, test_orm, test_actions, test_plan, placing,
+  transporting, tool_based, grasp tests all pass
+
 Next:
-- push when the user asks; set PR back to draft; then reply to + resolve the 4
-  review threads (4227921325/4227928570 alignment, 4227930644 doc, 4228314292 naming)
+- commit + push when the user asks; set PR back to draft; reply to + resolve the
+  naming threads (mixins.py:42, :181, :465, :442); grasp_candidates.py:86 rename
+  revert, :150 LookTarget/TargetPose merge, :102 optional bool, :162 MovementType,
+  robot_parts.py:873, semdt mixins.py:781, demo.py:157 kwargs still open
