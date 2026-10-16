@@ -29,8 +29,9 @@ updated; PR still draft. All related suites green.
 Done (2026-10-16): search sweeps a region - GoalBindingPolicy.Bind_on_tick
 (e0eaf62893), SweepRegion + SweepRegionPlacement, LookAtAction binds on tick,
 aim_offset/sideways_offset/PointingBeside removed (df406d6395). Pushed, PR
-description updated. Open: region stays in the world after the search
-(removing it mid-run would rebuild nodes that reference it); detection still
+description updated. One region per robot, removed in SearchAction.cleanup
+(b49016d524) - except on RealRobotPlanExecutor, which never calls cleanup on
+client nodes (asked user). Detection still
 one-shot after each look (user stashed that question). Pre-existing failure:
 giskardpy test_attached_self_collision_avoid_stick; flaky:
 test_collisions_are_computed_with_collision_avoidance_node.
