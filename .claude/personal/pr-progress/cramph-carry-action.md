@@ -26,6 +26,11 @@ FirstActionNotRunInSequence removed, PlanRewriting.rewrite returns the node in
 root's place. Commits 19ca98991e, 2371fbf223, c06f98039d pushed; PR description
 updated; PR still draft. All related suites green.
 
-Next: user marks ready when satisfied. Open follow-up ideas: keep held objects
+Done (2026-10-16): cleanup - PointingBeside removed; Pointing.aim_offset (root
+link frame), LookAtAction offsets along base left axis (51233a278c, pushed, PR
+description updated). Pre-existing failure: giskardpy
+test_attached_self_collision_avoid_stick.
+
+Next: further cleanup as the user asks; user marks ready when satisfied. Open follow-up ideas: keep held objects
 upright during ParkArmsAction inside TransportAction; Tiago/HSR top-down reach
 limits (joint-limit avoidance in giskardpy) - not in scope.
