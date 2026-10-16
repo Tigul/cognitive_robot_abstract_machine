@@ -26,10 +26,14 @@ FirstActionNotRunInSequence removed, PlanRewriting.rewrite returns the node in
 root's place. Commits 19ca98991e, 2371fbf223, c06f98039d pushed; PR description
 updated; PR still draft. All related suites green.
 
-Done (2026-10-16): cleanup - PointingBeside removed; Pointing.aim_offset (root
-link frame), LookAtAction offsets along base left axis (51233a278c, pushed, PR
-description updated). Pre-existing failure: giskardpy
-test_attached_self_collision_avoid_stick.
+Done (2026-10-16): search sweeps a region - GoalBindingPolicy.Bind_on_tick
+(e0eaf62893), SweepRegion + SweepRegionPlacement, LookAtAction binds on tick,
+aim_offset/sideways_offset/PointingBeside removed (df406d6395). Pushed, PR
+description updated. Open: region stays in the world after the search
+(removing it mid-run would rebuild nodes that reference it); detection still
+one-shot after each look (user stashed that question). Pre-existing failure:
+giskardpy test_attached_self_collision_avoid_stick; flaky:
+test_collisions_are_computed_with_collision_avoidance_node.
 
 Next: further cleanup as the user asks; user marks ready when satisfied. Open follow-up ideas: keep held objects
 upright during ParkArmsAction inside TransportAction; Tiago/HSR top-down reach
