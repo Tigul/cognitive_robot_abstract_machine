@@ -9,5 +9,16 @@ test_actions/test_carrying.py, JSON round-trip case; ORM regenerated; tests
 green except 2 pre-existing failures in test_bowl_and_cup.py (fail on cramph
 too). Committed c9eb4dbb13, pushed to Tigul fork, draft PR opened.
 
-Marked ready for review (2026-10-15). Next: await review / CI. Open follow-up idea: keep held objects upright
-during ParkArmsAction inside TransportAction (not in scope).
+Marked ready for review (2026-10-15).
+
+Done (2026-10-16): moved robot-specific action tests (carrying, reattaching
+bodies, both arms, converted-action sections of the statechart-node test) into
+test_multi_robot_action_designator.py; fixed ParkArmsBeforeFirstAction
+inserting the park inside a Parallel (now before the nearest Sequence step,
+FirstActionNotRunInSequence otherwise); cup tests park first, two-arm cups at
+0.8 m (Tiago stalls at joint limits otherwise). 4 commits on top of
+51582297a8, pushed, PR description updated, PR back to draft.
+
+Next: user marks ready when satisfied. Open follow-up ideas: keep held objects
+upright during ParkArmsAction inside TransportAction; Tiago/HSR top-down reach
+limits (joint-limit avoidance in giskardpy) - not in scope.
