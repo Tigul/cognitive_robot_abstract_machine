@@ -19,6 +19,15 @@ FirstActionNotRunInSequence otherwise); cup tests park first, two-arm cups at
 0.8 m (Tiago stalls at joint limits otherwise). 4 commits on top of
 51582297a8, pushed, PR description updated, PR back to draft.
 
-Next: user marks ready when satisfied. Open follow-up ideas: keep held objects
+In progress (2026-10-16): replace the anchor-only park fix with
+SequentialInsertion / ParallelInsertion subclasses of InsertionTransformation
+(each wraps the anchor in a Sequence/Parallel when its language node is not
+one). Commits: (1) cramph op wrapping an expanded node (incl. top-level, with
+executor plan_nodes following), (2) the two subclasses + migrate DetectBeforeGrasp,
+DrawerOpening, ParkArmsBeforeFirstAction (Sequential) and Justin torso
+(Parallel), drop LAST_CHILD, (3) revert FirstActionNotRunInSequence and the
+Sequence wrapper in the two-arm test. TDD each; update PR description.
+
+Next after that: user marks ready when satisfied. Open follow-up ideas: keep held objects
 upright during ParkArmsAction inside TransportAction; Tiago/HSR top-down reach
 limits (joint-limit avoidance in giskardpy) - not in scope.
