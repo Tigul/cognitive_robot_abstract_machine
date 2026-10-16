@@ -26,8 +26,8 @@ FirstActionNotRunInSequence removed, PlanRewriting.rewrite returns the node in
 root's place. Commits 19ca98991e, 2371fbf223, c06f98039d pushed; PR description
 updated; PR still draft. All related suites green.
 
-Done (2026-10-16): search sweeps a region - GoalBindingPolicy.Bind_on_tick
-(e0eaf62893), SweepRegion + SweepRegionPlacement, LookAtAction binds on tick,
+Done (2026-10-16): search sweeps a region - SweepRegion + SweepRegionPlacement;
+LookAtAction targets a live FK expression (6d2a05aecb, Bind_on_tick reverted),
 aim_offset/sideways_offset/PointingBeside removed (df406d6395). Pushed, PR
 description updated. One region per robot, removed in SearchAction.cleanup
 (b49016d524) - except on RealRobotPlanExecutor, which never calls cleanup on
