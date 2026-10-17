@@ -39,6 +39,11 @@ test_collisions_are_computed_with_collision_avoidance_node.
 Done (2026-10-16): PickUpAction.from_above (1dd6d43bb3), used by bowl-and-cup
 and multi-robot tests. User dropped the real-robot cleanup question.
 
+In progress (2026-10-17): review on PR (ichumuh) - SweepRegion/SweepRegionPlacement
+removed, SearchAction now looks at target then the ends of a cross (cross_arm_length,
+x/y of target frame); sweep tests replaced; search tests green. Uncommitted - awaiting
+user OK to commit/push and reply to the 3 searching.py review threads.
+
 Next: further cleanup as the user asks; user marks ready when satisfied. Open follow-up ideas: keep held objects
 upright during ParkArmsAction inside TransportAction; Tiago/HSR top-down reach
 limits (joint-limit avoidance in giskardpy) - not in scope.
