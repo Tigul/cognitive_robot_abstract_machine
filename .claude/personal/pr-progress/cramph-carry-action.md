@@ -46,7 +46,7 @@ resolved, PR description updated, PR still draft.
 Done (2026-10-17): merged simon/cramph (68934be6c3; kw-only nodes, replace-by-holder,
 child/closest_above renames, robot_adaptations); c488908516 fits multi-robot tests
 (navigation tests skip differential drives; Stretch stands behind the cup).
-Multi-robot file 257 passed. Committed locally, not pushed yet.
+Multi-robot file 257 passed. Pushed, PR description updated, PR still draft.
 
 Next: further cleanup as the user asks; user marks ready when satisfied. Open follow-up ideas: keep held objects
 upright during ParkArmsAction inside TransportAction; Tiago/HSR top-down reach
