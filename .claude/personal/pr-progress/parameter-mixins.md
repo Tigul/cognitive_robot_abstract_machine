@@ -43,7 +43,7 @@ Done:
   it; 2 new tests in test_point2.py; notebook measures the drive with
   Point2.from_pose; notebook passes via coraplex/scripts/test_notebook_examples.sh
 
-## Review round 2 (2026-10-16) — flat Has*Parameter mixins, uncommitted
+## Review round 2 (2026-10-16) — flat Has*Parameter mixins, committed as 998cc4fd3 (not pushed)
 - user decided (after reviews by ichumuh/LucaKro on bundle discoverability): no
   bundles; every mixin declares its own fields only and is named Has...Parameter(s)
   (plain Has<Subject> collides with semdt HasHandle/HasEndEffector). Reasoning
@@ -56,6 +56,19 @@ Done:
 - test_parameter_mixins: new test that no mixin stacks another; bundle asserts moved
 - ORM regenerated; test_designator, test_orm, test_actions, test_plan, placing,
   transporting, tool_based, grasp tests all pass
+
+## Capabilities (2026-10-18) — uncommitted
+- DesignatorCapability enum (MANIPULATES_OBJECTS, CONTROLS_AN_ARM,
+  MOVES_THE_TOOL_CENTER_POINT) in datastructures/enums.py
+- DesignatorParameterMixin.capabilities classproperty (empty); mixins add their member
+  via cooperative super() (grasp/graspable/handle/tool -> manipulates; arm -> arm;
+  goal thresholds/target pose/grasp approach/cartesian limits -> TCP)
+- CapabilityTransformation(PlanTransformation[DesignatorNode]) in
+  robot_plans/plan_transformations.py: abstract `capability`, matches designators
+  whose type has it; no-mixin designators (composites, DetectAction) never match
+- tests: test_parameter_mixins (capabilities), test_plan_transformations (mimic
+  RecordsObjectManipulation: matches pick-up only; applied to PickUp, Grasping, Reach)
+- ORM regenerated; test_plan, test_designator+test_orm, action modules pass
 
 Next:
 - commit + push when the user asks; set PR back to draft; reply to + resolve the
