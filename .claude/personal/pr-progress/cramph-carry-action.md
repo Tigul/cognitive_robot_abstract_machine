@@ -55,6 +55,12 @@ ParallelAction; upstream test changes to the moved robot-specific tests ported t
 the multi-robot file. cramph tests 836 passed, test_plan 230, multi-robot 272 +
 the one fixed Stretch case. Installed cramph editable into ~/envs/cram2 (was missing).
 
-Next: further cleanup as the user asks; user marks ready when satisfied. Open follow-up ideas: keep held objects
+Done (2026-10-18, uncommitted): one Statechart.replace(node, replacement) for
+top-level nodes and children of plan language nodes (rollback via ReplacedNode),
+replacing take_place_of, CramLanguageNode.replace, add_node_above,
+NotATopLevelNodeError; Stretch base hold is a ParallelInsertion. cramph 831,
+test_plan 230, multi-robot + test_actions 306 passed.
+
+Next: commit/push/update PR description when the user asks; further cleanup as the user asks; user marks ready when satisfied. Open follow-up ideas: keep held objects
 upright during ParkArmsAction inside TransportAction; Tiago/HSR top-down reach
 limits (joint-limit avoidance in giskardpy) - not in scope.
