@@ -66,6 +66,9 @@ coraplex/config (ActionConfig) removed; CloseAction.closed_joint_position (0.01)
 replaces closed_container_joint_state, execution_delay was unused. Test on all
 robots; test_plan + test_orm 234 passed.
 
+Done (2026-10-18): plan_transformations.md example passes nodes/target by keyword
+(da2eac047 pushed, PR description updated, PR still draft); notebook runs.
+
 Next: further cleanup as the user asks; user marks ready when satisfied. Open follow-up ideas: keep held objects
 upright during ParkArmsAction inside TransportAction; Tiago/HSR top-down reach
 limits (joint-limit avoidance in giskardpy) - not in scope.
