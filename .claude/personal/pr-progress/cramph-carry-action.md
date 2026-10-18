@@ -48,12 +48,13 @@ child/closest_above renames, robot_adaptations); c488908516 fits multi-robot tes
 (navigation tests skip differential drives; Stretch stands behind the cup).
 Multi-robot file 257 passed. Pushed, PR description updated, PR still draft.
 
-Done (2026-10-18): merged simon/cramph again (734ac2eaf, not pushed; actions are
+Done (2026-10-18): merged simon/cramph again (734ac2eaf, pushed, PR description
+updated, PR still draft; actions are
 the language node of their own steps, create_steps/create_goal). CarryAction is a
 ParallelAction; upstream test changes to the moved robot-specific tests ported to
 the multi-robot file. cramph tests 836 passed, test_plan 230, multi-robot 272 +
 the one fixed Stretch case. Installed cramph editable into ~/envs/cram2 (was missing).
 
-Next: push and update PR description when the user asks; further cleanup as the user asks; user marks ready when satisfied. Open follow-up ideas: keep held objects
+Next: further cleanup as the user asks; user marks ready when satisfied. Open follow-up ideas: keep held objects
 upright during ParkArmsAction inside TransportAction; Tiago/HSR top-down reach
 limits (joint-limit avoidance in giskardpy) - not in scope.
