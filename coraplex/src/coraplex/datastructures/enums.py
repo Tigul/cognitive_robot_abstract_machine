@@ -279,6 +279,27 @@ class MovementType(Enum):
     CARTESIAN = auto()
 
 
+class DesignatorCapability(Enum):
+    """
+    What a designator does in the world, as implied by its parameters.
+    """
+
+    MANIPULATES_OBJECTS = auto()
+    """
+    The designator acts on an object in the world.
+    """
+
+    CONTROLS_AN_ARM = auto()
+    """
+    The designator commands one of the robot's arms.
+    """
+
+    MOVES_THE_TOOL_CENTER_POINT = auto()
+    """
+    The designator drives an end effector's tool center point to a goal.
+    """
+
+
 class WaypointsMovementType(Enum):
     """
     Enum for the different movement types of the robot.

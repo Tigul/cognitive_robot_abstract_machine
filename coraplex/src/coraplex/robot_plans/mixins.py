@@ -10,9 +10,10 @@ knobs that tune how it carries them out.
 from dataclasses import dataclass, field
 
 import numpy as np
+from krrood.ormatic.utils import classproperty
 from typing_extensions import Optional
 
-from coraplex.datastructures.enums import MovementType
+from coraplex.datastructures.enums import DesignatorCapability, MovementType
 from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
 from semantic_digital_twin.grasping.grasp_candidates import (
     GraspCandidate,
@@ -34,6 +35,14 @@ class DesignatorParameterMixin:
     the helpers that read them, to an action or motion.
     """
 
+    @classproperty
+    def capabilities(cls) -> frozenset[DesignatorCapability]:
+        """
+        :return: What a designator with these parameters does in the world: the union of
+            the capabilities of every parameter mixin it inherits.
+        """
+        return frozenset()
+
 
 # %% behaviour parameters
 
@@ -48,6 +57,10 @@ class HasArmParameter(DesignatorParameterMixin):
     """
     The arm the behaviour uses.
     """
+
+    @classproperty
+    def capabilities(cls) -> frozenset[DesignatorCapability]:
+        return super().capabilities | {DesignatorCapability.CONTROLS_AN_ARM}
 
 
 @dataclass(eq=False)
@@ -65,6 +78,10 @@ class HasGraspCandidateParameter(DesignatorParameterMixin):
     :meth:`~semantic_digital_twin.grasping.grasp_candidates.HasGraspCandidates.grasp_candidates`.
     """
 
+    @classproperty
+    def capabilities(cls) -> frozenset[DesignatorCapability]:
+        return super().capabilities | {DesignatorCapability.MANIPULATES_OBJECTS}
+
 
 @dataclass(eq=False)
 class HasGraspableObjectParameter(DesignatorParameterMixin):
@@ -77,6 +94,10 @@ class HasGraspableObjectParameter(DesignatorParameterMixin):
     The annotation of the object the behaviour acts on; its :attr:`root` body is used
     where the underlying kinematic body is required.
     """
+
+    @classproperty
+    def capabilities(cls) -> frozenset[DesignatorCapability]:
+        return super().capabilities | {DesignatorCapability.MANIPULATES_OBJECTS}
 
 
 @dataclass(eq=False)
@@ -91,6 +112,10 @@ class HasHandleParameter(DesignatorParameterMixin):
     The handle annotation the behaviour operates; its :attr:`root` body is used where the
     underlying kinematic body is required.
     """
+
+    @classproperty
+    def capabilities(cls) -> frozenset[DesignatorCapability]:
+        return super().capabilities | {DesignatorCapability.MANIPULATES_OBJECTS}
 
 
 @dataclass(eq=False)
@@ -139,6 +164,10 @@ class HasTargetPoseParameter(DesignatorParameterMixin):
     """
     The pose the end effector reaches.
     """
+
+    @classproperty
+    def capabilities(cls) -> frozenset[DesignatorCapability]:
+        return super().capabilities | {DesignatorCapability.MOVES_THE_TOOL_CENTER_POINT}
 
 
 @dataclass(eq=False)
@@ -212,6 +241,10 @@ class HasToolParameter(DesignatorParameterMixin):
     The tool the behaviour uses.
     """
 
+    @classproperty
+    def capabilities(cls) -> frozenset[DesignatorCapability]:
+        return super().capabilities | {DesignatorCapability.MANIPULATES_OBJECTS}
+
 
 @dataclass(eq=False)
 class HasTorsoStateParameter(DesignatorParameterMixin):
@@ -262,6 +295,10 @@ class HasGoalThresholdParameters(DesignatorParameterMixin):
         if self.orientation_threshold is not None:
             return self.orientation_threshold
         return self.context.motion_tolerances.tool_orientation_threshold
+
+    @classproperty
+    def capabilities(cls) -> frozenset[DesignatorCapability]:
+        return super().capabilities | {DesignatorCapability.MOVES_THE_TOOL_CENTER_POINT}
 
 
 @dataclass(eq=False)
@@ -434,6 +471,10 @@ class HasGraspApproachParameters(DesignatorParameterMixin):
             reference_frame=target,
         )
 
+    @classproperty
+    def capabilities(cls) -> frozenset[DesignatorCapability]:
+        return super().capabilities | {DesignatorCapability.MOVES_THE_TOOL_CENTER_POINT}
+
 
 # %% gripper and Cartesian motion limits
 
@@ -498,6 +539,10 @@ class HasCartesianVelocityLimitParameters(DesignatorParameterMixin):
     (i.e. when not :attr:`~coraplex.datastructures.enums.MovementType.TRANSLATION`).
     ``None`` leaves the angular speed unconstrained.
     """
+
+    @classproperty
+    def capabilities(cls) -> frozenset[DesignatorCapability]:
+        return super().capabilities | {DesignatorCapability.MOVES_THE_TOOL_CENTER_POINT}
 
 
 # %% per-action tuning

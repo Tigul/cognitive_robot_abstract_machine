@@ -1,17 +1,28 @@
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import numpy as np
 import pytest
 from typing_extensions import List
 
-from coraplex.datastructures.enums import InsertionPosition, ReachFraction
+from coraplex.datastructures.enums import (
+    DesignatorCapability,
+    DetectionTechnique,
+    InsertionPosition,
+    ReachFraction,
+)
 from coraplex.exceptions import CannotMatchOnType, ReachHasNoFinalApproach
 from coraplex.orm.ormatic_interface import *  # type: ignore
 from coraplex.language import SequentialNode
 from coraplex.plans.factories import execute_single, sequential
 from coraplex.plans.plan import logger as plan_logger
-from coraplex.plans.plan_node import ActionLike, ActionNode, MotionNode, PlanNode
+from coraplex.plans.plan_node import (
+    ActionLike,
+    ActionNode,
+    DesignatorNode,
+    MotionNode,
+    PlanNode,
+)
 from coraplex.plans.plan_transformation import (
     InsertionTransformation,
     PlanTransformation,
@@ -24,7 +35,11 @@ from coraplex.robot_plans.actions.core.navigation import (
     LookAtAction,
     NavigateAction,
 )
-from coraplex.robot_plans.actions.core.pick_up import PickUpAction, ReachAction
+from coraplex.robot_plans.actions.core.pick_up import (
+    GraspingAction,
+    PickUpAction,
+    ReachAction,
+)
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
 from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
@@ -38,6 +53,7 @@ from coraplex.robot_plans.actions.composite.transporting import (
 )
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.plan_transformations import (
+    CapabilityTransformation,
     DetectBeforeGrasp,
     OpenDrawerBeforeMoveAndPickUp,
     OpenDrawerBeforePickUp,
@@ -176,6 +192,28 @@ class MoveGripperLastInTheReachBody(InsertionTransformation[ReachAction]):
                 motion=GripperState.CLOSE, end_effector=right_gripper(plan_node)
             )
         ]
+
+
+@dataclass
+class RecordsObjectManipulation(CapabilityTransformation):
+    """
+    Rewrites nothing, but records every node whose designator manipulates objects.
+    """
+
+    rewritten_nodes: list[DesignatorNode] = field(default_factory=list)
+    """
+    The nodes this was applied to, in the order it was applied to them.
+    """
+
+    @property
+    def capability(self) -> DesignatorCapability:
+        return DesignatorCapability.MANIPULATES_OBJECTS
+
+    def is_applicable(self, plan_node: PlanNode) -> bool:
+        return True
+
+    def apply(self, plan_node: DesignatorNode) -> None:
+        self.rewritten_nodes.append(plan_node)
 
 
 def motions_of(plan_node: PlanNode) -> List[MotionNode]:
@@ -1330,3 +1368,60 @@ def test_a_transformation_the_case_does_not_need_is_no_collision(
 
     assert warnings_of(caplog) == []
     assert plan.plan.applicable_transformations(torso) == [MoveLeftGripperBeforeTorso()]
+
+
+# %% selecting nodes by capability
+
+
+def test_a_transformation_bound_to_a_capability_selects_the_designators_that_have_it(
+    pr2_apartment_context,
+):
+    """
+    A capability-bound transformation selects the pick-up, but neither a torso move,
+    whose parameters imply no capability, nor a detection, which has no parameter mixins
+    at all.
+    """
+    world, view, context = pr2_apartment_context
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    transformation = RecordsObjectManipulation()
+    plan = sequential(
+        [
+            MoveTorsoAction(torso_state=TorsoState.HIGH),
+            PickUpAction(grasp=milk.grasp_candidates()[0], arm=view.right_arm),
+            DetectAction(DetectionTechnique.TYPES, object_sem_annotation=Milk),
+        ],
+        context,
+    )
+    torso, pick_up, detection = plan.children
+
+    assert transformation.matches_node(pick_up)
+    assert not transformation.matches_node(torso)
+    assert not transformation.matches_node(detection)
+
+
+def test_a_transformation_bound_to_a_capability_is_applied_to_the_matching_nodes(
+    pr2_apartment_context,
+):
+    """
+    Expanding the plan applies the transformation to the pick-up and to the grasping and
+    the reach it expands into, which all act on the same object, and to nothing else.
+    """
+    world, view, context = pr2_apartment_context
+    milk = world.get_semantic_annotations_by_type(Milk)[0]
+    transformation = RecordsObjectManipulation()
+    context.plan_transformations.append(transformation)
+
+    plan = sequential(
+        [
+            MoveTorsoAction(torso_state=TorsoState.HIGH),
+            PickUpAction(grasp=milk.grasp_candidates()[0], arm=view.right_arm),
+        ],
+        context,
+    )
+    plan.notify()
+
+    assert [type(node.designator) for node in transformation.rewritten_nodes] == [
+        PickUpAction,
+        GraspingAction,
+        ReachAction,
+    ]
