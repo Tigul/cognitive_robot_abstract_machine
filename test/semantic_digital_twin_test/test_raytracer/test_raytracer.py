@@ -3,11 +3,32 @@ import pytest
 
 from semantic_digital_twin.datastructures.camera_resolution import CameraResolution
 from semantic_digital_twin.exceptions import InvalidCameraResolutionError
+from semantic_digital_twin.spatial_computations.exceptions import (
+    RayEndpointCountMismatchError,
+)
 from semantic_digital_twin.spatial_computations.raytracer import RayTracer
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
 )
 from semantic_digital_twin.testing import ray_test_world
+from semantic_digital_twin.world import World
+from semantic_digital_twin.world_description.world_entity import Body
+
+# %% helpers
+
+
+def _place_body(world: World, body: Body, x: float, z: float = 0.0) -> None:
+    """
+    Move a body of the ray test world to a position on the world's x axis.
+    """
+    world.get_connection(world.root, body).origin = (
+        HomogeneousTransformationMatrix.from_xyz_rpy(
+            x=x, z=z, reference_frame=world.root, child_frame=body
+        )
+    )
+
+
+# %% camera images
 
 
 def test_create_segmentation_mask(ray_test_world):
@@ -150,6 +171,9 @@ def test_non_positive_camera_resolution_raises_domain_exception(width, height):
         CameraResolution(width=width, height=height)
 
 
+# %% ray tests
+
+
 def test_ray_test(ray_test_world):
     world, body1, body2, body3, body4 = ray_test_world
     rt = RayTracer(world)
@@ -250,3 +274,58 @@ def test_max_distance(ray_test_world):
     hits, indices, bodies = rt.ray_test(rays, targets, max_distance=1)
 
     assert len(hits) == 0
+
+
+def test_ray_test_ignores_excluded_bodies(ray_test_world):
+    world, body1, body2, *_ = ray_test_world
+    _place_body(world, body1, x=1)
+    _place_body(world, body2, x=-1)
+    ray_tracer = RayTracer(world, excluded_bodies=[body1])
+
+    _, _, bodies = ray_tracer.ray_test(np.array([3, 0, 0.1]), np.array([-3, 0, 0.1]))
+
+    assert bodies == [body2]
+
+
+def test_ray_test_follows_a_body_moved_after_the_previous_test(ray_test_world):
+    world, body1, body2, *_ = ray_test_world
+    _place_body(world, body1, x=1)
+    _place_body(world, body2, x=-1)
+    ray_tracer = RayTracer(world)
+    ray_tracer.ray_test(np.array([3, 0, 0.1]), np.array([-3, 0, 0.1]))
+
+    _place_body(world, body1, x=1, z=10)
+    _, _, bodies = ray_tracer.ray_test(np.array([3, 0, 0.1]), np.array([-3, 0, 0.1]))
+
+    assert bodies == [body2]
+
+
+def test_multiple_hits_are_ordered_by_distance_along_each_ray(ray_test_world):
+    world, body1, body2, *_ = ray_test_world
+    _place_body(world, body1, x=1)
+    _place_body(world, body2, x=-1)
+    origin = np.array([3, 0, 0.1])
+    box_half_size = body1.collision[0].scale.x / 2
+
+    hits, _, bodies = RayTracer(world).ray_test(
+        origin, np.array([-3, 0, 0.1]), multiple_hits=True
+    )
+
+    assert bodies == [body1, body1, body2, body2]
+    np.testing.assert_allclose(
+        np.linalg.norm(hits - origin, axis=1),
+        [
+            origin[0] - 1 - box_half_size,
+            origin[0] - 1 + box_half_size,
+            origin[0] + 1 - box_half_size,
+            origin[0] + 1 + box_half_size,
+        ],
+        atol=1e-5,
+    )
+
+
+def test_ray_test_rejects_unequal_numbers_of_origins_and_targets(ray_test_world):
+    world, *_ = ray_test_world
+
+    with pytest.raises(RayEndpointCountMismatchError):
+        RayTracer(world).ray_test(np.zeros((2, 3)), np.ones((3, 3)))

@@ -28,6 +28,10 @@ from semantic_digital_twin.semantic_annotations.position_descriptions import (
 from semantic_digital_twin.spatial_computations.forward_kinematics import (
     ForwardKinematicsManager,
 )
+from semantic_digital_twin.spatial_computations.raytracer import (
+    PlacedCollisionShape,
+    RayTracer,
+)
 from semantic_digital_twin.testing import StateChangeCounter
 from semantic_digital_twin.world import (
     ResetStateContextManager,
@@ -45,6 +49,8 @@ ignore_classes = {
     WorldEntityRebinding,
     StateChangeCounter,
     ForwardKinematicsManager,
+    RayTracer,
+    PlacedCollisionShape,
     MeshFileStorage,
     semantic_digital_twin.adapters.procthor.procthor_resolver.ProcthorResolver,
     SemanticDirection,
