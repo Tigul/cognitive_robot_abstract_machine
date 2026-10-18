@@ -61,11 +61,11 @@ replacing take_place_of, CramLanguageNode.replace, add_node_above,
 NotATopLevelNodeError; Stretch base hold is a ParallelInsertion. cramph 831,
 test_plan 230, multi-robot + test_actions 306 passed.
 
-User keeps CramLanguageNode.closest_above. Done (2026-10-18, uncommitted):
+User keeps CramLanguageNode.closest_above. Done (2026-10-18, ebd39a92c pushed, PR description updated, PR still draft):
 coraplex/config (ActionConfig) removed; CloseAction.closed_joint_position (0.01)
 replaces closed_container_joint_state, execution_delay was unused. Test on all
 robots; test_plan + test_orm 234 passed.
 
-Next: commit/push when the user asks; further cleanup as the user asks; user marks ready when satisfied. Open follow-up ideas: keep held objects
+Next: further cleanup as the user asks; user marks ready when satisfied. Open follow-up ideas: keep held objects
 upright during ParkArmsAction inside TransportAction; Tiago/HSR top-down reach
 limits (joint-limit avoidance in giskardpy) - not in scope.
