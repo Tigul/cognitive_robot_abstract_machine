@@ -19,11 +19,14 @@ from coraplex.datastructures.trajectory import PoseTrajectory
 from coraplex.plans.factories import execute_single
 from coraplex.robot_plans.actions.base import ActionDescription, DescriptionType
 from coraplex.robot_plans.mixins import (
-    ArmGoalParameters,
-    EndEffectorPoseParameters,
-    GripperActuationParameters,
-    MaxJointVelocityParameter,
-    TorsoStateParameter,
+    HasArmParameter,
+    HasEndEffectorParameter,
+    HasGoalThresholdParameters,
+    HasGripperCollisionParameter,
+    HasGripperStateParameter,
+    HasMaxJointVelocityParameter,
+    HasTargetPoseParameter,
+    HasTorsoStateParameter,
 )
 from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
@@ -37,7 +40,7 @@ from semantic_digital_twin.datastructures.definitions import (
 
 
 @dataclass
-class MoveTorsoAction(ActionDescription, TorsoStateParameter):
+class MoveTorsoAction(ActionDescription, HasTorsoStateParameter):
     """
     Move the torso of the robot up and down.
     """
@@ -66,7 +69,9 @@ class MoveTorsoAction(ActionDescription, TorsoStateParameter):
 
 
 @dataclass
-class SetGripperAction(ActionDescription, GripperActuationParameters):
+class SetGripperAction(
+    ActionDescription, HasGripperStateParameter, HasEndEffectorParameter
+):
     """
     Set the gripper state of the robot.
     """
@@ -79,7 +84,7 @@ class SetGripperAction(ActionDescription, GripperActuationParameters):
 
 
 @dataclass
-class ParkArmsAction(ActionDescription, MaxJointVelocityParameter):
+class ParkArmsAction(ActionDescription, HasMaxJointVelocityParameter):
     """
     Park the arms of the robot.
     """
@@ -115,7 +120,9 @@ class ParkArmsAction(ActionDescription, MaxJointVelocityParameter):
 
 
 @dataclass
-class FollowToolCenterPointPathAction(ActionDescription, ArmGoalParameters):
+class FollowToolCenterPointPathAction(
+    ActionDescription, HasArmParameter, HasGoalThresholdParameters
+):
     """
     Represents an action to move a robotic arm's TCP (Tool Center Point) along a path of
     poses.
@@ -149,7 +156,13 @@ class FollowToolCenterPointPathAction(ActionDescription, ArmGoalParameters):
 
 
 @dataclass
-class MoveManipulatorAction(ActionDescription, EndEffectorPoseParameters):
+class MoveManipulatorAction(
+    ActionDescription,
+    HasEndEffectorParameter,
+    HasTargetPoseParameter,
+    HasGripperCollisionParameter,
+    HasGoalThresholdParameters,
+):
     """
     Move the end_effector to a specific pose.
     """

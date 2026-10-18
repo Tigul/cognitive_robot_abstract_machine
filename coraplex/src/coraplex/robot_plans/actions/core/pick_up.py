@@ -25,9 +25,13 @@ from coraplex.querying.predicates import (
 )
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.mixins import (
-    GraspParameters,
-    PickUpTuningParameters,
-    ReachTuningParameters,
+    HasArmParameter,
+    HasGoalThresholdParameters,
+    HasGraspApproachParameters,
+    HasGraspCandidateParameter,
+    HasGraspDetectionThresholdParameter,
+    HasPickUpTuningParameters,
+    HasReachTuningParameters,
 )
 from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
@@ -42,8 +46,12 @@ logger = logging.getLogger(__name__)
 @dataclass
 class ReachAction(
     ActionDescription,
-    GraspParameters,
-    ReachTuningParameters,
+    HasGraspCandidateParameter,
+    HasArmParameter,
+    HasGoalThresholdParameters,
+    HasGraspApproachParameters,
+    HasReachTuningParameters,
+    HasGraspDetectionThresholdParameter,
 ):
     """
     Let the robot reach a specific pose.
@@ -119,8 +127,13 @@ class ReachAction(
 @dataclass
 class PickUpAction(
     ActionDescription,
-    GraspParameters,
-    PickUpTuningParameters,
+    HasGraspCandidateParameter,
+    HasArmParameter,
+    HasGoalThresholdParameters,
+    HasGraspApproachParameters,
+    HasPickUpTuningParameters,
+    HasReachTuningParameters,
+    HasGraspDetectionThresholdParameter,
 ):
     """
     Let the robot pick up an object: take hold of it and lift it clear of its support.
@@ -218,8 +231,13 @@ class PickUpAction(
 @dataclass
 class GraspingAction(
     ActionDescription,
-    GraspParameters,
-    PickUpTuningParameters,
+    HasGraspCandidateParameter,
+    HasArmParameter,
+    HasGoalThresholdParameters,
+    HasGraspApproachParameters,
+    HasPickUpTuningParameters,
+    HasReachTuningParameters,
+    HasGraspDetectionThresholdParameter,
 ):
     """
     Let the robot take hold of an object: reach onto a grasp and close on it.

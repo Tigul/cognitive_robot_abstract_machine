@@ -20,53 +20,62 @@ from coraplex.robot_plans.motions.gripper import (
     MoveManipulatorMotion,
     MoveToolCenterPointMotion,
 )
+from coraplex.robot_plans import mixins
 from coraplex.robot_plans.mixins import (
-    ArmGoalParameters,
-    EndEffectorPoseParameters,
-    GraspParameters,
-    GripperActuationParameters,
-    GripperStallToleranceParameters,
-    GripperStateParameter,
-    HandleParameter,
-    GraspApproachParameters,
-    NavigationTargetParameter,
-    HandleOperationParameters,
-    GraspableObjectParameter,
-    PlaceTuningParameters,
-    PlacementTargetParameter,
-    GoalThresholdParameters,
-    ArmParameter,
-    EndEffectorParameter,
-    GraspCandidateParameter,
+    DesignatorParameterMixin,
+    HasArmParameter,
+    HasEndEffectorParameter,
+    HasGoalThresholdParameters,
+    HasGraspableObjectParameter,
+    HasGraspApproachParameters,
+    HasGraspCandidateParameter,
+    HasGripperStateParameter,
+    HasHandleParameter,
+    HasNavigationTargetParameter,
+    HasPlaceTuningParameters,
+    HasPlacementTargetParameter,
+    HasStallToleranceParameters,
 )
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle, Milk
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 
+def parameter_mixins(designator_type: type) -> set[type]:
+    """
+    :return: The parameter mixins the designator inherits.
+    """
+    return {
+        base
+        for base in designator_type.__mro__
+        if base.__module__ == mixins.__name__
+        and issubclass(base, DesignatorParameterMixin)
+        and base is not DesignatorParameterMixin
+    }
+
+
 def test_action_inherits_parameter_mixins():
-    assert issubclass(PickUpAction, ArmParameter)
-    assert issubclass(PickUpAction, GraspCandidateParameter)
+    assert parameter_mixins(PickUpAction) >= {
+        HasArmParameter,
+        HasGraspCandidateParameter,
+        HasGoalThresholdParameters,
+        HasGraspApproachParameters,
+    }
 
 
-def test_bundle_mixins_compose_leaf_mixins():
-    # bundles inherit their constituent leaf mixins ...
-    assert issubclass(GraspParameters, GraspCandidateParameter)
-    assert issubclass(GraspParameters, ArmParameter)
-    assert issubclass(GraspParameters, GraspApproachParameters)
-    assert issubclass(GraspParameters, ArmGoalParameters)
-    assert issubclass(GripperActuationParameters, GripperStateParameter)
-    assert issubclass(GripperActuationParameters, EndEffectorParameter)
-    assert issubclass(HandleOperationParameters, HandleParameter)
-    assert issubclass(HandleOperationParameters, ArmParameter)
-
-
-def test_classes_inherit_bundle_mixins():
-    # ... and concrete classes inherit the bundles while still exposing the leaf interface.
-    assert issubclass(PickUpAction, GraspParameters)
-    assert issubclass(PickUpAction, ArmParameter)
-    assert issubclass(OpenAction, HandleOperationParameters)
-    assert issubclass(MoveGripperMotion, GripperActuationParameters)
+def test_parameter_mixins_do_not_stack_other_parameter_mixins():
+    """
+    Each parameter mixin declares its own parameters only, so a designator names every
+    parameter mixin it has.
+    """
+    for mixin in vars(mixins).values():
+        if not isinstance(mixin, type) or not issubclass(
+            mixin, DesignatorParameterMixin
+        ):
+            continue
+        if mixin is DesignatorParameterMixin:
+            continue
+        assert mixin.__bases__ == (DesignatorParameterMixin,)
 
 
 def test_pick_up_action_takes_its_grasp_and_arm(pr2_apartment_context):
@@ -94,8 +103,8 @@ def test_move_gripper_motion_exposes_its_end_effector(pr2_apartment_context):
 
     assert motion.end_effector is end_effector
     assert motion.motion is GripperState.OPEN
-    assert issubclass(MoveGripperMotion, EndEffectorParameter)
-    assert issubclass(MoveGripperMotion, GripperStateParameter)
+    assert issubclass(MoveGripperMotion, HasEndEffectorParameter)
+    assert issubclass(MoveGripperMotion, HasGripperStateParameter)
 
 
 def test_open_action_operates_on_handle(pr2_apartment_context):
@@ -107,8 +116,8 @@ def test_open_action_operates_on_handle(pr2_apartment_context):
 
     assert action.handle is handle
     assert action.arm is arm
-    assert issubclass(OpenAction, HandleParameter)
-    assert issubclass(OpenAction, ArmParameter)
+    assert issubclass(OpenAction, HasHandleParameter)
+    assert issubclass(OpenAction, HasArmParameter)
 
 
 # %% runtime resolution of the inherited field types
@@ -133,15 +142,15 @@ def test_inherited_parameters_keep_their_declared_types():
 
     assert (
         hints["object_designator"]
-        is GraspableObjectParameter.__annotations__["object_designator"]
+        is HasGraspableObjectParameter.__annotations__["object_designator"]
     )
     assert (
         hints["target_location"]
-        is PlacementTargetParameter.__annotations__["target_location"]
+        is HasPlacementTargetParameter.__annotations__["target_location"]
     )
     assert (
         hints["placing_linear_velocity"]
-        == PlaceTuningParameters.__annotations__["placing_linear_velocity"]
+        == HasPlaceTuningParameters.__annotations__["placing_linear_velocity"]
     )
 
 
@@ -153,14 +162,13 @@ def test_behaviours_driving_a_tool_center_point_carry_their_own_tolerances():
     The goal tolerances belong to driving an arm to a goal, so a behaviour that does
     that has them without naming a second mixin.
     """
-    assert issubclass(MoveToolCenterPointMotion, ArmGoalParameters)
-    assert issubclass(ArmGoalParameters, ArmParameter)
-    assert issubclass(ArmGoalParameters, GoalThresholdParameters)
+    assert issubclass(MoveToolCenterPointMotion, HasArmParameter)
+    assert issubclass(MoveToolCenterPointMotion, HasGoalThresholdParameters)
 
     hints = field_types(MoveToolCenterPointMotion)
     assert (
         hints["position_threshold"]
-        == GoalThresholdParameters.__annotations__["position_threshold"]
+        == HasGoalThresholdParameters.__annotations__["position_threshold"]
     )
 
 
@@ -169,13 +177,13 @@ def test_behaviours_without_a_tool_center_point_goal_have_no_tolerances():
     Parking the arms and setting a gripper drive no tool center point, so folding the
     tolerances into the arm parameters must not reach them.
     """
-    assert not issubclass(ParkArmsAction, GoalThresholdParameters)
+    assert not issubclass(ParkArmsAction, HasGoalThresholdParameters)
     assert "position_threshold" not in {
         parameter.name for parameter in dataclasses.fields(ParkArmsAction)
     }
 
-    assert issubclass(SetGripperAction, GripperActuationParameters)
-    assert not issubclass(SetGripperAction, GripperStallToleranceParameters)
+    assert issubclass(SetGripperAction, HasGripperStateParameter)
+    assert not issubclass(SetGripperAction, HasStallToleranceParameters)
     assert "tolerate_stall" not in {
         parameter.name for parameter in dataclasses.fields(SetGripperAction)
     }
@@ -183,11 +191,11 @@ def test_behaviours_without_a_tool_center_point_goal_have_no_tolerances():
 
 def test_only_the_gripper_motion_tolerates_a_stall():
     """
-    Stalling is something the motion commanding the fingers tolerates, so the stall
-    parameters sit on the gripper actuation the motion uses rather than beside it.
+    Stalling is something the motion commanding the fingers tolerates, not the action
+    that sets the gripper.
     """
-    assert issubclass(MoveGripperMotion, GripperStallToleranceParameters)
-    assert issubclass(GripperStallToleranceParameters, GripperActuationParameters)
+    assert issubclass(MoveGripperMotion, HasStallToleranceParameters)
+    assert not issubclass(SetGripperAction, HasStallToleranceParameters)
 
 
 def test_manipulator_action_and_motion_share_their_end_effector_pose_parameters(
@@ -198,8 +206,9 @@ def test_manipulator_action_and_motion_share_their_end_effector_pose_parameters(
     tolerances as the action that commands it.
     """
     world, view, context = pr2_apartment_context
-    assert issubclass(MoveManipulatorAction, EndEffectorPoseParameters)
-    assert issubclass(MoveManipulatorMotion, EndEffectorPoseParameters)
+    assert parameter_mixins(MoveManipulatorAction) == parameter_mixins(
+        MoveManipulatorMotion
+    )
 
     end_effector = context.robot.left_arm.end_effector
     target_pose = Pose(reference_frame=world.root)
@@ -215,10 +224,10 @@ def test_navigation_behaviours_take_a_planar_target():
     takes the same planar target.
     """
     for navigation in (NavigateAction, PathPlanningNavigateAction, MoveMotion):
-        assert issubclass(navigation, NavigationTargetParameter)
+        assert issubclass(navigation, HasNavigationTargetParameter)
         assert (
             field_types(navigation)["target_location"]
-            == NavigationTargetParameter.__annotations__["target_location"]
+            == HasNavigationTargetParameter.__annotations__["target_location"]
         )
 
 

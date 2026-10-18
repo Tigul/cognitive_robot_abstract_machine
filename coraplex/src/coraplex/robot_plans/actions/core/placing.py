@@ -21,11 +21,12 @@ from coraplex.plans.factories import sequential
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.mixins import (
-    GraspApproachParameters,
-    GraspableObjectParameter,
-    PlaceTuningParameters,
-    PlacementTargetParameter,
-    GoalThresholdParameters,
+    HasGoalThresholdParameters,
+    HasGraspApproachParameters,
+    HasGraspDetectionThresholdParameter,
+    HasGraspableObjectParameter,
+    HasPlaceTuningParameters,
+    HasPlacementTargetParameter,
 )
 from coraplex.robot_plans.motions.gripper import (
     MoveGripperMotion,
@@ -41,11 +42,12 @@ from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 @dataclass
 class PlaceAction(
     ActionDescription,
-    GraspableObjectParameter,
-    PlacementTargetParameter,
-    GoalThresholdParameters,
-    GraspApproachParameters,
-    PlaceTuningParameters,
+    HasGraspableObjectParameter,
+    HasPlacementTargetParameter,
+    HasGoalThresholdParameters,
+    HasGraspApproachParameters,
+    HasPlaceTuningParameters,
+    HasGraspDetectionThresholdParameter,
 ):
     """
     Places an object at a position with the arm that holds it.

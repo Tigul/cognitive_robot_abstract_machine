@@ -10,14 +10,15 @@ from giskardpy.motion_statechart.tasks.joint_tasks import (
 )
 from giskardpy.motion_statechart.tasks.pointing import Pointing
 from coraplex.robot_plans.mixins import (
-    CameraTargetParameters,
-    MaxJointVelocityParameter,
+    HasCameraParameter,
+    HasLookTargetParameter,
+    HasMaxJointVelocityParameter,
 )
 from coraplex.robot_plans.motions.base import BaseMotion
 
 
 @dataclass
-class MoveJointsMotion(BaseMotion, MaxJointVelocityParameter):
+class MoveJointsMotion(BaseMotion, HasMaxJointVelocityParameter):
     """
     Moves any joint on the robot.
     """
@@ -53,7 +54,7 @@ class MoveJointsMotion(BaseMotion, MaxJointVelocityParameter):
 
 
 @dataclass
-class LookingMotion(BaseMotion, CameraTargetParameters):
+class LookingMotion(BaseMotion, HasCameraParameter, HasLookTargetParameter):
     """
     Lets the robot look at a point.
     """

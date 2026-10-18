@@ -12,9 +12,9 @@ from coraplex.plans.factories import execute_single, pause_until, sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.mixins import (
-    CameraTargetParameters,
-    NavigationTargetParameter,
-    LookTargetParameter,
+    HasCameraParameter,
+    HasLookTargetParameter,
+    HasNavigationTargetParameter,
 )
 from coraplex.robot_plans.motions.navigation import MoveMotion, TurnMotion
 from coraplex.robot_plans.motions.robot_body import LookingMotion
@@ -41,7 +41,7 @@ from semantic_digital_twin.world_description.geometry import VolumetricBoundingB
 
 
 @dataclass
-class NavigateAction(ActionDescription, NavigationTargetParameter):
+class NavigateAction(ActionDescription, HasNavigationTargetParameter):
     """
     Navigates the Robot to a position.
     """
@@ -85,7 +85,7 @@ class NavigateAction(ActionDescription, NavigationTargetParameter):
 
 
 @dataclass
-class LookAtAction(ActionDescription, CameraTargetParameters):
+class LookAtAction(ActionDescription, HasCameraParameter, HasLookTargetParameter):
     """
     Lets the robot look at a position.
     """
@@ -97,7 +97,7 @@ class LookAtAction(ActionDescription, CameraTargetParameters):
 
 
 @dataclass
-class FaceAtAction(ActionDescription, LookTargetParameter):
+class FaceAtAction(ActionDescription, HasLookTargetParameter):
     """
     Turns the robot's base on the spot until its front faces a target.
     """
@@ -108,7 +108,7 @@ class FaceAtAction(ActionDescription, LookTargetParameter):
 
 
 @dataclass
-class PathPlanningNavigateAction(ActionDescription, NavigationTargetParameter):
+class PathPlanningNavigateAction(ActionDescription, HasNavigationTargetParameter):
     """
     Navigates the robot to a pose along a path through the environment's free space.
 

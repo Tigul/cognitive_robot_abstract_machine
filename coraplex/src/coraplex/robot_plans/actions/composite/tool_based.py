@@ -37,8 +37,9 @@ from coraplex.plans.factories import sequential
 from coraplex.plans.plan_node import PlanNode
 from coraplex.robot_plans.actions.base import ActionDescription
 from coraplex.robot_plans.mixins import (
-    ArmGoalParameters,
-    ToolParameter,
+    HasArmParameter,
+    HasGoalThresholdParameters,
+    HasToolParameter,
 )
 from coraplex.robot_plans.actions.composite.tool_paths import (
     ToolPath,
@@ -101,7 +102,13 @@ class FullBodyControlledAction(ActionDescription, ABC):
 
 
 @dataclass(kw_only=True)
-class ToolMotionAction(FullBodyControlledAction, ArmGoalParameters, ToolParameter, ABC):
+class ToolMotionAction(
+    FullBodyControlledAction,
+    HasArmParameter,
+    HasGoalThresholdParameters,
+    HasToolParameter,
+    ABC,
+):
     """
     An action that moves a tool along a sampled tool path while keeping the tool aligned
     with its target.
@@ -384,7 +391,9 @@ class WipingAction(ToolMotionAction):
 
 
 @dataclass(kw_only=True)
-class PouringAction(FullBodyControlledAction, ArmGoalParameters):
+class PouringAction(
+    FullBodyControlledAction, HasArmParameter, HasGoalThresholdParameters
+):
     """
     Pour from a held source container into a target container by tilting the source next
     to the target's rim.

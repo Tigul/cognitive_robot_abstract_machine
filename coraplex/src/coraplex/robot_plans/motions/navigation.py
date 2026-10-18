@@ -12,7 +12,9 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPosition,
 )
 from giskardpy.motion_statechart.tasks.pointing import Pointing
-from coraplex.robot_plans.mixins import NavigationTargetParameter
+from coraplex.robot_plans.mixins import (
+    HasNavigationTargetParameter,
+)
 from coraplex.robot_plans.motions.base import BaseMotion
 from semantic_digital_twin.spatial_types.spatial_types import (
     Point3,
@@ -22,7 +24,7 @@ from semantic_digital_twin.spatial_types.spatial_types import (
 
 
 @dataclass
-class MoveMotion(BaseMotion, NavigationTargetParameter):
+class MoveMotion(BaseMotion, HasNavigationTargetParameter):
     """
     Moves the robot to a designated location.
     """
