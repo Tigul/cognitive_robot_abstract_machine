@@ -23,4 +23,10 @@ environment collision, start at twin base pose (--search-whole-region).
 User approved StretchBaseLidar.topic_name = RobotTopic.SCAN ("scan") and the
 change to the unknown-topic test. PR body + design doc (rev 41) updated.
 
-Next: milestone 5, the Stretch trial (no PR); confirm the real scan topic there.
+2026-10-19: merged main (b29c37fbfd) up the stack, all five branches pushed;
+PRs #12-15 still drafts with only their own files.
+
+Next: milestone 5 is on GARMI, not the Stretch (user, 2026-10-19). GARMI's
+URDF has two 2D lidars (lidar2d_0_laser front at x=0.39, lidar2d_1_laser rear,
+yaw pi) on chassis_link; GarmiMobileBase has no HasLidar, so the executable
+rejects GARMI today. Open: scanner topics and patterns, one lidar or both.
