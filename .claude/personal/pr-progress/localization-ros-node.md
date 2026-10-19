@@ -16,6 +16,11 @@ Done (2026-10-19): commit e86a7d3ac4, pushed, draft PR #15. ORM regenerated
 test_localization, test_sensors, test_raytracer, test_ros, test_orm,
 test_specifications, test_robots.
 
-Next: milestone 5 needs an executable: fetch the twin, keep it synced, pick the
-robot's drive, lidar and region; then the Stretch trial. Design doc (rev 40)
-links #15 and records the two departures.
+Commit bf5d0cfd11 (2026-10-19): executable semantic-digital-twin-localization
+(LocalizationCommandLine.run/start -> LocalizationProcess): fetch twin,
+WorldSynchronizer, pick robot (--robot), drive + base lidar, region from
+environment collision, start at twin base pose (--search-whole-region).
+User approved StretchBaseLidar.topic_name = RobotTopic.SCAN ("scan") and the
+change to the unknown-topic test. PR body + design doc (rev 41) updated.
+
+Next: milestone 5, the Stretch trial (no PR); confirm the real scan topic there.
