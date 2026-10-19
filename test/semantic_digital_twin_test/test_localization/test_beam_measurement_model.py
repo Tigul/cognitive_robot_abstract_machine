@@ -3,6 +3,7 @@ import pytest
 
 from semantic_digital_twin.localization.beam_measurement_model import (
     BeamMeasurementModel,
+    ScanLikelihoods,
 )
 from semantic_digital_twin.localization.particles import ParticleSet
 from semantic_digital_twin.spatial_types.spatial_types import Pose2D
@@ -58,7 +59,10 @@ def test_a_beam_reaching_the_maximum_range_scores_a_maximum_range_reading():
 # %% whole scans
 
 
-def test_the_true_pose_explains_a_scan_better_than_a_shifted_pose():
+def scan_likelihoods_at_shifted_poses(model: BeamMeasurementModel) -> ScanLikelihoods:
+    """
+    :return: The likelihoods a model gives a scan at the true pose and two poses near it.
+    """
     world = Room().build()
     robot = SimulatedRobot(
         world, Pose2D(x=3.0, y=1.0, yaw=0.3), np.random.default_rng(0)
@@ -68,9 +72,39 @@ def test_the_true_pose_explains_a_scan_better_than_a_shifted_pose():
         poses=np.array([[x, y, yaw], [x + 0.3, y, yaw], [x, y, yaw + 0.2]]),
         weights=np.full(3, 1 / 3),
     )
-
-    likelihoods = BeamMeasurementModel().weigh(
+    return model.weigh(
         particles, robot.read_scan(), robot.base_T_lidar.to_np(), world.ray_tracer
     )
 
+
+def test_the_true_pose_explains_a_scan_better_than_a_shifted_pose():
+    likelihoods = scan_likelihoods_at_shifted_poses(BeamMeasurementModel())
+
     assert likelihoods.log_likelihoods.argmax() == 0
+
+
+# %% tempering
+
+
+def test_the_likelihood_exponent_scales_the_log_likelihoods():
+    untempered = scan_likelihoods_at_shifted_poses(
+        BeamMeasurementModel(likelihood_exponent=1.0)
+    )
+    model = BeamMeasurementModel()
+
+    tempered = scan_likelihoods_at_shifted_poses(model)
+
+    np.testing.assert_allclose(
+        tempered.log_likelihoods,
+        model.likelihood_exponent * untempered.log_likelihoods,
+    )
+
+
+def test_the_fit_of_a_scan_does_not_depend_on_the_likelihood_exponent():
+    untempered = scan_likelihoods_at_shifted_poses(
+        BeamMeasurementModel(likelihood_exponent=1.0)
+    )
+    tempered = scan_likelihoods_at_shifted_poses(BeamMeasurementModel())
+    weights = np.array([0.5, 0.3, 0.2])
+
+    assert tempered.fit(weights) == pytest.approx(untempered.fit(weights))

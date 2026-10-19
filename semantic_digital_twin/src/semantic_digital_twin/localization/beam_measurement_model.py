@@ -21,12 +21,17 @@ class ScanLikelihoods:
     log_likelihoods: npt.NDArray[np.float64]
     """
     The log-likelihood of the scan at every particle, the sum of the logs of the
-    compared beams' probabilities.
+    compared beams' probabilities times :attr:`likelihood_exponent`.
     """
 
     beam_count: int
     """
     How many beams of the scan were compared.
+    """
+
+    likelihood_exponent: float
+    """
+    The exponent the product of the compared beams' probabilities is raised to.
     """
 
     def fit(self, weights: npt.NDArray[np.float64]) -> float:
@@ -35,7 +40,13 @@ class ScanLikelihoods:
         :return: The geometric mean probability of a compared beam, averaged over the
             particles by their weights.
         """
-        return float(np.exp(weights @ self.log_likelihoods / self.beam_count))
+        return float(
+            np.exp(
+                weights
+                @ self.log_likelihoods
+                / (self.beam_count * self.likelihood_exponent)
+            )
+        )
 
 
 # %% beam measurement model
@@ -89,6 +100,12 @@ class BeamMeasurementModel:
     How many evenly spread beams of a scan are compared (AMCL's max_beams).
     """
 
+    likelihood_exponent: float = 0.2
+    """
+    The exponent the product of the compared beams' probabilities is raised to; below
+    one, a scan counts as fewer independent beams than it compares.
+    """
+
     def weigh(
         self,
         particles: ParticleSet,
@@ -116,8 +133,10 @@ class BeamMeasurementModel:
             pattern.maximum_range,
         )
         return ScanLikelihoods(
-            log_likelihoods=np.sum(np.log(probabilities), axis=-1),
+            log_likelihoods=self.likelihood_exponent
+            * np.sum(np.log(probabilities), axis=-1),
             beam_count=len(used_beams),
+            likelihood_exponent=self.likelihood_exponent,
         )
 
     @staticmethod
