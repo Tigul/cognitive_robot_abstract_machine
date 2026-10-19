@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass
 
 import numpy as np
@@ -111,6 +112,7 @@ def forward_beam_reading(mount: Body) -> LidarReading:
         reference_frame=mount,
         scan_pattern=forward_beam_pattern(),
         ranges=np.array([FAR_WALL_DISTANCE]),
+        stamp=0.0,
     )
 
 
@@ -282,6 +284,17 @@ def test_simulated_source_expresses_its_beams_in_the_lidars_own_root():
     assert reading.reference_frame is mount
 
 
+def test_simulated_source_stamps_a_reading_with_the_time_it_was_measured():
+    _, mount = world_with_walls(FAR_WALL_DISTANCE)
+    lidar = simulated_lidar(mount, forward_beam_pattern())
+
+    before = time.time()
+    reading = lidar.get_lidar_reading()
+    after = time.time()
+
+    assert before <= reading.stamp <= after
+
+
 def test_simulated_source_reading_carries_the_lidars_scan_pattern():
     _, mount = world_with_walls(FAR_WALL_DISTANCE)
     lidar = simulated_lidar(mount, forward_beam_pattern())
@@ -307,6 +320,7 @@ def test_a_reading_places_a_point_where_every_hitting_beam_ended():
         reference_frame=mount,
         scan_pattern=pattern,
         ranges=np.array([2.0, np.inf, 3.0]),
+        stamp=0.0,
     )
 
     np.testing.assert_allclose(

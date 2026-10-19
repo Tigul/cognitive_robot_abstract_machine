@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 
 import numpy as np
 import numpy.typing as npt
 from typing_extensions import Self
 
+from krrood.ormatic.utils import classproperty
 from semantic_digital_twin.adapters.sensors.lidar import Lidar, LidarSource
 from semantic_digital_twin.datastructures.lidar_reading import LidarReading
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
@@ -177,11 +179,26 @@ class Room:
 # %% the robot driving through it
 
 
+class RobotTopic(StrEnum):
+    """
+    The topics the simulated robot's sensors would publish on.
+    """
+
+    SCAN = "scan"
+    """
+    The sweeps of its lidar.
+    """
+
+
 @dataclass(eq=False)
 class FullCircleLidar(Lidar):
     """
     A lidar sweeping a full circle in one degree steps.
     """
+
+    @classproperty
+    def topic_name(cls) -> str:
+        return RobotTopic.SCAN
 
     @classmethod
     def with_source(

@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from typing import Type
 
 from krrood.exceptions import DataclassException
+from semantic_digital_twin.adapters.sensors.lidar import Lidar
 
 
 @dataclass
@@ -71,3 +72,24 @@ class LaserScanBeamCountMismatch(ROS2ConversionError):
 
     def suggest_correction(self) -> str:
         return "check that the scan's angle_min, angle_max and angle_increment match its ranges."
+
+
+@dataclass
+class LidarWithoutScanTopic(DataclassException):
+    """
+    Raised when the sweeps of a lidar are to be received, but its description names no
+    topic they are published on.
+    """
+
+    lidar: Lidar = field(kw_only=True)
+    """
+    The lidar whose topic is missing.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{type(self.lidar).__name__} names no topic its sweeps are published on."
+        )
+
+    def suggest_correction(self) -> str:
+        return f"give {type(self.lidar).__name__} a topic_name classproperty."

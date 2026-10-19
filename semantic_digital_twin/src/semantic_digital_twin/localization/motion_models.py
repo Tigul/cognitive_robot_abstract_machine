@@ -5,16 +5,30 @@ from dataclasses import dataclass
 
 import numpy as np
 import numpy.typing as npt
+from typing_extensions import Generic, TypeVar
 
+from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
+from krrood.utils import recursive_subclasses
+from semantic_digital_twin.localization.exceptions import NoMotionModelForDrive
 from semantic_digital_twin.spatial_types.spatial_types import Pose2D
+from semantic_digital_twin.world_description.connections import (
+    DifferentialDrive,
+    OmniDrive,
+    WheeledDrive,
+)
 
 # %% motion models
 
+DriveType = TypeVar("DriveType", bound=WheeledDrive)
+
 
 @dataclass
-class MotionModel(ABC):
+class MotionModel(Generic[DriveType], SubClassSafeGeneric, ABC):
     """
     How uncertain the motion of a robot base is that its odometry measured.
+
+    Each model binds the kind of drive whose motion it describes, as in
+    ``MotionModel[DifferentialDrive]``.
 
     The noise parameters weigh the squared measured translation, in square meters, and
     the squared measured rotation, in square radians, into the variance of the sampled
@@ -41,6 +55,20 @@ class MotionModel(ABC):
     """
     How much the measured rotation adds to the translation's variance (AMCL's alpha4).
     """
+
+    @classmethod
+    def for_drive_type(cls, drive_type: type[WheeledDrive]) -> MotionModel:
+        """
+        :param drive_type: The kind of drive whose motion the odometry measures.
+        :return: The motion model of that kind of drive, with default noise.
+        :raises NoMotionModelForDrive: If no motion model describes that kind of drive.
+        """
+        for model_type in recursive_subclasses(MotionModel):
+            if issubclass(
+                drive_type, model_type.get_type_of_generic_parameter(DriveType)
+            ):
+                return model_type()
+        raise NoMotionModelForDrive(drive_type=drive_type)
 
     def _rotation_deviation(self, rotation: float, translation: float) -> float:
         """
@@ -71,7 +99,7 @@ class MotionModel(ABC):
 
 
 @dataclass
-class DifferentialDriveMotionModel(MotionModel):
+class DifferentialDriveMotionModel(MotionModel[DifferentialDrive]):
     """
     The motion of a base that turns, drives straight along its heading and turns again.
     """
@@ -118,7 +146,7 @@ class DifferentialDriveMotionModel(MotionModel):
 
 
 @dataclass
-class OmniDriveMotionModel(MotionModel):
+class OmniDriveMotionModel(MotionModel[OmniDrive]):
     """
     The motion of a base that drives in any direction while turning.
     """
