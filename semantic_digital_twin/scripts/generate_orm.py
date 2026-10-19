@@ -23,6 +23,10 @@ from krrood.utils import recursive_subclasses
 import semantic_digital_twin.reasoning.predicates
 import semantic_digital_twin.reasoning.world_rdr.rules
 from semantic_digital_twin.adapters.ros.localization import LocalizationNode
+from semantic_digital_twin.adapters.ros.localization_command_line import (
+    LocalizationCommandLine,
+    LocalizationProcess,
+)
 from semantic_digital_twin.localization.beam_measurement_model import (
     BeamMeasurementModel,
     ScanLikelihoods,
@@ -86,6 +90,8 @@ ignore_classes = {
     PoseEstimate,
     MonteCarloLocalization,
     LocalizationNode,
+    LocalizationProcess,
+    LocalizationCommandLine,
     # A symbolic operation is a step of a query, not something a world stores, so none of
     # them is mapped. The modules defining them are imported above so that they are all
     # declared by the time this is read.

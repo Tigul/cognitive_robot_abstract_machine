@@ -99,8 +99,8 @@ class LocalizationNode(HasROS2Node):
 
     transform_tolerance: float = 1.0
     """
-    How far past a sweep's stamp a published transform is stamped, in seconds, so that it
-    stays valid until the next one arrives (AMCL's transform_tolerance).
+    How far past a sweep's stamp a published transform is stamped, in seconds, so that
+    it stays valid until the next one arrives (AMCL's transform_tolerance).
     """
 
     random_generator: np.random.Generator = field(default_factory=np.random.default_rng)

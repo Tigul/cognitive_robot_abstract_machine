@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from enum import StrEnum
 
 import numpy as np
 import numpy.typing as npt
@@ -12,6 +11,7 @@ from semantic_digital_twin.adapters.sensors.lidar import Lidar, LidarSource
 from semantic_digital_twin.datastructures.lidar_reading import LidarReading
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
+from semantic_digital_twin.robots.input_source import RobotTopic
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
     Pose2D,
@@ -179,17 +179,6 @@ class Room:
 # %% the robot driving through it
 
 
-class RobotTopic(StrEnum):
-    """
-    The topics the simulated robot's sensors would publish on.
-    """
-
-    SCAN = "scan"
-    """
-    The sweeps of its lidar.
-    """
-
-
 @dataclass(eq=False)
 class FullCircleLidar(Lidar):
     """
@@ -198,6 +187,9 @@ class FullCircleLidar(Lidar):
 
     @classproperty
     def topic_name(cls) -> str:
+        """
+        The topic the sweeps of this lidar are published on.
+        """
         return RobotTopic.SCAN
 
     @classmethod

@@ -5,6 +5,7 @@ from typing import Type
 
 from krrood.exceptions import DataclassException
 from semantic_digital_twin.adapters.sensors.lidar import Lidar
+from semantic_digital_twin.robots.robot_parts import AbstractRobot
 
 
 @dataclass
@@ -93,3 +94,46 @@ class LidarWithoutScanTopic(DataclassException):
 
     def suggest_correction(self) -> str:
         return f"give {type(self.lidar).__name__} a topic_name classproperty."
+
+
+@dataclass
+class RobotToLocalizeNotFound(DataclassException):
+    """
+    Raised when a fetched world holds no robot to localize, or not the one asked for.
+    """
+
+    robot_names: list[str] = field(kw_only=True)
+    """
+    The names of the robots the world holds.
+    """
+
+    requested_name: str | None = field(kw_only=True)
+    """
+    The name of the robot asked for, or None if the world was to hold exactly one robot.
+    """
+
+    def error_message(self) -> str:
+        if self.requested_name is None:
+            return f"Expected exactly one robot to localize, found {self.robot_names}."
+        return f"No robot named {self.requested_name} among {self.robot_names}."
+
+    def suggest_correction(self) -> str:
+        return "name one of the robots the world holds."
+
+
+@dataclass
+class RobotWithoutBaseLidar(DataclassException):
+    """
+    Raised when a robot to localize has no mobile base carrying a lidar.
+    """
+
+    robot: AbstractRobot = field(kw_only=True)
+    """
+    The robot that cannot be localized.
+    """
+
+    def error_message(self) -> str:
+        return f"{self.robot.name} has no mobile base carrying a lidar."
+
+    def suggest_correction(self) -> str:
+        return "localize a robot whose mobile base has a lidar."

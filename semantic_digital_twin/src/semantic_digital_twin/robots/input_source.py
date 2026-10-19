@@ -31,6 +31,11 @@ class RobotTopic(StrEnum):
 
     JOINT_STATES = "joint_states"
 
+    SCAN = "scan"
+    """
+    The sweeps of a 2D lidar.
+    """
+
 
 # %% joint positions
 

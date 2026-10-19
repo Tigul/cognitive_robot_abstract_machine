@@ -80,6 +80,7 @@ include = ["semantic_digital_twin*"]
 
 [project.scripts]
 semantic-digital-twin-part-finding-server = "semantic_digital_twin.adapters.part_finding.command_line:PartFindingCommandLine.run"
+semantic-digital-twin-localization = "semantic_digital_twin.adapters.ros.localization_command_line:LocalizationCommandLine.run"
 
 [tool.setuptools.dynamic]
 version = {attr = "semantic_digital_twin._version.__version__"}

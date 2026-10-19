@@ -25,6 +25,7 @@ from semantic_digital_twin.datastructures.field_of_view import FieldOfView
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
+from semantic_digital_twin.robots.input_source import RobotTopic
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasNeck,
     HasLidar,
@@ -399,6 +400,13 @@ class StretchBaseLidar(Lidar):
     ..note:: The sweep closes a full circle, so its last beam stops one increment short
         of its first rather than repeating it.
     """
+
+    @classproperty
+    def topic_name(cls) -> str:
+        """
+        The topic the Stretch publishes the sweeps of its lidar on.
+        """
+        return RobotTopic.SCAN
 
     @classmethod
     def with_source(
