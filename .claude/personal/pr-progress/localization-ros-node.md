@@ -26,7 +26,14 @@ change to the unknown-topic test. PR body + design doc (rev 41) updated.
 2026-10-19: merged main (b29c37fbfd) up the stack, all five branches pushed;
 PRs #12-15 still drafts with only their own files.
 
-Next: milestone 5 is on GARMI, not the Stretch (user, 2026-10-19). GARMI's
-URDF has two 2D lidars (lidar2d_0_laser front at x=0.39, lidar2d_1_laser rear,
-yaw pi) on chassis_link; GarmiMobileBase has no HasLidar, so the executable
-rejects GARMI today. Open: scanner topics and patterns, one lidar or both.
+Commit 5cd5353e4c (2026-10-19): GarmiBaseLidar on GarmiMobileBase (merged scan
+r100_0603/sensors/lidar2d_merged/scan, frame base_link, -pi..pi, 0.004363 rad,
+0.1-25 m, from a real message the user pasted); node + CLI take tf frames
+(CoordinateFrame REP 105 defaults, --map/--odom/--base-frame) instead of twin
+body names; robot bodies via get_kinematic_structure_entities_of_branch
+(World.compute_descendent_child_kinematic_structure_entities hangs on GARMI:
+extends the memoized list while iterating it; not fixed, reported to user).
+All suites green; PR body updated.
+
+Next: milestone 5 on GARMI. Unverified: odom tf frame names on GARMI
+(defaults odom/base_link); merged scan's ranges length should be 1441.
