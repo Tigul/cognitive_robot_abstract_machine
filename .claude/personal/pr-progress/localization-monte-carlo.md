@@ -20,7 +20,7 @@ posterior weights. 10 seeds x 3 scenarios all end within 7 cm.
 1+sum p^3 fails everything (also with per-update resampling, without /N);
 product 8/10 global (wrong niche), product^0.2 30/30. Commit d592bcccfc adds
 BeamMeasurementModel.likelihood_exponent=0.2 (fit stays untempered), pushed,
-PR body updated. Room sweep now within 3 cm. Design doc still to update.
+PR body and design doc (rev 37) updated. Room sweep now within 3 cm.
 
 Next: localization-ros-node (milestone 4) on top of this branch: LidarReading
 stamp, stamped odometry history, LocalizationNode (twin copy, tf map->odom,
