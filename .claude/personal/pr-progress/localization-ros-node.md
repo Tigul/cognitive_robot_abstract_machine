@@ -17,5 +17,5 @@ test_localization, test_sensors, test_raytracer, test_ros, test_orm,
 test_specifications, test_robots.
 
 Next: milestone 5 needs an executable: fetch the twin, keep it synced, pick the
-robot's drive, lidar and region; then the Stretch trial. Design doc milestone 4
-line still to link #15 and record the two departures.
+robot's drive, lidar and region; then the Stretch trial. Design doc (rev 40)
+links #15 and records the two departures.
