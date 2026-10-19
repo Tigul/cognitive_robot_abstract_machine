@@ -16,6 +16,12 @@ Deviation from AMCL flagged in PR: product of beam probabilities (sum of logs)
 instead of 1+sum p^3; injection fed the geometric mean beam probability under
 posterior weights. 10 seeds x 3 scenarios all end within 7 cm.
 
+2026-10-19: apartment comparison (scratchpad apartment_compare.py, not in PR):
+1+sum p^3 fails everything (also with per-update resampling, without /N);
+product 8/10 global (wrong niche), product^0.2 30/30. Commit d592bcccfc adds
+BeamMeasurementModel.likelihood_exponent=0.2 (fit stays untempered), pushed,
+PR body updated. Room sweep now within 3 cm. Design doc still to update.
+
 Next: localization-ros-node (milestone 4) on top of this branch: LidarReading
 stamp, stamped odometry history, LocalizationNode (twin copy, tf map->odom,
 /initialpose), motion model chosen by drive connection type.
