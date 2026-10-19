@@ -1,14 +1,21 @@
-from dataclasses import fields
+from abc import ABC
+from dataclasses import dataclass, fields
 
 import numpy as np
 import pytest
 
+from semantic_digital_twin.localization.exceptions import NoMotionModelForDrive
 from semantic_digital_twin.localization.motion_models import (
     DifferentialDriveMotionModel,
     MotionModel,
     OmniDriveMotionModel,
 )
 from semantic_digital_twin.spatial_types.spatial_types import Pose2D
+from semantic_digital_twin.world_description.connections import (
+    DifferentialDrive,
+    OmniDrive,
+    WheeledDrive,
+)
 
 # %% helpers
 
@@ -18,6 +25,34 @@ def noise_free(model_type: type[MotionModel]) -> MotionModel:
     :return: A motion model of the given type that adds no noise.
     """
     return model_type(**{noise.name: 0.0 for noise in fields(model_type)})
+
+
+@dataclass(eq=False)
+class UnmodelledDrive(WheeledDrive, ABC):
+    """
+    A kind of drive no motion model describes.
+    """
+
+
+# %% choosing the model of a drive
+
+
+@pytest.mark.parametrize(
+    "drive_type, model_type",
+    [
+        (DifferentialDrive, DifferentialDriveMotionModel),
+        (OmniDrive, OmniDriveMotionModel),
+    ],
+)
+def test_a_drive_is_given_the_motion_model_of_its_type(drive_type, model_type):
+    model = MotionModel.for_drive_type(drive_type)
+
+    assert type(model) is model_type
+
+
+def test_a_drive_no_motion_model_describes_is_rejected():
+    with pytest.raises(NoMotionModelForDrive):
+        MotionModel.for_drive_type(UnmodelledDrive)
 
 
 # %% without noise

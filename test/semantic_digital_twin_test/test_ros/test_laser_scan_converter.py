@@ -28,6 +28,16 @@ LASER_FRAME_NAME = "base_laser_link"
 Name of the body the scans below are expressed in.
 """
 
+STAMP_SECONDS = 12
+"""
+Whole seconds of the stamp of :func:`laser_scan`.
+"""
+
+STAMP_NANOSECONDS = 500_000_000
+"""
+Nanoseconds past :data:`STAMP_SECONDS` of the stamp of :func:`laser_scan`.
+"""
+
 RANGES = [1.0, 2.0, 3.0]
 """
 Measured distances of the beams of :func:`laser_scan`.
@@ -53,6 +63,8 @@ def laser_scan(ranges: list[float] = None) -> LaserScan:
     """
     scan = LaserScan()
     scan.header.frame_id = LASER_FRAME_NAME
+    scan.header.stamp.sec = STAMP_SECONDS
+    scan.header.stamp.nanosec = STAMP_NANOSECONDS
     scan.angle_min = -np.pi / 4
     scan.angle_max = np.pi / 4
     scan.angle_increment = np.pi / 4
@@ -93,6 +105,14 @@ def test_converted_scan_is_expressed_in_the_body_named_by_its_header(
     reading = LaserScanToSemDTConverter.convert(laser_scan(), world_with_laser_body)
 
     assert reading.reference_frame is world_with_laser_body.root
+
+
+def test_converted_scan_is_stamped_with_the_time_its_header_names(
+    world_with_laser_body,
+):
+    reading = LaserScanToSemDTConverter.convert(laser_scan(), world_with_laser_body)
+
+    assert reading.stamp == pytest.approx(STAMP_SECONDS + STAMP_NANOSECONDS * 1e-9)
 
 
 def test_converted_scan_carries_the_pattern_the_message_declares(
@@ -197,7 +217,6 @@ def test_subscribed_source_reports_the_reading_of_its_latest_scan(
     np.testing.assert_array_equal(reading.ranges, expected.ranges)
     assert reading.scan_pattern == expected.scan_pattern
     assert reading.reference_frame is expected.reference_frame
-
 
 
 def test_a_subscribed_source_reports_a_scan_without_changing_the_lidar(

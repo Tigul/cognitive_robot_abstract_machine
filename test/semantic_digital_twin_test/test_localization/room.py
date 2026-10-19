@@ -6,10 +6,12 @@ import numpy as np
 import numpy.typing as npt
 from typing_extensions import Self
 
+from krrood.ormatic.utils import classproperty
 from semantic_digital_twin.adapters.sensors.lidar import Lidar, LidarSource
 from semantic_digital_twin.datastructures.lidar_reading import LidarReading
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
+from semantic_digital_twin.robots.input_source import RobotTopic
 from semantic_digital_twin.spatial_types.spatial_types import (
     HomogeneousTransformationMatrix,
     Pose2D,
@@ -182,6 +184,13 @@ class FullCircleLidar(Lidar):
     """
     A lidar sweeping a full circle in one degree steps.
     """
+
+    @classproperty
+    def topic_name(cls) -> str:
+        """
+        The topic the sweeps of this lidar are published on.
+        """
+        return RobotTopic.SCAN
 
     @classmethod
     def with_source(

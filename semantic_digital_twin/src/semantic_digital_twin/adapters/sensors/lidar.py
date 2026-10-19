@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
@@ -61,6 +62,7 @@ class SimulatedLidarSource(LidarSource):
                 minimum_distance=lidar.scan_pattern.minimum_range,
                 maximum_distance=lidar.scan_pattern.maximum_range,
             ),
+            stamp=time.time(),
         )
 
 

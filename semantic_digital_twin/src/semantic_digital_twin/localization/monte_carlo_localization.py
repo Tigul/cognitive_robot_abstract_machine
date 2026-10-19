@@ -201,6 +201,16 @@ class MonteCarloLocalization:
             )
         return self.estimate
 
+    def restart_from(self, particles: ParticleSet) -> None:
+        """
+        Replaces the hypotheses of the base's pose, so that the next scan is weighed
+        whether or not the base moved.
+
+        :param particles: The new hypotheses of the base's pose.
+        """
+        self.particles = particles
+        self.estimate = None
+
     def _weigh_particles(
         self, reading: LidarReading, base_T_lidar: npt.NDArray[np.float64]
     ) -> None:

@@ -124,6 +124,22 @@ def test_a_standing_robot_leaves_the_particles_where_they_are():
     np.testing.assert_array_equal(localization.particles.poses, poses_before)
 
 
+def test_a_restarted_localization_weighs_the_next_scan_without_waiting_for_motion():
+    room = Room()
+    robot = SimulatedRobot(
+        room.build(), Pose2D(x=3.0, y=1.0, yaw=0.0), np.random.default_rng(0)
+    )
+    localization = localization_in_room(
+        room, robot, particles_near(Pose2D(x=1.5, y=3.0, yaw=0.0))
+    )
+    localization.step(robot.odometry, robot.read_scan())
+
+    localization.restart_from(particles_near(robot.pose))
+    localization.step(robot.odometry, robot.read_scan())
+
+    assert position_error(estimated_pose(localization, robot), robot.pose) < 0.1
+
+
 # %% global localization and recovery
 
 

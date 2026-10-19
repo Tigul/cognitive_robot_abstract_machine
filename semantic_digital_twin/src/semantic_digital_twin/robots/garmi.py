@@ -8,7 +8,10 @@ from importlib.resources import files
 from pathlib import Path
 from typing import List, Self
 
+import numpy as np
+
 from krrood.ormatic.utils import classproperty
+from semantic_digital_twin.adapters.sensors.lidar import Lidar, LidarSource
 from semantic_digital_twin.collision_checking.collision_rules import (
     AvoidExternalCollisions,
     AvoidSelfCollisions,
@@ -22,8 +25,10 @@ from semantic_digital_twin.datastructures.definitions import (
 from semantic_digital_twin.datastructures.field_of_view import FieldOfView
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.datastructures.scan_pattern import ScanPattern
 from semantic_digital_twin.robots.robot_part_mixins import (
     HasLeftRightArm,
+    HasLidar,
     HasMobileBase,
     HasNeck,
     HasTorso,
@@ -44,6 +49,18 @@ from semantic_digital_twin.world_description.connections import OmniDrive
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
+
+
+class GarmiTopic(StrEnum):
+    """
+    Topics GARMI publishes the state of its parts on, where it does not follow the
+    conventional name.
+    """
+
+    MERGED_LIDAR_SCAN = "r100_0603/sensors/lidar2d_merged/scan"
+    """
+    The sweep merged from the front and rear scanners of the mobile base.
+    """
 
 
 class GarmiJoint(StrEnum):
@@ -639,7 +656,43 @@ class GarmiTorso(
 
 
 @dataclass(eq=False)
-class GarmiMobileBase(MobileBase[OmniDrive], HasTorso[GarmiTorso]):
+class GarmiBaseLidar(Lidar):
+    """
+    The full circle around GARMI's base, merged from the sweeps of its front and rear
+    scanners.
+
+    .. note:: The merged sweep is expressed in the base link, which coincides with the
+        chassis link this lidar is mounted on.
+    """
+
+    @classproperty
+    def topic_name(cls) -> str:
+        """
+        The topic GARMI publishes the merged sweep on.
+        """
+        return GarmiTopic.MERGED_LIDAR_SCAN
+
+    @classmethod
+    def with_source(
+        cls, robot_root: KinematicStructureEntity, source: LidarSource
+    ) -> Self:
+        return cls(
+            root=robot_root,
+            scan_pattern=ScanPattern(
+                minimum_angle=-np.pi,
+                maximum_angle=np.pi,
+                angle_increment=0.004362963140010834,
+                minimum_range=0.1,
+                maximum_range=25.0,
+            ),
+            source=source,
+        )
+
+
+@dataclass(eq=False)
+class GarmiMobileBase(
+    MobileBase[OmniDrive], HasTorso[GarmiTorso], HasLidar[GarmiBaseLidar]
+):
     """
     The mecanum mobile base of the GARMI robot.
     """

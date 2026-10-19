@@ -38,6 +38,11 @@ class LidarReading:
     A beam that hit nothing within the scan pattern's range measures ``math.inf``.
     """
 
+    stamp: float
+    """
+    When the sweep was measured, in seconds since the epoch of the clock that took it.
+    """
+
     @property
     def points(self) -> npt.NDArray[np.float64]:
         """
