@@ -576,6 +576,42 @@ def test_world_specification_with_robot():
     np.testing.assert_allclose(root_T_odom.position.to_np()[0], 1.0)
 
 
+def test_robot_specification_attaches_odom_with_the_localization_connection_type():
+    world_T_odom = HomogeneousTransformationMatrix.from_xyz_rpy(x=1.0, y=-0.5, yaw=0.3)
+    try:
+        world = WorldSpecification(
+            world_parser=None,
+            robots=[
+                RobotSpecification(
+                    semantic_annotation_type=PR2,
+                    world_T_odom=world_T_odom,
+                    localization_connection_type=Connection6DoF,
+                )
+            ],
+        ).to_domain_object()
+    except ParsingError as error:
+        pytest.skip(f"PR2 URDF not available: {error}")
+
+    odom_body = world.get_body_by_name("odom")
+    assert isinstance(odom_body.parent_connection, Connection6DoF)
+    assert odom_body.parent_connection.parent is world.root
+    np.testing.assert_allclose(
+        world.compute_forward_kinematics_np(world.root, odom_body),
+        world_T_odom.to_np(),
+        atol=1e-12,
+    )
+
+
+def test_localization_connection_type_survives_orm_round_trip():
+    specification = RobotSpecification(
+        semantic_annotation_type=PR2, localization_connection_type=Connection6DoF
+    )
+
+    reconstructed = to_dao(specification).from_dao()
+
+    assert reconstructed.localization_connection_type is Connection6DoF
+
+
 def test_robot_specification_applies_the_drive_velocity_limits_it_is_given():
     translation_velocity_limits = 0.1
     rotation_velocity_limits = 0.2
