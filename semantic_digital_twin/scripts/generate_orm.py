@@ -22,6 +22,21 @@ from krrood.ormatic.ormatic import ORMatic
 from krrood.utils import recursive_subclasses
 import semantic_digital_twin.reasoning.predicates
 import semantic_digital_twin.reasoning.world_rdr.rules
+from semantic_digital_twin.localization.beam_measurement_model import (
+    BeamMeasurementModel,
+    ScanLikelihoods,
+)
+from semantic_digital_twin.localization.monte_carlo_localization import (
+    MonteCarloLocalization,
+    PoseEstimate,
+)
+from semantic_digital_twin.localization.motion_models import MotionModel
+from semantic_digital_twin.localization.particles import ParticleSet, PoseHistogram
+from semantic_digital_twin.localization.resampling import (
+    AdaptiveResampling,
+    RandomParticleInjection,
+)
+from semantic_digital_twin.localization.scan_alignment import ScanAlignment
 from semantic_digital_twin.semantic_annotations.position_descriptions import (
     SemanticDirection,
 )
@@ -31,6 +46,7 @@ from semantic_digital_twin.spatial_computations.forward_kinematics import (
 from semantic_digital_twin.spatial_computations.raytracer import (
     PlacedCollisionShape,
     RayTracer,
+    SurfacePoints,
 )
 from semantic_digital_twin.testing import StateChangeCounter
 from semantic_digital_twin.world import (
@@ -51,10 +67,23 @@ ignore_classes = {
     ForwardKinematicsManager,
     RayTracer,
     PlacedCollisionShape,
+    SurfacePoints,
     MeshFileStorage,
     semantic_digital_twin.adapters.procthor.procthor_resolver.ProcthorResolver,
     SemanticDirection,
     SubclassJSONSerializer,
+    # The state of a running localization is not stored.
+    ParticleSet,
+    PoseHistogram,
+    MotionModel,
+    *recursive_subclasses(MotionModel),
+    BeamMeasurementModel,
+    ScanLikelihoods,
+    RandomParticleInjection,
+    AdaptiveResampling,
+    ScanAlignment,
+    PoseEstimate,
+    MonteCarloLocalization,
     # A symbolic operation is a step of a query, not something a world stores, so none of
     # them is mapped. The modules defining them are imported above so that they are all
     # declared by the time this is read.

@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
 import numpy as np
-import numpy.typing as npt
 from typing_extensions import List, Self, TYPE_CHECKING
 
 from semantic_digital_twin.datastructures.joint_state import JointState
@@ -51,51 +50,18 @@ class SimulatedLidarSource(LidarSource):
 
     def get_lidar_reading(self, lidar: Lidar) -> LidarReading:
         world_T_lidar = lidar.root.global_transform.to_np()
-        world_V_beams = lidar.scan_pattern.beam_directions @ world_T_lidar[:3, :3].T
-        world_P_lidar = np.tile(
-            world_T_lidar[:3, 3], (lidar.scan_pattern.beam_count, 1)
-        )
-
-        points, index_ray, _ = lidar.root._world.ray_tracer.ray_test(
-            world_P_lidar,
-            world_P_lidar + world_V_beams * lidar.scan_pattern.maximum_range,
-            multiple_hits=True,
-            min_distance=lidar.scan_pattern.minimum_range,
-            max_distance=lidar.scan_pattern.maximum_range,
-        )
-
         return LidarReading(
             reference_frame=lidar.root,
             scan_pattern=lidar.scan_pattern,
-            ranges=self._nearest_hit_per_beam(
-                points, index_ray, world_P_lidar, lidar.scan_pattern.beam_count
+            ranges=lidar.root._world.ray_tracer.measure_distances(
+                origin_points=np.tile(
+                    world_T_lidar[:3, 3], (lidar.scan_pattern.beam_count, 1)
+                ),
+                directions=lidar.scan_pattern.beam_directions @ world_T_lidar[:3, :3].T,
+                minimum_distance=lidar.scan_pattern.minimum_range,
+                maximum_distance=lidar.scan_pattern.maximum_range,
             ),
         )
-
-    def _nearest_hit_per_beam(
-        self,
-        points: npt.NDArray[np.float64],
-        index_ray: npt.NDArray[np.int_],
-        world_P_lidar: npt.NDArray[np.float64],
-        beam_count: int,
-    ) -> npt.NDArray[np.float64]:
-        """
-        Reduces the hits of a ray test to the one distance each beam measures.
-
-        :param points: The positions where the beams met a surface.
-        :param index_ray: The beam each of those positions belongs to.
-        :param world_P_lidar: The origin of every beam.
-        :param beam_count: How many beams were cast.
-        :return: The distance of the closest hit per beam, and ``numpy.inf`` for beams
-            that hit nothing.
-
-        ..note:: A beam can meet several surfaces, and the ray test does not order its
-            hits, so the closest one is picked explicitly.
-        """
-        distances = np.full(beam_count, np.inf)
-        hit_distances = np.linalg.norm(points - world_P_lidar[index_ray], axis=1)
-        np.minimum.at(distances, index_ray, hit_distances)
-        return distances
 
 
 # %% the lidar a robot carries

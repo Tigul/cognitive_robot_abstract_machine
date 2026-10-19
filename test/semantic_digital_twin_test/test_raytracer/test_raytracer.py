@@ -329,3 +329,68 @@ def test_ray_test_rejects_unequal_numbers_of_origins_and_targets(ray_test_world)
 
     with pytest.raises(RayEndpointCountMismatchError):
         RayTracer(world).ray_test(np.zeros((2, 3)), np.ones((3, 3)))
+
+
+# %% distances along rays
+
+
+def test_distances_reach_the_first_surface_each_ray_meets(ray_test_world):
+    world, body1, body2, *_ = ray_test_world
+    _place_body(world, body1, x=1)
+    _place_body(world, body2, x=-1)
+    origin = np.array([3, 0, 0.1])
+    box_half_size = body1.collision[0].scale.x / 2
+
+    distances = RayTracer(world).measure_distances(
+        origin_points=[origin, origin],
+        directions=[[-1, 0, 0], [1, 0, 0]],
+    )
+
+    np.testing.assert_allclose(
+        distances, [origin[0] - 1 - box_half_size, np.inf], atol=1e-5
+    )
+
+
+def test_distances_skip_surfaces_closer_than_the_minimum_distance(ray_test_world):
+    world, body1, body2, *_ = ray_test_world
+    _place_body(world, body1, x=1)
+    _place_body(world, body2, x=-1)
+    origin = np.array([3, 0, 0.1])
+    box_half_size = body1.collision[0].scale.x / 2
+
+    [distance] = RayTracer(world).measure_distances(
+        origin_points=[origin],
+        directions=[[-1, 0, 0]],
+        minimum_distance=origin[0] - 1 + box_half_size + 0.1,
+    )
+
+    assert distance == pytest.approx(origin[0] + 1 - box_half_size, abs=1e-5)
+
+
+def test_distances_beyond_the_maximum_distance_are_infinite(ray_test_world):
+    world, body1, *_ = ray_test_world
+    _place_body(world, body1, x=1)
+
+    distances = RayTracer(world).measure_distances(
+        origin_points=[[3, 0, 0.1]], directions=[[-1, 0, 0]], maximum_distance=1.0
+    )
+
+    assert distances.tolist() == [np.inf]
+
+
+# %% closest surface points
+
+
+def test_closest_surface_point_lies_on_the_face_in_front_of_the_point(
+    ray_test_world,
+):
+    world, body1, *_ = ray_test_world
+    _place_body(world, body1, x=1)
+    box_half_size = body1.collision[0].scale.x / 2
+
+    surface = RayTracer(world).find_closest_surface_points([[3, 0, 0.05]])
+
+    np.testing.assert_allclose(
+        surface.positions, [[1 + box_half_size, 0, 0.05]], atol=1e-5
+    )
+    np.testing.assert_allclose(np.abs(surface.normals), [[1, 0, 0]], atol=1e-5)
