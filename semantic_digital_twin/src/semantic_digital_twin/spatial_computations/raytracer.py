@@ -47,6 +47,24 @@ class PlacedCollisionShape:
     """
 
 
+@dataclass
+class SurfacePoints:
+    """
+    Points on the collision geometry of a world, each with the normal of the surface
+    there.
+    """
+
+    positions: npt.NDArray[np.float64]
+    """
+    One point per row, in the world root's frame.
+    """
+
+    normals: npt.NDArray[np.float64]
+    """
+    The unit normal of the surface at each point, one per row; its sign is arbitrary.
+    """
+
+
 # %% ray tracer
 
 
@@ -438,6 +456,55 @@ class RayTracer:
             self._placed_shapes[geometry_id].body for geometry_id in geometry_ids[order]
         ]
         return points, index_ray, bodies
+
+    def measure_distances(
+        self,
+        origin_points: npt.ArrayLike,
+        directions: npt.ArrayLike,
+        minimum_distance: float = 0.0,
+        maximum_distance: float = np.inf,
+    ) -> npt.NDArray[np.float64]:
+        """
+        Measures how far each ray travels before it meets a surface.
+
+        :param origin_points: The starting point of every ray.
+        :param directions: The direction of every ray, one per origin.
+        :param minimum_distance: Surfaces closer than this to the origin are passed.
+        :param maximum_distance: Surfaces farther than this from the origin are not
+            reported.
+        :return: The distance from each origin to the first surface between the minimum
+            and the maximum distance, or ``numpy.inf`` where there is none.
+        """
+        origin_points = np.asarray(origin_points, dtype=float).reshape((-1, 3))
+        # The closest hit is the first one beyond a minimum distance of zero, so only a
+        # positive minimum needs the slower test that reports every surface.
+        points, index_ray, _ = self.ray_test(
+            origin_points,
+            origin_points + np.asarray(directions, dtype=float).reshape((-1, 3)),
+            multiple_hits=minimum_distance > 0,
+            min_distance=minimum_distance,
+            max_distance=maximum_distance,
+        )
+        rays_hit, first_hits = np.unique(index_ray, return_index=True)
+        distances = np.full(len(origin_points), np.inf)
+        distances[rays_hit] = np.linalg.norm(
+            points[first_hits] - origin_points[rays_hit], axis=1
+        )
+        return distances
+
+    def find_closest_surface_points(self, points: npt.ArrayLike) -> SurfacePoints:
+        """
+        :param points: Points in the world root's frame, one per row.
+        :return: For each point, the closest point on a surface rays can hit.
+        """
+        self._update_raycasting_scene()
+        closest = self._raycasting_scene.compute_closest_points(
+            np.asarray(points, dtype=np.float32).reshape((-1, 3))
+        )
+        return SurfacePoints(
+            positions=closest["points"].numpy().astype(float),
+            normals=closest["primitive_normals"].numpy().astype(float),
+        )
 
     def _intersect_rays(
         self, rays: npt.NDArray[np.float32], multiple_hits: bool

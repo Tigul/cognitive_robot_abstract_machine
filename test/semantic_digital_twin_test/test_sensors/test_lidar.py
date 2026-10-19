@@ -291,6 +291,29 @@ def test_simulated_source_reading_carries_the_lidars_scan_pattern():
     assert reading.scan_pattern is lidar.scan_pattern
 
 
+# %% reading
+
+
+def test_a_reading_places_a_point_where_every_hitting_beam_ended():
+    _, mount = world_with_walls()
+    pattern = ScanPattern(
+        minimum_angle=0.0,
+        maximum_angle=np.pi,
+        angle_increment=np.pi / 2,
+        minimum_range=0.0,
+        maximum_range=10.0,
+    )
+    reading = LidarReading(
+        reference_frame=mount,
+        scan_pattern=pattern,
+        ranges=np.array([2.0, np.inf, 3.0]),
+    )
+
+    np.testing.assert_allclose(
+        reading.points, [[2.0, 0.0, 0.0], [-3.0, 0.0, 0.0]], atol=1e-12
+    )
+
+
 # %% lidar robot part
 
 
