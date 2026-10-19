@@ -22,7 +22,10 @@ from semantic_digital_twin.adapters.ros.exceptions import (
     RobotToLocalizeNotFound,
     RobotWithoutBaseLidar,
 )
-from semantic_digital_twin.adapters.ros.localization import LocalizationNode
+from semantic_digital_twin.adapters.ros.localization import (
+    CoordinateFrame,
+    LocalizationNode,
+)
 from semantic_digital_twin.adapters.ros.world_fetcher import fetch_world_from_service
 from semantic_digital_twin.adapters.ros.world_synchronizer import WorldSynchronizer
 from semantic_digital_twin.robots.robot_part_mixins import HasLidar, HasMobileBase
@@ -93,6 +96,21 @@ class LocalizationCommandLineOption(StrEnum):
     Sets :attr:`LocalizationCommandLine.fetch_timeout`.
     """
 
+    MAP_FRAME = "--map-frame"
+    """
+    Sets :attr:`LocalizationCommandLine.map_frame`.
+    """
+
+    ODOM_FRAME = "--odom-frame"
+    """
+    Sets :attr:`LocalizationCommandLine.odom_frame`.
+    """
+
+    BASE_FRAME = "--base-frame"
+    """
+    Sets :attr:`LocalizationCommandLine.base_frame`.
+    """
+
 
 class LocalizationNodeName(StrEnum):
     """
@@ -127,6 +145,21 @@ class LocalizationCommandLine:
     How long to wait for a world to fetch, in seconds.
     """
 
+    map_frame: str = CoordinateFrame.MAP
+    """
+    The tf frame of the world root.
+    """
+
+    odom_frame: str = CoordinateFrame.ODOM
+    """
+    The tf frame the robot's odometry is measured in.
+    """
+
+    base_frame: str = CoordinateFrame.BASE_LINK
+    """
+    The tf frame of the robot's base.
+    """
+
     @classmethod
     def run(cls) -> None:
         """
@@ -144,11 +177,23 @@ class LocalizationCommandLine:
             type=float,
             default=defaults.fetch_timeout,
         )
+        parser.add_argument(
+            LocalizationCommandLineOption.MAP_FRAME, default=defaults.map_frame
+        )
+        parser.add_argument(
+            LocalizationCommandLineOption.ODOM_FRAME, default=defaults.odom_frame
+        )
+        parser.add_argument(
+            LocalizationCommandLineOption.BASE_FRAME, default=defaults.base_frame
+        )
         arguments = parser.parse_args()
         settings = cls(
             robot_name=arguments.robot,
             search_whole_region=arguments.search_whole_region,
             fetch_timeout=arguments.fetch_timeout,
+            map_frame=arguments.map_frame,
+            odom_frame=arguments.odom_frame,
+            base_frame=arguments.base_frame,
         )
         rclpy.init()
         node = rclpy.create_node(LocalizationNodeName.LOCALIZATION)
@@ -186,6 +231,9 @@ class LocalizationCommandLine:
                 drive=robot.drive,
                 lidar=robot.mobile_base.lidar,
                 region=self._environment_region(world, robot),
+                map_frame=self.map_frame,
+                odom_frame=self.odom_frame,
+                base_frame=self.base_frame,
                 start_pose=(
                     None
                     if self.search_whole_region

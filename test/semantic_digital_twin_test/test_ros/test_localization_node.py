@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from uuid import uuid4
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -16,11 +17,12 @@ from typing_extensions import Callable
 
 from semantic_digital_twin.adapters.ros.exceptions import LidarWithoutScanTopic
 from semantic_digital_twin.adapters.ros.localization import (
+    CoordinateFrame,
     LocalizationNode,
     LocalizationTopic,
 )
 from semantic_digital_twin.adapters.ros.ros2_to_semdt_converters import (
-    TransformStampedToSemDTConverter,
+    PoseToSemDTConverter,
 )
 from semantic_digital_twin.adapters.ros.semdt_to_ros2_converters import (
     HomogeneousTransformationMatrixToRos2Converter,
@@ -52,12 +54,20 @@ from ..test_localization.room import (
 
 # %% the twin the node localizes in
 
+ROBOT_NAME = "simulated_robot"
+"""
+The prefix the twin gives the robot's links, as a robot description's name does.
+"""
+
 
 @dataclass
 class RobotTwin:
     """
     A copy of the room holding a model of the robot: its odometry frame localized in the
     room, its base driven within that frame and its lidar mounted on the base.
+
+    Its bodies are named as a robot specification names them, with prefixes the robot's
+    own tf frames do not carry.
     """
 
     world: World
@@ -82,9 +92,15 @@ class RobotTwin:
         :return: A twin of the robot in a copy of the room.
         """
         world = room.build()
-        odom = Body(name=PrefixedName("odom"))
-        base = Body(name=PrefixedName("base"))
-        lidar_body = Body(name=robot.lidar.root.name)
+        odom_identifier = uuid4()
+        odom = Body(
+            name=PrefixedName(CoordinateFrame.ODOM, prefix=str(odom_identifier)),
+            id=odom_identifier,
+        )
+        base = Body(name=PrefixedName(CoordinateFrame.BASE_LINK, prefix=ROBOT_NAME))
+        lidar_body = Body(
+            name=PrefixedName(robot.lidar.root.name.name, prefix=ROBOT_NAME)
+        )
         with world.modify_world():
             world.add_connection(
                 Connection6DoF.create_with_dofs(
@@ -174,12 +190,10 @@ class RobotPublisher:
         Publishes where the robot's odometry places its base at a time.
         """
         odom_T_base = HomogeneousTransformationMatrixToRos2Converter.convert(
-            HomogeneousTransformationMatrix(
-                self.robot.odometry.to_np(),
-                reference_frame=self.twin.drive.parent,
-                child_frame=self.twin.drive.child,
-            )
+            HomogeneousTransformationMatrix(self.robot.odometry.to_np())
         )
+        odom_T_base.header.frame_id = CoordinateFrame.ODOM
+        odom_T_base.child_frame_id = CoordinateFrame.BASE_LINK
         odom_T_base.header.stamp = stamp.to_msg()
         self.transform_broadcaster.sendTransform(odom_T_base)
 
@@ -190,7 +204,7 @@ class RobotPublisher:
         reading: LidarReading = self.robot.read_scan()
         pattern = reading.scan_pattern
         scan = LaserScan()
-        scan.header.frame_id = str(self.twin.lidar.root.name)
+        scan.header.frame_id = self.twin.lidar.root.name.name
         scan.header.stamp = stamp.to_msg()
         scan.angle_min = pattern.minimum_angle
         scan.angle_max = pattern.maximum_angle
@@ -205,7 +219,7 @@ class RobotPublisher:
         Publishes a pose of the robot's base in the room, as a person sets one in RViz.
         """
         initial_pose = PoseWithCovarianceStamped()
-        initial_pose.header.frame_id = str(self.twin.world.root.name)
+        initial_pose.header.frame_id = CoordinateFrame.MAP
         initial_pose.pose.pose = PoseToRos2Converter.convert(
             pose.homogeneous_matrix.pose
         )
@@ -229,16 +243,19 @@ def published_estimate(
     published_stamp = scan_stamp + Duration(
         seconds=localization_node.transform_tolerance
     )
-    room_frame = str(twin.world.root.name)
-    odom_frame = str(twin.drive.parent.name)
     if not tf_wrapper.wait_for_transform(
-        room_frame, odom_frame, published_stamp, Duration(seconds=1.0)
+        CoordinateFrame.MAP,
+        CoordinateFrame.ODOM,
+        published_stamp,
+        Duration(seconds=1.0),
     ):
         return None
-    return TransformStampedToSemDTConverter.convert(
-        tf_wrapper.lookup_transform(room_frame, odom_frame, published_stamp),
+    return PoseToSemDTConverter.convert(
+        tf_wrapper.lookup_pose(
+            CoordinateFrame.MAP, CoordinateFrame.ODOM, published_stamp.to_msg()
+        ).pose,
         twin.world,
-    )
+    ).homogeneous_matrix
 
 
 def drive_and_publish(

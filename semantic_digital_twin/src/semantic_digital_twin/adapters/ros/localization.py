@@ -17,7 +17,6 @@ from semantic_digital_twin.adapters.ros.ros2_node import HasROS2Node
 from semantic_digital_twin.adapters.ros.ros2_to_semdt_converters import (
     LaserScanToSemDTConverter,
     PoseToSemDTConverter,
-    TransformStampedToSemDTConverter,
 )
 from semantic_digital_twin.adapters.ros.semdt_to_ros2_converters import (
     HomogeneousTransformationMatrixToRos2Converter,
@@ -54,6 +53,27 @@ class LocalizationTopic(StrEnum):
     """
 
 
+class CoordinateFrame(StrEnum):
+    """
+    The tf frames of a mobile robot, as REP 105 names them.
+    """
+
+    MAP = "map"
+    """
+    The frame of the world the robot is localized in.
+    """
+
+    ODOM = "odom"
+    """
+    The frame the odometry of the base is measured in.
+    """
+
+    BASE_LINK = "base_link"
+    """
+    The frame of the robot's base.
+    """
+
+
 # %% localization node
 
 
@@ -82,6 +102,21 @@ class LocalizationNode(HasROS2Node):
     region: PlanarBoundingBox
     """
     The part of the world root's x-y plane the base may stand in.
+    """
+
+    map_frame: str = CoordinateFrame.MAP
+    """
+    The tf frame of the world root.
+    """
+
+    odom_frame: str = CoordinateFrame.ODOM
+    """
+    The tf frame of the parent of :attr:`drive`, the frame the odometry is measured in.
+    """
+
+    base_frame: str = CoordinateFrame.BASE_LINK
+    """
+    The tf frame of the child of :attr:`drive`, the base whose odometry is measured.
     """
 
     start_pose: Pose2D | None = None
@@ -138,11 +173,7 @@ class LocalizationNode(HasROS2Node):
             raise LidarWithoutScanTopic(lidar=self.lidar)
         world = self.drive._world
         resampling = AdaptiveResampling()
-        robot = [
-            self.drive.child
-        ] + world.compute_descendent_child_kinematic_structure_entities(
-            self.drive.child
-        )
+        robot = world.get_kinematic_structure_entities_of_branch(self.drive.child)
         self.localization = MonteCarloLocalization(
             ray_tracer=RayTracer(
                 world=world,
@@ -190,17 +221,19 @@ class LocalizationNode(HasROS2Node):
         :param scan: A sweep of :attr:`lidar`.
         """
         stamp = Time.from_msg(scan.header.stamp)
-        odom_frame = str(self.drive.parent.name)
-        base_frame = str(self.drive.child.name)
-        if not self.tf_wrapper.tf_buffer.can_transform(odom_frame, base_frame, stamp):
+        if not self.tf_wrapper.tf_buffer.can_transform(
+            self.odom_frame, self.base_frame, stamp
+        ):
             self.node.get_logger().debug(
                 f"Skipping a sweep: no odometry on tf at its stamp {stamp}."
             )
             return
-        odom_T_base = TransformStampedToSemDTConverter.convert(
-            self.tf_wrapper.tf_buffer.lookup_transform(odom_frame, base_frame, stamp),
+        odom_T_base = PoseToSemDTConverter.convert(
+            self.tf_wrapper.lookup_pose(
+                self.odom_frame, self.base_frame, scan.header.stamp
+            ).pose,
             self.drive._world,
-        )
+        ).homogeneous_matrix
         estimate = self.localization.step(
             odom_T_base, LaserScanToSemDTConverter.convert(scan, self.drive._world)
         )
@@ -213,14 +246,11 @@ class LocalizationNode(HasROS2Node):
         :param estimate: The estimate of the latest sweep.
         :param stamp: The stamp of that sweep.
         """
-        world = self.drive._world
         world_T_odom = HomogeneousTransformationMatrixToRos2Converter.convert(
-            HomogeneousTransformationMatrix(
-                estimate.world_T_odom.to_np(),
-                reference_frame=world.root,
-                child_frame=self.drive.parent,
-            )
+            HomogeneousTransformationMatrix(estimate.world_T_odom.to_np())
         )
+        world_T_odom.header.frame_id = self.map_frame
+        world_T_odom.child_frame_id = self.odom_frame
         world_T_odom.header.stamp = (
             stamp + Duration(seconds=self.transform_tolerance)
         ).to_msg()

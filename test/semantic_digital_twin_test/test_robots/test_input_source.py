@@ -28,6 +28,7 @@ from semantic_digital_twin.robots.pr2 import (
     PR2MobileBase,
     PR2Topic,
 )
+from semantic_digital_twin.robots.garmi import GarmiBaseLidar, GarmiTopic
 from semantic_digital_twin.robots.hsrb import HSRBBaseLidar
 from semantic_digital_twin.robots.robot_part_mixins import HasInputSource
 from semantic_digital_twin.robots.stretch import StretchBaseLidar
@@ -228,6 +229,10 @@ def test_a_base_lidar_whose_scanner_topic_is_unknown_declares_none(lidar):
 
 def test_the_stretch_lidar_reads_the_scans_every_robot_publishes():
     assert StretchBaseLidar.topic_name == RobotTopic.SCAN
+
+
+def test_the_garmi_lidar_reads_the_scan_merged_from_both_scanners():
+    assert GarmiBaseLidar.topic_name == GarmiTopic.MERGED_LIDAR_SCAN
 
 
 def test_an_arm_of_a_robot_publishing_per_controller_reads_its_own_topic():

@@ -17,8 +17,13 @@ from semantic_digital_twin.adapters.ros.localization_command_line import (
 from semantic_digital_twin.adapters.ros.world_fetcher import FetchWorldServer
 from semantic_digital_twin.adapters.ros.world_synchronizer import WorldSynchronizer
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
+from semantic_digital_twin.localization.motion_models import OmniDriveMotionModel
+from semantic_digital_twin.robots.garmi import Garmi
 from semantic_digital_twin.robots.stretch import Stretch
-from semantic_digital_twin.spatial_types.spatial_types import Pose2D
+from semantic_digital_twin.spatial_types.spatial_types import (
+    HomogeneousTransformationMatrix,
+    Pose2D,
+)
 from semantic_digital_twin.world import World
 from semantic_digital_twin.world_description.connections import FixedConnection
 from semantic_digital_twin.world_description.world_entity import Body
@@ -146,6 +151,53 @@ def test_the_twin_follows_changes_of_the_served_world(
     assert wait_until(
         lambda: bool(process.world.get_kinematic_structure_entities_by_name(box_name))
     )
+    process.close()
+
+
+@pytest.fixture
+def served_garmi_apartment(rclpy_node, _garmi_world_setup, _apartment_world_setup):
+    """
+    GARMI in the apartment, served to the localization.
+    """
+    world = deepcopy(_apartment_world_setup)
+    world.merge_world_at_pose(
+        deepcopy(_garmi_world_setup),
+        HomogeneousTransformationMatrix.from_xyz_rpy(1.5, 2, 0),
+    )
+    server, synchronizer = serve(world, rclpy_node)
+    yield world
+    synchronizer.close()
+    server.close()
+
+
+def test_garmi_is_localized_from_its_merged_scan_with_its_omni_drive(
+    rclpy_node, served_garmi_apartment
+):
+    garmi = served_garmi_apartment.get_semantic_annotations_by_type(Garmi)[0]
+
+    process = LocalizationCommandLine().start(rclpy_node)
+
+    assert process.localization_node.lidar.root.id == garmi.mobile_base.lidar.root.id
+    assert type(process.localization_node.localization.motion_model) is (
+        OmniDriveMotionModel
+    )
+    process.close()
+
+
+def test_the_localization_reads_the_tf_frames_it_is_given(
+    rclpy_node, served_stretch_apartment
+):
+    settings = LocalizationCommandLine(
+        map_frame="world", odom_frame="stretch/odom", base_frame="stretch/base_link"
+    )
+
+    process = settings.start(rclpy_node)
+
+    assert (
+        process.localization_node.map_frame,
+        process.localization_node.odom_frame,
+        process.localization_node.base_frame,
+    ) == (settings.map_frame, settings.odom_frame, settings.base_frame)
     process.close()
 
 
