@@ -18,3 +18,11 @@ Next:
 - Open: VizMarkerPublisher still raises ValueError in _select_shapes and assigns
   self.publisher while declaring _publisher - ask before changing
 - Commit / PR only when asked
+
+MJCF calibration (2026-10-20, uncommitted in the working tree):
+- World.free_branch (swap parent connection for Connection6DoF, keep pose)
+- adapters/mjcf_body_pose_writer.py (MJCFBodyPoseWriter, frame-aware, patches only
+  changed <body> start tags) + adapters/exceptions.py
+- semantic_digital_twin/scripts/calibrate_mjcf_body_poses.py (--free BODY..., Enter writes, q quits)
+- tests: test_adapters/test_mjcf_body_pose_writer.py (7), test_world.py free_branch (2); all pass
+- iai_maps commit 54ce90c (drawer unit + calibrated handles) not pushed: HTTPS remote has no credentials
