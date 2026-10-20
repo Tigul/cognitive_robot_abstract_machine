@@ -31,3 +31,11 @@ Franka gripper tasks (2026-10-20, uncommitted in the working tree):
 - ros_tasks.py: FrankaGripperTask (abstract), GripperMoveTask, GripperGraspTask, GripperHomingTask on franka_msgs
 - tests: test_ros2_stuff/test_franka_gripper_tasks.py (4) + round-trip cases; 21 pass
 - Open: CI image has no franka_msgs, so ros_tasks.py import fails there - ask how to provide it
+- GARMI adaptation: DriveGarmiGripperStatesWithTheirFrankaDriver (MoveGripper) +
+  CloseGarmiFingersToWidthWithTheirFrankaDriver (MoveFingersToWidthAction) in
+  robot_specific_plan_transformations.py, default in RealRobotPlanExecutor.plan_adaptations
+  (user chose real-robot only; topics /garmi/arms/{left,right}/franka_gripper/*, 0.1 m/s, 20 N)
+- cramph fix: Statechart.replace re-wires every control-structure ancestor (stale owner
+  snapshot made replacing inside a nested Parallel raise); _step_holding moved up to PlanTransformation
+- tests: cramph 816 pass, coraplex test_plan 243 pass (5 new GARMI tests)
+- franka_msgs now imported by coraplex.plans.executors -> CI/non-Franka installs break; still open
