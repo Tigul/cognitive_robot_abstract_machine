@@ -19,7 +19,7 @@ Next:
   self.publisher while declaring _publisher - ask before changing
 - Commit / PR only when asked
 
-MJCF calibration (2026-10-20, uncommitted in the working tree):
+MJCF calibration (2026-10-20, committed d8a4d11151, not pushed):
 - World.free_branch (swap parent connection for Connection6DoF, keep pose)
 - adapters/mjcf_body_pose_writer.py (MJCFBodyPoseWriter, frame-aware, patches only
   changed <body> start tags) + adapters/exceptions.py
@@ -27,7 +27,7 @@ MJCF calibration (2026-10-20, uncommitted in the working tree):
 - tests: test_adapters/test_mjcf_body_pose_writer.py (7), test_world.py free_branch (2); all pass
 - iai_maps commit 54ce90c (drawer unit + calibrated handles) not pushed: HTTPS remote has no credentials
 
-Franka gripper tasks (2026-10-20, uncommitted in the working tree):
+Franka gripper tasks (2026-10-20, committed 0f5bb60567, not pushed):
 - ros_tasks.py: FrankaGripperTask (abstract), GripperMoveTask, GripperGraspTask, GripperHomingTask on franka_msgs
 - tests: test_ros2_stuff/test_franka_gripper_tasks.py (4) + round-trip cases; 21 pass
 - Open: CI image has no franka_msgs, so ros_tasks.py import fails there - ask how to provide it
