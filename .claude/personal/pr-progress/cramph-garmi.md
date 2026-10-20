@@ -26,3 +26,8 @@ MJCF calibration (2026-10-20, uncommitted in the working tree):
 - semantic_digital_twin/scripts/calibrate_mjcf_body_poses.py (--free BODY..., Enter writes, q quits)
 - tests: test_adapters/test_mjcf_body_pose_writer.py (7), test_world.py free_branch (2); all pass
 - iai_maps commit 54ce90c (drawer unit + calibrated handles) not pushed: HTTPS remote has no credentials
+
+Franka gripper tasks (2026-10-20, uncommitted in the working tree):
+- ros_tasks.py: FrankaGripperTask (abstract), GripperMoveTask, GripperGraspTask, GripperHomingTask on franka_msgs
+- tests: test_ros2_stuff/test_franka_gripper_tasks.py (4) + round-trip cases; 21 pass
+- Open: CI image has no franka_msgs, so ros_tasks.py import fails there - ask how to provide it
