@@ -1,7 +1,4 @@
-## cramph-costmap-inflation-in-place: draft PR #38 into ichumuh/cognitive_robot_abstract_machine:cramph
+## cramph-costmap-inflation-in-place: CLOSED ichumuh fork PR #38
 
-Part of the memory investigation (see cramph-memory note): one root cause per PR.
-Done: OccupancyCostmap.inflate_obstacles sums via sliding_window_view (-300 MB per costmap).
-Failing test first; affected suites green; pushed to origin, PR opened as draft.
-The `bug` label could not be added (no label permission on ichumuh's fork).
-Next: nothing pending; wait for review. Mark ready only when the user says so.
+Moved to cram2/cognitive_robot_abstract_machine#791 (branch costmap-inflation-in-place, based on main),
+at the user's request, since the fix does not depend on cramph. Nothing pending here.
