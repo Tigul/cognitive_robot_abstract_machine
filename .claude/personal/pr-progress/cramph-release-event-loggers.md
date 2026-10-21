@@ -1,7 +1,4 @@
-## cramph-release-event-loggers: draft PR #35 into ichumuh/cognitive_robot_abstract_machine:cramph
+## cramph-release-event-loggers: CLOSED ichumuh fork PR #35
 
-Part of the memory investigation (see cramph-memory note): one root cause per PR.
-Done: Removed unused EventLogger.current_logger ClassVar that kept the first run's worlds alive.
-Failing test first; affected suites green; pushed to origin, PR opened as draft.
-The `bug` label could not be added (no label permission on ichumuh's fork).
-Next: nothing pending; wait for review. Mark ready only when the user says so.
+Moved to cram2/cognitive_robot_abstract_machine#788 (branch release-event-loggers, based on main),
+at the user's request, since the fix does not depend on cramph. Nothing pending here.
