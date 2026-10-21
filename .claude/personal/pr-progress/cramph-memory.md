@@ -1,24 +1,18 @@
 ## cramph-memory: cut the memory the demos use
 
-Committed on cramph-memory (local only, not pushed; based on simon/cramph 0ce59aa4b):
-- 5f1512b93 Mesh.is_textured: marker conversion no longer loads/keeps textured meshes;
-  reads the file as a scene so parts' textures are not merged.
-- fb4890697 InsideOf.compute_containment_ratio: box check on transformed vertices.
-- 88be49110 remove unused EventLogger.current_logger ClassVar.
-Bullet demo: peak 1.55 -> 1.31 GB, settled ~1.0 -> 0.8 GB.
+Local commits on cramph-memory (not pushed), rebased onto simon/cramph f8844811f:
+1. 2ea31a389 Mesh.is_textured for RViz markers (no textured mesh kept).
+2. 73eb248b4 InsideOf containment without mesh copies.
+3. 71cc0defa remove EventLogger.current_logger.
+4. 05b32edd5 RayTracer.ray_test casts at scene.triangles (no texture packing; GARMI -3.5 GB peak).
+5. ec9a0cf0a MJCFParser.resolved_document only built for tendons (GARMI -1.7 GB).
+6. 10f0dff59 OccupancyCostmap.inflate_obstacles via sliding_window_view (-300 MB/costmap).
+All with failing-test-first; affected suites green (multi_sim and tiago_mujoco skip locally).
 
-Per-demo census (2026-10-21; scripts in session scratchpad, memory_census.py etc.):
-- bullet 1.31 GB peak / 0.8 settled; RViz +0.56 GB.
-- GARMI 5.5-5.7 GB peak / 4.5 settled; RViz +1.0 GB. MALLOC_MMAP_THRESHOLD_=1048576 -> 1.9 settled.
-- tracy sim 0.47 GB; its giskard launch 1.43 GB (interactive_marker 515, giskard 469, rviz 372).
-- warehouse crashes at start: UnitreeG1LeftHand lacks tool_frame_goal_for_grasp (pre-existing).
-
-Candidate fixes, not started, awaiting user choice:
-1. RayTracer.ray_test (raytracer.py:308) scene.to_mesh() packs all textures: +3.5 GB per
-   costmap in GARMI; costmaps.py:395 makes a new RayTracer each time.
-2. MJCFParser.__init__ (mjcf.py:113) spec.to_xml() compiles the whole model just for
-   tendon coefficients: +1.7 GB (peak 2.3), ~1 GB kept while parser lives.
-3. OccupancyCostmap.inflate_obstacles (costmaps.py:424) reshape copies all windows: ~300 MB.
-4. Smaller: qp_data._cached_eyes lru_cache, SymbolGraph WrappedInstance growth,
-   trimesh caches on collision meshes, eager textured Mesh.from_file in mjcf.py:531.
-Note for user: MJCF textured meshes now drawn in shape color in RViz (OBJ has no mtl).
+Next: report final benchmarks; ask whether to push / open draft PRs (one per root cause;
+note branch is based on cramph, not main).
+Open, not started: warehouse demo crash (UnitreeG1LeftHand.tool_frame_goal_for_grasp
+missing); glibc MALLOC_MMAP_THRESHOLD_ (GARMI settled 4.5 -> 1.9 GB) as a launcher/env
+setting; smaller items (qp_data lru_cache, SymbolGraph growth, trimesh caches,
+eager textured Mesh.from_file in mjcf.py, new RayTracer per costmap, 515 MB
+interactive_marker process in tracy launch).
