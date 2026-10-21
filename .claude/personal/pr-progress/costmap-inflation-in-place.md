@@ -1,8 +1,7 @@
 ## costmap-inflation-in-place: draft PR cram2/cognitive_robot_abstract_machine#791 into main (label bug)
 
-Part of the memory investigation (integration branch cramph-memory). One root cause.
 Done: OccupancyCostmap.inflate_obstacles sums via sliding_window_view (-300 MB per costmap).
-Based on cram2/main 439a40116; new test fails on main without the fix, affected suites
-pass with it (run in a worktree; ORM regeneration fails on main in this env, tests used
---orm-build never). Replaces closed ichumuh fork PR #38 (branch cramph-costmap-inflation-in-place).
-Next: nothing pending; wait for review. Mark ready only when the user says so.
+User feedback in chat: the memory regression test is not useful -> removed in faf7d1994
+(test_costmaps.py now identical to main), pushed; description updated (56 passed).
+The PR had been marked ready; converted back to draft after the push, per personal notes.
+Next: wait for review. Mark ready only when the user says so.
