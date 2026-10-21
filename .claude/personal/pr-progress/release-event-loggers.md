@@ -1,8 +1,8 @@
 ## release-event-loggers: draft PR cram2/cognitive_robot_abstract_machine#788 into main (label bug)
 
-Part of the memory investigation (integration branch cramph-memory). One root cause.
-Done: Removed unused EventLogger.current_logger ClassVar that kept the first run's worlds alive.
-Based on cram2/main 439a40116; new test fails on main without the fix, affected suites
-pass with it (run in a worktree; ORM regeneration fails on main in this env, tests used
---orm-build never). Replaces closed ichumuh fork PR #35 (branch cramph-release-event-loggers).
-Next: nothing pending; wait for review. Mark ready only when the user says so.
+Done: removed unused EventLogger.current_logger ClassVar (kept the first run's worlds alive).
+Review round 1 (user's own review, still PENDING/unsubmitted when addressed): file comment on
+test/segmind_test/test_event_logger.py "Don't think the test is useful. Can be deleted" ->
+deleted in e3a055519, pushed; PR description's Verification updated (segmind 105 passed).
+Could not reply/resolve: comment belongs to an unsubmitted review.
+Next: reply on the thread once the review is submitted, if the user wants; wait for review.
