@@ -12,7 +12,8 @@ Done (uncommitted, on cramph-memory, fast-forwarded to simon/cramph 0ce59aa4b):
   test_visualization_lifecycle, test_optional_visualization.
 - format_docstrings run (black reflowed event_logger.py).
 
-Next: re-benchmark demo with real fixes; await user on commit / split into one PR per
+Benchmark with real fixes: peak 1.55 -> 1.31 GB, steady ~1.0 -> 0.80 GB, 3:19 -> 2:46.
+Next: await user on commit / split into one PR per
 root cause (personal notes: one root cause per bug PR, `bug` label, draft).
 Open smaller items (not started): qp_data._cached_eyes lru_cache on method, SymbolGraph
 WrappedInstance growth, shared mesh loads across Mesh instances.
