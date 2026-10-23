@@ -214,6 +214,46 @@ async def test_the_arrow_keys_leave_a_selection_list_past_its_first_entry(
         assert fields[arms_index - 1] in app.focused.ancestors
 
 
+# %% describing parameters
+
+
+def test_restructured_text_is_shown_as_plain_text(action_console):
+    plain_text = action_console.ParameterHelp.plain_text(
+        "Enforced via :class:`~giskardpy.tasks.CartesianPose`, see\n"
+        ":meth:`the docs <giskardpy.Task.run>` and :attr:`coraplex.Action.arm`; "
+        "``None`` keeps the *current* `target`."
+    )
+
+    assert plain_text == (
+        "Enforced via CartesianPose, see the docs and coraplex.Action.arm; "
+        "None keeps the current target."
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_help_line_describes_the_focused_parameter(
+    action_console, console_session, pr2_console_demonstration, console_script_directory
+):
+    screen = action_console.ActionScreen(console_session, pr2_console_demonstration)
+    app = App(css_path=console_script_directory / "action_console.tcss")
+
+    async with app.run_test(size=(200, 60)) as pilot:
+        await app.push_screen(screen)
+        form = screen.query_one("#action-form", action_console.ActionForm)
+        await choose_builder(pilot, form, "NavigateAction")
+        await pilot.press("down")
+        await pilot.pause()
+        pose_parameter = form.parameter_form.query_one(
+            action_console.PoseField
+        ).parameter
+        help_text = screen.query_one("#parameter-help", action_console.ParameterHelp)
+
+        assert help_text.content.plain == (
+            f"{pose_parameter.name}  "
+            + action_console.ParameterHelp.plain_text(pose_parameter.description)
+        )
+
+
 # %% running actions
 
 

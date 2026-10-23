@@ -19,6 +19,7 @@ from coraplex.robot_plans.actions.core.container import (
 )
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from cramph.context import StatechartContext
+from krrood.documentation import AttributeDocstrings, ParameterDescriptions
 from krrood.utils import recursive_subclasses
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
@@ -48,6 +49,21 @@ def test_a_constructor_takes_the_parameters_of_its_action(action_console):
     assert [parameter.name for parameter in constructor.parameters()] == [
         discovered.field.name for discovered in NavigateAction.parameter_fields()
     ]
+
+
+def test_a_constructor_parameter_is_described_by_the_docstring_of_its_field(
+    action_console,
+):
+    constructor = action_console.ActionConstructor(NavigateAction)
+
+    assert {
+        parameter.name: parameter.description for parameter in constructor.parameters()
+    } == {
+        discovered.field.name: AttributeDocstrings.docstring_of(
+            NavigateAction, discovered.field.name
+        )
+        for discovered in NavigateAction.parameter_fields()
+    }
 
 
 # %% factories
@@ -124,6 +140,22 @@ def test_a_factory_is_handed_the_context_the_action_runs_in(
 
     assert record.target is target
     assert record.context is pr2_statechart_context
+
+
+def test_a_factory_parameter_is_described_by_its_param_field(action_console):
+    factory = action_console.ActionFactory(
+        TransportAction, TransportAction.from_graspable_by_closest_grasps
+    )
+    descriptions = ParameterDescriptions.of_function(
+        TransportAction.from_graspable_by_closest_grasps
+    ).descriptions
+
+    assert {
+        parameter.name: parameter.description for parameter in factory.parameters()
+    } == {
+        parameter.name: descriptions[parameter.name]
+        for parameter in factory.parameters()
+    }
 
 
 # %% requests
