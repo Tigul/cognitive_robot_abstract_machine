@@ -45,6 +45,7 @@ dev = [
     "bokeh",
     "mypy>=1.8",
     "docformatter",
+    "coraplex[tui]",
 ]
 
 doc = [

@@ -373,20 +373,27 @@ class RobotDemonstration(ABC):
         try:
             world = self.acquire_world()
             for _ in range(self.repetitions):
-                executor = self.create_executor(world)
-                statechart = self.build_statechart(executor.context)
-                event_segmentation = (
-                    self.segment_events(world)
-                    if self.event_segmentation
-                    else nullcontext()
-                )
-                with event_segmentation:
-                    executor.compile(statechart)
-                    executor.execute()
-                executor.close()
+                self.perform(world)
         finally:
             self.tear_down()
         return world
+
+    def perform(self, world: World) -> None:
+        """
+        Perform the plan of :meth:`build_statechart` once against ``world``, with an
+        executor of its own.
+
+        :param world: The world acquired by :meth:`acquire_world`.
+        """
+        executor = self.create_executor(world)
+        statechart = self.build_statechart(executor.context)
+        event_segmentation = (
+            self.segment_events(world) if self.event_segmentation else nullcontext()
+        )
+        with event_segmentation:
+            executor.compile(statechart)
+            executor.execute()
+        executor.close()
 
     def tear_down(self) -> None:
         """

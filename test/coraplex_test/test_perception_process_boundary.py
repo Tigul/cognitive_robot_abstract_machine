@@ -26,7 +26,7 @@ from coraplex.perception import (
 )
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
-from coraplex.testing import StandaloneProcess
+from coraplex.standalone_process import StandaloneProcess
 
 REPORTED_CLASS_LABEL = "Milk"
 """

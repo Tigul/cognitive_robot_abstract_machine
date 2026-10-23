@@ -20,7 +20,10 @@ from cramph.node import (
 )
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.tasks.cartesian_tasks import HoldPose
-from krrood.class_diagrams.attribute_introspector import DataclassOnlyIntrospector
+from krrood.class_diagrams.attribute_introspector import (
+    DataclassOnlyIntrospector,
+    DiscoveredAttribute,
+)
 from krrood.patterns.field_metadata import JSONMetadata
 from krrood.symbolic_math.symbolic_math import Scalar, trinary_if_cases
 from semantic_digital_twin.collision_checking.collision_matrix import CollisionRule
@@ -70,18 +73,28 @@ class Action(CompositeNode, ABC):
     ) -> tuple[type[ContextExtension], ...]:
         return super().context_extensions_required_to_expand + (RobotAccess,)
 
+    @classmethod
+    def parameter_fields(cls) -> list[DiscoveredAttribute]:
+        """
+        :return: The parameters of this kind of action: the public fields a caller sets
+            that the subclasses of :class:`Action` declare.
+        """
+        statechart_fields = {action_field.name for action_field in fields(Action)}
+        return [
+            discovered
+            for discovered in DataclassOnlyIntrospector().discover(cls)
+            if discovered.field.init and discovered.field.name not in statechart_fields
+        ]
+
     @property
     def designator_parameter(self) -> dict[str, Any]:
         """
-        :return: Every parameter this action was given, by the name it was given under:
-            the public fields a caller sets that the subclasses of :class:`Action`
-            declare.
+        :return: Every parameter this action was given, by the name it was given under,
+            see :meth:`parameter_fields`.
         """
-        statechart_fields = {action_field.name for action_field in fields(Action)}
         return {
             discovered.public_name: getattr(self, discovered.field.name)
-            for discovered in DataclassOnlyIntrospector().discover(type(self))
-            if discovered.field.init and discovered.field.name not in statechart_fields
+            for discovered in self.parameter_fields()
         }
 
     @property

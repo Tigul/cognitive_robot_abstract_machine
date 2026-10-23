@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC
 from dataclasses import dataclass
+from pathlib import Path
 from typing_extensions import TYPE_CHECKING, Type
 
 from krrood.exceptions import DataclassException
@@ -389,3 +390,59 @@ class NotOnASingleLevelException(DataclassException):
 
     def suggest_correction(self) -> str:
         return f"Move the robot to a recognized level"
+
+
+# %% standalone processes
+
+
+@dataclass
+class ProcessDiedDuringStartup(DataclassException):
+    """
+    Raised when a component launched in its own process ends before it is ready.
+    """
+
+    launcher_path: Path
+    """
+    The script the process was launched from.
+    """
+
+    return_code: int
+    """
+    The code the process exited with.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.launcher_path.name} died during start-up with return code "
+            f"{self.return_code}."
+        )
+
+    def suggest_correction(self) -> str:
+        return f"run {self.launcher_path} by hand to see why it fails."
+
+
+@dataclass
+class ProcessNeverBecameReady(DataclassException):
+    """
+    Raised when a component launched in its own process does not announce itself in
+    time.
+    """
+
+    launcher_path: Path
+    """
+    The script the process was launched from.
+    """
+
+    ready_timeout: float
+    """
+    How long the process was given to become ready, in seconds.
+    """
+
+    def error_message(self) -> str:
+        return (
+            f"{self.launcher_path.name} was not ready after {self.ready_timeout} "
+            f"seconds."
+        )
+
+    def suggest_correction(self) -> str:
+        return "allow the process more time, or check what it announces once ready."

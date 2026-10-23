@@ -113,6 +113,11 @@ class RecordingDemonstration(RobotDemonstration):
     Whether the events of the run were being segmented while the plan ran.
     """
 
+    performances: int = 0
+    """
+    How often the plan ran to its end.
+    """
+
     def scene_specification(self) -> WorldSpecification:
         return WorldSpecification()
 
@@ -153,6 +158,7 @@ class RecordingDemonstration(RobotDemonstration):
         if self.fail_the_plan:
             raise PlanDeliberatelyFailed()
         self.observed_segmenting_events = self.segmenting_events
+        self.performances += 1
 
     def create_executor(self, world: World) -> PlanExecutor:
         """
@@ -276,6 +282,27 @@ def test_plan_runs_in_the_demonstrations_execution_environment(cylinder_bot_worl
 
     assert type(demonstration.observed_executor) is KinematicallySimulatedPlanExecutor
     assert demonstration.observed_executor.collision_avoidance is True
+
+
+def test_plan_is_performed_against_one_acquired_world_as_often_as_asked(
+    cylinder_bot_world,
+):
+    """
+    An interactive session acquires its world once and performs one plan after another
+    against it.
+    """
+    demonstration = RecordingDemonstration(
+        world=cylinder_bot_world, used_robot=MinimalRobot
+    )
+
+    try:
+        world = demonstration.acquire_world()
+        demonstration.perform(world)
+        demonstration.perform(world)
+    finally:
+        demonstration.tear_down()
+
+    assert demonstration.performances == 2
 
 
 def test_run_returns_the_world_it_acted_on(cylinder_bot_world):
