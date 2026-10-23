@@ -55,6 +55,20 @@ def test_the_standalone_controller_of_a_robot_is_installed(action_console):
     assert action_console.GiskardStandaloneModule.for_robot(PR2).launcher_path.is_file()
 
 
+# %% scenes
+
+
+def test_the_furniture_of_the_scene_is_annotated(action_console):
+    world = action_console.ConsoleDemonstration(
+        used_robot=PR2, scene=action_console.ConsoleScene.APARTMENT
+    ).build_scene()
+    handle_bodies = [
+        handle.root for handle in world.get_semantic_annotations_by_type(Handle)
+    ]
+
+    assert world.get_body_by_name("handle_cab10_t") in handle_bodies
+
+
 # %% plans
 
 

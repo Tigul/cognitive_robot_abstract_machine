@@ -67,9 +67,13 @@ from krrood.ormatic.utils import classes_of_package
 from krrood.patterns.path_enumeration import PathEnumeration
 from krrood.utils import recursive_subclasses
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
+from semantic_digital_twin.reasoning.world_reasoner import WorldReasoner
 from semantic_digital_twin.robots.robot_part_mixins import RobotPartMixin
 from semantic_digital_twin.robots.robot_parts import AbstractRobot
-from semantic_digital_twin.semantic_annotations.mixins import HasGraspCandidates
+from semantic_digital_twin.semantic_annotations.mixins import (
+    HasGraspCandidates,
+    HasRootKinematicStructureEntity,
+)
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Point2, Pose, Pose2D
 from semantic_digital_twin.specifications.robots import RobotSpecification
@@ -589,6 +593,13 @@ class ConsoleDemonstration(RobotDemonstration):
             odom_T_robot_start=self.robot_start,
         )
 
+    def populate_scene(self, world: World) -> None:
+        """
+        Annotate the furniture of the scene, such as its drawers, doors and handles.
+        """
+        with world.modify_world():
+            WorldReasoner(world).reason()
+
     def is_scene_populated(self, world: World) -> bool:
         return world.is_kinematic_structure_entity_in_world_by_name(
             self.build_scene().root.name.name
@@ -668,6 +679,15 @@ class LabelledValue:
     """
 
 
+class ChoicePrompt(StrEnum):
+    """
+    What an empty field of a :class:`FuzzyChoice` prompts for.
+    """
+
+    SEARCH = "type to search"
+    NOTHING_TO_CHOOSE = "nothing to choose from in this world"
+
+
 class AbstractWidgetMeta(type(Widget), ABCMeta):
     """
     The metaclass of widgets that declare abstract methods.
@@ -741,7 +761,15 @@ class FuzzyChoice(Widget):
 
     def compose(self) -> ComposeResult:
         with Horizontal(classes="current"):
-            yield Input(self.chosen_label(), placeholder="type to search", compact=True)
+            yield Input(
+                self.chosen_label(),
+                placeholder=(
+                    ChoicePrompt.SEARCH
+                    if self.options
+                    else ChoicePrompt.NOTHING_TO_CHOOSE
+                ),
+                compact=True,
+            )
             yield Static("▾", classes="arrow")
         option_list = OptionList(
             *(option.label for option in self.options), markup=False, compact=True
@@ -1034,6 +1062,16 @@ class Coordinate(StrEnum):
     PITCH = "pitch"
     YAW = "yaw"
 
+    @staticmethod
+    def describe(coordinates: dict[Coordinate, str]) -> str:
+        """
+        :param coordinates: The text of some coordinates, in the order they are listed.
+        :return: Each coordinate named before its text.
+        """
+        return "  ".join(
+            f"{coordinate.value} {text}" for coordinate, text in coordinates.items()
+        )
+
     @property
     def component(self) -> PoseComponent:
         """
@@ -1111,10 +1149,7 @@ class ReferencedCoordinatesField(ParameterField):
         if reference_frame is None:
             summary = "none"
         else:
-            coordinates = "  ".join(
-                f"{coordinate.value} {text}"
-                for coordinate, text in self.entered_coordinates().items()
-            )
+            coordinates = Coordinate.describe(self.entered_coordinates())
             summary = f"{coordinates}  in {reference_frame.name}"
         self.query_one(Collapsible).title = Content(summary)
 
@@ -1265,15 +1300,27 @@ class WorldEntityField(ChoiceField):
         return cls.is_entity_type(parameter.value_type)
 
     @staticmethod
-    def labelled_entities(world: World, entity_type: type) -> list[LabelledValue]:
+    def label_of(entity: WorldEntity) -> str:
+        """
+        :param entity: An entity of the world.
+        :return: The kind of ``entity`` and the body it is rooted at, if it is an
+            annotation with one, which tells apart annotations of the same name;
+            otherwise its name and its kind.
+        """
+        if isinstance(entity, HasRootKinematicStructureEntity):
+            return f"{type(entity).__name__} at {entity.root.name}"
+        return f"{entity.name} ({type(entity).__name__})"
+
+    @classmethod
+    def labelled_entities(cls, world: World, entity_type: type) -> list[LabelledValue]:
         """
         :param world: The world to look in.
         :param entity_type: The kind of entity to look for.
-        :return: Every entity of ``world`` that is an ``entity_type``, labelled by its
-            name and its kind.
+        :return: Every entity of ``world`` that is an ``entity_type``, labelled by
+            :meth:`label_of`.
         """
         return [
-            LabelledValue(f"{entity.name} ({type(entity).__name__})", entity)
+            LabelledValue(cls.label_of(entity), entity)
             for entity in [
                 *world.semantic_annotations,
                 *world.kinematic_structure_entities,
@@ -1320,12 +1367,31 @@ class GraspCandidateField(ChoiceField):
     def accepts(cls, parameter: ActionParameter) -> bool:
         return parameter.value_type is GraspCandidate
 
+    @staticmethod
+    def coordinates_of(grasp: GraspCandidate) -> dict[Coordinate, float]:
+        """
+        :param grasp: A grasp of an object.
+        :return: The coordinates of the grasp's pose relative to the object.
+        """
+        position = grasp.grasp_pose.to_np()[:3, 3]
+        rotation = [float(angle) for angle in grasp.grasp_pose.orientation.rpy]
+        return dict(zip(Coordinate, [*position, *rotation]))
+
     def choices(self) -> list[LabelledValue]:
         return [
-            LabelledValue(f"{graspable.name} grasp {index}", grasp)
+            LabelledValue(
+                f"{WorldEntityField.label_of(graspable)}  "
+                + Coordinate.describe(
+                    {
+                        coordinate: f"{round(value, 2) + 0.0:g}"
+                        for coordinate, value in self.coordinates_of(grasp).items()
+                    }
+                ),
+                grasp,
+            )
             for graspable in self.session.world.semantic_annotations
             if isinstance(graspable, HasGraspCandidates)
-            for index, grasp in enumerate(graspable.grasp_candidates())
+            for grasp in graspable.grasp_candidates()
         ]
 
 

@@ -127,6 +127,19 @@ async def test_deleting_everything_typed_lists_every_option_again(
 
 
 @pytest.mark.asyncio
+async def test_a_choice_without_options_says_there_is_nothing_to_choose(
+    action_console, host_widgets
+):
+    choice = action_console.FuzzyChoice([])
+
+    async with host_widgets(choice).run_test():
+        assert (
+            choice.query_one(Input).placeholder
+            == action_console.ChoicePrompt.NOTHING_TO_CHOOSE
+        )
+
+
+@pytest.mark.asyncio
 async def test_escape_closes_a_list_without_choosing(action_console, host_widgets):
     choice = letters_choice(action_console, choose_first=True)
     [first_option, *_] = choice.options

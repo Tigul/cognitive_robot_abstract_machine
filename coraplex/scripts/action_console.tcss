@@ -80,6 +80,8 @@ FuzzyChoice OptionList {
     display: none;
     overlay: screen;
     constrain: none inside;
+    width: auto;
+    min-width: 100%;
     height: auto;
     max-height: 12;
     background: $panel;

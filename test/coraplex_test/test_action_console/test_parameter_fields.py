@@ -16,7 +16,12 @@ from coraplex.robot_plans.actions.core.robot_body import (
     ParkArmsAction,
     SetGripperAction,
 )
+from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.robots.robot_parts import Arm
+from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+    Handle,
+    Milk,
+)
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 
@@ -255,6 +260,78 @@ async def test_a_pose_that_allows_none_is_none_until_a_frame_is_chosen(
     async with host_widgets(pose_field).run_test():
         assert pose_field.problem() is None
         assert pose_field.value() is None
+
+
+# %% entities
+
+
+def test_an_annotation_is_labelled_by_its_kind_and_its_root_body(
+    action_console, pr2_apartment_context
+):
+    world, _, _ = pr2_apartment_context
+    [handle, *_] = world.get_semantic_annotations_by_type(Handle)
+
+    label = action_console.WorldEntityField.label_of(handle)
+
+    assert label == f"{Handle.__name__} at {handle.root.name}"
+
+
+def test_a_body_is_labelled_by_its_name_and_its_kind(
+    action_console, pr2_apartment_context
+):
+    world, _, _ = pr2_apartment_context
+
+    label = action_console.WorldEntityField.label_of(world.root)
+
+    assert label == f"{world.root.name} ({type(world.root).__name__})"
+
+
+# %% grasps
+
+
+def test_a_grasp_is_listed_by_its_object_and_its_pose(action_console, console_session):
+    grasp_field = action_console.GraspCandidateField(
+        parameter_named(action_console, PickUpAction, "grasp"), console_session
+    )
+    [milk] = console_session.world.get_semantic_annotations_by_type(Milk)
+    [origin_grasp, *_] = milk.grasp_candidates()
+    [origin_choice] = [
+        choice
+        for choice in grasp_field.choices()
+        if choice.value.graspable is milk
+        and choice.value.grasp_pose.to_np()
+        == pytest.approx(origin_grasp.grasp_pose.to_np())
+    ]
+
+    assert origin_choice.label == (
+        f"{Milk.__name__} at {milk.root.name}  x 0  y 0  z 0  roll 0  pitch 0  yaw 0"
+    )
+
+
+def test_the_coordinates_of_a_grasp_are_those_of_its_pose(
+    action_console, pr2_apartment_context
+):
+    world, _, _ = pr2_apartment_context
+    [milk] = world.get_semantic_annotations_by_type(Milk)
+    grasp_pose = Pose.from_xyz_rpy(
+        x=0.1, y=0.2, z=0.3, roll=0.4, pitch=0.5, yaw=0.6, reference_frame=milk.root
+    )
+
+    coordinates = action_console.GraspCandidateField.coordinates_of(
+        GraspCandidate(milk, grasp_pose)
+    )
+
+    Coordinate = action_console.Coordinate
+    assert coordinates == pytest.approx(
+        {
+            Coordinate.X: 0.1,
+            Coordinate.Y: 0.2,
+            Coordinate.Z: 0.3,
+            Coordinate.ROLL: 0.4,
+            Coordinate.PITCH: 0.5,
+            Coordinate.YAW: 0.6,
+        }
+    )
 
 
 # %% lists of entities
