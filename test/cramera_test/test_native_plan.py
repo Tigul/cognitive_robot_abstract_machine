@@ -94,7 +94,7 @@ def test_designator_description_uses_native_parameter_verbalization(
     """
     [robot] = pr2_world_copy.get_semantic_annotations_by_type(PR2)
     gripper = robot.all_arms[gripper_index].end_effector
-    action = SetGripperAction(gripper=gripper, motion=GripperState.CLOSE)
+    action = SetGripperAction(end_effector=gripper, motion=GripperState.CLOSE)
     statechart = Statechart(context=context_of([RobotAccess(robot)]))
     statechart.add_node(action)
     bridge = Bridge()
@@ -144,7 +144,7 @@ def test_gripper_state_enum_is_not_mistaken_for_a_target_body(
     [robot] = pr2_world_copy.get_semantic_annotations_by_type(PR2)
     statechart = Statechart(context=context_of([RobotAccess(robot)]))
     statechart.add_node(
-        SetGripperAction(gripper=robot.all_arms[0].end_effector, motion=motion)
+        SetGripperAction(end_effector=robot.all_arms[0].end_effector, motion=motion)
     )
     bridge = Bridge()
     bridge.publish_bodies({str(body.name): body})

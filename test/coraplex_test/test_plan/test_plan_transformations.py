@@ -1097,7 +1097,9 @@ def test_parking_ends_before_a_first_action_running_in_parallel_starts(
     world, view, extensions = pr2_apartment_context
     started_together = [
         MoveTorsoAction(torso_state=TorsoState.HIGH),
-        SetGripperAction(gripper=view.right_arm.end_effector, motion=GripperState.OPEN),
+        SetGripperAction(
+            end_effector=view.right_arm.end_effector, motion=GripperState.OPEN
+        ),
     ]
     in_parallel = Parallel(nodes=list(started_together))
 
@@ -1117,7 +1119,7 @@ def test_parking_ends_before_a_plan_that_starts_in_parallel(pr2_apartment_contex
         nodes=[
             MoveTorsoAction(torso_state=TorsoState.HIGH),
             SetGripperAction(
-                gripper=view.right_arm.end_effector, motion=GripperState.OPEN
+                end_effector=view.right_arm.end_effector, motion=GripperState.OPEN
             ),
         ]
     )

@@ -1,3 +1,12 @@
+"""
+Reusable parameters for actions: the inputs an action is given and the knobs that tune
+how it carries them out, and the behaviour several actions share.
+
+.. note:: This module does not use ``from __future__ import annotations``, so the
+    fields an action inherits from it carry their types as type objects rather than as
+    strings that would have to be resolved against the action's own module.
+"""
+
 from abc import ABC
 from dataclasses import dataclass, field
 
@@ -16,58 +25,225 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPositionVelocityLimit,
     CartesianRotationVelocityLimit,
 )
+from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
-from semantic_digital_twin.robots.robot_parts import Arm, EndEffector
+from semantic_digital_twin.robots.robot_parts import Arm, Camera, EndEffector
+from semantic_digital_twin.semantic_annotations.mixins import HasGraspCandidates
+from semantic_digital_twin.semantic_annotations.semantic_annotations import Tool
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
-from typing_extensions import Optional
 
 
 @dataclass(kw_only=True, eq=False)
-class HasMaxJointVelocity:
+class DesignatorParameterMixin:
     """
-    Adds an optional joint velocity cap to an action or motion.
+    Base of the reusable action parameters: mixins that each add the fields of one
+    parameter, and the helpers that read them, to an action.
     """
 
-    max_joint_velocity: float | None = None
-    """
-    Maximum joint velocity (in rad/s or m/s, per joint), enforced via
-    :class:`~giskardpy.motion_statechart.tasks.joint_tasks.JointVelocityLimit`. ``None``
-    leaves the speed unconstrained.
-    """
+
+# %% what an action acts on
 
 
 @dataclass(kw_only=True, eq=False)
-class HasApproachVelocity:
+class HasArmParameter(DesignatorParameterMixin):
     """
-    Adds an optional pre-approach speed to an action that reaches towards a target
-    before its main motion.
-
-    Shared by :class:`~coraplex.robot_plans.actions.core.pick_up.ReachAction` and
-    :class:`~coraplex.robot_plans.actions.core.pick_up.PickUpAction`, since a pick-up's
-    reach is itself a :class:`ReachAction` and forwards this same value to it.
+    Mixin for actions that operate one of the robot's arms.
     """
 
-    pre_approach_linear_velocity: float | None = None
+    arm: Arm
     """
-    Maximum linear speed (in m/s) for the initial pre-pose approach, enforced via
-    :class:`~giskardpy.motion_statechart.tasks.cartesian_tasks.CartesianPositionVelocityLimit`.
-    ``None`` leaves the speed unconstrained.
+    The arm the action uses.
     """
 
 
 @dataclass(kw_only=True, eq=False)
-class HasGraspDetectionThreshold:
+class HasEndEffectorParameter(DesignatorParameterMixin):
     """
-    Adds a grasp-detection sensitivity threshold to an action that checks whether an
-    object is held between the gripper's fingers.
+    Mixin for actions that act through a specific end effector.
+    """
 
-    Shared by :class:`~coraplex.robot_plans.actions.core.pick_up.ReachAction`,
-    :class:`~coraplex.robot_plans.actions.core.pick_up.PickUpAction` and
-    :class:`~coraplex.robot_plans.actions.core.placing.PlaceAction`.
+    end_effector: EndEffector
+    """
+    The end effector the action uses.
+    """
+
+
+@dataclass(kw_only=True, eq=False)
+class HasCameraParameter(DesignatorParameterMixin):
+    """
+    Mixin for actions that point a camera.
+    """
+
+    camera: Camera | None = None
+    """
+    The camera the action points; ``None`` selects the robot's default camera.
+    """
+
+
+@dataclass(kw_only=True, eq=False)
+class HasGraspCandidateParameter(DesignatorParameterMixin):
+    """
+    Mixin for actions that close a gripper on something. The grasp names the object it
+    is on, so that is not asked for separately.
+    """
+
+    grasp: GraspCandidate
+    """
+    The grasp to take hold by.
+
+    One of the object's own
+    :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspCandidates.grasp_candidates`.
+    """
+
+
+@dataclass(kw_only=True, eq=False)
+class HasGraspableObjectParameter(DesignatorParameterMixin):
+    """
+    Mixin for actions that act on a single graspable object.
+    """
+
+    object_designator: HasGraspCandidates
+    """
+    The annotation of the object the action acts on; its :attr:`root` body is used
+    where the underlying kinematic body is required.
+    """
+
+
+@dataclass(kw_only=True, eq=False)
+class HasToolParameter(DesignatorParameterMixin):
+    """
+    Mixin for actions that manipulate an object with a held tool.
+    """
+
+    tool: Tool
+    """
+    The tool the action uses.
+    """
+
+
+# %% where an action goes
+
+
+@dataclass(kw_only=True, eq=False)
+class HasNavigationTargetParameter(DesignatorParameterMixin):
+    """
+    Mixin for actions that drive the robot's base to a spot on the floor.
+    """
+
+    target_location: Pose
+    """
+    Where the robot's base ends up, and which way the robot faces, given as the pose's
+    x-axis.
+    """
+
+
+@dataclass(kw_only=True, eq=False)
+class HasPlacementTargetParameter(DesignatorParameterMixin):
+    """
+    Mixin for actions that move an object to a destination pose.
+    """
+
+    target_location: Pose
+    """
+    The pose the object is moved to.
+    """
+
+
+@dataclass(kw_only=True, eq=False)
+class HasTargetPoseParameter(DesignatorParameterMixin):
+    """
+    Mixin for actions that drive an end effector to a target pose.
+    """
+
+    target_pose: Pose
+    """
+    The pose the end effector reaches.
+    """
+
+
+@dataclass(kw_only=True, eq=False)
+class HasLookTargetParameter(DesignatorParameterMixin):
+    """
+    Mixin for actions that orient the robot toward a pose.
+    """
+
+    target: Pose
+    """
+    The pose the action orients the robot toward.
+    """
+
+
+# %% robot states an action sets
+
+
+@dataclass(kw_only=True, eq=False)
+class HasGripperStateParameter(DesignatorParameterMixin):
+    """
+    Mixin for actions that set the gripper to an open or closed state.
+    """
+
+    motion: GripperState
+    """
+    The gripper state the action sets.
+    """
+
+
+@dataclass(kw_only=True, eq=False)
+class HasTorsoStateParameter(DesignatorParameterMixin):
+    """
+    Mixin for actions that set the torso to a defined state.
+    """
+
+    torso_state: TorsoState
+    """
+    The torso state the action sets.
+    """
+
+
+@dataclass(kw_only=True, eq=False)
+class HasGripperCollisionParameter(DesignatorParameterMixin):
+    """
+    Mixin for actions that may permit the gripper to collide with the environment.
+    """
+
+    allow_gripper_collision: bool = False
+    """
+    Whether the gripper is allowed to touch its surroundings during the action.
+    """
+
+
+# %% goal tolerances and speed caps
+
+
+@dataclass(kw_only=True, eq=False)
+class HasGoalThresholdParameters(DesignatorParameterMixin):
+    """
+    Mixin for actions that count their tool center point goal as reached within a
+    tolerance.
+    """
+
+    position_threshold: float | None = None
+    """
+    Distance threshold in meters for goal achievement. ``None`` falls back to
+    :attr:`~coraplex.plans.context_extensions.MotionToleranceConfig.default_tcp_position_threshold`.
+    """
+
+    orientation_threshold: float | None = None
+    """
+    Rotation threshold in rad for goal achievement. ``None`` falls back to
+    :attr:`~coraplex.plans.context_extensions.MotionToleranceConfig.tool_orientation_threshold`.
+    """
+
+
+@dataclass(kw_only=True, eq=False)
+class HasGraspDetectionThresholdParameter(DesignatorParameterMixin):
+    """
+    Mixin for actions that check whether an object is held between the gripper's
+    fingers.
     """
 
     grasp_detection_threshold: float = 0.9
@@ -79,9 +255,33 @@ class HasGraspDetectionThreshold:
 
 
 @dataclass(kw_only=True, eq=False)
-class ReachTuningParameters(HasApproachVelocity):
+class HasMaxJointVelocityParameter(DesignatorParameterMixin):
     """
-    Tunable approach speeds for :class:`~coraplex.robot_plans.actions.core.pick_up.ReachAction`.
+    Mixin for actions that cap how fast the joints they drive move.
+    """
+
+    max_joint_velocity: float | None = None
+    """
+    Maximum joint velocity (in rad/s or m/s, per joint), enforced via
+    :class:`~giskardpy.motion_statechart.tasks.joint_tasks.JointVelocityLimit`. ``None``
+    leaves the speed unconstrained.
+    """
+
+
+# %% per-action tuning
+
+
+@dataclass(kw_only=True, eq=False)
+class HasReachTuningParameters(DesignatorParameterMixin):
+    """
+    Mixin for actions that reach towards a target, with tunable approach speeds.
+    """
+
+    pre_approach_linear_velocity: float | None = None
+    """
+    Maximum linear speed (in m/s) for the initial pre-pose approach, enforced via
+    :class:`~giskardpy.motion_statechart.tasks.cartesian_tasks.CartesianPositionVelocityLimit`.
+    ``None`` leaves the speed unconstrained.
     """
 
     final_approach_linear_velocity: float | None = None
@@ -94,17 +294,10 @@ class ReachTuningParameters(HasApproachVelocity):
 
 
 @dataclass(kw_only=True, eq=False)
-class PickUpTuningParameters(ReachTuningParameters):
+class HasPickUpTuningParameters(DesignatorParameterMixin):
     """
-    Tunable grasp speeds and target-object friction for
-    :class:`~coraplex.robot_plans.actions.core.pick_up.PickUpAction`.
-
-    Extends :class:`ReachTuningParameters` rather than just :class:`HasApproachVelocity`:
-    :class:`~coraplex.robot_plans.actions.core.pick_up.PickUpAction` forwards both
-    ``pre_approach_linear_velocity`` and ``final_approach_linear_velocity`` verbatim to
-    the internal :class:`~coraplex.robot_plans.actions.core.pick_up.ReachAction` it
-    builds, so both fields are literally the same value under the same name in both
-    places rather than two similarly-named-but-distinct fields.
+    Mixin for actions that take hold of an object, with tunable grasp and lift speeds
+    and target-object friction.
     """
 
     grasp_closing_velocity: float | None = None
@@ -141,10 +334,10 @@ class PickUpTuningParameters(ReachTuningParameters):
 
 
 @dataclass(kw_only=True, eq=False)
-class PlaceTuningParameters:
+class HasPlaceTuningParameters(DesignatorParameterMixin):
     """
-    Tunable transport/placing/release speeds for
-    :class:`~coraplex.robot_plans.actions.core.placing.PlaceAction`.
+    Mixin for actions that put an object down, with tunable transport, placing, release
+    and retract speeds.
     """
 
     placing_linear_velocity: float | None = None
@@ -180,25 +373,171 @@ class PlaceTuningParameters:
     """
 
 
+# %% grasp approach poses
+
+
+@dataclass
+class GraspPoseSequence:
+    """
+    The tool frame goals that approach a grasp, reach it and withdraw from it.
+    """
+
+    pre_grasp: Pose
+    """
+    Where the gripper waits before it moves onto the grasp, clear of the object.
+    """
+
+    grasp: Pose
+    """
+    The tool frame goal at the grasp itself.
+    """
+
+    retreat: Pose
+    """
+    Where the gripper rises to when it leaves the grasp.
+    """
+
+
+@dataclass(kw_only=True, eq=False)
+class HasGraspApproachParameters(DesignatorParameterMixin):
+    """
+    Turns a grasp frame (x-axis along the approach, see
+    :class:`~semantic_digital_twin.grasping.grasp_candidates.GraspCandidate`) into the
+    tool frame goals that approach it, reach it and withdraw from it.
+    """
+
+    approach_clearance: float = 0.1
+    """
+    The gap in meters between the object and the gripper at the pre-grasp pose.
+    """
+
+    retreat_distance: float = 0.1
+    """
+    How far in meters the gripper rises when it leaves a grasp or a placed object.
+    """
+
+    def grasp_pose_sequence(
+        self,
+        reference_T_grasp: Pose,
+        end_effector: EndEffector,
+        grasp: GraspCandidate | None = None,
+    ) -> GraspPoseSequence:
+        """
+        :param reference_T_grasp: The grasp frame to reach; for a release, where the
+            object is to be put.
+        :param end_effector: The end effector that is to reach it.
+        :param grasp: The grasp whose object the pre-grasp pose has to stay outside of;
+            ``None`` keeps only :attr:`approach_clearance`.
+        :return: The tool frame goals around the grasp.
+        """
+        tool_goal = end_effector.tool_frame_goal_for_grasp(reference_T_grasp)
+        return GraspPoseSequence(
+            pre_grasp=self.pre_grasp_pose(
+                reference_T_grasp, end_effector, self._approach_distance(grasp)
+            ),
+            grasp=tool_goal,
+            retreat=self._retreat_pose(reference_T_grasp, tool_goal),
+        )
+
+    @staticmethod
+    def pre_grasp_pose(
+        reference_T_grasp: Pose, end_effector: EndEffector, distance: float
+    ) -> Pose:
+        """
+        The goal back along the direction the gripper approaches a grasp from, aimed at
+        the point the fingers meet as the grasp itself is.
+
+        :param reference_T_grasp: The grasp frame, whose x-axis is the approach.
+        :param end_effector: The end effector that reaches it.
+        :param distance: How far back along the approach direction, in meters.
+        :return: The tool frame goal, in ``reference_T_grasp``'s frame.
+        """
+        grasp_T_pre_grasp = HomogeneousTransformationMatrix.from_xyz_rpy(x=-distance)
+        return end_effector.tool_frame_goal_for_grasp(
+            (reference_T_grasp.homogeneous_matrix @ grasp_T_pre_grasp).pose
+        )
+
+    def _approach_distance(self, grasp: GraspCandidate | None) -> float:
+        """
+        :param grasp: The grasp on the object, or ``None`` when there is no object.
+        :return: The distance in meters from the grasp back to the pre-grasp pose: the
+            distance to the object's bounding box along the approach, plus
+            :attr:`approach_clearance`.
+        """
+        if grasp is None or not grasp.graspable.root.has_collision():
+            return self.approach_clearance
+        return self._distance_to_boundary(grasp) + self.approach_clearance
+
+    @staticmethod
+    def _distance_to_boundary(grasp: GraspCandidate) -> float:
+        """
+        The distance the gripper has to retrace before it leaves the body's bounding
+        box.
+
+        :param grasp: The grasp on the object.
+        :return: The distance in meters, zero when the grasp already lies outside the
+            box.
+        """
+        body = grasp.graspable.root
+        bounding_box = body.collision.as_bounding_box_collection_in_frame(
+            body
+        ).bounding_box()
+
+        grasp_position = grasp.grasp_pose.to_np()[:3, 3]
+        # The grasp frame's x-axis is where the gripper comes from, so it retraces -x.
+        retrace_direction = -grasp.grasp_pose.to_np()[:3, 0]
+        intervals = (
+            bounding_box.x_interval,
+            bounding_box.y_interval,
+            bounding_box.z_interval,
+        )
+        minimum = np.array([interval.lower for interval in intervals])
+        maximum = np.array([interval.upper for interval in intervals])
+
+        distances = [
+            (
+                (maximum[axis] if retrace_direction[axis] > 0 else minimum[axis])
+                - grasp_position[axis]
+            )
+            / retrace_direction[axis]
+            for axis in range(3)
+            if not np.isclose(retrace_direction[axis], 0)
+        ]
+        return max(min(distances, default=0.0), 0.0)
+
+    def _retreat_pose(self, reference_T_grasp: Pose, tool_goal: Pose) -> Pose:
+        """
+        The tool frame goal :attr:`retreat_distance` above the grasp along the world's
+        z-axis (a grasp frame's own z-axis can lie flat).
+
+        :param reference_T_grasp: The grasp frame that was reached.
+        :param tool_goal: The tool frame goal at the grasp, whose orientation is kept.
+        :return: The retreat pose, in ``reference_T_grasp``'s frame.
+        """
+        target = reference_T_grasp.reference_frame
+        world = target._world
+        world_T_grasp = world.transform(
+            reference_T_grasp.homogeneous_matrix, world.root
+        )
+        world_T_lift = HomogeneousTransformationMatrix.from_xyz_rpy(
+            z=self.retreat_distance, reference_frame=world.root
+        )
+        return Pose(
+            world.transform((world_T_lift @ world_T_grasp).position, target),
+            tool_goal.quaternion,
+            reference_frame=target,
+        )
+
+
+# %% behaviour shared by actions
+
+
 @dataclass(eq=False, repr=False, kw_only=True)
-class MovesToolCenterPoint(Action, ABC):
+class MovesToolCenterPoint(Action, HasGoalThresholdParameters, ABC):
     """
-    An action that moves an arm's tool center point, with optional goal-achievement
-    thresholds that fall back to the
-    :class:`~coraplex.plans.context_extensions.MotionToleranceConfig` of the context
+    An action that moves an arm's tool center point, whose goal thresholds fall back to
+    the :class:`~coraplex.plans.context_extensions.MotionToleranceConfig` of the context
     when left unset.
-    """
-
-    position_threshold: float | None = None
-    """
-    Distance threshold in meters for goal achievement. ``None`` falls back to
-    :attr:`~coraplex.plans.context_extensions.MotionToleranceConfig.default_tcp_position_threshold`.
-    """
-
-    orientation_threshold: float | None = None
-    """
-    Rotation threshold in rad for goal achievement. ``None`` falls back to
-    :attr:`~coraplex.plans.context_extensions.MotionToleranceConfig.tool_orientation_threshold`.
     """
 
     @classproperty
@@ -333,156 +672,3 @@ class ReattachesBranches(Action, ABC):
         if not self.reattaches_in_world_model:
             return []
         return [MoveBranch(branch_root=branch_root, new_parent=new_parent)]
-
-
-@dataclass
-class GraspPoseSequence:
-    """
-    The tool frame goals that approach a grasp, reach it and withdraw from it.
-    """
-
-    pre_grasp: Pose
-    """
-    Where the gripper waits before it moves onto the grasp, clear of the object.
-    """
-
-    grasp: Pose
-    """
-    The tool frame goal at the grasp itself.
-    """
-
-    retreat: Pose
-    """
-    Where the gripper rises to when it leaves the grasp.
-    """
-
-
-@dataclass(kw_only=True, eq=False)
-class HasApproachesGraspPoses:
-    """
-    Turns a grasp frame (x-axis along the approach, see
-    :class:`~semantic_digital_twin.grasping.grasp_candidates.GraspCandidate`) into the
-    tool frame goals that approach it, reach it and withdraw from it.
-    """
-
-    approach_clearance: float = 0.1
-    """
-    The gap in meters between the object and the gripper at the pre-grasp pose.
-    """
-
-    retreat_distance: float = 0.1
-    """
-    How far in meters the gripper rises when it leaves a grasp or a placed object.
-    """
-
-    def grasp_pose_sequence(
-        self,
-        reference_T_grasp: Pose,
-        end_effector: EndEffector,
-        grasp: Optional[GraspCandidate] = None,
-    ) -> GraspPoseSequence:
-        """
-        :param reference_T_grasp: The grasp frame to reach; for a release, where the
-            object is to be put.
-        :param end_effector: The end effector that is to reach it.
-        :param grasp: The grasp whose object the pre-grasp pose has to stay outside of;
-            ``None`` keeps only :attr:`approach_clearance`.
-        :return: The tool frame goals around the grasp.
-        """
-        tool_goal = end_effector.tool_frame_goal_for_grasp(reference_T_grasp)
-        return GraspPoseSequence(
-            pre_grasp=self.pre_grasp_pose(
-                reference_T_grasp, end_effector, self._approach_distance(grasp)
-            ),
-            grasp=tool_goal,
-            retreat=self._retreat_pose(reference_T_grasp, tool_goal),
-        )
-
-    @staticmethod
-    def pre_grasp_pose(
-        reference_T_grasp: Pose, end_effector: EndEffector, distance: float
-    ) -> Pose:
-        """
-        The goal back along the direction the gripper approaches a grasp from, aimed at
-        the point the fingers meet as the grasp itself is.
-
-        :param reference_T_grasp: The grasp frame, whose x-axis is the approach.
-        :param end_effector: The end effector that reaches it.
-        :param distance: How far back along the approach direction, in meters.
-        :return: The tool frame goal, in ``reference_T_grasp``'s frame.
-        """
-        grasp_T_pre_grasp = HomogeneousTransformationMatrix.from_xyz_rpy(x=-distance)
-        return end_effector.tool_frame_goal_for_grasp(
-            (reference_T_grasp.homogeneous_matrix @ grasp_T_pre_grasp).pose
-        )
-
-    def _approach_distance(self, grasp: Optional[GraspCandidate]) -> float:
-        """
-        :param grasp: The grasp on the object, or ``None`` when there is no object.
-        :return: The distance in meters from the grasp back to the pre-grasp pose: the
-            distance to the object's bounding box along the approach, plus
-            :attr:`approach_clearance`.
-        """
-        if grasp is None or not grasp.graspable.root.has_collision():
-            return self.approach_clearance
-        return self._distance_to_boundary(grasp) + self.approach_clearance
-
-    @staticmethod
-    def _distance_to_boundary(grasp: GraspCandidate) -> float:
-        """
-        The distance the gripper has to retrace before it leaves the body's bounding
-        box.
-
-        :param grasp: The grasp on the object.
-        :return: The distance in meters, zero when the grasp already lies outside the
-            box.
-        """
-        body = grasp.graspable.root
-        bounding_box = body.collision.as_bounding_box_collection_in_frame(
-            body
-        ).bounding_box()
-
-        grasp_position = grasp.grasp_pose.to_np()[:3, 3]
-        # The grasp frame's x-axis is where the gripper comes from, so it retraces -x.
-        retrace_direction = -grasp.grasp_pose.to_np()[:3, 0]
-        intervals = (
-            bounding_box.x_interval,
-            bounding_box.y_interval,
-            bounding_box.z_interval,
-        )
-        minimum = np.array([interval.lower for interval in intervals])
-        maximum = np.array([interval.upper for interval in intervals])
-
-        distances = [
-            (
-                (maximum[axis] if retrace_direction[axis] > 0 else minimum[axis])
-                - grasp_position[axis]
-            )
-            / retrace_direction[axis]
-            for axis in range(3)
-            if not np.isclose(retrace_direction[axis], 0)
-        ]
-        return max(min(distances, default=0.0), 0.0)
-
-    def _retreat_pose(self, reference_T_grasp: Pose, tool_goal: Pose) -> Pose:
-        """
-        The tool frame goal :attr:`retreat_distance` above the grasp along the world's
-        z-axis (a grasp frame's own z-axis can lie flat).
-
-        :param reference_T_grasp: The grasp frame that was reached.
-        :param tool_goal: The tool frame goal at the grasp, whose orientation is kept.
-        :return: The retreat pose, in ``reference_T_grasp``'s frame.
-        """
-        target = reference_T_grasp.reference_frame
-        world = target._world
-        world_T_grasp = world.transform(
-            reference_T_grasp.homogeneous_matrix, world.root
-        )
-        world_T_lift = HomogeneousTransformationMatrix.from_xyz_rpy(
-            z=self.retreat_distance, reference_frame=world.root
-        )
-        return Pose(
-            world.transform((world_T_lift @ world_T_grasp).position, target),
-            tool_goal.quaternion,
-            reference_frame=target,
-        )

@@ -15,7 +15,6 @@ from semantic_digital_twin.collision_checking.collision_rules import (
 )
 from semantic_digital_twin.datastructures.alignment import AlignmentPair
 from semantic_digital_twin.robots.robot_part_mixins import HasMobileBase
-from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Tool
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
@@ -48,7 +47,11 @@ from coraplex.robot_plans.actions.base import (
     SequentialAction,
     TryAllAction,
 )
-from coraplex.robot_plans.mixins import MovesToolCenterPoint
+from coraplex.robot_plans.mixins import (
+    HasArmParameter,
+    HasToolParameter,
+    MovesToolCenterPoint,
+)
 from cramph.composites import Parallel
 from giskardpy.motion_statechart.weights import DefaultWeights
 from giskardpy.motion_statechart.monitors.cartesian_monitors import PositionReached
@@ -88,21 +91,16 @@ class FullBodyControlledAction(Action, ABC):
 
 @dataclass(kw_only=True, eq=False, repr=False)
 class ToolMotionAction(
-    FullBodyControlledAction, MovesToolCenterPoint, ActionOfSteps, ABC
+    FullBodyControlledAction,
+    MovesToolCenterPoint,
+    ActionOfSteps,
+    HasArmParameter,
+    HasToolParameter,
+    ABC,
 ):
     """
-    An action that moves a tool along a sampled tool path while keeping the tool aligned
-    with its target.
-    """
-
-    arm: Arm
-    """
-    The arm holding the tool.
-    """
-
-    tool: Tool
-    """
-    The tool that performs the motion.
+    An action that moves a tool held by :attr:`arm` along a sampled tool path while
+    keeping the tool aligned with its target.
     """
 
     pointer_stride: int = 1
@@ -402,7 +400,9 @@ class WipingAction(ToolMotionAction, TryAllAction):
 
 
 @dataclass(kw_only=True, eq=False, repr=False)
-class PouringAction(FullBodyControlledAction, MovesToolCenterPoint, SequentialAction):
+class PouringAction(
+    FullBodyControlledAction, MovesToolCenterPoint, SequentialAction, HasArmParameter
+):
     """
     Pour from a held source container into a target container by tilting the source next
     to the target's rim.
@@ -415,12 +415,7 @@ class PouringAction(FullBodyControlledAction, MovesToolCenterPoint, SequentialAc
 
     source_container: Tool
     """
-    The held container that is poured from.
-    """
-
-    arm: Arm
-    """
-    The arm holding the source container.
+    The container held by :attr:`arm` that is poured from.
     """
 
     tilt_angle: float = 1.85

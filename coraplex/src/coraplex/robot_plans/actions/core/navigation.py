@@ -3,8 +3,6 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass, field
 
-from typing_extensions import Optional
-
 from coraplex.exceptions import NoFloorBelowRobot, NotOnASingleLevelException
 from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.base import (
@@ -13,7 +11,12 @@ from coraplex.robot_plans.actions.base import (
     ParallelAction,
     SequentialAction,
 )
-from coraplex.robot_plans.mixins import ReattachesBranches
+from coraplex.robot_plans.mixins import (
+    HasCameraParameter,
+    HasLookTargetParameter,
+    HasNavigationTargetParameter,
+    ReattachesBranches,
+)
 from cramph.composites import Parallel, PausedUntilTrue
 from giskardpy.motion_statechart.goals.base_pose_goals import (
     BasePoseGoal,
@@ -27,7 +30,6 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPosition
 from giskardpy.motion_statechart.tasks.pointing import Pointing
 from semantic_digital_twin.exceptions import MissingMovableJointError
 from semantic_digital_twin.reasoning.predicates import InsideOf
-from semantic_digital_twin.robots.robot_parts import Camera
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Level,
     Elevator,
@@ -66,15 +68,9 @@ class DrivesBase(Action, ABC):
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class NavigateAction(DrivesBase, GoalAction):
+class NavigateAction(DrivesBase, GoalAction, HasNavigationTargetParameter):
     """
     Navigates the Robot to a position.
-    """
-
-    target_location: Pose
-    """
-    Where the robot should stand, and which way it should face given as the pose's
-    x-axis.
     """
 
     def create_goal(self) -> StatechartNode:
@@ -86,20 +82,10 @@ class NavigateAction(DrivesBase, GoalAction):
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class LookAtAction(ParallelAction):
+class LookAtAction(ParallelAction, HasLookTargetParameter, HasCameraParameter):
     """
     Lets the robot look at a position, following it while the look runs when it is given
     relative to a body that moves.
-    """
-
-    target: Pose
-    """
-    Position at which the robot should look, given as 6D pose.
-    """
-
-    camera: Optional[Camera] = None
-    """
-    Camera that should be looking at the target.
     """
 
     def create_steps(self) -> list[StatechartNode]:
@@ -127,17 +113,13 @@ class LookAtAction(ParallelAction):
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class FaceAtAction(ParallelAction):
+class FaceAtAction(ParallelAction, HasLookTargetParameter):
     """
-    Turns the robot's base on the spot until its front faces a target.
+    Turns the robot's base on the spot until its front faces a target, of which only
+    the horizontal position matters.
 
     The base keeps the position it has when the action starts, so the turn is towards
     the target from wherever an earlier action left it.
-    """
-
-    target: Pose
-    """
-    What to face; only its horizontal position matters.
     """
 
     def create_steps(self) -> list[StatechartNode]:
@@ -169,7 +151,9 @@ class FaceAtAction(ParallelAction):
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class PathPlanningNavigateAction(DrivesBase, SequentialAction):
+class PathPlanningNavigateAction(
+    DrivesBase, SequentialAction, HasNavigationTargetParameter
+):
     """
     Navigates the robot to a pose along a path through the environment's free space.
 
@@ -178,11 +162,6 @@ class PathPlanningNavigateAction(DrivesBase, SequentialAction):
 
     This works for obstacles which are known in the environment beforehand, not for
     those added during navigation.
-    """
-
-    target: Pose
-    """
-    Where the robot should stand at the end of the path, with its base.
     """
 
     def create_steps(self) -> list[StatechartNode]:
@@ -274,7 +253,7 @@ class PathPlanningNavigateAction(DrivesBase, SequentialAction):
             ).pose
             for waypoint, next_waypoint in zip(waypoints[1:], waypoints[2:])
         ]
-        return poses + [self.target]
+        return poses + [self.target_location]
 
     def _waypoints(self) -> list[Point2]:
         """
@@ -291,7 +270,7 @@ class PathPlanningNavigateAction(DrivesBase, SequentialAction):
             bloat_obstacles=self.robot.mobile_base.base_radius,
         )
         return free_space.path_from_to(
-            Point2.from_pose(base_pose), Point2.from_pose(self.target)
+            Point2.from_pose(base_pose), Point2.from_pose(self.target_location)
         )
 
 

@@ -10,7 +10,7 @@ from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionForEndEffector,
 )
 from semantic_digital_twin.robots.robot_part_mixins import HasTwoFingers
-from semantic_digital_twin.robots.robot_parts import Arm, EndEffector
+from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
 from coraplex.datastructures.trajectory import PoseTrajectory
@@ -21,7 +21,13 @@ from coraplex.robot_plans.actions.base import (
 )
 from coraplex.robot_plans.actions.core.exceptions import WidthBeyondGripperOpening
 from coraplex.robot_plans.mixins import (
-    HasMaxJointVelocity,
+    HasArmParameter,
+    HasEndEffectorParameter,
+    HasGripperCollisionParameter,
+    HasGripperStateParameter,
+    HasMaxJointVelocityParameter,
+    HasTargetPoseParameter,
+    HasTorsoStateParameter,
     MovesToolCenterPoint,
 )
 from cramph.composites import Sequence
@@ -37,22 +43,13 @@ from giskardpy.motion_statechart.tasks.joint_tasks import (
 )
 from semantic_digital_twin.datastructures.joint_state import JointState
 from giskardpy.motion_statechart.goals.gripper import MoveGripper
-from semantic_digital_twin.datastructures.definitions import (
-    TorsoState,
-    GripperState,
-    StaticJointState,
-)
+from semantic_digital_twin.datastructures.definitions import StaticJointState
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class MoveTorsoAction(SequentialAction):
+class MoveTorsoAction(SequentialAction, HasTorsoStateParameter):
     """
     Move the torso of the robot up and down.
-    """
-
-    torso_state: TorsoState
-    """
-    The state of the torso that should be set.
     """
 
     def create_steps(self) -> list[StatechartNode]:
@@ -61,23 +58,13 @@ class MoveTorsoAction(SequentialAction):
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class SetGripperAction(GoalAction):
+class SetGripperAction(GoalAction, HasEndEffectorParameter, HasGripperStateParameter):
     """
     Set the gripper state of the robot.
     """
 
-    gripper: EndEffector
-    """
-    The gripper that should be set.
-    """
-
-    motion: GripperState
-    """
-    The motion that should be set on the gripper.
-    """
-
     def create_goal(self) -> StatechartNode:
-        return MoveGripper(end_effector=self.gripper, state=self.motion)
+        return MoveGripper(end_effector=self.end_effector, state=self.motion)
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
@@ -139,7 +126,7 @@ class MoveFingersToWidthAction(GoalAction):
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class ParkArmsAction(ParallelAction, HasMaxJointVelocity):
+class ParkArmsAction(ParallelAction, HasMaxJointVelocityParameter):
     """
     Park the arms of the robot.
     """
@@ -177,7 +164,9 @@ class ParkArmsAction(ParallelAction, HasMaxJointVelocity):
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class FollowToolCenterPointPathAction(MovesToolCenterPoint, ParallelAction):
+class FollowToolCenterPointPathAction(
+    MovesToolCenterPoint, ParallelAction, HasArmParameter
+):
     """
     Represents an action to move a robotic arm's TCP (Tool Center Point) along a path of
     poses.
@@ -186,11 +175,6 @@ class FollowToolCenterPointPathAction(MovesToolCenterPoint, ParallelAction):
     target_locations: PoseTrajectory
     """
     Path poses for the TCP motion.
-    """
-
-    arm: Arm
-    """
-    The arm to use.
     """
 
     def create_steps(self) -> list[StatechartNode]:
@@ -226,24 +210,15 @@ class FollowToolCenterPointPathAction(MovesToolCenterPoint, ParallelAction):
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class MoveManipulatorAction(MovesToolCenterPoint, GoalAction):
+class MoveManipulatorAction(
+    MovesToolCenterPoint,
+    GoalAction,
+    HasEndEffectorParameter,
+    HasTargetPoseParameter,
+    HasGripperCollisionParameter,
+):
     """
     Move the end_effector to a specific pose.
-    """
-
-    target_pose: Pose
-    """
-    The pose where the end_effector should be moved to.
-    """
-
-    end_effector: EndEffector
-    """
-    The end_effector that should be moved.
-    """
-
-    allow_gripper_collision: bool
-    """
-    If the gripper can collide with something.
     """
 
     def create_temporary_collision_rules(self) -> list[CollisionRule]:

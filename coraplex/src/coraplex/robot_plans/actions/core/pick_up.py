@@ -9,12 +9,14 @@ from coraplex.robot_plans.actions.base import SequentialAction
 from cramph.composites import Parallel
 from cramph.node import StatechartNode
 from coraplex.robot_plans.mixins import (
-    ReattachesBranches,
-    HasApproachesGraspPoses,
-    HasGraspDetectionThreshold,
+    HasArmParameter,
+    HasGraspApproachParameters,
+    HasGraspCandidateParameter,
+    HasGraspDetectionThresholdParameter,
+    HasPickUpTuningParameters,
+    HasReachTuningParameters,
     MovesToolCenterPoint,
-    PickUpTuningParameters,
-    ReachTuningParameters,
+    ReattachesBranches,
 )
 from semantic_digital_twin.collision_checking.collision_matrix import CollisionRule
 from semantic_digital_twin.collision_checking.collision_rules import (
@@ -31,49 +33,18 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 logger = logging.getLogger(__name__)
 
 
-@dataclass(kw_only=True, eq=False)
-class HasGraspChoice:
-    """
-    Adds to an action the grasp it takes hold by.
-
-    Shared by every action that closes a gripper on something. The grasp names the
-    object it is on, so that is not asked for separately.
-    """
-
-    grasp: GraspCandidate
-    """
-    The grasp to take hold by.
-
-    One of the object's own
-    :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspCandidates.grasp_candidates`.
-    """
-
-    arm: Arm
-    """
-    The arm that should be used.
-    """
-
-
 @dataclass(eq=False, repr=False, kw_only=True)
 class ReachAction(
     MovesToolCenterPoint,
     SequentialAction,
-    HasApproachesGraspPoses,
-    ReachTuningParameters,
-    HasGraspDetectionThreshold,
+    HasGraspCandidateParameter,
+    HasArmParameter,
+    HasGraspApproachParameters,
+    HasReachTuningParameters,
+    HasGraspDetectionThresholdParameter,
 ):
     """
     Let the robot reach a specific pose.
-    """
-
-    arm: Arm
-    """
-    The arm that should be used for pick up.
-    """
-
-    grasp: GraspCandidate
-    """
-    The grasp the fingers should close on, which also names the object it is on.
     """
 
     reverse_reach_order: bool = False
@@ -126,10 +97,12 @@ class PickUpAction(
     MovesToolCenterPoint,
     ReattachesBranches,
     SequentialAction,
-    HasGraspChoice,
-    HasApproachesGraspPoses,
-    PickUpTuningParameters,
-    HasGraspDetectionThreshold,
+    HasGraspCandidateParameter,
+    HasArmParameter,
+    HasGraspApproachParameters,
+    HasReachTuningParameters,
+    HasPickUpTuningParameters,
+    HasGraspDetectionThresholdParameter,
 ):
     """
     Let the robot pick up an object: take hold of it and lift it clear of its support.
@@ -217,10 +190,12 @@ class PickUpAction(
 class GraspingAction(
     MovesToolCenterPoint,
     SequentialAction,
-    HasGraspChoice,
-    HasApproachesGraspPoses,
-    PickUpTuningParameters,
-    HasGraspDetectionThreshold,
+    HasGraspCandidateParameter,
+    HasArmParameter,
+    HasGraspApproachParameters,
+    HasReachTuningParameters,
+    HasPickUpTuningParameters,
+    HasGraspDetectionThresholdParameter,
 ):
     """
     Let the robot take hold of an object: reach onto a grasp and close on it.

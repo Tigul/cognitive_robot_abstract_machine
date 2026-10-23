@@ -258,7 +258,7 @@ def _robot_body_cases() -> list[ActionRoundTripCase]:
             SetGripperAction,
             lambda world: [
                 SetGripperAction(
-                    gripper=_arm(world).end_effector, motion=GripperState.OPEN
+                    end_effector=_arm(world).end_effector, motion=GripperState.OPEN
                 )
             ],
         ),
@@ -313,7 +313,7 @@ def _navigation_and_perception_cases() -> list[ActionRoundTripCase]:
         ),
         ActionRoundTripCase(
             PathPlanningNavigateAction,
-            lambda world: [PathPlanningNavigateAction(target=_pose(world))],
+            lambda world: [PathPlanningNavigateAction(target_location=_pose(world))],
         ),
         ActionRoundTripCase(
             LookAtAction, lambda world: [LookAtAction(target=_pose(world))]

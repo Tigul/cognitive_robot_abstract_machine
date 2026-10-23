@@ -203,12 +203,13 @@ def test_stretch_drives_every_leg_of_a_path_with_its_differential_drive(
     world, robot, extensions = stretch_apartment_context
     target = Pose.from_xyz_rpy(2.0, 2.0, 0.0, reference_frame=world.root)
     unchanged = prepared(
-        PathPlanningNavigateAction(target=target),
+        PathPlanningNavigateAction(target_location=target),
         simulated_executor(extensions, robot_adaptations=[]),
     )
 
     action = prepared(
-        PathPlanningNavigateAction(target=target), simulated_executor(extensions)
+        PathPlanningNavigateAction(target_location=target),
+        simulated_executor(extensions),
     )
 
     legs = action.nodes

@@ -10,7 +10,7 @@ from coraplex.locations.locations import ReachabilityLocation
 from cramph.context import StatechartContext
 from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.base import SequentialAction
-from coraplex.robot_plans.mixins import HasApproachesGraspPoses
+from coraplex.robot_plans.mixins import HasGraspApproachParameters
 from coraplex.robot_plans.actions.composite.carrying import CarryAction
 from coraplex.robot_plans.actions.composite.facing import FaceAndLookAtAction
 from coraplex.robot_plans.actions.core.container import OpenAction
@@ -220,8 +220,8 @@ class MoveAndPickUpAction(SequentialAction):
         standing_position: Pose,
         grasp: GraspCandidate,
         arm: Arm,
-        approach_clearance: float = HasApproachesGraspPoses.approach_clearance,
-        retreat_distance: float = HasApproachesGraspPoses.retreat_distance,
+        approach_clearance: float = HasGraspApproachParameters.approach_clearance,
+        retreat_distance: float = HasGraspApproachParameters.retreat_distance,
     ) -> Self:
         """
         :param standing_position: Where the robot stands while picking up.

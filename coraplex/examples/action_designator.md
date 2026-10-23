@@ -148,7 +148,7 @@ from semantic_digital_twin.datastructures.definitions import GripperState
 gripper = pr2.right_arm.end_effector
 motion = GripperState.OPEN
 
-run(SetGripperAction(gripper=gripper, motion=motion))
+run(SetGripperAction(end_effector=gripper, motion=motion))
 ```
 
 ## Park Arms

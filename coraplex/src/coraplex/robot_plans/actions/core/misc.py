@@ -16,7 +16,11 @@ from coraplex.robot_plans.actions.base import SequentialAction
 from coraplex.robot_plans.actions.core.exceptions import DetectionTargetMissing
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import MoveManipulatorAction
-from coraplex.robot_plans.mixins import HasApproachesGraspPoses, MovesToolCenterPoint
+from coraplex.robot_plans.mixins import (
+    HasEndEffectorParameter,
+    HasGraspApproachParameters,
+    MovesToolCenterPoint,
+)
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
     RotationMatrix,
@@ -27,7 +31,6 @@ from semantic_digital_twin.spatial_types.spatial_types import (
     Point3,
     Pose2D,
 )
-from semantic_digital_twin.robots.robot_parts import EndEffector
 from semantic_digital_twin.world_description.geometry import VolumetricBoundingBox
 from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
@@ -148,7 +151,12 @@ class DetectAction(SequentialAction):
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class MoveToReach(MovesToolCenterPoint, SequentialAction, HasApproachesGraspPoses):
+class MoveToReach(
+    MovesToolCenterPoint,
+    SequentialAction,
+    HasEndEffectorParameter,
+    HasGraspApproachParameters,
+):
     """
     Let the robot move to a position facing the target and reach with a end_effector.
     """
@@ -168,11 +176,6 @@ class MoveToReach(MovesToolCenterPoint, SequentialAction, HasApproachesGraspPose
     reference_T_grasp: Pose
     """
     The grasp frame the end effector is to reach.
-    """
-
-    end_effector: EndEffector
-    """
-    The end effector that should reach it.
     """
 
     def create_steps(self) -> list[StatechartNode]:

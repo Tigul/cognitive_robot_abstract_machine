@@ -376,7 +376,7 @@ def test_move_gripper_multi(multiple_robot_apartment_context):
     world, view, extensions = multiple_robot_apartment_context
 
     plan = SetGripperAction(
-        gripper=left_or_only_arm(view).end_effector, motion=GripperState.OPEN
+        end_effector=left_or_only_arm(view).end_effector, motion=GripperState.OPEN
     )
 
     executor = run_plan(plan, extensions)
@@ -388,7 +388,7 @@ def test_move_gripper_multi(multiple_robot_apartment_context):
         assert connection.position == pytest.approx(target, abs=0.02)
 
     plan = SetGripperAction(
-        gripper=left_or_only_arm(view).end_effector, motion=GripperState.CLOSE
+        end_effector=left_or_only_arm(view).end_effector, motion=GripperState.CLOSE
     )
 
     run_plan(plan, extensions)
@@ -835,7 +835,9 @@ def test_multi_robot_gcs_navigation(multiple_robot_apartment_context, rclpy_node
     target_position = [5, 1]
 
     plan = PathPlanningNavigateAction(
-        target=Pose.from_xyz_rpy(*target_position, 0, reference_frame=world.root)
+        target_location=Pose.from_xyz_rpy(
+            *target_position, 0, reference_frame=world.root
+        )
     )
 
     run_plan(plan, extensions)
@@ -854,7 +856,7 @@ def test_gcs_navigation_arrives_at_each_waypoint_facing_the_next_one(
     world, robot, extensions = multiple_robot_apartment_context
 
     action = PathPlanningNavigateAction(
-        target=Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root)
+        target_location=Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root)
     )
     attach_to_statechart(action, extensions)
 
@@ -887,7 +889,7 @@ def test_gcs_navigation_plans_on_the_floor_the_robot_stands_on(
     world, robot, extensions = multiple_robot_apartment_context
 
     action = PathPlanningNavigateAction(
-        target=Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root)
+        target_location=Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root)
     )
     attach_to_statechart(action, extensions)
 
@@ -918,7 +920,7 @@ def test_gcs_navigation_takes_a_waypoints_height_from_that_waypoints_frame(
     world, robot, extensions = multiple_robot_apartment_context
 
     action = PathPlanningNavigateAction(
-        target=Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root)
+        target_location=Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root)
     )
     attach_to_statechart(action, extensions)
 
@@ -944,7 +946,7 @@ def test_gcs_navigation_needs_a_floor_below_the_robot(
     world.notify_state_change()
 
     action = PathPlanningNavigateAction(
-        target=Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root)
+        target_location=Pose.from_xyz_rpy(5, 1, 0, reference_frame=world.root)
     )
 
     with pytest.raises(NoFloorBelowRobot) as raised:
@@ -1242,7 +1244,7 @@ def test_set_gripper_drives_the_gripper_it_names(multiple_robot_apartment_contex
     """
     _, robot, extensions = multiple_robot_apartment_context
     end_effector = left_or_only_arm(robot).end_effector
-    action = SetGripperAction(gripper=end_effector, motion=GripperState.OPEN)
+    action = SetGripperAction(end_effector=end_effector, motion=GripperState.OPEN)
 
     expand(action, extensions)
 
