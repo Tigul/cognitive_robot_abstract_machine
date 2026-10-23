@@ -7,12 +7,13 @@ from __future__ import annotations
 
 import pytest
 from textual.app import App
-from textual.widgets import Button, Input
+from textual.widgets import Button, Collapsible, Input, SelectionList
 
 from coraplex.plans.executors import RealRobotPlanExecutor
 from coraplex.robot_plans.actions.composite.carrying import CarryAction
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from semantic_digital_twin.robots.armar7 import Armar7
 from semantic_digital_twin.robots.pr2 import PR2
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -80,6 +81,109 @@ async def test_a_nested_action_is_entered_in_a_form_of_its_own(
     assert carry.navigate.target_location.to_np() == pytest.approx(
         Pose.from_xyz_rpy(**target, reference_frame=world.root).to_np()
     )
+
+
+# %% keyboard navigation
+
+
+def letters_choice(action_console, choose_first: bool = False):
+    """
+    :param choose_first: Whether the first letter is chosen from the start.
+    :return: A choice among values labelled ``a``, ``b`` and ``c``.
+    """
+    options = [action_console.LabelledValue(letter, object()) for letter in "abc"]
+    return action_console.FuzzyChoice(
+        options, initial_value=options[0].value if choose_first else None
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_arrow_keys_move_the_highlight_of_an_open_list(
+    action_console, host_widgets
+):
+    choice = letters_choice(action_console)
+
+    async with host_widgets(choice).run_test() as pilot:
+        choice.query_one(Input).focus()
+        await pilot.press("enter", "down", "down", "up", "enter")
+        await pilot.pause()
+
+        assert choice.chosen_value is choice.options[1].value
+
+
+@pytest.mark.asyncio
+async def test_escape_closes_a_list_without_choosing(action_console, host_widgets):
+    choice = letters_choice(action_console, choose_first=True)
+    [first_option, *_] = choice.options
+
+    async with host_widgets(choice).run_test() as pilot:
+        choice.query_one(Input).focus()
+        await pilot.press("c", "escape")
+        await pilot.pause()
+
+        assert choice.chosen_value is first_option.value
+        assert choice.query_one(Input).value == first_option.label
+        assert not choice.is_open
+
+
+@pytest.mark.asyncio
+async def test_choosing_an_action_moves_on_to_its_first_parameter(
+    action_console, console_session, pr2_console_demonstration, console_script_directory
+):
+    screen = action_console.ActionScreen(console_session, pr2_console_demonstration)
+    app = App(css_path=console_script_directory / "action_console.tcss")
+
+    async with app.run_test(size=(200, 60)) as pilot:
+        await app.push_screen(screen)
+        form = screen.query_one("#action-form", action_console.ActionForm)
+        await choose_builder(pilot, form, "NavigateAction")
+        [first_field, *_] = form.parameter_form.fields
+
+        assert first_field in app.focused.ancestors
+
+
+@pytest.mark.asyncio
+async def test_the_arrow_keys_move_between_fields_while_no_list_is_open(
+    action_console, console_session, pr2_console_demonstration, console_script_directory
+):
+    screen = action_console.ActionScreen(console_session, pr2_console_demonstration)
+    app = App(css_path=console_script_directory / "action_console.tcss")
+
+    async with app.run_test(size=(200, 60)) as pilot:
+        await app.push_screen(screen)
+        form = screen.query_one("#action-form", action_console.ActionForm)
+        await choose_builder(pilot, form, "NavigateAction")
+        await pilot.press("down")
+        await pilot.pause()
+        pose_field = form.parameter_form.query_one(action_console.PoseField)
+
+        assert app.focused.parent is pose_field.query_one(Collapsible)
+
+
+@pytest.mark.asyncio
+async def test_the_arrow_keys_leave_a_selection_list_past_its_first_entry(
+    action_console, console_session, pr2_console_demonstration, console_script_directory
+):
+    screen = action_console.ActionScreen(console_session, pr2_console_demonstration)
+    app = App(css_path=console_script_directory / "action_console.tcss")
+
+    async with app.run_test(size=(200, 60)) as pilot:
+        await app.push_screen(screen)
+        form = screen.query_one("#action-form", action_console.ActionForm)
+        await choose_builder(pilot, form, ParkArmsAction.__name__)
+        fields = form.parameter_form.fields
+        [arms_index] = [
+            index
+            for index, parameter_field in enumerate(fields)
+            if isinstance(parameter_field, action_console.WorldEntityListField)
+        ]
+        arms_list = fields[arms_index].query_one(SelectionList)
+        arms_list.focus()
+        arms_list.highlighted = 0
+        await pilot.press("up")
+        await pilot.pause()
+
+        assert fields[arms_index - 1] in app.focused.ancestors
 
 
 # %% running actions
@@ -156,7 +260,8 @@ async def run_setup(
         await app.push_screen(screen, callback=dismissed.append)
         screen.query_one("#robot").query_one(Input).focus()
         await pilot.press(*robot_name, "enter")
-        screen.query_one("#run-mode").value = run_mode
+        screen.query_one("#run-mode").query_one(Input).focus()
+        await pilot.press(*run_mode.value, "enter")
         screen.query_one("#start-x", Input).value = "1.5"
         await pilot.pause()
         screen.query_one("#start", Button).press()

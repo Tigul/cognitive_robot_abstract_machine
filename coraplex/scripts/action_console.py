@@ -24,26 +24,25 @@ from types import NoneType, UnionType
 from textual import on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal, VerticalScroll
+from textual.containers import Horizontal, Vertical, VerticalScroll
+from textual.content import Content
 from textual.fuzzy import Matcher
 from textual.message import Message
-from textual.screen import Screen
+from textual.screen import Screen, ScreenResultType
 from textual.validation import Integer, Number
 from textual.widget import Widget
 from textual.widgets import (
     Button,
+    Checkbox,
     Collapsible,
     Footer,
-    Header,
     Input,
     Label,
     LoadingIndicator,
     OptionList,
     RichLog,
-    Select,
     SelectionList,
     Static,
-    Switch,
 )
 from textual.worker import Worker, WorkerState
 from typing_extensions import Any, Callable, Self, Union, get_args, get_origin
@@ -283,13 +282,31 @@ class ActionParameter:
         return Union[remaining]
 
     @property
-    def description(self) -> str:
+    def value_type_name(self) -> str:
         """
-        :return: The name of this parameter together with the type of its values.
+        :return: The name of the type of the values of this parameter other than
+            ``None``.
         """
-        if isclass(self.value_type):
-            return f"{self.name}: {self.value_type.__name__}"
-        return f"{self.name}: {self.value_type}"
+        return self.type_name(self.value_type)
+
+    @classmethod
+    def type_name(cls, type_hint: Any) -> str:
+        """
+        :param type_hint: A type, possibly generic or a union.
+        :return: How ``type_hint`` is written in code, with every class named without
+            its module.
+        """
+        if type_hint is NoneType:
+            return "None"
+        origin = get_origin(type_hint)
+        if origin is None:
+            return type_hint.__name__ if isclass(type_hint) else str(type_hint)
+        arguments = [cls.type_name(argument) for argument in get_args(type_hint)]
+        if origin in (Union, UnionType):
+            return " | ".join(arguments)
+        if not isclass(origin):
+            return str(type_hint)
+        return f"{origin.__name__}[{', '.join(arguments)}]"
 
 
 @dataclass
@@ -659,12 +676,20 @@ class AbstractWidgetMeta(type(Widget), ABCMeta):
 
 class FuzzyChoice(Widget):
     """
-    A list of values to choose from, narrowed and ranked by fuzzy matching what is
-    typed above it.
+    Chooses one of a list of values. The field shows the chosen value; typing in it, or
+    pressing enter, opens the list of values below it, narrowed and ranked by fuzzy
+    matching what is typed.
 
-    Pressing enter in the search field chooses the best match, pressing it on the list
-    or clicking chooses the highlighted value. The chosen value is shown below the list.
+    In the open list, the arrow keys move the highlight, enter or a click chooses the
+    highlighted value, and escape or leaving the field closes the list without choosing.
+    While the list is closed, the arrow keys are left to the screen.
     """
+
+    BINDINGS = [
+        Binding("down", "move_highlight(1)", show=False),
+        Binding("up", "move_highlight(-1)", show=False),
+        Binding("escape", "close", show=False),
+    ]
 
     @dataclass
     class Chosen(Message):
@@ -692,6 +717,7 @@ class FuzzyChoice(Widget):
         *,
         allows_none: bool = False,
         initial_value: Any = None,
+        always_open: bool = False,
         id: str | None = None,
         classes: str | None = None,
     ) -> None:
@@ -700,6 +726,7 @@ class FuzzyChoice(Widget):
             while nothing is typed.
         :param allows_none: Whether ``None`` is offered first, as ``none``.
         :param initial_value: The value chosen before anything is chosen.
+        :param always_open: Whether the list is shown and navigated at all times.
         :param id: The id of the widget.
         :param classes: The style classes of the widget.
         """
@@ -709,71 +736,147 @@ class FuzzyChoice(Widget):
             self.options.insert(0, LabelledValue("none", None))
         self.listed_options = list(self.options)
         self.chosen_value = initial_value
+        self.always_open = always_open
+        self.is_open = always_open
 
     def compose(self) -> ComposeResult:
-        yield Input(placeholder="type to search, enter to choose")
-        yield OptionList(*(option.label for option in self.options), markup=False)
-        yield Static(self.chosen_description(), classes="chosen", markup=False)
+        with Horizontal(classes="current"):
+            yield Input(self.chosen_label(), placeholder="type to search", compact=True)
+            yield Static("▾", classes="arrow")
+        option_list = OptionList(
+            *(option.label for option in self.options), markup=False, compact=True
+        )
+        option_list.can_focus = False
+        yield option_list
 
     def on_mount(self) -> None:
-        chosen_indices = [
-            index
-            for index, option in enumerate(self.options)
-            if option.value is self.chosen_value
-        ]
-        if chosen_indices:
-            self.query_one(OptionList).highlighted = chosen_indices[0]
+        self.set_class(self.always_open, "-always-open")
+        self.set_open(self.always_open)
+        self.call_after_refresh(self.show_chosen)
 
-    def chosen_description(self) -> str:
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool:
+        if action == "move_highlight":
+            return self.is_open
+        if action == "close":
+            return self.is_open and not self.always_open
+        return True
+
+    def set_open(self, is_open: bool) -> None:
         """
-        :return: The line telling which value is chosen.
+        Show the list if ``is_open`` or if it is always open, and hide it otherwise.
+
+        :param is_open: Whether the list is to be shown.
         """
-        chosen_labels = [
-            option.label for option in self.options if option.value is self.chosen_value
-        ]
-        if not chosen_labels:
-            return "nothing chosen"
-        return f"chosen: {chosen_labels[0]}"
+        self.is_open = is_open or self.always_open
+        self.set_class(self.is_open, "-open")
+
+    def list_options(self, options: list[LabelledValue]) -> None:
+        """
+        List ``options``, the first of them highlighted.
+
+        :param options: Some of the options of this widget.
+        """
+        self.listed_options = options
+        option_list = self.query_one(OptionList)
+        option_list.set_options(option.label for option in options)
+        option_list.highlighted = 0 if options else None
+
+    def chosen_index(self) -> int | None:
+        """
+        :return: The position of the chosen value among the options, or ``None`` if
+            none of them is chosen.
+        """
+        return next(
+            (
+                index
+                for index, option in enumerate(self.options)
+                if option.value is self.chosen_value
+            ),
+            None,
+        )
+
+    def chosen_label(self) -> str:
+        """
+        :return: The label of the chosen value, or nothing if none is chosen.
+        """
+        chosen_index = self.chosen_index()
+        if chosen_index is None:
+            return ""
+        return self.options[chosen_index].label
+
+    def show_chosen(self) -> None:
+        """
+        Show the label of the chosen value in the field, selected so that typing
+        replaces it, and list every option with the chosen one highlighted.
+        """
+        search = self.query_one(Input)
+        with search.prevent(Input.Changed):
+            search.value = self.chosen_label()
+        search.select_all()
+        self.list_options(self.options)
+        chosen_index = self.chosen_index()
+        if chosen_index is not None:
+            self.query_one(OptionList).highlighted = chosen_index
 
     def choose(self, option: LabelledValue) -> None:
         """
-        Choose the value of ``option``, and announce it.
+        Choose the value of ``option``, close the list and announce the choice.
 
         :param option: One of the options of this widget.
         """
         self.chosen_value = option.value
-        self.query_one(".chosen", Static).update(self.chosen_description())
+        self.action_close()
         self.post_message(self.Chosen(self, self.chosen_value))
+
+    def action_move_highlight(self, step: int) -> None:
+        """
+        Move the highlight in the list by ``step`` options, stopping at its ends.
+
+        :param step: How many options to move down, or up if negative.
+        """
+        option_list = self.query_one(OptionList)
+        if option_list.highlighted is None:
+            return
+        option_list.highlighted = option_list.highlighted + step
+
+    def action_close(self) -> None:
+        """
+        Close the list and show the chosen value again, discarding what was typed.
+        """
+        self.set_open(False)
+        self.show_chosen()
 
     @on(Input.Changed)
     def narrow_options(self, event: Input.Changed) -> None:
         """
-        List only the options matching what is typed, best match first and
-        highlighted.
+        Open the list, listing only the options matching what is typed, best match
+        first and highlighted.
         """
         event.stop()
+        self.set_open(True)
         matcher = Matcher(event.value)
         scored_options = [
             (matcher.match(option.label), option) for option in self.options
         ]
-        self.listed_options = [
-            option
-            for score, option in sorted(
-                scored_options, key=lambda scored: scored[0], reverse=True
-            )
-            if score > 0 or not event.value
-        ]
-        option_list = self.query_one(OptionList)
-        option_list.set_options(option.label for option in self.listed_options)
-        if self.listed_options:
-            option_list.highlighted = 0
+        self.list_options(
+            [
+                option
+                for score, option in sorted(
+                    scored_options, key=lambda scored: scored[0], reverse=True
+                )
+                if score > 0 or not event.value
+            ]
+        )
 
     @on(Input.Submitted)
-    def choose_best_match(self, event: Input.Submitted) -> None:
+    def choose_highlighted(self, event: Input.Submitted) -> None:
         """
-        Choose the highlighted option, which is the best match of what is typed.
+        Open the list if it is closed, otherwise choose its highlighted option.
         """
         event.stop()
+        if not self.is_open:
+            self.set_open(True)
+            return
         highlighted = self.query_one(OptionList).highlighted
         if highlighted is None:
             return
@@ -786,6 +889,14 @@ class FuzzyChoice(Widget):
         """
         event.stop()
         self.choose(self.listed_options[event.option_index])
+
+    @on(Input.Blurred)
+    def close_on_leaving(self, event: Input.Blurred) -> None:
+        """
+        Close the list when the field is left.
+        """
+        event.stop()
+        self.action_close()
 
 
 # %% parameter fields
@@ -826,38 +937,6 @@ class ParameterField(Widget, metaclass=AbstractWidgetMeta):
         """
 
 
-class EnumerationField(ParameterField):
-    """
-    Chooses a member of an enumeration.
-    """
-
-    @classmethod
-    def accepts(cls, parameter: ActionParameter) -> bool:
-        return isclass(parameter.value_type) and issubclass(parameter.value_type, Enum)
-
-    def compose(self) -> ComposeResult:
-        initial_value = (
-            self.parameter.default
-            if self.parameter.has_default and self.parameter.default is not None
-            else Select.NULL
-        )
-        yield Select(
-            [(member._name_, member) for member in self.parameter.value_type],
-            value=initial_value,
-        )
-
-    def problem(self) -> str | None:
-        if self.query_one(Select).is_blank() and not self.parameter.allows_none:
-            return "choose a value"
-        return None
-
-    def value(self) -> Enum | None:
-        selection = self.query_one(Select)
-        if selection.is_blank():
-            return None
-        return selection.value
-
-
 class BooleanField(ParameterField):
     """
     Switches a flag on or off.
@@ -868,13 +947,16 @@ class BooleanField(ParameterField):
         return parameter.value_type is bool
 
     def compose(self) -> ComposeResult:
-        yield Switch(value=self.parameter.has_default and bool(self.parameter.default))
+        yield Checkbox(
+            value=self.parameter.has_default and bool(self.parameter.default),
+            compact=True,
+        )
 
     def problem(self) -> str | None:
         return None
 
     def value(self) -> bool:
-        return self.query_one(Switch).value
+        return self.query_one(Checkbox).value
 
 
 class NumberField(ParameterField):
@@ -892,10 +974,23 @@ class NumberField(ParameterField):
             if self.parameter.has_default and self.parameter.default is not None
             else ""
         )
+        placeholder = "none" if self.parameter.allows_none else ""
         if self.parameter.value_type is int:
-            yield Input(initial_text, type="integer", validators=[Integer()])
+            yield Input(
+                initial_text,
+                placeholder=placeholder,
+                type="integer",
+                validators=[Integer()],
+                compact=True,
+            )
             return
-        yield Input(initial_text, type="number", validators=[Number()])
+        yield Input(
+            initial_text,
+            placeholder=placeholder,
+            type="number",
+            validators=[Number()],
+            compact=True,
+        )
 
     def problem(self) -> str | None:
         number_input = self.query_one(Input)
@@ -912,6 +1007,16 @@ class NumberField(ParameterField):
         return self.parameter.value_type(text)
 
 
+class PoseComponent(StrEnum):
+    """
+    The components a pose is entered in.
+    """
+
+    POSITION = "position"
+    ROTATION = "rotation"
+    REFERENCE_FRAME = "frame"
+
+
 class Coordinate(StrEnum):
     """
     The coordinates a pose is entered in, valued by the keyword
@@ -926,11 +1031,21 @@ class Coordinate(StrEnum):
     PITCH = "pitch"
     YAW = "yaw"
 
+    @property
+    def component(self) -> PoseComponent:
+        """
+        :return: The component of a pose this coordinate belongs to.
+        """
+        if self in (Coordinate.X, Coordinate.Y, Coordinate.Z):
+            return PoseComponent.POSITION
+        return PoseComponent.ROTATION
+
 
 class ReferencedCoordinatesField(ParameterField):
     """
-    Enters a pose as coordinates relative to a chosen entity of the world. A parameter
-    that allows ``None`` is ``None`` while no entity is chosen.
+    Enters a pose as coordinates relative to a chosen entity of the world, in a
+    collapsible form whose title summarizes the pose. A parameter that allows ``None``
+    is ``None`` while no entity is chosen.
     """
 
     @property
@@ -952,21 +1067,53 @@ class ReferencedCoordinatesField(ParameterField):
 
     def compose(self) -> ComposeResult:
         world = self.session.world
-        yield FuzzyChoice(
-            [
-                LabelledValue(str(entity.name), entity)
-                for entity in world.kinematic_structure_entities
-            ],
-            allows_none=self.parameter.allows_none,
-            initial_value=None if self.parameter.allows_none else world.root,
-            classes="reference-frame",
-        )
-        with Horizontal(classes="coordinates"):
-            for coordinate in self.coordinates:
-                yield Label(coordinate.value)
-                yield Input(
-                    "0", type="number", validators=[Number()], classes="coordinate"
+        with Collapsible():
+            for component in (PoseComponent.POSITION, PoseComponent.ROTATION):
+                with Horizontal(classes="pose-component"):
+                    yield Label(component.value, classes="component-label")
+                    for coordinate in self.coordinates:
+                        if coordinate.component is not component:
+                            continue
+                        yield Label(coordinate.value, classes="coordinate-label")
+                        yield Input(
+                            "0",
+                            type="number",
+                            validators=[Number()],
+                            compact=True,
+                            classes="coordinate",
+                        )
+            with Horizontal(classes="pose-component"):
+                yield Label(
+                    PoseComponent.REFERENCE_FRAME.value, classes="component-label"
                 )
+                yield FuzzyChoice(
+                    [
+                        LabelledValue(str(entity.name), entity)
+                        for entity in world.kinematic_structure_entities
+                    ],
+                    allows_none=self.parameter.allows_none,
+                    initial_value=None if self.parameter.allows_none else world.root,
+                )
+
+    def on_mount(self) -> None:
+        self.show_summary()
+
+    @on(Input.Changed, ".coordinate")
+    @on(FuzzyChoice.Chosen)
+    def show_summary(self) -> None:
+        """
+        Summarize the entered pose in the title of the form.
+        """
+        reference_frame = self.query_one(FuzzyChoice).chosen_value
+        if reference_frame is None:
+            summary = "none"
+        else:
+            coordinates = "  ".join(
+                f"{coordinate.value} {text}"
+                for coordinate, text in self.entered_coordinates().items()
+            )
+            summary = f"{coordinates}  in {reference_frame.name}"
+        self.query_one(Collapsible).title = Content(summary)
 
     def entered_coordinates(self) -> dict[Coordinate, str]:
         """
@@ -1080,6 +1227,21 @@ class ChoiceField(ParameterField):
         return self.query_one(FuzzyChoice).chosen_value
 
 
+class EnumerationField(ChoiceField):
+    """
+    Chooses a member of an enumeration.
+    """
+
+    @classmethod
+    def accepts(cls, parameter: ActionParameter) -> bool:
+        return isclass(parameter.value_type) and issubclass(parameter.value_type, Enum)
+
+    def choices(self) -> list[LabelledValue]:
+        return [
+            LabelledValue(member._name_, member) for member in self.parameter.value_type
+        ]
+
+
 class WorldEntityField(ChoiceField):
     """
     Chooses an entity of the world, such as a body, an arm or an annotated object.
@@ -1164,6 +1326,22 @@ class GraspCandidateField(ChoiceField):
         ]
 
 
+class FormSelectionList(SelectionList):
+    """
+    A selection list among the fields of a form, whose arrow keys move on to the
+    neighbouring fields past its first and its last entry.
+    """
+
+    def check_action(self, action: str, parameters: tuple[object, ...]) -> bool:
+        if self.highlighted is None:
+            return True
+        if action == "cursor_down":
+            return self.highlighted < self.option_count - 1
+        if action == "cursor_up":
+            return self.highlighted > 0
+        return True
+
+
 class WorldEntityListField(ParameterField):
     """
     Chooses any number of entities of the world.
@@ -1184,8 +1362,9 @@ class WorldEntityListField(ParameterField):
         return WorldEntityField.labelled_entities(self.session.world, element_type)
 
     def compose(self) -> ComposeResult:
-        yield SelectionList(
-            *((choice.label, index) for index, choice in enumerate(self.choices()))
+        yield FormSelectionList(
+            *((choice.label, index) for index, choice in enumerate(self.choices())),
+            compact=True,
         )
 
     def problem(self) -> str | None:
@@ -1210,11 +1389,9 @@ class NestedActionField(ParameterField):
         )
 
     def compose(self) -> ComposeResult:
-        with Collapsible(title=self.parameter.description, collapsed=False):
-            yield ActionForm(
-                self.session.catalog.builders_of(self.parameter.value_type),
-                self.session,
-            )
+        yield ActionForm(
+            self.session.catalog.builders_of(self.parameter.value_type), self.session
+        )
 
     def problem(self) -> str | None:
         problems = self.query_one(ActionForm).problems()
@@ -1309,9 +1486,16 @@ class ParameterForm(Widget):
         ]
 
     def compose(self) -> ComposeResult:
+        if not self.fields:
+            yield Label("no parameters", classes="no-parameters")
         for parameter_field in self.fields:
             yield Label(
-                parameter_field.parameter.description, classes="parameter-label"
+                Content.assemble(
+                    (parameter_field.parameter.name, "bold"),
+                    "  ",
+                    (parameter_field.parameter.value_type_name, "dim"),
+                ),
+                classes="parameter-label",
             )
             yield parameter_field
 
@@ -1349,29 +1533,34 @@ class ActionForm(Widget):
         builders: list[ActionBuilder],
         session: ConsoleSession,
         *,
+        always_listed: bool = False,
         id: str | None = None,
     ) -> None:
         """
         :param builders: The builders to choose from.
         :param session: The session the values are chosen in.
+        :param always_listed: Whether the builders are listed at all times, instead of
+            while one is chosen.
         :param id: The id of the widget.
         """
         super().__init__(id=id)
         self.builders = builders
         self.session = session
+        self.always_listed = always_listed
         self.parameter_form: ParameterForm | None = None
 
     def compose(self) -> ComposeResult:
         yield FuzzyChoice(
             [LabelledValue(builder.label, builder) for builder in self.builders],
+            always_open=self.always_listed,
             classes="builder-choice",
         )
-        yield VerticalScroll(classes="parameters")
+        yield VerticalScroll(can_focus=False, classes="parameters")
 
     @on(FuzzyChoice.Chosen)
-    def show_parameters(self, event: FuzzyChoice.Chosen) -> None:
+    async def show_parameters(self, event: FuzzyChoice.Chosen) -> None:
         """
-        Show the parameters of the chosen builder.
+        Show the parameters of the chosen builder, and move on to the first of them.
         """
         if event.choice is not self.query_one(".builder-choice", FuzzyChoice):
             return
@@ -1383,8 +1572,18 @@ class ActionForm(Widget):
             return
         self.parameter_form = ParameterForm(event.value, self.session)
         parameters = self.query_one(".parameters", VerticalScroll)
-        parameters.remove_children()
-        parameters.mount(self.parameter_form)
+        await parameters.remove_children()
+        await parameters.mount(self.parameter_form)
+        first_parameter = next(
+            (
+                widget
+                for widget in self.screen.focus_chain
+                if self.parameter_form in widget.ancestors
+            ),
+            None,
+        )
+        if first_parameter is not None:
+            first_parameter.focus()
 
     def problems(self) -> list[str]:
         """
@@ -1423,7 +1622,19 @@ class ScreenLogHandler(logging.Handler):
         self.screen.post_message(ActionScreen.LogLine(self.format(record)))
 
 
-class SetupScreen(Screen[ConsoleDemonstration]):
+class ConsoleScreen(Screen[ScreenResultType]):
+    """
+    A screen of the console, on which the arrow keys move between the fields that do
+    not use them themselves.
+    """
+
+    BINDINGS = [
+        Binding("down", "app.focus_next", show=False),
+        Binding("up", "app.focus_previous", show=False),
+    ]
+
+
+class SetupScreen(ConsoleScreen[ConsoleDemonstration]):
     """
     Chooses the robot, the scene and how actions are executed, and dismisses with the
     demonstration they describe.
@@ -1437,42 +1648,45 @@ class SetupScreen(Screen[ConsoleDemonstration]):
         self.robot_types = robot_types
 
     def compose(self) -> ComposeResult:
-        yield Header()
-        with VerticalScroll(id="setup"):
-            yield Label("Robot")
-            yield FuzzyChoice(
-                [
-                    LabelledValue(robot_type.__name__, robot_type)
-                    for robot_type in self.robot_types
-                ],
-                id="robot",
-            )
-            yield Label("Scene")
-            yield Select(
-                [(scene._name_, scene) for scene in ConsoleScene],
-                value=ConsoleScene.APARTMENT,
-                allow_blank=False,
-                id="scene",
-            )
-            yield Label("Run mode")
-            yield Select(
-                [(run_mode.value, run_mode) for run_mode in RunMode],
-                value=RunMode.SIMULATED,
-                allow_blank=False,
-                id="run-mode",
-            )
-            yield Label("Start of a simulated robot in its odom frame")
-            with Horizontal(classes="coordinates"):
+        with Vertical(id="setup"):
+            yield Label(self.app.title, id="setup-title")
+            with Horizontal(classes="setting"):
+                yield Label("robot", classes="setting-label")
+                yield FuzzyChoice(
+                    [
+                        LabelledValue(robot_type.__name__, robot_type)
+                        for robot_type in self.robot_types
+                    ],
+                    id="robot",
+                )
+            with Horizontal(classes="setting"):
+                yield Label("scene", classes="setting-label")
+                yield FuzzyChoice(
+                    [LabelledValue(scene._name_, scene) for scene in ConsoleScene],
+                    initial_value=ConsoleScene.APARTMENT,
+                    id="scene",
+                )
+            with Horizontal(classes="setting"):
+                yield Label("run mode", classes="setting-label")
+                yield FuzzyChoice(
+                    [LabelledValue(run_mode.value, run_mode) for run_mode in RunMode],
+                    initial_value=RunMode.SIMULATED,
+                    id="run-mode",
+                )
+            with Horizontal(classes="setting"):
+                yield Label("start", classes="setting-label")
                 for coordinate in (Coordinate.X, Coordinate.Y, Coordinate.YAW):
-                    yield Label(coordinate.value)
+                    yield Label(coordinate.value, classes="coordinate-label")
                     yield Input(
                         "0",
                         type="number",
                         validators=[Number()],
+                        compact=True,
                         id=f"start-{coordinate.value}",
+                        classes="coordinate",
                     )
             yield Static(id="setup-problem")
-            yield Button("Start", id="start", variant="primary")
+            yield Button("Start", id="start", variant="primary", compact=True)
         yield Footer()
 
     def start_coordinate(self, coordinate: Coordinate) -> str:
@@ -1490,7 +1704,7 @@ class SetupScreen(Screen[ConsoleDemonstration]):
         robot_type = self.query_one("#robot", FuzzyChoice).chosen_value
         if robot_type is None:
             return "Choose a robot."
-        run_mode = self.query_one("#run-mode", Select).value
+        run_mode = self.query_one("#run-mode", FuzzyChoice).chosen_value
         if (
             run_mode is RunMode.GISKARD_STARTED_BY_CONSOLE
             and GiskardStandaloneModule.for_robot(robot_type) is None
@@ -1511,11 +1725,11 @@ class SetupScreen(Screen[ConsoleDemonstration]):
             self.query_one("#setup-problem", Static).update(problem)
             return
         robot_type = self.query_one("#robot", FuzzyChoice).chosen_value
-        run_mode = self.query_one("#run-mode", Select).value
+        run_mode = self.query_one("#run-mode", FuzzyChoice).chosen_value
         self.dismiss(
             ConsoleDemonstration(
                 used_robot=robot_type,
-                scene=self.query_one("#scene", Select).value,
+                scene=self.query_one("#scene", FuzzyChoice).chosen_value,
                 executor_type=run_mode.executor_type,
                 controller_launcher=run_mode.controller_launcher(robot_type),
                 robot_start=HomogeneousTransformationMatrix.from_xyz_rpy(
@@ -1533,13 +1747,12 @@ class WorldAcquisitionScreen(Screen):
     """
 
     def compose(self) -> ComposeResult:
-        yield Header()
         yield Label("Acquiring the world ...")
         yield LoadingIndicator()
         yield Footer()
 
 
-class ActionScreen(Screen):
+class ActionScreen(ConsoleScreen):
     """
     Chooses actions, enters their parameters and runs them, one at a time.
     """
@@ -1572,16 +1785,18 @@ class ActionScreen(Screen):
         self.performance: Worker | None = None
 
     def compose(self) -> ComposeResult:
-        yield Header()
-        with Horizontal():
-            yield ActionForm(
-                self.session.catalog.builders, self.session, id="action-form"
-            )
-            yield RichLog(id="log", wrap=True, markup=False)
+        yield ActionForm(
+            self.session.catalog.builders,
+            self.session,
+            always_listed=True,
+            id="action-form",
+        )
+        yield RichLog(id="log", wrap=True, markup=False)
         yield Static("Choose an action, then press ctrl+r to run it.", id="status")
         yield Footer()
 
     def on_mount(self) -> None:
+        self.query_one("#log", RichLog).can_focus = False
         logging.getLogger().addHandler(self.log_handler)
 
     def on_unmount(self) -> None:

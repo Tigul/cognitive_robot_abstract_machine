@@ -1,12 +1,110 @@
+/* %% screens */
+
+* {
+    scrollbar-size-vertical: 1;
+    scrollbar-background: $background;
+    scrollbar-background-hover: $background;
+    scrollbar-background-active: $background;
+    scrollbar-color: $panel-lighten-1;
+    scrollbar-color-hover: $panel-lighten-2;
+    scrollbar-color-active: $primary;
+}
+
+/* %% fields */
+
+Input,
+Checkbox,
+OptionList,
+SelectionList {
+    background: transparent;
+}
+
+Input:focus,
+Checkbox:focus,
+SelectionList:focus {
+    background: $boost;
+    background-tint: $primary 15%;
+}
+
+SelectionList > .option-list--option-highlighted {
+    background: transparent;
+}
+
+SelectionList:focus > .option-list--option-highlighted {
+    background: $block-cursor-background;
+}
+
+Input > .input--placeholder {
+    color: $text-disabled;
+}
+
+Checkbox {
+    border: none;
+    padding: 0;
+}
+
+.coordinate-label {
+    width: 6;
+    padding: 0 1 0 0;
+    text-align: right;
+    color: $text-muted;
+}
+
+.coordinate {
+    width: 9;
+    margin-right: 2;
+}
+
 /* %% choosing among values */
 
 FuzzyChoice {
     height: auto;
+    width: 1fr;
+}
+
+FuzzyChoice > .current {
+    height: 1;
+}
+
+FuzzyChoice Input {
+    width: 1fr;
+}
+
+FuzzyChoice .arrow {
+    width: 2;
+    padding: 0 0 0 1;
+    color: $text-muted;
 }
 
 FuzzyChoice OptionList {
+    display: none;
+    overlay: screen;
+    constrain: none inside;
     height: auto;
-    max-height: 10;
+    max-height: 12;
+    background: $panel;
+    padding: 0 1;
+}
+
+FuzzyChoice.-open OptionList {
+    display: block;
+}
+
+FuzzyChoice.-always-open {
+    height: 1fr;
+}
+
+FuzzyChoice.-always-open .arrow {
+    display: none;
+}
+
+FuzzyChoice.-always-open OptionList {
+    overlay: none;
+    height: 1fr;
+    max-height: 100%;
+    margin-top: 1;
+    padding: 0;
+    background: transparent;
 }
 
 /* %% parameter forms */
@@ -17,68 +115,125 @@ ParameterField {
     height: auto;
 }
 
-ActionForm .parameters {
-    height: auto;
+.parameter-label {
+    margin-top: 1;
+}
+
+.no-parameters {
+    margin-top: 1;
+    color: $text-muted;
+}
+
+ParameterField {
     padding-left: 2;
 }
 
-.parameter-label {
-    margin-top: 1;
-    text-style: bold;
+NumberField Input {
+    width: 24;
 }
 
-.coordinates {
+ChoiceField FuzzyChoice,
+ReferencedCoordinatesField FuzzyChoice,
+NestedActionField .builder-choice {
+    max-width: 64;
+}
+
+NestedActionField > ActionForm {
+    border-left: outer $panel-lighten-2;
+    padding-left: 1;
+}
+
+NestedActionField .parameters {
     height: auto;
 }
 
-.coordinates Label {
-    padding: 1 1 0 1;
+Collapsible {
+    background: transparent;
+    border-top: none;
+    padding: 0;
 }
 
-.coordinates Input {
-    width: 12;
+Collapsible:focus-within {
+    background-tint: transparent;
+}
+
+Collapsible > Contents {
+    padding: 0 0 0 2;
+}
+
+CollapsibleTitle {
+    width: 1fr;
+    padding: 0;
+    color: $foreground;
+}
+
+.pose-component {
+    height: auto;
+}
+
+.component-label {
+    width: 10;
+    color: $text-muted;
 }
 
 /* %% action screen */
 
 #action-form {
     layout: horizontal;
-    height: 1fr;
-    width: 2fr;
+    height: 2fr;
 }
 
 #action-form > .builder-choice {
-    width: 40;
-    height: 1fr;
-}
-
-#action-form > .builder-choice OptionList {
-    height: 1fr;
-    max-height: 100%;
+    width: 58;
+    padding: 1 2 0 1;
+    border-right: vkey $panel-lighten-1;
 }
 
 #action-form > .parameters {
     height: 1fr;
+    padding: 0 2;
 }
 
 #log {
-    width: 1fr;
-    border-left: solid $primary;
+    height: 1fr;
+    padding: 0 1;
+    background: transparent;
+    border-top: hkey $panel-lighten-1;
 }
 
 #status {
-    height: auto;
+    height: 1;
     padding: 0 1;
-    background: $boost;
+    color: $text-muted;
 }
 
 /* %% setup screen */
 
+SetupScreen {
+    align: center middle;
+}
+
 #setup {
-    padding: 1 2;
+    width: 72;
+    height: auto;
+}
+
+#setup-title {
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+.setting {
+    height: auto;
+    margin-bottom: 1;
+}
+
+.setting-label {
+    width: 12;
+    color: $text-muted;
 }
 
 #setup-problem {
     color: $error;
-    margin: 1 0;
+    margin-bottom: 1;
 }

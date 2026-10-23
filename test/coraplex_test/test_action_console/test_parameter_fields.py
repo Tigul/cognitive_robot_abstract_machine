@@ -5,7 +5,7 @@ Coverage for how the action console enters the value of each parameter of an act
 from __future__ import annotations
 
 import pytest
-from textual.widgets import Input, Select, SelectionList
+from textual.widgets import Collapsible, Input, SelectionList
 
 from coraplex.datastructures.enums import DetectionTechnique
 from coraplex.robot_plans.actions.composite.carrying import CarryAction
@@ -16,7 +16,9 @@ from coraplex.robot_plans.actions.core.robot_body import (
     ParkArmsAction,
     SetGripperAction,
 )
+from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.world_description.world_entity import SemanticAnnotation
 
 # %% choosing a field
 
@@ -60,6 +62,21 @@ def test_each_kind_of_parameter_is_entered_in_its_own_field(action_console):
     }
 
     assert field_types == expected_field_types
+
+
+# %% describing a parameter
+
+
+@pytest.mark.parametrize(
+    "type_hint, expected_name",
+    [
+        (list[Arm], f"list[{Arm.__name__}]"),
+        (type[SemanticAnnotation], f"type[{SemanticAnnotation.__name__}]"),
+        (Pose | None, f"{Pose.__name__} | None"),
+    ],
+)
+def test_a_type_is_named_as_it_is_written(action_console, type_hint, expected_name):
+    assert action_console.ActionParameter.type_name(type_hint) == expected_name
 
 
 # %% numbers
@@ -171,7 +188,8 @@ async def test_an_enumeration_without_a_default_must_be_chosen(
     async with host_widgets(motion_field).run_test() as pilot:
         assert motion_field.problem() is not None
         [first_member, *_] = motion_field.parameter.value_type
-        motion_field.query_one(Select).value = first_member
+        motion_field.query_one(Input).focus()
+        await pilot.press(*first_member._name_, "enter")
         await pilot.pause()
         assert motion_field.value() is first_member
 
@@ -201,6 +219,27 @@ async def test_a_pose_is_entered_relative_to_the_world_root_by_default(
     assert pose.reference_frame is world.root
     assert pose.to_np() == pytest.approx(
         Pose.from_xyz_rpy(**coordinates, reference_frame=world.root).to_np()
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_title_of_a_pose_form_summarizes_the_pose(
+    action_console, console_session, host_widgets
+):
+    pose_field = action_console.PoseField(
+        parameter_named(action_console, NavigateAction, "target_location"),
+        console_session,
+    )
+
+    async with host_widgets(pose_field).run_test() as pilot:
+        [x_input, *_] = pose_field.query(".coordinate").results(Input)
+        x_input.value = "1.5"
+        await pilot.pause()
+        title = pose_field.query_one(Collapsible).title.plain
+
+    assert title == (
+        "x 1.5  y 0  z 0  roll 0  pitch 0  yaw 0  in "
+        f"{console_session.world.root.name}"
     )
 
 
