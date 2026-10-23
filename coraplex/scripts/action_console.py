@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import inspect
 import logging
+import re
 from abc import ABC, ABCMeta, abstractmethod
 from dataclasses import MISSING, Field, dataclass, field
 from enum import Enum, StrEnum
@@ -21,7 +22,7 @@ from inspect import isclass
 from pathlib import Path
 from types import NoneType, UnionType
 
-from textual import on, work
+from textual import events, on, work
 from textual.app import App, ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
@@ -62,6 +63,7 @@ from cramph.composites import Sequence
 from cramph.context import ContextExtension, StatechartContext
 from cramph.statechart import Statechart
 from krrood.class_diagrams.utils import get_type_hints_of_object
+from krrood.documentation import AttributeDocstrings, ParameterDescriptions
 from krrood.entity_query_language.query.match import Match
 from krrood.ormatic.utils import classes_of_package
 from krrood.patterns.path_enumeration import PathEnumeration
@@ -223,33 +225,48 @@ class ActionParameter:
     The value the parameter takes when it is left out, if :attr:`has_default`.
     """
 
+    description: str | None = None
+    """
+    What the parameter is for, in reStructuredText, or ``None`` if it is undocumented.
+    """
+
     @classmethod
-    def from_field(cls, action_field: Field, type_hint: Any) -> Self:
+    def from_field(
+        cls, action_field: Field, type_hint: Any, description: str | None
+    ) -> Self:
         """
         :param action_field: A dataclass field of an action.
         :param type_hint: The resolved type of ``action_field``.
+        :param description: What ``action_field`` is for.
         :return: The parameter ``action_field`` declares.
         """
         if action_field.default is not MISSING:
-            return cls(action_field.name, type_hint, True, action_field.default)
+            return cls(
+                action_field.name, type_hint, True, action_field.default, description
+            )
         if action_field.default_factory is not MISSING:
             return cls(
-                action_field.name, type_hint, True, action_field.default_factory()
+                action_field.name,
+                type_hint,
+                True,
+                action_field.default_factory(),
+                description,
             )
-        return cls(action_field.name, type_hint, False)
+        return cls(action_field.name, type_hint, False, description=description)
 
     @classmethod
     def from_signature_parameter(
-        cls, parameter: inspect.Parameter, type_hint: Any
+        cls, parameter: inspect.Parameter, type_hint: Any, description: str | None
     ) -> Self:
         """
         :param parameter: A parameter of a factory's signature.
         :param type_hint: The resolved type of ``parameter``.
+        :param description: What ``parameter`` is for.
         :return: The parameter ``parameter`` declares.
         """
         if parameter.default is inspect.Parameter.empty:
-            return cls(parameter.name, type_hint, False)
-        return cls(parameter.name, type_hint, True, parameter.default)
+            return cls(parameter.name, type_hint, False, description=description)
+        return cls(parameter.name, type_hint, True, parameter.default, description)
 
     @property
     def declares_none(self) -> bool:
@@ -363,7 +380,11 @@ class ActionConstructor(ActionBuilder):
         type_hints = get_type_hints_of_object(self.action_type)
         return [
             ActionParameter.from_field(
-                discovered.field, type_hints[discovered.field.name]
+                discovered.field,
+                type_hints[discovered.field.name],
+                AttributeDocstrings.docstring_of(
+                    self.action_type, discovered.field.name
+                ),
             )
             for discovered in self.action_type.parameter_fields()
         ]
@@ -443,8 +464,11 @@ class ActionFactory(ActionBuilder):
     def parameters(self) -> list[ActionParameter]:
         type_hints = get_type_hints_of_object(self.method.__func__)
         context_parameter_names = self.context_parameter_names
+        descriptions = ParameterDescriptions.of_function(self.method).descriptions
         return [
-            ActionParameter.from_signature_parameter(parameter, type_hints[name])
+            ActionParameter.from_signature_parameter(
+                parameter, type_hints[name], descriptions.get(name)
+            )
             for name, parameter in inspect.signature(self.method).parameters.items()
             if name not in context_parameter_names
         ]
@@ -1670,6 +1694,45 @@ class ActionForm(Widget):
         return self.parameter_form.request()
 
 
+# %% describing parameters
+
+
+class ParameterHelp(Static):
+    """
+    Describes the parameter whose field has focus.
+    """
+
+    @staticmethod
+    def plain_text(restructured_text: str) -> str:
+        """
+        :param restructured_text: A description in reStructuredText.
+        :return: The description on one line, every cross-reference shown by its title,
+            or by the name it refers to, and literals and emphasis unmarked.
+        """
+        text = re.sub(r":[\w:-]+:`([^`<]+?)\s*<[^`]*>`", r"\1", restructured_text)
+        text = re.sub(r":[\w:-]+:`~(?:[^`]*\.)?([^`.]+)`", r"\1", text)
+        text = re.sub(r":[\w:-]+:`([^`]+)`", r"\1", text)
+        text = re.sub(r"``([^`]+)``", r"\1", text)
+        text = re.sub(r"`([^`]+)`", r"\1", text)
+        text = re.sub(r"\*{1,2}([^*]+)\*{1,2}", r"\1", text)
+        return " ".join(text.split())
+
+    def describe(self, parameter: ActionParameter | None) -> None:
+        """
+        Show what ``parameter`` is for, or nothing if it is ``None`` or undocumented.
+
+        :param parameter: The parameter to describe.
+        """
+        if parameter is None or parameter.description is None:
+            self.update("")
+            return
+        self.update(
+            Content.assemble(
+                (parameter.name, "bold"), "  ", self.plain_text(parameter.description)
+            )
+        )
+
+
 # %% screens
 
 
@@ -1860,6 +1923,7 @@ class ActionScreen(ConsoleScreen):
             always_listed=True,
             id="action-form",
         )
+        yield ParameterHelp(id="parameter-help")
         yield RichLog(id="log", wrap=True, markup=False)
         yield Static("Choose an action, then press ctrl+r to run it.", id="status")
         yield Footer()
@@ -1870,6 +1934,22 @@ class ActionScreen(ConsoleScreen):
 
     def on_unmount(self) -> None:
         logging.getLogger().removeHandler(self.log_handler)
+
+    def on_descendant_focus(self, event: events.DescendantFocus) -> None:
+        """
+        Describe the parameter whose field, or a field nested in it, gained focus.
+        """
+        focused_field = next(
+            (
+                node
+                for node in event.widget.ancestors_with_self
+                if isinstance(node, ParameterField)
+            ),
+            None,
+        )
+        self.query_one("#parameter-help", ParameterHelp).describe(
+            None if focused_field is None else focused_field.parameter
+        )
 
     def on_action_screen_log_line(self, message: LogLine) -> None:
         self.query_one("#log", RichLog).write(message.text)
