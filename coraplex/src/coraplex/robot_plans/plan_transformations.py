@@ -1,25 +1,18 @@
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
+from abc import ABC
 from dataclasses import dataclass
 
 from typing_extensions import TYPE_CHECKING, Generic, List, Optional, cast
 
 from coraplex.datastructures.enums import (
-    DesignatorCapability,
     DetectionTechnique,
     InsertionPosition,
     ReachFraction,
 )
 from coraplex.exceptions import ReachHasNoFinalApproach
 from coraplex.locations.locations import ReachabilityLocation
-from coraplex.plans.plan_node import (
-    ActionLike,
-    ActionNode,
-    DesignatorNode,
-    MotionNode,
-    PlanNode,
-)
+from coraplex.plans.plan_node import ActionLike, ActionNode, MotionNode, PlanNode
 from coraplex.plans.underspecified import UnderspecifiedNode
 from coraplex.plans.factories import make_node
 from coraplex.plans.plan_transformation import (
@@ -43,7 +36,6 @@ from coraplex.robot_plans.actions.core.navigation import (
 )
 from coraplex.robot_plans.actions.core.pick_up import PickUpAction, ReachAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
-from coraplex.robot_plans.mixins import DesignatorParameterMixin
 from krrood.entity_query_language.core.variable import Variable
 from krrood.entity_query_language.factories import a, variable
 from krrood.entity_query_language.query.match import Match
@@ -61,36 +53,6 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose, Pose2D
 if TYPE_CHECKING:
     from coraplex.datastructures.dataclasses import Context
     from semantic_digital_twin.world import World
-
-
-# %% selecting nodes by capability
-
-
-@dataclass
-class CapabilityTransformation(PlanTransformation[DesignatorNode], ABC):
-    """
-    Rewrites the plan around every node whose designator has :attr:`capability`.
-
-    A designator has the capabilities its parameter mixins imply (see
-    :attr:`~coraplex.robot_plans.mixins.DesignatorParameterMixin.capabilities`); one
-    without parameter mixins has none and is never selected.
-    """
-
-    @property
-    @abstractmethod
-    def capability(self) -> DesignatorCapability:
-        """
-        :return: The capability a designator must have for its node to be rewritten.
-        """
-
-    def matches_node(self, plan_node: PlanNode) -> bool:
-        if not super().matches_node(plan_node):
-            return False
-        designator_type = type(plan_node.designator)
-        return (
-            issubclass(designator_type, DesignatorParameterMixin)
-            and self.capability in designator_type.capabilities
-        )
 
 
 # %% perceiving before a grasp

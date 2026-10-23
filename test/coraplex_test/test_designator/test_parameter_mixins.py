@@ -1,8 +1,5 @@
 import dataclasses
 
-import pytest
-
-from coraplex.datastructures.enums import DesignatorCapability
 from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.robot_plans.actions.core.navigation import (
     NavigateAction,
@@ -12,7 +9,6 @@ from coraplex.robot_plans.actions.core.pick_up import PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import (
     MoveManipulatorAction,
-    MoveTorsoAction,
     ParkArmsAction,
     SetGripperAction,
 )
@@ -28,7 +24,6 @@ from coraplex.robot_plans import mixins
 from coraplex.robot_plans.mixins import (
     DesignatorParameterMixin,
     HasArmParameter,
-    HasCartesianVelocityLimitParameters,
     HasEndEffectorParameter,
     HasGoalThresholdParameters,
     HasGraspableObjectParameter,
@@ -40,8 +35,6 @@ from coraplex.robot_plans.mixins import (
     HasPlaceTuningParameters,
     HasPlacementTargetParameter,
     HasStallToleranceParameters,
-    HasTargetPoseParameter,
-    HasToolParameter,
 )
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Handle, Milk
@@ -248,52 +241,3 @@ def test_move_joints_motion_takes_only_joint_targets_and_a_velocity_cap():
     } - {parameter.name for parameter in dataclasses.fields(BaseMotion)}
 
     assert joint_fields == {"names", "positions", "max_joint_velocity"}
-
-
-# %% capabilities the parameters imply
-
-
-def test_a_designator_parameter_without_meaning_implies_no_capability():
-    assert DesignatorParameterMixin.capabilities == frozenset()
-
-
-@pytest.mark.parametrize(
-    "mixin, capability",
-    [
-        (HasGraspCandidateParameter, DesignatorCapability.MANIPULATES_OBJECTS),
-        (HasGraspableObjectParameter, DesignatorCapability.MANIPULATES_OBJECTS),
-        (HasHandleParameter, DesignatorCapability.MANIPULATES_OBJECTS),
-        (HasToolParameter, DesignatorCapability.MANIPULATES_OBJECTS),
-        (HasArmParameter, DesignatorCapability.CONTROLS_AN_ARM),
-        (HasGoalThresholdParameters, DesignatorCapability.MOVES_THE_TOOL_CENTER_POINT),
-        (HasTargetPoseParameter, DesignatorCapability.MOVES_THE_TOOL_CENTER_POINT),
-        (HasGraspApproachParameters, DesignatorCapability.MOVES_THE_TOOL_CENTER_POINT),
-        (
-            HasCartesianVelocityLimitParameters,
-            DesignatorCapability.MOVES_THE_TOOL_CENTER_POINT,
-        ),
-    ],
-)
-def test_a_parameter_mixin_implies_its_capability(mixin, capability):
-    assert mixin.capabilities == frozenset({capability})
-
-
-def test_a_designator_has_the_capabilities_of_all_its_parameters():
-    assert PickUpAction.capabilities == frozenset(
-        {
-            DesignatorCapability.MANIPULATES_OBJECTS,
-            DesignatorCapability.CONTROLS_AN_ARM,
-            DesignatorCapability.MOVES_THE_TOOL_CENTER_POINT,
-        }
-    )
-
-
-def test_a_designator_whose_parameters_imply_nothing_has_no_capability():
-    assert MoveTorsoAction.capabilities == frozenset()
-
-
-def test_an_end_effector_alone_does_not_control_an_arm():
-    """
-    Setting a gripper names an end effector but commands no arm.
-    """
-    assert SetGripperAction.capabilities == frozenset()
