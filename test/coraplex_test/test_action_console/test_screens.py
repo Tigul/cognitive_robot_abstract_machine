@@ -112,6 +112,21 @@ async def test_the_arrow_keys_move_the_highlight_of_an_open_list(
 
 
 @pytest.mark.asyncio
+async def test_deleting_everything_typed_lists_every_option_again(
+    action_console, host_widgets
+):
+    choice = letters_choice(action_console)
+
+    async with host_widgets(choice).run_test() as pilot:
+        choice.query_one(Input).focus()
+        await pilot.pause()
+        await pilot.press("c", "backspace", "backspace")
+        await pilot.pause()
+
+        assert choice.listed_options == choice.options
+
+
+@pytest.mark.asyncio
 async def test_escape_closes_a_list_without_choosing(action_console, host_widgets):
     choice = letters_choice(action_console, choose_first=True)
     [first_option, *_] = choice.options

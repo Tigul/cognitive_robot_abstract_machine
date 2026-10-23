@@ -849,11 +849,14 @@ class FuzzyChoice(Widget):
     @on(Input.Changed)
     def narrow_options(self, event: Input.Changed) -> None:
         """
-        Open the list, listing only the options matching what is typed, best match
-        first and highlighted.
+        Open the list, listing the options matching what is typed, best match first
+        and highlighted, or every option while nothing is typed.
         """
         event.stop()
         self.set_open(True)
+        if not event.value:
+            self.list_options(self.options)
+            return
         matcher = Matcher(event.value)
         scored_options = [
             (matcher.match(option.label), option) for option in self.options
@@ -864,7 +867,7 @@ class FuzzyChoice(Widget):
                 for score, option in sorted(
                     scored_options, key=lambda scored: scored[0], reverse=True
                 )
-                if score > 0 or not event.value
+                if score > 0
             ]
         )
 
