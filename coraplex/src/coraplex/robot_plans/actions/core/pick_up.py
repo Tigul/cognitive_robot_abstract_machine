@@ -25,7 +25,7 @@ from semantic_digital_twin.collision_checking.collision_rules import (
 from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
-from semantic_digital_twin.semantic_annotations.mixins import HasGraspCandidates
+from semantic_digital_twin.semantic_annotations.mixins import CanBeGrasped
 from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.spatial_types import RotationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -120,7 +120,7 @@ class PickUpAction(
     """
 
     @classmethod
-    def from_above(cls, graspable: HasGraspCandidates, arm: Arm) -> PickUpAction:
+    def from_above(cls, graspable: CanBeGrasped, arm: Arm) -> PickUpAction:
         """
         :param graspable: The annotation of an object standing upright.
         :param arm: The arm that picks it up.

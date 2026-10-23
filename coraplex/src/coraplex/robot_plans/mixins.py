@@ -28,7 +28,7 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import (
 from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.robots.robot_parts import Arm, Camera, EndEffector
-from semantic_digital_twin.semantic_annotations.mixins import HasGraspCandidates
+from semantic_digital_twin.semantic_annotations.mixins import CanBeGrasped
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Tool
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose
@@ -96,7 +96,7 @@ class HasGraspCandidateParameter(DesignatorParameterMixin):
     The grasp to take hold by.
 
     One of the object's own
-    :meth:`~semantic_digital_twin.semantic_annotations.mixins.HasGraspCandidates.grasp_candidates`.
+    :meth:`~semantic_digital_twin.semantic_annotations.mixins.CanBeGrasped.grasp_candidates`.
     """
 
 
@@ -106,7 +106,7 @@ class HasGraspableObjectParameter(DesignatorParameterMixin):
     Mixin for actions that act on a single graspable object.
     """
 
-    object_designator: HasGraspCandidates
+    object_designator: CanBeGrasped
     """
     The annotation of the object the action acts on; its :attr:`root` body is used
     where the underlying kinematic body is required.

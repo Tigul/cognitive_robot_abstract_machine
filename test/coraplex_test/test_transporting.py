@@ -38,7 +38,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
 )
 from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
-from semantic_digital_twin.semantic_annotations.mixins import HasGraspCandidates
+from semantic_digital_twin.semantic_annotations.mixins import CanBeGrasped
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import (
     Point3,
@@ -106,7 +106,7 @@ def _pick_up_the_milk(
 
 
 def _place_at(
-    target: Pose, placed: HasGraspCandidates, extensions: list[ContextExtension]
+    target: Pose, placed: CanBeGrasped, extensions: list[ContextExtension]
 ) -> MoveAndPlaceAction:
     """
     :return: A place of `placed` at `target`, standing wherever its trial finds one
@@ -366,7 +366,7 @@ def _grasp_signature(grasp: GraspCandidate) -> tuple:
 
 def _assert_each_standing_pose_keeps_the_closest_grasps(
     pick_ups: List[MoveAndPickUpAction],
-    graspable: HasGraspCandidates,
+    graspable: CanBeGrasped,
     number_of_grasps: int,
 ) -> None:
     """
@@ -398,7 +398,7 @@ def _assert_each_standing_pose_keeps_the_closest_grasps(
 def _assert_each_standing_pose_tries_its_grasps_closest_first(
     steps: list[MoveAndPickUpAction | MoveAndOpenAction],
     grasp_of: Callable[[MoveAndPickUpAction | MoveAndOpenAction], GraspCandidate],
-    graspable: HasGraspCandidates,
+    graspable: CanBeGrasped,
 ) -> None:
     """
     Assert that the grasps `steps` take from each of their standing poses come in the

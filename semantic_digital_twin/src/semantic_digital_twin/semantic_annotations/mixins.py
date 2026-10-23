@@ -408,7 +408,7 @@ class HasRootBody(HasRootKinematicStructureEntity[Body]):
 
 
 @dataclass(eq=False)
-class HasGraspCandidates(HasRootBody):
+class CanBeGrasped(HasRootBody):
     """
     A mixin class for semantic annotations that state where they may be grasped, in
     :meth:`surface_grasp_statement`, and offer grasp candidates.
@@ -535,7 +535,7 @@ class HasGraspCandidates(HasRootBody):
             *from_any_side(grasp),
         )
 
-    def grasped_part(self) -> HasGraspCandidates:
+    def grasped_part(self) -> CanBeGrasped:
         """
         :return: The annotation whose surface the object is grasped at; the object
             itself unless one of its parts is grasped instead.
@@ -824,7 +824,7 @@ class HasDoors(PartWholeRelationship):
 
 
 @dataclass(eq=False)
-class HasHandle(HasGraspCandidates, PartWholeRelationship):
+class HasHandle(CanBeGrasped, PartWholeRelationship):
     """
     A mixin class for semantic annotations that have a handle, and are grasped at it
     when they have one.
@@ -838,7 +838,7 @@ class HasHandle(HasGraspCandidates, PartWholeRelationship):
     The handle of the semantic annotation.
     """
 
-    def grasped_part(self) -> HasGraspCandidates:
+    def grasped_part(self) -> CanBeGrasped:
         """
         :return: The handle; without a handle, the part the annotation is grasped at
             otherwise.
@@ -849,7 +849,7 @@ class HasHandle(HasGraspCandidates, PartWholeRelationship):
 
 
 @dataclass(eq=False)
-class HasPinchableWall(HasGraspCandidates):
+class HasPinchableWall(CanBeGrasped):
     """
     A mixin class for semantic annotations with a thin upright wall that a gripper
     pinches from above.
@@ -952,7 +952,7 @@ class HasRim(HasPinchableWall, PartWholeRelationship):
     The rim of the container.
     """
 
-    def grasped_part(self) -> HasGraspCandidates:
+    def grasped_part(self) -> CanBeGrasped:
         """
         :return: The rim; without a rim, the part the annotation is grasped at
             otherwise.
