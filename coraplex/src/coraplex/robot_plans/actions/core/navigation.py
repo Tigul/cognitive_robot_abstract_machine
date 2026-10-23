@@ -3,6 +3,8 @@ from __future__ import annotations
 from abc import ABC
 from dataclasses import dataclass, field
 
+import numpy as np
+
 from coraplex.exceptions import NoFloorBelowRobot, NotOnASingleLevelException
 from cramph.node import StatechartNode
 from coraplex.robot_plans.actions.base import (
@@ -36,11 +38,10 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Floor,
 )
 from semantic_digital_twin.spatial_types.spatial_types import (
-    Pose,
     HomogeneousTransformationMatrix,
     Point2,
     Point3,
-    RotationMatrix,
+    Pose2D,
     Vector3,
 )
 from semantic_digital_twin.world_description.geometry import VolumetricBoundingBox
@@ -167,7 +168,7 @@ class PathPlanningNavigateAction(
     def create_steps(self) -> list[StatechartNode]:
         return [
             self.base_goal_type.moving_base_of(
-                self.robot, waypoint, self.base_pose_threshold
+                self.robot, waypoint.pose, self.base_pose_threshold
             )
             for waypoint in self._path()
         ]
@@ -215,7 +216,7 @@ class PathPlanningNavigateAction(
             and extent.max_z <= float(base_pose.z)
         )
 
-    def _path(self) -> list[Pose]:
+    def _path(self) -> list[Pose2D]:
         """
         The poses the robot drives to, one per leg of the path.
 
@@ -233,24 +234,14 @@ class PathPlanningNavigateAction(
         :return: The poses to drive to, in order.
         """
         waypoints = self._waypoints()
-        base_height = self.world.transform(
-            self.robot.root.global_transform, waypoints[0].reference_frame
-        ).z
         poses = [
-            HomogeneousTransformationMatrix.from_point_rotation_matrix(
-                Point3(waypoint.x, waypoint.y, base_height, waypoint.reference_frame),
-                RotationMatrix.from_vectors(
-                    x=Vector3(
-                        next_waypoint.x - waypoint.x,
-                        next_waypoint.y - waypoint.y,
-                        0,
-                        reference_frame=waypoint.reference_frame,
-                    ),
-                    z=Vector3.Z(),
-                    reference_frame=waypoint.reference_frame,
+            Pose2D(
+                waypoint,
+                yaw=np.arctan2(
+                    float(next_waypoint.y - waypoint.y),
+                    float(next_waypoint.x - waypoint.x),
                 ),
-                reference_frame=waypoint.reference_frame,
-            ).pose
+            )
             for waypoint, next_waypoint in zip(waypoints[1:], waypoints[2:])
         ]
         return poses + [self.target_location]
@@ -270,7 +261,7 @@ class PathPlanningNavigateAction(
             bloat_obstacles=self.robot.mobile_base.base_radius,
         )
         return free_space.path_from_to(
-            Point2.from_pose(base_pose), Point2.from_pose(self.target_location)
+            Point2.from_pose(base_pose), self.target_location.position
         )
 
 
@@ -309,10 +300,7 @@ class ElevatorNavigation(ReattachesBranches, SequentialAction):
             PausedUntilTrue(
                 monitor=self._elevator_open_at_floor(self._current_floor),
                 monitored_node=NavigateAction(
-                    target_location=Pose.from_xyz_rpy(
-                        z=self._height_in_cabin,
-                        reference_frame=self.elevator.root,
-                    )
+                    target_location=Pose2D(reference_frame=self.elevator.root)
                 ),
             ),
             *self.reattach(self.robot.root, self.elevator.root),
@@ -346,24 +334,14 @@ class ElevatorNavigation(ReattachesBranches, SequentialAction):
         return current_floor[0]
 
     @property
-    def _pose_infront_of_elevator(self):
-        return Pose.from_xyz_rpy(
+    def _pose_infront_of_elevator(self) -> Pose2D:
+        """
+        Where the robot stands in front of the cabin's opening.
+        """
+        return Pose2D.from_xy_yaw(
             x=self.elevator.hole_direction[0]
             * (self.elevator.scale.x / 2 + self.exit_clearance),
-            z=self._height_in_cabin,
             reference_frame=self.elevator.root,
-        )
-
-    @property
-    def _height_in_cabin(self) -> float:
-        """
-        The robot's height in the cabin's frame.
-
-        Taken from where the robot stands now, because it is the same throughout the
-        ride and the robot's drive cannot change it anyway.
-        """
-        return float(
-            self.world.transform(self.robot.root.global_transform, self.elevator.root).z
         )
 
     def _elevator_open_at_floor(self, target_floor: Level) -> Parallel:

@@ -34,7 +34,7 @@ from semantic_digital_twin.robots.robot_parts import Arm, EndEffector
 from semantic_digital_twin.semantic_annotations.semantic_annotations import (
     Handle,
 )
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.spatial_types.spatial_types import Pose, Pose2D
 from semantic_digital_twin.world_description.connections import ActiveConnection1DOF
 
 # %% taking a container by its handle
@@ -75,7 +75,7 @@ class MovesContainerByItsHandle(
         # A variable, so the grasps are ranked when the action is grounded, from where
         # the robot stands then.
         where_the_robot_stands = variable(
-            Pose, domain=[Pose(reference_frame=arm._robot.root)]
+            Pose2D, domain=[Pose2D(reference_frame=arm._robot.root)]
         )
         return a(cls)(
             grasp=flat_variable(

@@ -68,7 +68,7 @@ from semantic_digital_twin.robots.robot_part_mixins import HasTwoFingers
 from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.semantic_annotations.mixins import HasRootBody
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Drawer
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.spatial_types.spatial_types import Pose, Pose2D
 from coraplex.plans.context_extensions import (
     RobotAccess,
     StatementGrounding,
@@ -243,7 +243,7 @@ class OpenDrawerBeforePickUp(DrawerOpening[PickUpAction]):
             nodes.extend(self.opening_nodes(drawer, plan_node.arm, plan_node.context))
         drive_to_the_object = a(NavigateAction)(
             target_location=variable(
-                Pose,
+                Pose2D,
                 # A location samples its poses only once the drive is grounded, by
                 # which time the drawers this rewrite opens stand open.
                 domain=ReachabilityLocation(

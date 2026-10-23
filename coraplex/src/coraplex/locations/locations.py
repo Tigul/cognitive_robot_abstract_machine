@@ -17,7 +17,7 @@ from coraplex.locations.costmaps import (
 from coraplex.plans.context_extensions import RobotAccess
 from cramph.context import StatechartContext
 from semantic_digital_twin.robots.robot_parts import AbstractRobot, Arm
-from semantic_digital_twin.spatial_types.spatial_types import Pose
+from semantic_digital_twin.spatial_types.spatial_types import Pose, Pose2D
 
 
 @dataclass
@@ -57,7 +57,7 @@ class CostmapLocation(Location, ABC):
             is now.
         """
 
-    def candidates(self) -> Iterator[Pose]:
+    def candidates(self) -> Iterator[Pose2D]:
         return self.costmap().sample(self.number_of_samples, self.seed)
 
     def _in_world(self, pose: Pose) -> Pose:
@@ -120,7 +120,7 @@ class ReachabilityLocation(CostmapLocation):
         )
         return occupancy & ring
 
-    def candidates(self) -> Iterator[Pose]:
+    def candidates(self) -> Iterator[Pose2D]:
         """
         :return: The poses sampled from the costmap, in the order they were sampled,
             leaving out those farther from the target along the floor than the arm is

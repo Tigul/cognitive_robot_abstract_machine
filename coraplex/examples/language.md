@@ -73,9 +73,9 @@ We will start with a simple example that moves the robot and parks its arms.
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from cramph.composites import Sequence
-from semantic_digital_twin.spatial_types import Pose
+from semantic_digital_twin.spatial_types import Pose2D
 
-navigate = NavigateAction(target_location=Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
+navigate = NavigateAction(target_location=Pose2D.from_xy_yaw(x=1, y=1, reference_frame=world.root))
 park = ParkArmsAction(arms=pr2.all_arms)
 
 plan = Sequence(nodes=[navigate, park])
@@ -102,9 +102,9 @@ instead. It fails only if all of its children failed.
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from cramph.composites import TryInOrder
-from semantic_digital_twin.spatial_types import Pose
+from semantic_digital_twin.spatial_types import Pose2D
 
-navigate = NavigateAction(target_location=Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
+navigate = NavigateAction(target_location=Pose2D.from_xy_yaw(x=1, y=1, reference_frame=world.root))
 park = ParkArmsAction(arms=pr2.all_arms)
 
 plan = TryInOrder(nodes=[navigate, park])
@@ -121,9 +121,9 @@ by default, are at their goals on the same tick.
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from cramph.composites import Parallel
-from semantic_digital_twin.spatial_types import Pose
+from semantic_digital_twin.spatial_types import Pose2D
 
-navigate = NavigateAction(target_location=Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
+navigate = NavigateAction(target_location=Pose2D.from_xy_yaw(x=1, y=1, reference_frame=world.root))
 park = ParkArmsAction(arms=pr2.all_arms)
 
 plan = Parallel(nodes=[navigate, park])
@@ -140,9 +140,9 @@ them succeeded.
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import ParkArmsAction
 from cramph.composites import TryAll
-from semantic_digital_twin.spatial_types import Pose
+from semantic_digital_twin.spatial_types import Pose2D
 
-navigate = NavigateAction(target_location=Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
+navigate = NavigateAction(target_location=Pose2D.from_xy_yaw(x=1, y=1, reference_frame=world.root))
 park = ParkArmsAction(arms=pr2.all_arms)
 
 plan = TryAll(nodes=[navigate, park])
@@ -159,9 +159,9 @@ from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from coraplex.robot_plans.actions.core.robot_body import MoveTorsoAction, ParkArmsAction
 from cramph.composites import Parallel, Sequence
 from semantic_digital_twin.datastructures.definitions import TorsoState
-from semantic_digital_twin.spatial_types import Pose
+from semantic_digital_twin.spatial_types import Pose2D
 
-navigate = NavigateAction(target_location=Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
+navigate = NavigateAction(target_location=Pose2D.from_xy_yaw(x=1, y=1, reference_frame=world.root))
 park = ParkArmsAction(arms=pr2.all_arms)
 move_torso = MoveTorsoAction(torso_state=TorsoState.HIGH)
 
@@ -215,14 +215,14 @@ from coraplex.plans.failures import PlanFailure
 from cramph.threaded_nodes import FunctionCall
 from coraplex.robot_plans.actions.core.navigation import NavigateAction
 from cramph.composites import TryAll
-from semantic_digital_twin.spatial_types import Pose
+from semantic_digital_twin.spatial_types import Pose2D
 
 
 def code_test():
     raise PlanFailure
 
 
-navigate = NavigateAction(target_location=Pose.from_xyz_rpy(1, 1, 0, reference_frame=world.root))
+navigate = NavigateAction(target_location=Pose2D.from_xy_yaw(x=1, y=1, reference_frame=world.root))
 code_func = FunctionCall(function=code_test, failure_types=(PlanFailure,))
 
 plan = TryAll(nodes=[navigate, code_func])

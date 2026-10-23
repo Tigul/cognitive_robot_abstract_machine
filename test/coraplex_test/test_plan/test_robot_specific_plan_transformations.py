@@ -118,7 +118,7 @@ def navigation_to(world: World, **parameters) -> NavigateAction:
     :return: A drive to a pose two meters from the origin of `world`.
     """
     return NavigateAction(
-        target_location=Pose.from_xyz_rpy(2.0, 2.0, 0.0, reference_frame=world.root),
+        target_location=Pose2D.from_xy_yaw(x=2.0, y=2.0, reference_frame=world.root),
         **parameters,
     )
 
@@ -201,7 +201,7 @@ def test_stretch_drives_every_leg_of_a_path_with_its_differential_drive(
     stretch_apartment_context,
 ) -> None:
     world, robot, extensions = stretch_apartment_context
-    target = Pose.from_xyz_rpy(2.0, 2.0, 0.0, reference_frame=world.root)
+    target = Pose2D.from_xy_yaw(2.0, 2.0, reference_frame=world.root)
     unchanged = prepared(
         PathPlanningNavigateAction(target_location=target),
         simulated_executor(extensions, robot_adaptations=[]),
@@ -218,7 +218,7 @@ def test_stretch_drives_every_leg_of_a_path_with_its_differential_drive(
     )
     assert all(leg.mobile_base is robot.mobile_base for leg in legs)
     assert all(leg.threshold == action.base_pose_threshold for leg in legs)
-    np.testing.assert_allclose(legs[-1].goal_pose.to_np(), target.to_np())
+    np.testing.assert_allclose(legs[-1].goal_pose.to_np(), target.pose.to_np())
 
 
 @pytest.mark.parametrize("build_executor", [simulated_executor, robot_executor])
