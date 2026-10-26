@@ -125,7 +125,7 @@ def straighten_torso(robot: AbstractRobot) -> JointPositionList:
         parcel upright while it drives.
     """
     return JointPositionList(
-        goal_state=JointState.from_mapping(
+        goal=JointState.from_mapping(
             {connection: 0.0 for connection in robot.torso.active_connections}
         )
     )

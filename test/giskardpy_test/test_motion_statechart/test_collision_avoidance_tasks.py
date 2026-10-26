@@ -146,12 +146,12 @@ def test_external_collision_avoidance(
                 ]
             ),
             distance_violated := ExternalCollisionDistanceMonitor(
-                body=robot.root, threshold=0.049
+                body=robot.root, distance_threshold=0.049
             ),
             CartesianPose(
                 root_link=cylinder_bot_world.root,
                 tip_link=tip,
-                goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
+                goal=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=1, reference_frame=cylinder_bot_world.root
                 ),
             ),
@@ -284,7 +284,7 @@ def test_external_collision_avoidance_battle():
             CartesianPose(
                 root_link=map,
                 tip_link=strong,
-                goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
+                goal=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=1, reference_frame=strong
                 ),
                 weight=DefaultWeights.WEIGHT_COLLISION_AVOIDANCE,
@@ -292,7 +292,7 @@ def test_external_collision_avoidance_battle():
             CartesianPose(
                 root_link=map,
                 tip_link=weak,
-                goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
+                goal=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=1, reference_frame=weak
                 ),
                 weight=DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE,
@@ -352,12 +352,12 @@ def test_external_collision_avoidance_with_weight_above_ca(
                 ]
             ),
             distance_violated := ExternalCollisionDistanceMonitor(
-                body=robot.root, threshold=0.0
+                body=robot.root, distance_threshold=0.0
             ),
             CartesianPose(
                 root_link=cylinder_bot_world.root,
                 tip_link=tip,
-                goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
+                goal=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=1, reference_frame=cylinder_bot_world.root
                 ),
                 weight=DefaultWeights.WEIGHT_COLLISION_AVOIDANCE,
@@ -396,7 +396,7 @@ def test_update_collision_matrix_later(cylinder_bot_world: World):
             cart_goal_reached := CartesianPose(
                 root_link=cylinder_bot_world.root,
                 tip_link=tip,
-                goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
+                goal=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=1, reference_frame=cylinder_bot_world.root
                 ),
             ),
@@ -472,7 +472,7 @@ def test_consumer_cleanup_after_cancel(cylinder_bot_world: World):
             CartesianPose(
                 root_link=cylinder_bot_world.root,
                 tip_link=tip,
-                goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
+                goal=HomogeneousTransformationMatrix.from_xyz_rpy(
                     x=1, reference_frame=cylinder_bot_world.root
                 ),
             ),
@@ -523,7 +523,7 @@ def test_multiple_external_collision_avoidance_motions(cylinder_bot_world: World
                 CartesianPose(
                     root_link=cylinder_bot_world.root,
                     tip_link=tip,
-                    goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
+                    goal=HomogeneousTransformationMatrix.from_xyz_rpy(
                         x=goal_x, reference_frame=cylinder_bot_world.root
                     ),
                 ),
@@ -681,7 +681,7 @@ def test_avoid_collision_go_around_corner(pr2_with_box):
                         CartesianPose(
                             root_link=pr2_with_box.root,
                             tip_link=r_tip,
-                            goal_pose=Pose.from_xyz_axis_angle(
+                            goal=Pose.from_xyz_axis_angle(
                                 x=0.8,
                                 y=-0.38,
                                 z=0.84,
@@ -702,7 +702,7 @@ def test_avoid_collision_go_around_corner(pr2_with_box):
             body=pr2_with_box.get_kinematic_structure_entity_by_name(
                 "r_gripper_palm_link"
             ),
-            threshold=0.0,
+            distance_threshold=0.0,
         ),
     )
     statechart.add_node(local_min := LocalMinimumReached())
@@ -771,7 +771,7 @@ def test_avoid_self_collision_with_l_arm(pr2_with_box, rclpy_node):
                         CartesianPose(
                             root_link=base_footprint,
                             tip_link=r_tip,
-                            goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
+                            goal=HomogeneousTransformationMatrix.from_xyz_rpy(
                                 0.2, reference_frame=r_tip
                             ),
                             weight=DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE,
@@ -784,7 +784,7 @@ def test_avoid_self_collision_with_l_arm(pr2_with_box, rclpy_node):
     )
     statechart.add_node(
         contact := SelfCollisionDistanceMonitor(
-            body_a=r_palm_link, body_b=l_forearm_link, threshold=0.01
+            body_a=r_palm_link, body_b=l_forearm_link, distance_threshold=0.01
         )
     )
     statechart.add_node(local_min := LocalMinimumReached())
@@ -1108,7 +1108,7 @@ def _build_arms_crossing_statechart(
                 CartesianPose(
                     root_link=base_footprint,
                     tip_link=r_tip,
-                    goal_pose=Pose.from_xyz_rpy(0.2, reference_frame=r_tip),
+                    goal=Pose.from_xyz_rpy(0.2, reference_frame=r_tip),
                     weight=DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE,
                 ),
             ],
@@ -1164,7 +1164,7 @@ def test_collisions_are_computed_for_a_distance_monitor_alone(pr2_with_box):
             body=pr2_with_box.get_kinematic_structure_entity_by_name(
                 "r_gripper_palm_link"
             ),
-            threshold=0.0,
+            distance_threshold=0.0,
         )
     )
 
@@ -1258,7 +1258,7 @@ def test_hard_constraints_violated(
                         CartesianPose(
                             root_link=cylinder_bot_world.root,
                             tip_link=tip,
-                            goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
+                            goal=HomogeneousTransformationMatrix.from_xyz_rpy(
                                 x=1, reference_frame=cylinder_bot_world.root
                             ),
                         ),
@@ -1321,7 +1321,7 @@ def test_collision_for_robot_with_static_base(
                 CartesianPosition(
                     root_link=world.root,
                     tip_link=tool_frame,
-                    goal_point=Point3(0.5, 0.5, 1, reference_frame=world.root),
+                    goal=Point3(0.5, 0.5, 1, reference_frame=world.root),
                 ),
                 ExternalCollisionAvoidance(robot=robot),
                 SelfCollisionAvoidance(robot=robot),
@@ -1392,7 +1392,7 @@ def test_repeated_collision_pr2_apartment_does_not_increase_execution_time(
                 CartesianPose(
                     root_link=world.root,
                     tip_link=tool_frame,
-                    goal_pose=body.global_pose,
+                    goal=body.global_pose,
                 ),
                 ExternalCollisionAvoidance(robot=robot),
                 SelfCollisionAvoidance(robot=robot),
@@ -1601,7 +1601,7 @@ def test_cable_guide_collision(
     JointState.from_str_dict(default_pr2_pose, pr2_world_copy).apply_to(pr2_world_copy)
     robot = pr2_world_copy.get_semantic_annotations_by_type(PR2)[0]
     joint_goal = JointPositionList(
-        goal_state=JointState.from_str_dict(
+        goal=JointState.from_str_dict(
             {PR2Joint.HEAD_PAN: 2.84, PR2Joint.HEAD_TILT: 1.0}, world=pr2_world_copy
         )
     )
@@ -1651,7 +1651,7 @@ def test_attached_self_collision_avoid_stick(
     cart_goal = CartesianPose(
         root_link=pr2_world_copy.root,
         tip_link=left_tip,
-        goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
+        goal=HomogeneousTransformationMatrix.from_xyz_rpy(
             z=0.2, reference_frame=left_tip
         ),
     )
@@ -1693,9 +1693,7 @@ def test_box_overlapping_with_gripper(
     cart_goal = CartesianPose(
         root_link=pr2_world_copy.root,
         tip_link=box,
-        goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
-            x=-0.5, reference_frame=box
-        ),
+        goal=HomogeneousTransformationMatrix.from_xyz_rpy(x=-0.5, reference_frame=box),
     )
 
     run_to_end(
@@ -1736,7 +1734,7 @@ def test_avoid_self_collision_specific_link(
             "base_footprint"
         ),
         tip_link=right_tip,
-        goal_pose=Pose.from_xyz_rpy(0.2, reference_frame=right_tip),
+        goal=Pose.from_xyz_rpy(0.2, reference_frame=right_tip),
     )
 
     run_to_end(
@@ -1792,7 +1790,7 @@ def test_get_out_of_self_collision(
             "base_footprint"
         ),
         tip_link=left_tip,
-        goal_pose=HomogeneousTransformationMatrix.from_xyz_rpy(
+        goal=HomogeneousTransformationMatrix.from_xyz_rpy(
             0.15, reference_frame=left_tip
         ),
     )
@@ -1840,7 +1838,7 @@ def test_attached_two_items(
         tip_link=left_tip,
         # The boxes reach 0.2 m out of each gripper, so grippers 0.4 m apart would leave
         # them touching, which violates the collision before avoidance can act.
-        goal_pose=HomogeneousTransformationMatrix.from_point_rotation_matrix(
+        goal=HomogeneousTransformationMatrix.from_point_rotation_matrix(
             point=Point3(x=0.42),
             rotation_matrix=RotationMatrix(
                 [[-1, 0, 0, 0], [0, 1, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1.0]]
@@ -1918,14 +1916,14 @@ def test_avoid_collision_box_between_3_boxes(
             AlignPlanes(
                 root_link=pr2_world_copy.root,
                 tip_link=box,
-                tip_normal=Vector3.X(reference_frame=box),
-                goal_normal=Vector3.X(reference_frame=pr2_world_copy.root),
+                controlled_feature=Vector3.X(reference_frame=box),
+                reference_feature=Vector3.X(reference_frame=pr2_world_copy.root),
             ),
             AlignPlanes(
                 root_link=pr2_world_copy.root,
                 tip_link=box,
-                tip_normal=Vector3.Y(reference_frame=box),
-                goal_normal=Vector3.Y(reference_frame=pr2_world_copy.root),
+                controlled_feature=Vector3.Y(reference_frame=box),
+                reference_feature=Vector3.Y(reference_frame=pr2_world_copy.root),
             ),
             ExternalCollisionAvoidance(robot=robot),
             local_min,
@@ -1966,7 +1964,7 @@ def test_hsr_self_collision_avoidance(
         tip_link=hsr_world_copy.get_kinematic_structure_entity_by_name(
             "hand_gripper_tool_frame"
         ),
-        goal_pose=Pose.from_xyz_axis_angle(
+        goal=Pose.from_xyz_axis_angle(
             x=0.5,
             reference_frame=hsr_world_copy.get_kinematic_structure_entity_by_name(
                 "hand_palm_link"

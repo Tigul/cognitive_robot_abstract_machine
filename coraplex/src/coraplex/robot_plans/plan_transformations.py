@@ -497,7 +497,7 @@ class CloseFingersToObjectWidth(PlanTransformation[GraspingAction]):
         """
         for step in reversed(plan_node.nodes):
             if any(
-                isinstance(node, MoveGripper) and node.state is GripperState.CLOSE
+                isinstance(node, MoveGripper) and node.goal is GripperState.CLOSE
                 for node in [step, *step.descendants]
             ):
                 return step

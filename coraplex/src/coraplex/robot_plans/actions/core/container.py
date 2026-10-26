@@ -122,7 +122,7 @@ class MovesContainerByItsHandle(
             self._create_mechanism_goal(),
             MoveGripper(
                 end_effector=end_effector,
-                state=GripperState.OPEN,
+                goal=GripperState.OPEN,
             ),
             self.tool_center_point_goal(
                 self.back_off_pose(self.grasp.grasp_pose, end_effector),
@@ -146,7 +146,7 @@ class OpenAction(MovesContainerByItsHandle):
         return ArticulateGraspedMechanism(
             tip_link=self.arm.end_effector.tool_frame,
             environment_link=handle,
-            goal_joint_state=mechanism.dof.limits.upper.position,
+            goal=mechanism.dof.limits.upper.position,
         )
 
 
@@ -166,5 +166,5 @@ class CloseAction(MovesContainerByItsHandle):
         return ArticulateGraspedMechanism(
             tip_link=self.arm.end_effector.tool_frame,
             environment_link=self.grasp.graspable.root,
-            goal_joint_state=self.closed_joint_position,
+            goal=self.closed_joint_position,
         )

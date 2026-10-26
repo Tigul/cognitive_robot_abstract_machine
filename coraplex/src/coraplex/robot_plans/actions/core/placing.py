@@ -92,7 +92,7 @@ class PlaceAction(
                 nodes=[
                     MoveGripper(
                         end_effector=arm.end_effector,
-                        state=GripperState.OPEN,
+                        goal=GripperState.OPEN,
                         finger_velocity=self.release_opening_velocity,
                     ),
                     # Keeps the gripper in place while it opens, whatever else

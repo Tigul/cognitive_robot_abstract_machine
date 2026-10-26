@@ -7,6 +7,7 @@ from cramph.node import StatechartNode
 from giskardpy.motion_statechart.goals.collision_avoidance import (
     UpdateTemporaryCollisionRules,
 )
+from giskardpy.motion_statechart.mixins import HasGoalParameter
 from giskardpy.motion_statechart.monitors.monitors import LocalMinimumReached
 from giskardpy.motion_statechart.tasks.joint_tasks import (
     JointPositionList,
@@ -20,9 +21,10 @@ from semantic_digital_twin.robots.robot_parts import EndEffector
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class MoveGripper(Parallel):
+class MoveGripper(Parallel, HasGoalParameter[GripperState]):
     """
-    Drive a gripper to one of the states its end effector defines.
+    Drive a gripper to :attr:`goal`, one of the states its end effector defines, read
+    off the end effector as a joint state.
 
     Fingers that close on an object stop short of the position they were commanded, so
     the goal can be told to settle for fingers that have stopped moving instead.
@@ -31,11 +33,6 @@ class MoveGripper(Parallel):
     end_effector: EndEffector
     """
     The gripper to drive.
-    """
-
-    state: GripperState
-    """
-    The state to drive it to, read off the end effector as a joint state.
     """
 
     tolerate_stall: bool = False
@@ -75,7 +72,7 @@ class MoveGripper(Parallel):
         Create the finger goal, the speed cap and the collision allowance, then adopt
         them as :meth:`~cramph.composites.ControlStructureNode.expand` does.
         """
-        goal_state = self.end_effector.get_joint_state_by_type(self.state)
+        goal_state = self.end_effector.get_joint_state_by_type(self.goal)
         self.nodes.append(self._finger_goal(goal_state))
         if self.finger_velocity is not None:
             self.nodes.append(
@@ -100,7 +97,7 @@ class MoveGripper(Parallel):
         observation, because fingers standing still does not mean the commanded position
         was reached.
         """
-        joint_goal = JointPositionList(goal_state=goal_state)
+        joint_goal = JointPositionList(goal=goal_state)
         if not self.tolerate_stall:
             return joint_goal
         return Parallel(

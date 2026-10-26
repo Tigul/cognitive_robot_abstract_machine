@@ -1237,9 +1237,7 @@ def test_move_torso_runs_the_joint_goal_of_the_requested_state(
     expand(action, extensions)
 
     [joint_goal] = nodes_of_type(action, JointPositionList)
-    assert joint_goal.goal_state == robot.get_torso().get_joint_state_by_type(
-        TorsoState.HIGH
-    )
+    assert joint_goal.goal == robot.get_torso().get_joint_state_by_type(TorsoState.HIGH)
 
 
 def test_set_gripper_drives_the_gripper_it_names(multiple_robot_apartment_context):
@@ -1289,7 +1287,7 @@ def test_closing_drives_the_mechanism_to_the_closed_joint_position(
     expand(action, extensions)
 
     [closing] = nodes_of_type(action, ArticulateGraspedMechanism)
-    assert closing.goal_joint_state == action.closed_joint_position
+    assert closing.goal == action.closed_joint_position
 
 
 def test_opening_drives_the_mechanism_to_its_upper_limit(
@@ -1306,7 +1304,7 @@ def test_opening_drives_the_mechanism_to_its_upper_limit(
 
     [opening] = nodes_of_type(action, ArticulateGraspedMechanism)
     mechanism = handle.root.get_first_parent_connection_of_type(ActiveConnection1DOF)
-    assert opening.goal_joint_state == mechanism.dof.limits.upper.position
+    assert opening.goal == mechanism.dof.limits.upper.position
 
 
 def test_look_at_points_the_default_camera(multiple_robot_apartment_context):
@@ -1551,8 +1549,8 @@ def test_fingers_sent_to_a_width_are_given_the_distance_between_their_facing_poi
 
     goal = action.goal
     assert isinstance(goal, DistanceAlongAxis)
-    assert goal.reference_point.reference_frame is gripper.finger.tip
-    assert goal.tip_point.reference_frame is gripper.thumb.tip
+    assert goal.reference_feature.reference_frame is gripper.finger.tip
+    assert goal.controlled_feature.reference_frame is gripper.thumb.tip
     assert goal.distance == action.width
 
 

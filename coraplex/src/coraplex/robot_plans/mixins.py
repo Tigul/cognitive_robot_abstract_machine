@@ -610,8 +610,8 @@ class MovesToolCenterPoint(Action, HasGoalThresholdParameters, ABC):
         return CartesianPose(
             root_link=root,
             tip_link=tip,
-            goal_pose=target,
-            translation_threshold=self.resolved_position_threshold(),
+            goal=target,
+            position_threshold=self.resolved_position_threshold(),
             orientation_threshold=self.resolved_orientation_threshold(),
         )
 

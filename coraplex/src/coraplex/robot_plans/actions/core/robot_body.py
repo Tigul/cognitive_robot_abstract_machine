@@ -54,7 +54,7 @@ class MoveTorsoAction(SequentialAction, HasTorsoStateParameter):
 
     def create_steps(self) -> list[StatechartNode]:
         joint_state = self.robot.get_torso().get_joint_state_by_type(self.torso_state)
-        return [JointPositionList(goal_state=joint_state)]
+        return [JointPositionList(goal=joint_state)]
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
@@ -64,7 +64,7 @@ class SetGripperAction(GoalAction, HasEndEffectorParameter, HasGripperStateParam
     """
 
     def create_goal(self) -> StatechartNode:
-        return MoveGripper(end_effector=self.end_effector, state=self.motion)
+        return MoveGripper(end_effector=self.end_effector, goal=self.motion)
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
@@ -116,8 +116,8 @@ class MoveFingersToWidthAction(GoalAction):
         fingertips = self.gripper.fingertips
         return DistanceAlongAxis(
             root_link=fingertips.tool_frame,
-            reference_point=fingertips.finger_P_facing_point,
-            tip_point=fingertips.thumb_P_facing_point,
+            reference_feature=fingertips.finger_P_facing_point,
+            controlled_feature=fingertips.thumb_P_facing_point,
             axis=fingertips.tool_V_finger_to_thumb,
             distance=max(0.0, self.width - 2 * self.squeeze),
             name="MoveFingersToWidth",
@@ -138,7 +138,7 @@ class ParkArmsAction(ParallelAction, HasMaxJointVelocityParameter):
 
     def create_steps(self) -> list[StatechartNode]:
         park_state = self.park_joint_state()
-        joint_goal = JointPositionList(goal_state=park_state)
+        joint_goal = JointPositionList(goal=park_state)
         if self.max_joint_velocity is None:
             return [joint_goal]
         return [
@@ -191,13 +191,13 @@ class FollowToolCenterPointPathAction(
         """
         thresholds = {}
         if self.position_threshold is not None:
-            thresholds["translation_threshold"] = self.position_threshold
+            thresholds["position_threshold"] = self.position_threshold
         if self.orientation_threshold is not None:
             thresholds["orientation_threshold"] = self.orientation_threshold
         return CartesianPose(
             root_link=self.controlled_root,
             tip_link=self.arm.end_effector.tool_frame,
-            goal_pose=target,
+            goal=target,
             **thresholds,
         )
 
@@ -234,8 +234,8 @@ class MoveManipulatorAction(
         goal = CartesianPose(
             root_link=self.controlled_root,
             tip_link=self.end_effector.tool_frame,
-            goal_pose=self.target_pose,
-            translation_threshold=self.resolved_position_threshold(),
+            goal=self.target_pose,
+            position_threshold=self.resolved_position_threshold(),
             orientation_threshold=self.resolved_orientation_threshold(),
             binding_policy=GoalBindingPolicy.Bind_on_start,
         )

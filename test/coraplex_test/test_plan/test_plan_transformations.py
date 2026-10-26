@@ -169,7 +169,7 @@ def gripper_goal(end_effector: EndEffector, state: GripperState) -> MoveGripper:
     """
     :return: A new goal moving the gripper of `end_effector` to `state`.
     """
-    return MoveGripper(end_effector=end_effector, state=state)
+    return MoveGripper(end_effector=end_effector, goal=state)
 
 
 def joint_goal_of(torso_move: MoveTorsoAction) -> JointPositionList:
@@ -1593,7 +1593,7 @@ def shutting_goals_of(plan: StatechartNode) -> list[MoveGripper]:
     return [
         node
         for node in plan.descendants
-        if isinstance(node, MoveGripper) and node.state is GripperState.CLOSE
+        if isinstance(node, MoveGripper) and node.goal is GripperState.CLOSE
     ]
 
 

@@ -65,15 +65,13 @@ class SetOdometry(SucceedsOnObservingTrue, MotionStatechartNode, BasePoseGoal):
     _odom_joints: Tuple[Type[Connection], ...] = field(default=(OmniDrive,), init=False)
 
     @classmethod
-    def moving_base_of(
-        cls, robot: AbstractRobot, goal_pose: Pose, threshold: float
-    ) -> Self:
+    def moving_base_of(cls, robot: AbstractRobot, goal: Pose, threshold: float) -> Self:
         """
         Differs from :meth:`BasePoseGoal.moving_base_of` in ignoring `threshold`,
-        because the base is put exactly at `goal_pose`.
+        because the base is put exactly at `goal`.
         """
         return cls(
-            base_pose=goal_pose.homogeneous_matrix,
+            base_pose=goal.homogeneous_matrix,
             odom_connection=robot.root.parent_connection,
         )
 

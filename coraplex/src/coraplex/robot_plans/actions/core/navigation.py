@@ -94,7 +94,7 @@ class LookAtAction(ParallelAction, HasLookTargetParameter, HasCameraParameter):
         pointing = Pointing(
             root_link=self.robot.get_torso().root,
             tip_link=camera.root,
-            goal_point=self._world_P_target(),
+            goal=self._world_P_target(),
             pointing_axis=camera.forward_facing_axis,
         )
         return [pointing, *self.keep_base_still()]
@@ -128,7 +128,7 @@ class FaceAtAction(ParallelAction, HasLookTargetParameter):
             Pointing(
                 root_link=self.world.root,
                 tip_link=self.robot.root,
-                goal_point=self._target_at_base_height(),
+                goal=self._target_at_base_height(),
                 pointing_axis=Vector3(
                     *self.robot.mobile_base.forward_axis.to_np()[:3],
                     reference_frame=self.robot.root,
@@ -137,7 +137,7 @@ class FaceAtAction(ParallelAction, HasLookTargetParameter):
             CartesianPosition(
                 root_link=self.world.root,
                 tip_link=self.robot.root,
-                goal_point=Point3(reference_frame=self.robot.root),
+                goal=Point3(reference_frame=self.robot.root),
             ),
         ]
 

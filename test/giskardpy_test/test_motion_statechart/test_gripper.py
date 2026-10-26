@@ -64,14 +64,12 @@ def test_gripper_commands_the_state_the_end_effector_defines(pr2_world_copy) -> 
     state, not a separately spelled out set of finger positions.
     """
     end_effector = _left_gripper(pr2_world_copy)
-    goal = MoveGripper(end_effector=end_effector, state=GripperState.CLOSE)
+    goal = MoveGripper(end_effector=end_effector, goal=GripperState.CLOSE)
 
     nodes = _expanded_nodes(goal, pr2_world_copy)
 
     joint_goal = next(node for node in nodes if isinstance(node, JointPositionList))
-    assert joint_goal.goal_state == end_effector.get_joint_state_by_type(
-        GripperState.CLOSE
-    )
+    assert joint_goal.goal == end_effector.get_joint_state_by_type(GripperState.CLOSE)
 
 
 def test_gripper_commands_nothing_besides_the_fingers_by_default(
@@ -82,7 +80,7 @@ def test_gripper_commands_nothing_besides_the_fingers_by_default(
     cap, no stall alternative and no collision allowance.
     """
     goal = MoveGripper(
-        end_effector=_left_gripper(pr2_world_copy), state=GripperState.OPEN
+        end_effector=_left_gripper(pr2_world_copy), goal=GripperState.OPEN
     )
 
     nodes = _descendants(_expanded_nodes(goal, pr2_world_copy))
@@ -101,7 +99,7 @@ def test_gripper_without_stall_tolerance_only_ends_on_the_joint_goal(
     still.
     """
     goal = MoveGripper(
-        end_effector=_left_gripper(pr2_world_copy), state=GripperState.CLOSE
+        end_effector=_left_gripper(pr2_world_copy), goal=GripperState.CLOSE
     )
 
     nodes = _descendants(_expanded_nodes(goal, pr2_world_copy))
@@ -117,7 +115,7 @@ def test_gripper_tolerating_stall_settles_for_either_outcome(pr2_world_copy) -> 
     """
     end_effector = _left_gripper(pr2_world_copy)
     goal = MoveGripper(
-        end_effector=end_effector, state=GripperState.CLOSE, tolerate_stall=True
+        end_effector=end_effector, goal=GripperState.CLOSE, tolerate_stall=True
     )
 
     nodes = _expanded_nodes(goal, pr2_world_copy)
@@ -137,7 +135,7 @@ def test_gripper_watches_only_the_fingers_for_stalling(pr2_world_copy) -> None:
     """
     end_effector = _left_gripper(pr2_world_copy)
     goal = MoveGripper(
-        end_effector=end_effector, state=GripperState.CLOSE, tolerate_stall=True
+        end_effector=end_effector, goal=GripperState.CLOSE, tolerate_stall=True
     )
 
     nodes = _descendants(_expanded_nodes(goal, pr2_world_copy))
@@ -159,7 +157,7 @@ def test_gripper_keeps_the_monitors_dwell_time_when_none_is_given(
     """
     goal = MoveGripper(
         end_effector=_left_gripper(pr2_world_copy),
-        state=GripperState.CLOSE,
+        goal=GripperState.CLOSE,
         tolerate_stall=True,
     )
 
@@ -178,7 +176,7 @@ def test_gripper_dwells_as_long_as_asked_before_accepting_a_stall(
     """
     goal = MoveGripper(
         end_effector=_left_gripper(pr2_world_copy),
-        state=GripperState.CLOSE,
+        goal=GripperState.CLOSE,
         tolerate_stall=True,
         stall_minimum_time=2.5,
     )
@@ -198,7 +196,7 @@ def test_gripper_speed_cap_limits_the_finger_joints(pr2_world_copy) -> None:
     """
     end_effector = _left_gripper(pr2_world_copy)
     goal = MoveGripper(
-        end_effector=end_effector, state=GripperState.CLOSE, finger_velocity=0.01
+        end_effector=end_effector, goal=GripperState.CLOSE, finger_velocity=0.01
     )
 
     nodes = _descendants(_expanded_nodes(goal, pr2_world_copy))
@@ -217,7 +215,7 @@ def test_gripper_speed_cap_holds_whichever_way_the_goal_ends(pr2_world_copy) -> 
     """
     goal = MoveGripper(
         end_effector=_left_gripper(pr2_world_copy),
-        state=GripperState.CLOSE,
+        goal=GripperState.CLOSE,
         tolerate_stall=True,
         finger_velocity=0.01,
     )
@@ -240,7 +238,7 @@ def test_gripper_may_touch_what_it_grasps_when_asked(pr2_world_copy) -> None:
     end_effector = _left_gripper(pr2_world_copy)
     goal = MoveGripper(
         end_effector=end_effector,
-        state=GripperState.CLOSE,
+        goal=GripperState.CLOSE,
         allow_gripper_collision=True,
     )
 
@@ -260,7 +258,7 @@ def test_gripper_keeps_clear_of_its_surroundings_by_default(pr2_world_copy) -> N
     Without being asked, the goal leaves collision avoidance alone.
     """
     goal = MoveGripper(
-        end_effector=_left_gripper(pr2_world_copy), state=GripperState.CLOSE
+        end_effector=_left_gripper(pr2_world_copy), goal=GripperState.CLOSE
     )
 
     nodes = _descendants(_expanded_nodes(goal, pr2_world_copy))
@@ -278,7 +276,7 @@ def test_gripper_reaches_the_commanded_state(pr2_world_state_reset) -> None:
     world = pr2_world_state_reset
     end_effector = _left_gripper(world)
     goal_state = end_effector.get_joint_state_by_type(GripperState.OPEN)
-    goal = MoveGripper(end_effector=end_effector, state=GripperState.OPEN)
+    goal = MoveGripper(end_effector=end_effector, goal=GripperState.OPEN)
 
     executor = StatechartExecutor(
         context=StatechartContext(world=world), extensions=[MotionControl()]

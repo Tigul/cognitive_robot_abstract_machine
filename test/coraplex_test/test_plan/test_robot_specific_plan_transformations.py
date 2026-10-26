@@ -134,10 +134,10 @@ def assert_drives_differentially_to(
     assert goal.mobile_base is robot.mobile_base
     assert goal.threshold == action.base_pose_threshold
     np.testing.assert_allclose(
-        goal.goal_pose.to_np(),
+        goal.goal.to_np(),
         robot.mobile_base.pose_facing(action.target_location).to_np(),
     )
-    assert goal.goal_pose.reference_frame is action.target_location.reference_frame
+    assert goal.goal.reference_frame is action.target_location.reference_frame
 
 
 # %% driving a differential drive
@@ -218,7 +218,7 @@ def test_stretch_drives_every_leg_of_a_path_with_its_differential_drive(
     )
     assert all(leg.mobile_base is robot.mobile_base for leg in legs)
     assert all(leg.threshold == action.base_pose_threshold for leg in legs)
-    np.testing.assert_allclose(legs[-1].goal_pose.to_np(), target.pose.to_np())
+    np.testing.assert_allclose(legs[-1].goal.to_np(), target.pose.to_np())
 
 
 @pytest.mark.parametrize("build_executor", [simulated_executor, robot_executor])
@@ -371,19 +371,19 @@ def test_a_simulated_stretch_stays_in_front_of_the_container_it_closes(
     assert type(holding) is CartesianPose
     assert holding.root_link is action.grasp.graspable.root
     assert holding.tip_link is tool_frame
-    np.testing.assert_allclose(holding.goal_pose.to_np(), Pose().to_np())
-    assert holding.goal_pose.reference_frame is tool_frame
+    np.testing.assert_allclose(holding.goal.to_np(), Pose().to_np())
+    assert holding.goal.reference_frame is tool_frame
     assert type(facing) is AlignPlanes
     assert facing.root_link is world.root
     assert facing.tip_link is robot.root
-    np.testing.assert_allclose(facing.goal_normal.to_np()[:3], [1, 0, 0])
-    assert facing.goal_normal.reference_frame is action.grasp.graspable.root
-    np.testing.assert_allclose(facing.tip_normal.to_np()[:3], [0, -1, 0])
-    assert facing.tip_normal.reference_frame is robot.root
+    np.testing.assert_allclose(facing.reference_feature.to_np()[:3], [1, 0, 0])
+    assert facing.reference_feature.reference_frame is action.grasp.graspable.root
+    np.testing.assert_allclose(facing.controlled_feature.to_np()[:3], [0, -1, 0])
+    assert facing.controlled_feature.reference_frame is robot.root
     assert type(close) is ArticulateGraspedMechanism
     assert close.tip_link is default_close.tip_link
     assert close.environment_link is default_close.environment_link
-    assert close.goal_joint_state == default_close.goal_joint_state
+    assert close.goal == default_close.goal
 
 
 def test_a_stretch_closes_a_container_with_its_base_free_to_turn(
@@ -475,10 +475,8 @@ def test_stretch_reaches_in_a_straight_line(
         assert type(goal.nodes[0]) is CartesianPositionStraight
         assert goal.root_link is default_goal.root_link
         assert goal.tip_link is default_goal.tip_link
-        np.testing.assert_allclose(
-            goal.goal_pose.to_np(), default_goal.goal_pose.to_np()
-        )
-        assert goal.translation_threshold == default_goal.translation_threshold
+        np.testing.assert_allclose(goal.goal.to_np(), default_goal.goal.to_np())
+        assert goal.position_threshold == default_goal.position_threshold
         assert goal.orientation_threshold == default_goal.orientation_threshold
         assert goal.binding_policy == default_goal.binding_policy
 
@@ -505,8 +503,8 @@ def test_stretch_lifts_in_a_straight_line(
     assert type(goal.nodes[0]) is CartesianPositionStraight
     assert goal.root_link is unchanged.root_link
     assert goal.tip_link is unchanged.tip_link
-    np.testing.assert_allclose(goal.goal_pose.to_np(), unchanged.goal_pose.to_np())
-    assert goal.translation_threshold == unchanged.translation_threshold
+    np.testing.assert_allclose(goal.goal.to_np(), unchanged.goal.to_np())
+    assert goal.position_threshold == unchanged.position_threshold
     assert goal.orientation_threshold == unchanged.orientation_threshold
 
 
