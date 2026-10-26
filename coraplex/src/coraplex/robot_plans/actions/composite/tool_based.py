@@ -19,7 +19,6 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Tool
 from semantic_digital_twin.spatial_types import (
     HomogeneousTransformationMatrix,
     Point3,
-    Vector3,
 )
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 from semantic_digital_twin.world_description.world_entity import (
@@ -197,7 +196,7 @@ class ToolMotionAction(
             goal=self._waypoints,
             maximum_skip_ahead=self.maximum_skip_ahead,
             weight=float(DefaultWeights.WEIGHT_BELOW_COLLISION_AVOIDANCE),
-            threshold=self.resolved_position_threshold(),
+            threshold=self.position_threshold,
         )
         return [trajectory, *alignments]
 

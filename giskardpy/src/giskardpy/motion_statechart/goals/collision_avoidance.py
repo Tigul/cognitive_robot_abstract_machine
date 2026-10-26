@@ -35,7 +35,6 @@ from semantic_digital_twin.collision_checking.collision_matrix import (
     CollisionMatrix,
 )
 from semantic_digital_twin.collision_checking.collision_rules import (
-    AllowCollisionForEndEffector,
     AvoidSelfCollisions,
 )
 from semantic_digital_twin.collision_checking.collision_variable_managers import (
@@ -46,7 +45,7 @@ from semantic_digital_twin.collision_checking.collision_variable_managers import
     SelfCollisionVariableManager,
     ExternalCollisionVariableManager,
 )
-from semantic_digital_twin.robots.robot_parts import AbstractRobot, EndEffector
+from semantic_digital_twin.robots.robot_parts import AbstractRobot
 from semantic_digital_twin.spatial_types import Vector3
 from semantic_digital_twin.world_description.world_entity import Body
 
@@ -275,7 +274,7 @@ class _ExternalCollisionAvoidanceTask(_CollisionAvoidanceTask):
         """
         self.collision_variable_manager = self.context.require_extension(
             MotionControlContext
-        ).external_collision_manager
+        ).get_or_create_external_collision_manager(self.context)
         self.avoided_contacts = []
         for group in self._groups_avoiding_external_collisions():
             self.collision_variable_manager.register_group_of_body(group.root)
@@ -388,7 +387,7 @@ class ExternalCollisionDistanceMonitor(EndedByOwner, MotionStatechartNode):
         # This automatically registers the manager with the CollisionManager
         manager = self.context.require_extension(
             MotionControlContext
-        ).external_collision_manager
+        ).get_or_create_external_collision_manager(self.context)
 
         # 2. Register the body to ensure the manager tracks its collisions
         manager.register_group_of_body(self.body)
@@ -420,19 +419,6 @@ class UpdateTemporaryCollisionRules(EndedByOwner, MotionStatechartNode):
     """
     The rules in force while this node runs.
     """
-
-    @classmethod
-    def for_end_effector(
-        cls, end_effector: EndEffector
-    ) -> UpdateTemporaryCollisionRules:
-        """
-        :param end_effector: The end effector that may touch its surroundings.
-        :return: A node that lets this end effector, together with whatever it holds,
-            collide with the environment.
-        """
-        return cls(
-            temporary_rules=[AllowCollisionForEndEffector(end_effector=end_effector)]
-        )
 
     def build_artifacts(self) -> MotionNodeArtifacts:
         artifacts = MotionNodeArtifacts()
@@ -551,7 +537,7 @@ class _SelfCollisionAvoidanceTask(_CollisionAvoidanceTask):
         """
         self.collision_variable_manager = self.context.require_extension(
             MotionControlContext
-        ).self_collision_manager
+        ).get_or_create_self_collision_manager(self.context)
         collision_matrix = self.create_self_collision_matrix()
         kinematic_structure_entities = self.robot.kinematic_structure_entities
         self.checked_combinations = []
@@ -685,7 +671,7 @@ class SelfCollisionDistanceMonitor(EndedByOwner, MotionStatechartNode):
     def build_artifacts(self) -> MotionNodeArtifacts:
         manager = self.context.require_extension(
             MotionControlContext
-        ).self_collision_manager
+        ).get_or_create_self_collision_manager(self.context)
 
         manager.register_groups_of_body_combination(self.body_a, self.body_b)
         combination = manager.body_pair_to_group_pair(self.body_a, self.body_b)

@@ -40,7 +40,7 @@ from semantic_digital_twin.world_description.world_entity import (
 # %% putting the base of a robot at a pose
 
 
-class BasePoseGoal(ABC):
+class MobileBasePoseGoal(ABC):
     """
     A node putting the base of a robot at a pose, built for any robot the same way, so
     which kind of node does it can be chosen without knowing what each one needs.
@@ -66,7 +66,7 @@ class DrivenBaseGoal(
     SucceedsOnObservingTrue,
     FailsOnObservingFalse,
     CompositeNode,
-    BasePoseGoal,
+    MobileBasePoseGoal,
     BindsGoalReferenceFrame[Pose],
     HasWeightParameter,
     HasThresholdParameter,
@@ -85,11 +85,6 @@ class DrivenBaseGoal(
     mobile_base: MobileBase
     """
     The base moved, by the drive attaching its robot to its parent.
-    """
-
-    weight: float = DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE
-    """
-    Above collision avoidance by default.
     """
 
     @property
@@ -117,8 +112,8 @@ class DrivenBaseGoal(
     @classmethod
     def moving_base_of(cls, robot: AbstractRobot, goal: Pose, threshold: float) -> Self:
         """
-        Differs from :meth:`BasePoseGoal.moving_base_of` in requiring `robot` to have a
-        mobile base.
+        Differs from :meth:`MobileBasePoseGoal.moving_base_of` in requiring `robot` to
+        have a mobile base.
 
         :raises RobotWithoutMobileBaseError: If `robot` has no mobile base.
         """
@@ -139,8 +134,9 @@ class DrivenBaseGoal(
 
     def _root_T_goal_reference_frame_to_bind(self) -> HomogeneousTransformationMatrix:
         """
-        Differs from :meth:`BindsGoalReferenceFrame._root_T_goal_reference_frame_to_bind`
-        in binding the matrix :meth:`expand` created, which the tasks are expressed over.
+        Differs from
+        :meth:`BindsGoalReferenceFrame._root_T_goal_reference_frame_to_bind` in binding
+        the matrix :meth:`expand` created, which the tasks are expressed over.
         """
         return self.root_T_goal_reference_frame
 

@@ -29,7 +29,6 @@ from semantic_digital_twin.collision_checking.collision_matrix import CollisionR
 from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionForEndEffector,
 )
-from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.reasoning.robot_predicates import is_body_gripped
@@ -90,9 +89,9 @@ class PlaceAction(
             ),
             Parallel(
                 nodes=[
-                    MoveGripper(
-                        end_effector=arm.end_effector,
-                        goal=GripperState.OPEN,
+                    self.create_finger_goal(
+                        arm.end_effector,
+                        GripperState.OPEN,
                         finger_velocity=self.release_opening_velocity,
                     ),
                     # Keeps the gripper in place while it opens, whatever else

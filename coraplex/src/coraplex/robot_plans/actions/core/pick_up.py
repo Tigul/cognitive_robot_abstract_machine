@@ -22,7 +22,6 @@ from semantic_digital_twin.collision_checking.collision_matrix import CollisionR
 from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionForEndEffector,
 )
-from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.semantic_annotations.mixins import CanBeGrasped
@@ -80,7 +79,7 @@ class ReachAction(
         ]
         if self.open_gripper_at_pre_pose:
             children.append(
-                MoveGripper(end_effector=self.arm.end_effector, goal=GripperState.OPEN)
+                self.create_finger_goal(self.arm.end_effector, GripperState.OPEN)
             )
         children.append(
             self.tool_center_point_goal(
@@ -111,7 +110,7 @@ class PickUpAction(
     tolerate_grasp_stall: bool = False
     """
     Whether the CLOSE motion's completion also tolerates a stalled grasp (see
-    :attr:`~giskardpy.motion_statechart.goals.gripper.MoveGripper.tolerate_stall`).
+    :attr:`~giskardpy.motion_statechart.goals.gripper.MoveFingers.tolerate_stall`).
 
     Opt-in rather than always on: building the stall monitor needs a velocity variable
     for every one of the gripper's connections, which is not guaranteed for every robot
@@ -207,7 +206,7 @@ class GraspingAction(
     tolerate_grasp_stall: bool = False
     """
     Whether the CLOSE motion's completion also tolerates a stalled grasp (see
-    :attr:`~giskardpy.motion_statechart.goals.gripper.MoveGripper.tolerate_stall`).
+    :attr:`~giskardpy.motion_statechart.goals.gripper.MoveFingers.tolerate_stall`).
     """
 
     def create_temporary_collision_rules(self) -> list[CollisionRule]:
@@ -232,9 +231,9 @@ class GraspingAction(
                 grasp_detection_threshold=self.grasp_detection_threshold,
             ),
             self.closing_step(
-                MoveGripper(
-                    end_effector=self.arm.end_effector,
-                    goal=GripperState.CLOSE,
+                self.create_finger_goal(
+                    self.arm.end_effector,
+                    GripperState.CLOSE,
                     finger_velocity=self.grasp_closing_velocity,
                     stall_minimum_time=self.grasp_stall_minimum_time,
                     tolerate_stall=self.tolerate_grasp_stall,

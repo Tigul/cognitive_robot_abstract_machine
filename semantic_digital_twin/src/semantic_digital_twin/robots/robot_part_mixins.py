@@ -51,6 +51,9 @@ from semantic_digital_twin.robots.input_source import InputSource
 if TYPE_CHECKING:
     from rclpy.node import Node
     from semantic_digital_twin.world import World
+    from semantic_digital_twin.world_description.connections import (
+        ActiveConnection1DOF,
+    )
     from semantic_digital_twin.world_description.geometry import BoundingBox
     from semantic_digital_twin.world_description.world_entity import Body
 
@@ -410,9 +413,30 @@ class HasTwoFingers(
 
         A constant of the gripper's description, read once and kept.
         """
+        return self.separation_in(GripperState.OPEN)
+
+    def separation_in(self, state_type: JointStateType) -> float:
+        """
+        :param state_type: The state to stand the gripper in.
+        :return: How far apart the fingertips' facing surfaces stand with the gripper in
+            that state, in metres, see :attr:`Fingertips.separation`. The world stands
+            as it did afterwards.
+        """
         with self._world.reset_state_context():
-            self.get_joint_state_by_type(GripperState.OPEN).apply_to(self._world)
+            self.get_joint_state_by_type(state_type).apply_to(self._world)
             return self.fingertips.separation
+
+    @property
+    def finger_connections(self) -> list[ActiveConnection1DOF]:
+        """
+        The connections the gripper's own states drive its fingers by, each once.
+        """
+        connections = []
+        for joint_state in self.joint_states:
+            for connection in joint_state.connections:
+                if connection not in connections:
+                    connections.append(connection)
+        return connections
 
     # %% reaching and reading back a grasp
 

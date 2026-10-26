@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from giskardpy.motion_statechart.binding_policy import GoalBindingPolicy
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.weights import DefaultWeights
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
@@ -15,18 +14,14 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import (
 @dataclass(eq=False, repr=False, kw_only=True)
 class CartesianPoseStraight(CartesianPose):
     """
-    Like :class:`CartesianPose`, but constrains the tip link to move in a straight line
-    towards the goal.
+    Differs from
+    :class:`~giskardpy.motion_statechart.tasks.cartesian_tasks.CartesianPose` in moving
+    the tip link along a straight line towards the goal position.
     """
 
     weight: float = DefaultWeights.WEIGHT_ABOVE_COLLISION_AVOIDANCE
     """
     Above collision avoidance by default.
-    """
-
-    binding_policy: GoalBindingPolicy = GoalBindingPolicy.Bind_at_build
-    """
-    Reads the pose of the goal's frame once, when the goal is built.
     """
 
     def create_tasks(self) -> list[MotionStatechartNode]:

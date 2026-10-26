@@ -24,7 +24,10 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     ExternalCollisionAvoidance,
     SelfCollisionAvoidance,
 )
-from giskardpy.motion_statechart.goals.gripper import MoveGripper
+from giskardpy.motion_statechart.goals.gripper import (
+    MoveFingersToJointState,
+    MoveGripper,
+)
 from giskardpy.motion_statechart.goals.grasped_mechanism import (
     ArticulateGraspedMechanism,
 )
@@ -66,7 +69,6 @@ from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
 from giskardpy.motion_statechart.tasks.pointing import Pointing, PointingCone
 from giskardpy.motion_statechart.tasks.weight_scaling_goals import MaxManipulability
 from giskardpy.motion_statechart.tasks.wiggle_insert import WiggleInsert
-from semantic_digital_twin.datastructures.definitions import GripperState
 from semantic_digital_twin.datastructures.joint_state import JointState
 from semantic_digital_twin.datastructures.prefixed_name import PrefixedName
 from semantic_digital_twin.spatial_types import Point3, RotationMatrix, Vector3
@@ -205,6 +207,7 @@ def test_one_concept_has_one_name(retired_name: str):
         (CartesianVelocityLimit, HasAngularVelocityLimitParameter),
         (HoldOrientation, HasThresholdParameter),
         (DrivenBaseGoal, HasThresholdParameter),
+        (MoveGripper, HasThresholdParameter),
         (CartesianPose, HasPoseThresholdParameters),
         (HoldPose, HasPoseThresholdParameters),
         (CartesianPose, HasWeightParameter),
@@ -248,7 +251,7 @@ def test_every_root_and_tip_link_is_a_kinematic_structure_entity():
         (CartesianPoseStraight, Pose),
         (HolonomicBaseGoal, Pose),
         (JointPositionList, JointState),
-        (MoveGripper, GripperState),
+        (MoveFingersToJointState, JointState),
         (ArticulateGraspedMechanism, float),
         (MaxManipulability, float),
     ],

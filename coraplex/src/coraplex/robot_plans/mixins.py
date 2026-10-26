@@ -12,12 +12,9 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-from coraplex.plans.context_extensions import MotionToleranceConfig
 from coraplex.robot_plans.actions.base import Action
-from cramph.context import ContextExtension
 from cramph.node import StatechartNode
 from cramph.world_modification_nodes import MoveBranch
-from krrood.ormatic.utils import classproperty
 from cramph.composites import Parallel
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
@@ -226,16 +223,15 @@ class HasGoalThresholdParameters(DesignatorParameterMixin):
     tolerance.
     """
 
-    position_threshold: float | None = None
+    position_threshold: float = 0.005
     """
-    Distance threshold in meters for goal achievement. ``None`` falls back to
-    :attr:`~coraplex.plans.context_extensions.MotionToleranceConfig.default_tcp_position_threshold`.
+    Distance threshold in meters for goal achievement, tighter than giskard's own task
+    default so an approach does not stop short of a small object.
     """
 
-    orientation_threshold: float | None = None
+    orientation_threshold: float = 0.02
     """
-    Rotation threshold in rad for goal achievement. ``None`` falls back to
-    :attr:`~coraplex.plans.context_extensions.MotionToleranceConfig.tool_orientation_threshold`.
+    Rotation threshold in rad for goal achievement.
     """
 
 
@@ -319,7 +315,7 @@ class HasPickUpTuningParameters(DesignatorParameterMixin):
     grasp_stall_minimum_time: float | None = None
     """
     Minimum stall dwell time (in seconds, see
-    :attr:`~giskardpy.motion_statechart.goals.gripper.MoveGripper.stall_minimum_time`)
+    :attr:`~giskardpy.motion_statechart.goals.gripper.MoveFingers.stall_minimum_time`)
     for the CLOSE motion. ``None`` keeps the default.
     """
 
@@ -535,36 +531,8 @@ class HasGraspApproachParameters(DesignatorParameterMixin):
 @dataclass(eq=False, repr=False, kw_only=True)
 class MovesToolCenterPoint(Action, HasGoalThresholdParameters, ABC):
     """
-    An action that moves an arm's tool center point, whose goal thresholds fall back to
-    the :class:`~coraplex.plans.context_extensions.MotionToleranceConfig` of the context
-    when left unset.
+    An action that moves an arm's tool center point.
     """
-
-    @classproperty
-    def context_extensions_required_to_expand(
-        cls,
-    ) -> tuple[type[ContextExtension], ...]:
-        return super().context_extensions_required_to_expand + (MotionToleranceConfig,)
-
-    def resolved_position_threshold(self) -> float:
-        """
-        :return: :attr:`position_threshold` if set, otherwise the context's default.
-        """
-        if self.position_threshold is not None:
-            return self.position_threshold
-        return self.context.require_extension(
-            MotionToleranceConfig
-        ).default_tcp_position_threshold
-
-    def resolved_orientation_threshold(self) -> float:
-        """
-        :return: :attr:`orientation_threshold` if set, otherwise the context's default.
-        """
-        if self.orientation_threshold is not None:
-            return self.orientation_threshold
-        return self.context.require_extension(
-            MotionToleranceConfig
-        ).tool_orientation_threshold
 
     def tool_center_point_goal(
         self,
@@ -611,8 +579,8 @@ class MovesToolCenterPoint(Action, HasGoalThresholdParameters, ABC):
             root_link=root,
             tip_link=tip,
             goal=target,
-            position_threshold=self.resolved_position_threshold(),
-            orientation_threshold=self.resolved_orientation_threshold(),
+            position_threshold=self.position_threshold,
+            orientation_threshold=self.orientation_threshold,
         )
 
     @staticmethod

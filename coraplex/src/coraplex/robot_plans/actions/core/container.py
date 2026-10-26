@@ -21,7 +21,6 @@ from coraplex.robot_plans.mixins import (
     MovesToolCenterPoint,
 )
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
-from giskardpy.motion_statechart.goals.gripper import MoveGripper
 from giskardpy.motion_statechart.goals.grasped_mechanism import (
     ArticulateGraspedMechanism,
 )
@@ -120,10 +119,7 @@ class MovesContainerByItsHandle(
                 approach_clearance=self.approach_clearance,
             ),
             self._create_mechanism_goal(),
-            MoveGripper(
-                end_effector=end_effector,
-                goal=GripperState.OPEN,
-            ),
+            self.create_finger_goal(end_effector, GripperState.OPEN),
             self.tool_center_point_goal(
                 self.back_off_pose(self.grasp.grasp_pose, end_effector),
                 self.arm,
