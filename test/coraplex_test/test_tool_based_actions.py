@@ -372,7 +372,7 @@ def test_a_wipe_counts_as_done_once_the_tool_reached_its_final_waypoint(
     ]
     assert final_waypoint_reached.tip_link is tool_body
     assert final_waypoint_reached.goal_point is action._waypoints[-1]
-    assert final_waypoint_reached.threshold == action.final_waypoint_success_tolerance
+    assert final_waypoint_reached.threshold == action.final_waypoint_threshold
 
 
 # %% keeping the torso upright

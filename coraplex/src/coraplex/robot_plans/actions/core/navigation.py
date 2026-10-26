@@ -25,6 +25,7 @@ from giskardpy.motion_statechart.goals.base_pose_goals import (
     DifferentialDriveBaseGoal,
     HolonomicBaseGoal,
 )
+from giskardpy.motion_statechart.mixins import HasThresholdParameter
 from giskardpy.motion_statechart.monitors.joint_monitors import (
     JointPositionReached,
 )
@@ -50,12 +51,12 @@ from semantic_digital_twin.world_description.geometry import VolumetricBoundingB
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class DrivesBase(Action, ABC):
+class DrivesBase(Action, HasThresholdParameter, ABC):
     """
     Base class for the actions that move the robot's base to a pose.
     """
 
-    base_pose_threshold: float = DifferentialDriveBaseGoal.threshold
+    threshold: float = DifferentialDriveBaseGoal.threshold
     """
     How far the base may be from a pose it drives to, in meters and in radians, to count
     as arrived.
@@ -80,7 +81,7 @@ class NavigateAction(DrivesBase, GoalAction, HasNavigationTargetParameter):
         return self.base_goal_type.moving_base_of(
             self.robot,
             self.robot.mobile_base.pose_facing(self.target_location),
-            self.base_pose_threshold,
+            self.threshold,
         )
 
 
@@ -170,7 +171,7 @@ class PathPlanningNavigateAction(
     def create_steps(self) -> list[StatechartNode]:
         return [
             self.base_goal_type.moving_base_of(
-                self.robot, waypoint.pose, self.base_pose_threshold
+                self.robot, waypoint.pose, self.threshold
             )
             for waypoint in self._path()
         ]

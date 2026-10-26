@@ -143,7 +143,7 @@ def assert_drives_differentially_to(
     """
     assert type(goal) is DifferentialDriveBaseGoal
     assert goal.mobile_base is robot.mobile_base
-    assert goal.threshold == action.base_pose_threshold
+    assert goal.threshold == action.threshold
     np.testing.assert_allclose(
         goal.goal.to_np(),
         robot.mobile_base.pose_facing(action.target_location).to_np(),
@@ -188,13 +188,11 @@ def test_the_differential_drive_goal_takes_the_threshold_of_the_action(
     default_action = navigation_to(world)
 
     action = prepared(
-        navigation_to(
-            world, base_pose_threshold=10 * default_action.base_pose_threshold
-        ),
+        navigation_to(world, threshold=10 * default_action.threshold),
         robot_executor(extensions),
     )
 
-    assert action.base_pose_threshold != default_action.base_pose_threshold
+    assert action.threshold != default_action.threshold
     assert_drives_differentially_to(action.goal, action, robot)
 
 
@@ -203,9 +201,7 @@ def test_the_base_pose_threshold_defaults_to_the_one_of_the_differential_drive_g
 ) -> None:
     world, robot, extensions = stretch_apartment_context
 
-    assert navigation_to(world).base_pose_threshold == (
-        DifferentialDriveBaseGoal.threshold
-    )
+    assert navigation_to(world).threshold == (DifferentialDriveBaseGoal.threshold)
 
 
 def test_stretch_drives_every_leg_of_a_path_with_its_differential_drive(
@@ -228,7 +224,7 @@ def test_stretch_drives_every_leg_of_a_path_with_its_differential_drive(
         unchanged.nodes
     )
     assert all(leg.mobile_base is robot.mobile_base for leg in legs)
-    assert all(leg.threshold == action.base_pose_threshold for leg in legs)
+    assert all(leg.threshold == action.threshold for leg in legs)
     np.testing.assert_allclose(legs[-1].goal.to_np(), target.pose.to_np())
 
 
@@ -297,7 +293,7 @@ def test_a_simulated_stretch_arrives_driving_with_its_differential_drive(
     np.testing.assert_allclose(
         robot.root.global_pose.to_np(),
         robot.mobile_base.pose_facing(action.target_location).to_np(),
-        atol=2 * action.base_pose_threshold,
+        atol=2 * action.threshold,
     )
 
 

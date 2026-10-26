@@ -78,9 +78,11 @@ have no plan transformation in
   - moving the tool frame on a straight line (`CartesianPoseStraight`) with the base's
     heading held, and counting the motion as done once the joints stand still
     (`LocalMinimumReached`, threshold 0.025) instead of failing it as stalled;
-  - grasps that tolerate stalled fingers. `MoveGripper(tolerate_stall=True,
-    stall_minimum_time=...)` already builds what the gripper mapping did, but a grasp
-    only uses it with `tolerate_grasp_stall=True`, which is off by default.
+  - grasps that tolerate stalled fingers. `MoveGripper(tolerate_finger_stall=True,
+    finger_stall_minimum_time=...)` already builds what the gripper mapping did, but a
+    grasp only uses it with `tolerate_finger_stall=True`, which is off by default: the
+    stall monitor needs a velocity variable for every gripper connection, which Tracy's
+    real-execution gripper does not have.
 
   If the real robot needs the tool center point motion, it needs a goal type of its own
   for moving a tool center point, so a transformation can match it:

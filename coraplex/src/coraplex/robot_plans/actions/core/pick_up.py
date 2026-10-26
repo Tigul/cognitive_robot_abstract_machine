@@ -8,6 +8,7 @@ import numpy as np
 from coraplex.robot_plans.actions.base import SequentialAction
 from cramph.composites import Parallel
 from cramph.node import StatechartNode
+from giskardpy.motion_statechart.mixins import HasFingerStallToleranceParameters
 from coraplex.robot_plans.mixins import (
     HasArmParameter,
     HasGraspApproachParameters,
@@ -102,20 +103,10 @@ class PickUpAction(
     HasReachTuningParameters,
     HasPickUpTuningParameters,
     HasGraspDetectionThresholdParameter,
+    HasFingerStallToleranceParameters,
 ):
     """
     Let the robot pick up an object: take hold of it and lift it clear of its support.
-    """
-
-    tolerate_grasp_stall: bool = False
-    """
-    Whether the CLOSE motion's completion also tolerates a stalled grasp (see
-    :attr:`~giskardpy.motion_statechart.goals.gripper.MoveFingers.tolerate_stall`).
-
-    Opt-in rather than always on: building the stall monitor needs a velocity variable
-    for every one of the gripper's connections, which is not guaranteed for every robot
-    -- it crashes on Tracy's real-execution gripper, whose connections do not all have
-    one.
     """
 
     @classmethod
@@ -151,8 +142,8 @@ class PickUpAction(
                 pre_approach_linear_velocity=self.pre_approach_linear_velocity,
                 final_approach_linear_velocity=self.final_approach_linear_velocity,
                 grasp_closing_velocity=self.grasp_closing_velocity,
-                grasp_stall_minimum_time=self.grasp_stall_minimum_time,
-                tolerate_grasp_stall=self.tolerate_grasp_stall,
+                finger_stall_minimum_time=self.finger_stall_minimum_time,
+                tolerate_finger_stall=self.tolerate_finger_stall,
                 grasp_detection_threshold=self.grasp_detection_threshold,
                 position_threshold=self.position_threshold,
                 orientation_threshold=self.orientation_threshold,
@@ -195,18 +186,13 @@ class GraspingAction(
     HasReachTuningParameters,
     HasPickUpTuningParameters,
     HasGraspDetectionThresholdParameter,
+    HasFingerStallToleranceParameters,
 ):
     """
     Let the robot take hold of an object: reach onto a grasp and close on it.
 
     What a pick-up does before it lifts, and the whole of it when the object is meant to
     stay where it is -- a handle being pulled, say.
-    """
-
-    tolerate_grasp_stall: bool = False
-    """
-    Whether the CLOSE motion's completion also tolerates a stalled grasp (see
-    :attr:`~giskardpy.motion_statechart.goals.gripper.MoveFingers.tolerate_stall`).
     """
 
     def create_temporary_collision_rules(self) -> list[CollisionRule]:
@@ -234,9 +220,9 @@ class GraspingAction(
                 self.create_finger_goal(
                     self.arm.end_effector,
                     GripperState.CLOSE,
-                    finger_velocity=self.grasp_closing_velocity,
-                    stall_minimum_time=self.grasp_stall_minimum_time,
-                    tolerate_stall=self.tolerate_grasp_stall,
+                    max_joint_velocity=self.grasp_closing_velocity,
+                    finger_stall_minimum_time=self.finger_stall_minimum_time,
+                    tolerate_finger_stall=self.tolerate_finger_stall,
                 )
             ),
         ]

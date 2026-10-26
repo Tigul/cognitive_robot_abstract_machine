@@ -104,7 +104,7 @@ class JointVelocityLimit(Task):
     The joints whose velocity is constrained.
     """
 
-    max_velocity: float = 0.1
+    max_joint_velocity: float = 0.1
     """
     Maximum allowed velocity (in rad/s or m/s, per joint).
     """
@@ -127,15 +127,15 @@ class JointVelocityLimit(Task):
         for connection in self.connections:
             position = connection.dof.variables.position
             artifacts.constraints.add_velocity_constraint(
-                upper_velocity_limit=self.max_velocity,
-                lower_velocity_limit=-self.max_velocity,
+                upper_velocity_limit=self.max_joint_velocity,
+                lower_velocity_limit=-self.max_joint_velocity,
                 quadratic_weight=self.weight,
                 task_expression=position,
-                velocity_limit=self.max_velocity,
+                velocity_limit=self.max_joint_velocity,
                 name=str(connection.name),
             )
             velocities.append(connection.dof.variables.velocity)
         artifacts.observation = sm.logic_all(
-            sm.abs(sm.Vector(velocities)) <= self.max_velocity
+            sm.abs(sm.Vector(velocities)) <= self.max_joint_velocity
         )
         return artifacts

@@ -290,7 +290,9 @@ def test_joint_velocity_limit_caps_a_fast_goal(pr2_world_state_reset):
             joint_goal := JointPositionList(
                 goal=JointState.from_mapping({head_pan_joint: 0.5}),
             ),
-            JointVelocityLimit(connections=[head_pan_joint], max_velocity=max_velocity),
+            JointVelocityLimit(
+                connections=[head_pan_joint], max_joint_velocity=max_velocity
+            ),
         ]
     )
 

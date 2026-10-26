@@ -92,7 +92,7 @@ class PlaceAction(
                     self.create_finger_goal(
                         arm.end_effector,
                         GripperState.OPEN,
-                        finger_velocity=self.release_opening_velocity,
+                        max_joint_velocity=self.release_opening_velocity,
                     ),
                     # Keeps the gripper in place while it opens, whatever else
                     # moves the robot meanwhile.

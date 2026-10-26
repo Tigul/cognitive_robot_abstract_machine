@@ -17,6 +17,7 @@ from cramph.node import StatechartNode
 from cramph.world_modification_nodes import MoveBranch
 from cramph.composites import Parallel
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
+from giskardpy.motion_statechart.mixins import HasPoseThresholdParameters
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPose,
     CartesianPositionVelocityLimit,
@@ -213,26 +214,7 @@ class HasGripperCollisionParameter(DesignatorParameterMixin):
     """
 
 
-# %% goal tolerances and speed caps
-
-
-@dataclass(kw_only=True, eq=False)
-class HasGoalThresholdParameters(DesignatorParameterMixin):
-    """
-    Mixin for actions that count their tool center point goal as reached within a
-    tolerance.
-    """
-
-    position_threshold: float = 0.005
-    """
-    Distance threshold in meters for goal achievement, tighter than giskard's own task
-    default so an approach does not stop short of a small object.
-    """
-
-    orientation_threshold: float = 0.02
-    """
-    Rotation threshold in rad for goal achievement.
-    """
+# %% thresholds
 
 
 @dataclass(kw_only=True, eq=False)
@@ -247,20 +229,6 @@ class HasGraspDetectionThresholdParameter(DesignatorParameterMixin):
     Minimum fraction of sampled rays between the gripper's fingers that must hit the
     target object for it to count as grasped/held (see
     :func:`~semantic_digital_twin.reasoning.robot_predicates.is_body_gripped`).
-    """
-
-
-@dataclass(kw_only=True, eq=False)
-class HasMaxJointVelocityParameter(DesignatorParameterMixin):
-    """
-    Mixin for actions that cap how fast the joints they drive move.
-    """
-
-    max_joint_velocity: float | None = None
-    """
-    Maximum joint velocity (in rad/s or m/s, per joint), enforced via
-    :class:`~giskardpy.motion_statechart.tasks.joint_tasks.JointVelocityLimit`. ``None``
-    leaves the speed unconstrained.
     """
 
 
@@ -310,13 +278,6 @@ class HasPickUpTuningParameters(DesignatorParameterMixin):
     grasping, enforced via
     :class:`~giskardpy.motion_statechart.tasks.cartesian_tasks.CartesianPositionVelocityLimit`.
     ``None`` leaves the speed unconstrained.
-    """
-
-    grasp_stall_minimum_time: float | None = None
-    """
-    Minimum stall dwell time (in seconds, see
-    :attr:`~giskardpy.motion_statechart.goals.gripper.MoveFingers.stall_minimum_time`)
-    for the CLOSE motion. ``None`` keeps the default.
     """
 
     object_friction: float | None = None
@@ -529,9 +490,20 @@ class HasGraspApproachParameters(DesignatorParameterMixin):
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class MovesToolCenterPoint(Action, HasGoalThresholdParameters, ABC):
+class MovesToolCenterPoint(Action, HasPoseThresholdParameters, ABC):
     """
     An action that moves an arm's tool center point.
+    """
+
+    position_threshold: float = 0.005
+    """
+    Tighter than that of a pose goal, so an approach does not stop short of a small
+    object.
+    """
+
+    orientation_threshold: float = 0.02
+    """
+    Looser than that of a pose goal.
     """
 
     def tool_center_point_goal(

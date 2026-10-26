@@ -9,7 +9,6 @@ from semantic_digital_twin.collision_checking.collision_matrix import CollisionR
 from semantic_digital_twin.collision_checking.collision_rules import (
     AllowCollisionForEndEffector,
 )
-from semantic_digital_twin.robots.robot_part_mixins import HasTwoFingers
 from semantic_digital_twin.robots.robot_parts import Arm
 from semantic_digital_twin.spatial_types.spatial_types import Pose
 
@@ -25,7 +24,6 @@ from coraplex.robot_plans.mixins import (
     HasEndEffectorParameter,
     HasGripperCollisionParameter,
     HasGripperStateParameter,
-    HasMaxJointVelocityParameter,
     HasTargetPoseParameter,
     HasTorsoStateParameter,
     MovesToolCenterPoint,
@@ -33,6 +31,11 @@ from coraplex.robot_plans.mixins import (
 from cramph.composites import Sequence
 from cramph.node import StatechartNode
 from giskardpy.motion_statechart.binding_policy import GoalBindingPolicy
+from giskardpy.motion_statechart.mixins import (
+    HasJointVelocityLimitParameter,
+    HasThresholdParameter,
+    HasTwoFingerGripperParameters,
+)
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPose,
 )
@@ -67,7 +70,9 @@ class SetGripperAction(GoalAction, HasEndEffectorParameter, HasGripperStateParam
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class MoveFingersToWidthAction(GoalAction):
+class MoveFingersToWidthAction(
+    GoalAction, HasTwoFingerGripperParameters, HasThresholdParameter
+):
     """
     Closes a two-finger gripper until its fingertips stand a given distance apart,
     rather than driving it to a gripper state of its own.
@@ -79,16 +84,6 @@ class MoveFingersToWidthAction(GoalAction):
 
     .. note:: This only means anything where something pushes back, see
         :class:`~coraplex.robot_plans.plan_transformations.CloseFingersToObjectWidth`.
-    """
-
-    gripper: HasTwoFingers
-    """
-    The gripper whose fingers close.
-    """
-
-    width: float
-    """
-    How far apart the fingertips' facing surfaces are to stand, in metres.
     """
 
     squeeze: float = 0.0
@@ -121,7 +116,7 @@ class MoveFingersToWidthAction(GoalAction):
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class ParkArmsAction(ParallelAction, HasMaxJointVelocityParameter):
+class ParkArmsAction(ParallelAction, HasJointVelocityLimitParameter):
     """
     Park the arms of the robot.
     """
@@ -140,7 +135,7 @@ class ParkArmsAction(ParallelAction, HasMaxJointVelocityParameter):
             joint_goal,
             JointVelocityLimit(
                 connections=list(park_state.connections),
-                max_velocity=self.max_joint_velocity,
+                max_joint_velocity=self.max_joint_velocity,
             ),
         ]
 

@@ -25,6 +25,7 @@ from giskardpy.motion_statechart.goals.collision_avoidance import (
     SelfCollisionAvoidance,
 )
 from giskardpy.motion_statechart.goals.gripper import (
+    MoveFingers,
     MoveFingersToJointState,
     MoveGripper,
 )
@@ -36,12 +37,15 @@ from giskardpy.motion_statechart.mixins import (
     GoalType,
     HasFeaturePairParameters,
     HasAngularVelocityLimitParameter,
+    HasFingerStallToleranceParameters,
     HasGoalParameter,
+    HasJointVelocityLimitParameter,
     HasLinearVelocityLimitParameter,
     HasPoseReferenceVelocityParameters,
     HasPoseThresholdParameters,
     HasReferenceVelocityParameter,
     HasThresholdParameter,
+    HasTwoFingerGripperParameters,
     HasWeightParameter,
 )
 from giskardpy.motion_statechart.tasks.align_planes import AlignPlanes
@@ -65,7 +69,10 @@ from giskardpy.motion_statechart.tasks.feature_functions import (
     ReachPoint,
 )
 from giskardpy.motion_statechart.tasks.grasp_bar import GraspBar
-from giskardpy.motion_statechart.tasks.joint_tasks import JointPositionList
+from giskardpy.motion_statechart.tasks.joint_tasks import (
+    JointPositionList,
+    JointVelocityLimit,
+)
 from giskardpy.motion_statechart.tasks.pointing import Pointing, PointingCone
 from giskardpy.motion_statechart.tasks.weight_scaling_goals import MaxManipulability
 from giskardpy.motion_statechart.tasks.wiggle_insert import WiggleInsert
@@ -172,6 +179,9 @@ def test_no_parameter_mixin_inherits_another():
         "tip_normal",
         "reference_normal",
         "up_axis",
+        "finger_velocity",
+        "tolerate_stall",
+        "stall_minimum_time",
     ],
 )
 def test_one_concept_has_one_name(retired_name: str):
@@ -208,6 +218,9 @@ def test_one_concept_has_one_name(retired_name: str):
         (HoldOrientation, HasThresholdParameter),
         (DrivenBaseGoal, HasThresholdParameter),
         (MoveGripper, HasThresholdParameter),
+        (MoveGripper, HasTwoFingerGripperParameters),
+        (MoveFingers, HasFingerStallToleranceParameters),
+        (MoveFingers, HasJointVelocityLimitParameter),
         (CartesianPose, HasPoseThresholdParameters),
         (HoldPose, HasPoseThresholdParameters),
         (CartesianPose, HasWeightParameter),
@@ -217,6 +230,15 @@ def test_one_concept_has_one_name(retired_name: str):
 )
 def test_a_shared_parameter_comes_from_its_mixin(node_class: type, mixin: type):
     assert issubclass(node_class, mixin)
+
+
+def test_a_joint_velocity_limit_names_its_cap_as_the_cartesian_limits_do():
+    assert {field.name for field in dataclasses.fields(JointVelocityLimit)} >= {
+        "max_joint_velocity"
+    }
+    assert "max_velocity" not in {
+        field.name for field in dataclasses.fields(JointVelocityLimit)
+    }
 
 
 # %% links of the kinematic chain

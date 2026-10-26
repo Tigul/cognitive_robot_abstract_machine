@@ -12,6 +12,7 @@ from typing_extensions import Generic, TypeVar
 from giskardpy.motion_statechart.binding_policy import GoalBindingPolicy
 from giskardpy.motion_statechart.weights import DefaultWeights
 from krrood.patterns.subclass_safe_generic import SubClassSafeGeneric
+from semantic_digital_twin.robots.robot_part_mixins import HasTwoFingers
 from semantic_digital_twin.world_description.world_entity import (
     KinematicStructureEntity,
 )
@@ -182,6 +183,59 @@ class HasAngularVelocityLimitParameter:
     max_angular_velocity: float = 0.4
     """
     The highest angular speed of the tip allowed, in rad/s.
+    """
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class HasJointVelocityLimitParameter:
+    """
+    A node that may cap how fast the joints it drives move.
+    """
+
+    max_joint_velocity: float | None = None
+    """
+    The highest speed of each joint allowed, in rad/s or m/s; None leaves the joints
+    capped only by their own limits.
+    """
+
+
+# %% fingers
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class HasTwoFingerGripperParameters:
+    """
+    A node bringing the fingertips of a two-finger gripper to a given width.
+    """
+
+    gripper: HasTwoFingers
+    """
+    The gripper whose fingers move.
+    """
+
+    width: float
+    """
+    How far apart the fingertips' facing surfaces are to stand, in metres; negative
+    where they are to overlap, as a fully closed gripper's may.
+    """
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class HasFingerStallToleranceParameters:
+    """
+    A node closing fingers that may stop short of their goal on an object between them.
+    """
+
+    tolerate_finger_stall: bool = False
+    """
+    Whether fingers that have stopped moving count as done, even short of their goal.
+    """
+
+    finger_stall_minimum_time: float | None = None
+    """
+    How long the fingers must stand still before a stall counts, in seconds.
+
+    None keeps :attr:`~giskardpy.motion_statechart.monitors.monitors.LocalMinimumReached.minimum_time`.
     """
 
 

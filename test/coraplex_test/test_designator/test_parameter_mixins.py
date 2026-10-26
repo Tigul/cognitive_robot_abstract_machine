@@ -1,15 +1,19 @@
 import dataclasses
 
+import pytest
+
 from coraplex.robot_plans import mixins
 from coraplex.robot_plans.actions.base import Action
 from coraplex.robot_plans.actions.core.container import OpenAction
 from coraplex.robot_plans.actions.core.navigation import (
+    DrivesBase,
     NavigateAction,
     PathPlanningNavigateAction,
 )
-from coraplex.robot_plans.actions.core.pick_up import PickUpAction
+from coraplex.robot_plans.actions.core.pick_up import GraspingAction, PickUpAction
 from coraplex.robot_plans.actions.core.placing import PlaceAction
 from coraplex.robot_plans.actions.core.robot_body import (
+    MoveFingersToWidthAction,
     ParkArmsAction,
     SetGripperAction,
 )
@@ -17,7 +21,6 @@ from coraplex.robot_plans.mixins import (
     DesignatorParameterMixin,
     HasArmParameter,
     HasEndEffectorParameter,
-    HasGoalThresholdParameters,
     HasGraspableObjectParameter,
     HasGraspApproachParameters,
     HasGraspCandidateParameter,
@@ -27,6 +30,17 @@ from coraplex.robot_plans.mixins import (
     HasPlacementTargetParameter,
     MovesToolCenterPoint,
 )
+from giskardpy.motion_statechart.goals.base_pose_goals import DrivenBaseGoal
+from giskardpy.motion_statechart.goals.gripper import MoveFingers, MoveGripper
+from giskardpy.motion_statechart.mixins import (
+    HasFingerStallToleranceParameters,
+    HasJointVelocityLimitParameter,
+    HasPoseThresholdParameters,
+    HasThresholdParameter,
+    HasTwoFingerGripperParameters,
+)
+from giskardpy.motion_statechart.tasks.cartesian_tasks import CartesianPose
+from krrood.class_diagrams.utils import get_type_hints_of_object
 from semantic_digital_twin.semantic_annotations.semantic_annotations import Milk
 
 
@@ -84,9 +98,9 @@ def test_action_inherits_parameter_mixins():
     assert parameter_mixins(PickUpAction) >= {
         HasArmParameter,
         HasGraspCandidateParameter,
-        HasGoalThresholdParameters,
         HasGraspApproachParameters,
     }
+    assert issubclass(PickUpAction, HasPoseThresholdParameters)
 
 
 def test_pick_up_action_takes_its_grasp_and_arm(pr2_apartment_context):
@@ -148,7 +162,11 @@ def test_behaviours_driving_a_tool_center_point_carry_their_own_tolerances():
     The goal tolerances belong to driving an arm to a goal, so an action that does that
     has them without naming a second mixin.
     """
-    assert issubclass(MovesToolCenterPoint, HasGoalThresholdParameters)
+    assert issubclass(MovesToolCenterPoint, HasPoseThresholdParameters)
+
+
+def test_a_tool_center_point_comes_closer_to_its_goal_than_a_pose_goal_requires():
+    assert MovesToolCenterPoint.position_threshold < CartesianPose.position_threshold
 
 
 def test_behaviours_without_a_tool_center_point_goal_have_no_tolerances():
@@ -157,7 +175,7 @@ def test_behaviours_without_a_tool_center_point_goal_have_no_tolerances():
     goal tolerances.
     """
     for action_type in (ParkArmsAction, SetGripperAction):
-        assert not issubclass(action_type, HasGoalThresholdParameters)
+        assert not issubclass(action_type, HasPoseThresholdParameters)
         assert "position_threshold" not in field_names(action_type)
 
 
@@ -171,3 +189,34 @@ def test_navigation_actions_take_the_same_target():
             field_types(navigation)["target_location"]
             == HasNavigationTargetParameter.__annotations__["target_location"]
         )
+
+
+# %% parameters shared with the motion statechart nodes
+
+
+@pytest.mark.parametrize(
+    "action_type, node_type, mixin",
+    [
+        (MoveFingersToWidthAction, MoveGripper, HasTwoFingerGripperParameters),
+        (MoveFingersToWidthAction, MoveGripper, HasThresholdParameter),
+        (PickUpAction, MoveFingers, HasFingerStallToleranceParameters),
+        (GraspingAction, MoveFingers, HasFingerStallToleranceParameters),
+        (ParkArmsAction, MoveFingers, HasJointVelocityLimitParameter),
+        (DrivesBase, DrivenBaseGoal, HasThresholdParameter),
+    ],
+)
+def test_an_action_shares_the_parameter_mixin_of_the_node_it_builds(
+    action_type: type, node_type: type, mixin: type
+):
+    assert issubclass(action_type, mixin)
+    assert issubclass(node_type, mixin)
+
+
+def test_parameters_inherited_from_node_mixins_resolve_to_their_types():
+    """
+    The node mixins declare their types as strings, which resolve against the module of
+    the mixin rather than that of the action.
+    """
+    hints = get_type_hints_of_object(PickUpAction)
+    assert hints["position_threshold"] is float
+    assert hints["tolerate_finger_stall"] is bool

@@ -324,7 +324,7 @@ class WipingAction(ToolMotionAction, TryAllAction):
     Number of sweep cycles for the spreading motion.
     """
 
-    final_waypoint_success_tolerance: float = 0.08
+    final_waypoint_threshold: float = 0.08
     """
     Accept an unfinished motion as successful if the tool ends up within this distance
     in meters of the final waypoint.
@@ -393,7 +393,7 @@ class WipingAction(ToolMotionAction, TryAllAction):
                 root_link=self.world.root,
                 tip_link=self.tool.root,
                 goal_point=self._waypoints[-1],
-                threshold=self.final_waypoint_success_tolerance,
+                threshold=self.final_waypoint_threshold,
             ),
         ]
 

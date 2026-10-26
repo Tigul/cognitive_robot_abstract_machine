@@ -1264,7 +1264,7 @@ def test_park_arms_caps_joint_velocity_only_when_asked(
     expand(uncapped, extensions)
 
     [limit] = nodes_of_type(capped, JointVelocityLimit)
-    assert limit.max_velocity == capped.max_joint_velocity
+    assert limit.max_joint_velocity == capped.max_joint_velocity
     assert limit in capped.nodes
     assert nodes_of_type(uncapped, JointVelocityLimit) == []
 
