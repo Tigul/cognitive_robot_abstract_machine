@@ -25,6 +25,14 @@ Done (pushed to origin/cramph-garmi-backport, 2026-10-26):
   test_plan + SDT robots 462 pass
 - CI image rebuilt 2026-10-26 14:13 with garmi_description main + new iai_maps apartment
 
+- merged ichumuh/cramph (fffe594e70) as 7c5ac47039, pushed, PR back to draft: conflicts
+  in composites.py (kept step_holding, took adopt_handed_children) and statechart.py
+  (took compiler API, kept child choice before callbacks); cramph 816, coraplex test_plan +
+  giskardpy Franka/round trips 396, GARMI designator 65 pass
+- user committed the GARMI demo apartment-frame fix as b144ccec38
+- Tracy demo CI failure: iai_tracy PR #4 comment `/>: -->` breaks launch yaml parse of
+  robot_description (not this PR); offered a one-char fix upstream, waiting for OK
+
 Not included / open:
 - GARMI demo fails (CandidateLimitReached); plain cramph fails too on the new apartment
   (CollisionViolatedError). Adjusted demo is on cramph-garmi but needs GraspOpenAndRetractAction (#6)
