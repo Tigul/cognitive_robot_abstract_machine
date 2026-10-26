@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Dict, List, Union
 
-from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 
 from cramph.executor import NoPacing, Pacer, RealTimePacer
@@ -12,7 +11,9 @@ from semantic_digital_twin.adapters.ros import rospy
 from giskardpy.middleware.ros2.command_publishing import (
     DriveVelocityCommandPublisher,
     Float64MultiArrayFormat,
+    DriveCommandFormat,
     GroupCommandFormat,
+    TwistFormat,
     JointGroupVelocityCommandPublisher,
     JointMinimumVelocities,
     JointVelocityCommandPublisher,
@@ -250,11 +251,12 @@ class ClosedLoopRobotInterfaceConfig(RobotInterfaceConfig, ABC):
         joint: Union[OmniDrive, DifferentialDrive] = None,
         minimum_linear_velocity: float = 0.0,
         minimum_angular_velocity: float = 0.0,
+        command_format: DriveCommandFormat | None = None,
     ):
         """
         Tell Giskard how it can control an odom joint of the robot.
 
-        :param cmd_vel_topic: a Twist topic
+        :param cmd_vel_topic: a topic of the message type of `command_format`
         :param joint: omni or diff drive joint. Doesn't need to be specified if there is
             only one.
         :param minimum_linear_velocity: magnitude that smaller linear velocities are
@@ -262,9 +264,14 @@ class ClosedLoopRobotInterfaceConfig(RobotInterfaceConfig, ABC):
             ``0.0`` disables raising.
         :param minimum_angular_velocity: magnitude that smaller rotational velocities
             are raised to. ``0.0`` disables raising.
+        :param command_format: message format the drive controller consumes; defaults to
+            :class:`~giskardpy.middleware.ros2.command_publishing.TwistFormat`.
         """
+        command_format = command_format or TwistFormat()
         if cmd_vel_topic is None:
-            cmd_vel_topic = search_for_unique_subscriber_of_type(Twist)
+            cmd_vel_topic = search_for_unique_subscriber_of_type(
+                command_format.message_type()
+            )
         self.control_loop.command_publishers.append(
             DriveVelocityCommandPublisher(
                 world=self.world,
@@ -272,6 +279,7 @@ class ClosedLoopRobotInterfaceConfig(RobotInterfaceConfig, ABC):
                 connection=joint,
                 minimum_linear_velocity=MinimumVelocity(minimum_linear_velocity),
                 minimum_angular_velocity=MinimumVelocity(minimum_angular_velocity),
+                command_format=command_format,
             )
         )
 
@@ -340,7 +348,7 @@ class ClosedLoopRobotInterfaceConfig(RobotInterfaceConfig, ABC):
     def discover_interfaces_from_controller_manager(
         self,
         controller_manager_name: str = "controller_manager",
-        whitelist: List[str] | None = None,
+        whitelist: list[str] | None = None,
     ) -> None:
         """
         Tell Giskard to read and command the robot through the active controllers of a
@@ -350,52 +358,17 @@ class ClosedLoopRobotInterfaceConfig(RobotInterfaceConfig, ABC):
             namespace it runs in.
         :param whitelist: The names of the controllers to consider, all if ``None``.
         """
-        self.sync_joint_states_from_controller_manager(
-            controller_manager_name, whitelist
-        )
-        self.add_velocity_controllers_from_controller_manager(
-            controller_manager_name, whitelist
-        )
-
-    def sync_joint_states_from_controller_manager(
-        self,
-        controller_manager_name: str = "controller_manager",
-        whitelist: list[str] | None = None,
-    ) -> None:
-        """
-        Tell Giskard to sync the world state with the active joint state broadcasters of
-        a controller manager.
-
-        :param controller_manager_name: The controller manager node, including the
-            namespace it runs in.
-        :param whitelist: The names of the controllers to consider, all if ``None``.
-        """
         controller_manager = ControllerManager(controller_manager_name)
         for controller in controller_manager.active_controllers(whitelist):
-            if controller.type == ControllerType.JOINT_STATE_BROADCASTER:
-                self.sync_joint_state_topic(
-                    controller_manager.joint_state_topic_of(controller.name)
-                )
-
-    def add_velocity_controllers_from_controller_manager(
-        self,
-        controller_manager_name: str = "controller_manager",
-        whitelist: list[str] | None = None,
-    ) -> None:
-        """
-        Tell Giskard to command the joints of the active velocity controllers of a
-        controller manager.
-
-        :param controller_manager_name: The controller manager node, including the
-            namespace it runs in.
-        :param whitelist: The names of the controllers to consider, all if ``None``.
-        """
-        controller_manager = ControllerManager(controller_manager_name)
-        for controller in controller_manager.active_controllers(whitelist):
-            if controller.type == ControllerType.JOINT_GROUP_VELOCITY:
-                self.add_joint_velocity_group_controller(
-                    cmd_topic=controller_manager.command_topic_of(controller.name),
-                    connections=controller_manager.joints_of(controller.name),
-                )
-            elif controller.type == ControllerType.DIFF_DRIVE:
-                self.add_base_cmd_velocity(controller.name)
+            match controller.type:
+                case ControllerType.JOINT_STATE_BROADCASTER:
+                    self.sync_joint_state_topic(
+                        controller_manager.joint_state_topic_of(controller.name)
+                    )
+                case ControllerType.JOINT_GROUP_VELOCITY:
+                    self.add_joint_velocity_group_controller(
+                        cmd_topic=controller_manager.command_topic_of(controller.name),
+                        connections=controller_manager.joints_of(controller.name),
+                    )
+                case ControllerType.DIFF_DRIVE:
+                    self.add_base_cmd_velocity(controller.name)

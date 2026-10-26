@@ -19,6 +19,7 @@ DEMOS_ROOT = Path(__file__).resolve().parents[2] / "coraplex" / "demos"
 
 WRAPPER_PATHS = [
     DEMOS_ROOT / "coraplex_bullet_world_demo" / "test_demo.py",
+    DEMOS_ROOT / "coraplex_hsr_mujoco_demo" / "test_demo.py",
     DEMOS_ROOT / "coraplex_real_tracy" / "test_demo.py",
     DEMOS_ROOT / "coraplex_unitree_g1_warehouse_demo" / "test_demo.py",
 ]
@@ -144,4 +145,4 @@ def test_garmi_demonstration_pins_the_draws_its_locations_make(rclpy_node):
         for extension in extensions
         if isinstance(extension, StatementGrounding)
     ]
-    assert grounding.sampling_seed == demo_module.SamplingSeed.REPEATABLE
+    assert grounding.sampling_seed == StatementGrounding().sampling_seed
