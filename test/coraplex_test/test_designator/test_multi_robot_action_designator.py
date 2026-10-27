@@ -926,7 +926,7 @@ def test_gcs_navigation_takes_a_waypoints_height_from_that_waypoints_frame(
         base_in_pose_frame = world.transform(
             robot.root.global_transform, pose.reference_frame
         )
-        assert float(pose.z) == pytest.approx(float(base_in_pose_frame.z))
+        assert float(pose.reference_frame.global_pose.z) == pytest.approx(float(base_in_pose_frame.reference_frame.global_pose.z))
 
 
 def test_gcs_navigation_needs_a_floor_below_the_robot(
