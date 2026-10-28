@@ -14,4 +14,9 @@ sage10k) use GraspCandidate.from_body_origin. Verified locally: demo passes
 (fails on main), semDT grasp tests, test_robots, test_collision_checking,
 coraplex_test full (504 + designator 219).
 
+Merged cram2/main (2026-10-28, 3bbdc3bbb3): one conflict, container.py import
+(upstream typing cleanup dropped Dict; kept Self). Re-verified demo + container/
+transporting/transformations/grasp tests + designator open/close. PR set back
+to draft after push (someone had marked it ready).
+
 Next: wait for CI / review; nothing outstanding.
