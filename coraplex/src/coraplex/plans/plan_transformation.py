@@ -250,18 +250,30 @@ class PlanRewriting(ContextExtension):
 
         :param root: The part of the plan to rewrite.
         :return: The node that runs in the place of `root` once rewritten: `root`
-            itself, or the node a transformation put in its place around it.
+            itself, the node a transformation put in its place, or the node a
+            transformation put around either.
         """
         if not self.transformations:
             return root
+        statechart = root.statechart
         former_parent = root.parent_node
         rewritten = root
         while (node := self._next_node_to_offer(rewritten)) is not None:
             self._offered.add(node)
             self._apply_to(node)
+            rewritten = statechart.node_in_place_of(rewritten)
             while rewritten.parent_node is not former_parent:
                 rewritten = rewritten.parent_node
         return rewritten
+
+    def treat_as_offered(self, node: StatechartNode) -> None:
+        """
+        Keep the transformations from rewriting `node`, although the nodes below it are
+        still offered to them.
+
+        :param node: A node of the plan.
+        """
+        self._offered.add(node)
 
     def _next_node_to_offer(self, root: StatechartNode) -> StatechartNode | None:
         """

@@ -403,8 +403,7 @@ def test_a_plan_on_the_robot_is_sent_once_with_the_chooser_grounding_its_actions
 
     [statechart] = giskard.executed
     assert plan.statechart is statechart
-    [chooser] = giskard.child_choosers
-    assert chooser is executor.child_chooser
+    assert executor.child_chooser in giskard.child_choosers
 
 
 def test_plans_run_one_after_another_share_one_connection_to_giskard(

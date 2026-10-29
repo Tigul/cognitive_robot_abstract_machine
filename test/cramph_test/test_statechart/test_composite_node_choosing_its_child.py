@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 
 import pytest
 
+from cramph.context import StatechartContext
 from cramph.composites import (
     ChildChooser,
     ChildChooserAccess,
@@ -26,6 +28,7 @@ from cramph.nodes_for_testing import (
     NodeSucceedingOnObservingTrue,
 )
 from cramph.statechart import Statechart
+from semantic_digital_twin.world import World
 
 # %% mimics
 
@@ -711,3 +714,26 @@ def test_a_node_that_ran_out_of_children_chooses_again_after_a_reset(
     assert choosing_node.children == [succeeding]
     assert not choosing_node.ran_out_of_children
     assert choosing_node.life_cycle_state == LifeCycleValues.SUCCEEDED
+
+
+# %% sending a node together with the child it chose
+
+
+def test_a_chosen_child_is_still_chosen_after_a_json_round_trip() -> None:
+    """
+    A node that chose its child before it was sent is not waiting for one on the side
+    that receives it.
+    """
+    statechart = Statechart(context=StatechartContext(world=World()))
+    choosing_node = CompositeNodeChoosingItsChild(name="choosing")
+    statechart.add_node(choosing_node)
+    child = _succeeding_child("child")
+    choosing_node.choose_child_with(ChooserAnsweringInTurn([child]))
+
+    received = Statechart.from_json(
+        json.loads(json.dumps(statechart.to_json())),
+        context=StatechartContext(world=World()),
+    )
+
+    received_node = received.get_node_by_index(choosing_node.index)
+    assert received_node.chosen_children == [received.get_node_by_index(child.index)]

@@ -21,6 +21,7 @@ from cramph.composites import (
     StoppedWhenTrue,
     TryAll,
     TryInOrder,
+    UnderspecifiedParallel,
 )
 from cramph.context import StatechartContext
 from cramph.data_types import ObservationStateValues
@@ -155,6 +156,15 @@ def _cases() -> list[NodeRoundTripCase]:
         NodeRoundTripCase(
             StatementNode,
             lambda world: [StatementNode(statement=a(ConstTrueNode)())],
+        ),
+        NodeRoundTripCase(
+            UnderspecifiedParallel,
+            lambda world: [
+                UnderspecifiedParallel(
+                    parallel=Parallel(nodes=[statement]), statements=[statement]
+                )
+                for statement in [StatementNode(statement=a(ConstTrueNode)())]
+            ],
         ),
         NodeRoundTripCase(
             RepeatUntil,

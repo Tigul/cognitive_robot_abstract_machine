@@ -16,6 +16,8 @@ from cramph.composites import (
     ChildChooser,
     ChildChooserAccess,
     CompositeNodeChoosingItsChild,
+    Parallel,
+    Sequence,
 )
 from cramph.context import StatechartContext
 from cramph.data_types import LifeCycleValues, ObservationStateValues
@@ -36,6 +38,7 @@ from giskardpy.middleware.ros2.exceptions import (
 )
 from giskardpy.middleware.ros2.feedback_publisher import (
     ActionFeedbackPublisher,
+    MotionStatechartPayloadKey,
 )
 from giskardpy.middleware.ros2.world_updates import (
     ClientWorldUpdates,
@@ -128,6 +131,91 @@ class ChooserGivingUpOnItsFirstChild(ChooserGivingAFreshChild):
         if child.name != "undecided":
             return []
         return [CountTicks(name="timeout", ticks=2)]
+
+
+@dataclass
+class ChooserHandingOverOneChild(ChildChooser[CompositeNodeChoosingItsChild]):
+    """
+    Gives the one child it was prepared with, with the failure monitors prepared for it.
+    """
+
+    child: StatechartNode
+    """
+    The child it gives.
+    """
+
+    failure_monitors: list[StatechartNode] = field(default_factory=list)
+    """
+    The failure monitors it gives with :attr:`child`.
+    """
+
+    def choose_child(
+        self, node: CompositeNodeChoosingItsChild
+    ) -> StatechartNode | None:
+        return self.child
+
+    def failure_monitors_for(
+        self,
+        node: CompositeNodeChoosingItsChild,
+        child: StatechartNode,
+    ) -> list[StatechartNode]:
+        return self.failure_monitors
+
+
+@dataclass
+class ChooserGivingAParallelOfBranchesThatChose(ChooserGivingAFreshChild):
+    """
+    Gives the node starting first a parallel of choosing nodes, each of which chose its
+    first child before the parallel is sent, the way the statements of a parallel
+    grounded together arrive, and every other node a fresh child that succeeds at once.
+    """
+
+    first_children: list[StatechartNode] = field(
+        default_factory=lambda: [
+            _node_succeeding_at_once("first child of branch 0"),
+            _node_succeeding_at_once("first child of branch 1"),
+        ]
+    )
+    """
+    The child each branch chose before it was sent, one branch per child.
+    """
+
+    failure_monitors_of_first_children: list[list[StatechartNode]] = field(
+        default_factory=lambda: [[], []]
+    )
+    """
+    The failure monitors of each of :attr:`first_children`.
+    """
+
+    def choose_child(
+        self, node: CompositeNodeChoosingItsChild
+    ) -> StatechartNode | None:
+        if node.name != "starting first":
+            return super().choose_child(node)
+        branches = [
+            CompositeNodeChoosingItsChild(name=f"branch {position}")
+            for position in range(len(self.first_children))
+        ]
+        return Sequence(nodes=[Parallel(nodes=branches)])
+
+    def prepare_chosen_child(
+        self,
+        node: CompositeNodeChoosingItsChild,
+        child: StatechartNode,
+    ) -> None:
+        if node.name != "starting first":
+            return
+        [parallel] = child.nodes
+        for branch, first_child, failure_monitors in zip(
+            parallel.nodes,
+            self.first_children,
+            self.failure_monitors_of_first_children,
+        ):
+            branch.choose_child_with(
+                ChooserHandingOverOneChild(
+                    child=first_child, failure_monitors=failure_monitors
+                )
+            )
 
 
 # %% helpers
@@ -572,3 +660,87 @@ def test_the_running_side_repeats_nothing_while_no_node_waits_for_a_child() -> N
     feedback_publisher.publish_if_changed()
 
     assert len(action_server.sent_feedback) == 1
+
+
+# %% a parallel arriving with the children of its branches chosen
+
+
+def _run_reporting_the_waiting_nodes(
+    exchange: ClientAndRunningStatechart, ticks: int
+) -> set[str]:
+    """
+    Let the client answer and the running side tick `ticks` times.
+
+    :return: The names of every node of the running side that was reported waiting for a
+        child.
+    """
+    reported = set()
+    for _ in range(ticks):
+        feedback = exchange.feedback_publisher.create_states()
+        reported |= {
+            exchange.running.statechart.get_node_by_index(int(index)).name
+            for index in feedback[MotionStatechartPayloadKey.WAITING_FOR_CHILD]
+        }
+        exchange.let_the_client_answer()
+        exchange.executor.tick()
+    return reported
+
+
+def _running_node_named(
+    exchange: ClientAndRunningStatechart, name: str
+) -> StatechartNode:
+    """
+    :return: The node of the running side called `name`.
+    """
+    [node] = [node for node in exchange.running.statechart.nodes if node.name == name]
+    return node
+
+
+def test_branches_that_chose_before_they_were_sent_start_together_unasked() -> None:
+    """
+    The branches of a parallel arrive with their children chosen, so none of them waits
+    for the client, and their children start on the tick the parallel starts.
+    """
+    chooser = ChooserGivingAParallelOfBranchesThatChose()
+    exchange = ClientAndRunningStatechart(client_chooser=chooser)
+    exchange.start()
+
+    reported = _run_reporting_the_waiting_nodes(exchange, ticks=10)
+
+    branches = [_running_node_named(exchange, f"branch {i}") for i in range(2)]
+    assert [
+        [child.name for child in branch.chosen_children] for branch in branches
+    ] == [[child.name] for child in chooser.first_children]
+    assert reported.isdisjoint(branch.name for branch in branches)
+    history = exchange.running.statechart.state_history
+    start_ticks = {
+        history.get_current_run_ticks_of_node(branch.latest_child).start_tick
+        for branch in branches
+    }
+    assert len(start_ticks) == 1
+
+
+def test_only_the_branch_whose_child_failed_waits_for_a_new_one() -> None:
+    chooser = ChooserGivingAParallelOfBranchesThatChose(
+        first_children=[
+            NodeSucceedingOnObservingTrue(
+                name="undecided", observation=ObservationStateValues.UNKNOWN
+            ),
+            _node_succeeding_at_once("first child of branch 1"),
+        ],
+        failure_monitors_of_first_children=[
+            [CountTicks(name="timeout", ticks=2)],
+            [],
+        ],
+    )
+    exchange = ClientAndRunningStatechart(client_chooser=chooser)
+    exchange.start()
+
+    reported = _run_reporting_the_waiting_nodes(exchange, ticks=15)
+
+    failed_branch = _running_node_named(exchange, "branch 0")
+    undecided, chosen_again = failed_branch.chosen_children
+    assert "branch 0" in reported
+    assert "branch 1" not in reported
+    assert undecided.life_cycle_state == LifeCycleValues.FAILED
+    assert chosen_again.life_cycle_state == LifeCycleValues.SUCCEEDED

@@ -311,6 +311,13 @@ class Statechart(SubclassJSONSerializer):
     order.
     """
 
+    _replacements: dict[StatechartNode, StatechartNode] = field(
+        default_factory=dict, init=False, repr=False
+    )
+    """
+    The node put in the place of every node that left this statechart by being replaced.
+    """
+
     _nodes: list[StatechartNode] = field(default_factory=list, init=False, repr=False)
     """
     Cache of all nodes in index order, appended to in :meth:`add_node`.
@@ -640,6 +647,17 @@ class Statechart(SubclassJSONSerializer):
             if not holds_node:
                 self.remove_node(node)
                 self._replaced_nodes.remove(record)
+                self._replacements[node] = replacement
+
+    def node_in_place_of(self, node: StatechartNode) -> StatechartNode:
+        """
+        :param node: A node that belongs, or belonged, to this statechart.
+        :return: `node` itself while it belongs to this statechart, else the node that
+            replaced it, followed through every later replacement.
+        """
+        while node in self._replacements:
+            node = self._replacements[node]
+        return node
 
     @staticmethod
     def _check_not_referenced(
@@ -967,6 +985,12 @@ class Statechart(SubclassJSONSerializer):
                 for node in written_nodes
                 if node.parent_node is not None
             },
+            StatechartJSONKey.CHOSEN_CHILDREN: {
+                node.index: [child.index for child in node.chosen_children]
+                for node in written_nodes
+                if isinstance(node, CompositeNodeChoosingItsChild)
+                and node.chosen_children
+            },
         }
 
     @classmethod
@@ -1028,6 +1052,12 @@ class Statechart(SubclassJSONSerializer):
             self.get_node_by_index(int(parent_index)).nodes = [
                 self.get_node_by_index(child_index) for child_index in child_indices
             ]
+        for node_index, child_indices in data[
+            StatechartJSONKey.CHOSEN_CHILDREN
+        ].items():
+            self.get_node_by_index(int(node_index)).restore_chosen_children(
+                [self.get_node_by_index(child_index) for child_index in child_indices]
+            )
 
     def sanity_check(self) -> None:
         """

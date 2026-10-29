@@ -2,9 +2,9 @@ from __future__ import annotations, division
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from itertools import combinations, takewhile
+from itertools import combinations, count, takewhile
 
-from typing_extensions import Any, Generator, Generic, TypeVar
+from typing_extensions import Any, Generator, Generic, Iterator, TypeVar
 
 from krrood.adapters.json_serializer import JSONField
 from krrood.entity_query_language.backends import QueryBackend
@@ -1180,6 +1180,15 @@ class CompositeNodeChoosingItsChild(SucceedsOnObservingTrue, CompositeNode):
         self.success_condition = logic_or(self.success_condition, child.is_succeeded)
         self.statechart.request_rebuild(self)
 
+    def restore_chosen_children(self, children: list[StatechartNode]) -> None:
+        """
+        Take `children` as the children this node chose, as written by the statechart it
+        was sent from, whose conditions already wire them.
+
+        :param children: Children of this node, in the order they were chosen.
+        """
+        self._chosen_children = list(children)
+
     def give_up_on_child_when(
         self, child: StatechartNode, failure_monitors: list[StatechartNode]
     ) -> None:
@@ -1288,8 +1297,11 @@ class StatementNode(CompositeNodeChoosingItsChild):
     def reached_candidate_limit(self) -> bool:
         """
         :return: Whether the last run through the statement stopped because it yielded
-            :attr:`candidate_limit` candidates.
+            :attr:`candidate_limit` candidates, which a statement that never ran through
+            its statement did not.
         """
+        if self.candidate_limit is None:
+            return False
         return self._candidates_pulled >= self.candidate_limit
 
     def next_candidate(
@@ -1365,3 +1377,216 @@ class StatementNode(CompositeNodeChoosingItsChild):
 
     def __repr__(self) -> str:
         return f"{self.statement._type_.__name__}"
+
+
+# %% running a parallel whose statements are grounded together
+
+
+@dataclass
+class RankedCandidates:
+    """
+    The candidates a statement yields, in the order it yields them, pulled from it only
+    as far as they are asked for.
+    """
+
+    statement: StatementNode
+    """
+    The node whose statement yields the candidates.
+    """
+
+    query_backend: QueryBackend
+    """
+    The backend answering the statement.
+    """
+
+    default_candidate_limit: int
+    """
+    How many candidates the statement yields at most if it has no limit of its own.
+    """
+
+    pulled: list[Any] = field(default_factory=list, init=False)
+    """
+    The candidates pulled so far, in rank order.
+    """
+
+    exhausted: bool = field(default=False, init=False)
+    """
+    Whether there is no candidate beyond :attr:`pulled`.
+    """
+
+    def at(self, rank: int) -> Any | None:
+        """
+        :param rank: The position of the candidate in the ranking, the first at 0.
+        :return: The candidate at `rank`, or None if there are fewer.
+        """
+        while len(self.pulled) <= rank and not self.exhausted:
+            candidate = self.statement.next_candidate(
+                self.query_backend, self.default_candidate_limit
+            )
+            if candidate is None:
+                self.exhausted = True
+            else:
+                self.pulled.append(candidate)
+        return self.pulled[rank] if rank < len(self.pulled) else None
+
+
+@dataclass
+class CandidateCombinations:
+    """
+    Every combination of one candidate of each ranking, those with the lowest sum of
+    ranks first, so the candidates every ranking puts first are combined before any
+    combination takes a later one.
+    """
+
+    rankings: list[RankedCandidates]
+    """
+    The rankings a combination takes one candidate of each, in their order.
+    """
+
+    def __iter__(self) -> Iterator[tuple[Any, ...]]:
+        """
+        :return: The combinations, each holding one candidate per ranking, in the order
+            of :attr:`rankings`.
+        """
+        for rank_sum in count():
+            for ranks in self._ranks_summing_to(rank_sum, len(self.rankings)):
+                combination = tuple(
+                    ranking.at(rank) for ranking, rank in zip(self.rankings, ranks)
+                )
+                if all(candidate is not None for candidate in combination):
+                    yield combination
+            # Every ranking was asked for its candidate at rank_sum above, so each is
+            # exhausted once rank_sum outgrew it.
+            if all(ranking.exhausted for ranking in self.rankings) and (
+                rank_sum >= self._highest_rank_sum
+            ):
+                return
+
+    @property
+    def _highest_rank_sum(self) -> int:
+        """
+        :return: The sum of the ranks of the last candidate pulled from every ranking.
+        """
+        highest_rank_sum = 0
+        for ranking in self.rankings:
+            highest_rank_sum += len(ranking.pulled) - 1
+        return highest_rank_sum
+
+    @classmethod
+    def _ranks_summing_to(cls, total: int, parts: int) -> Iterator[tuple[int, ...]]:
+        """
+        :param total: What the ranks add up to.
+        :param parts: How many ranks there are.
+        :return: Every tuple of `parts` ranks that add up to `total`.
+        """
+        if parts == 0:
+            if total == 0:
+                yield ()
+            return
+        for first in range(total + 1):
+            for rest in cls._ranks_summing_to(total - first, parts - 1):
+                yield first, *rest
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class UnderspecifiedParallel(CompositeNodeChoosingItsChild):
+    """
+    Runs a parallel whose statements are grounded together, into one combination of
+    their candidates, when this node starts, so that every branch starts with the
+    candidate that suits the others.
+
+    The chooser of the context builds the parallel the combination it settles on runs
+    in, as this node's one child per run.
+    """
+
+    parallel: Parallel = field(metadata=JSONMetadata(serialize=False).as_dict())
+    """
+    The parallel as it was written, which belongs to no statechart.
+
+    Not serialized: a process ticking the statechart elsewhere receives the chosen
+    child rather than building it itself.
+    """
+
+    statements: list[StatementNode] = field(
+        metadata=JSONMetadata(serialize=False).as_dict()
+    )
+    """
+    The statements of :attr:`parallel` that are grounded together.
+
+    Not serialized, like :attr:`parallel`.
+    """
+
+    _combinations: Iterator[tuple[Any, ...]] | None = field(
+        default=None, init=False, repr=False
+    )
+    """
+    The combinations of the candidates of :attr:`statements`, open from the first pull
+    until they are exhausted or released by :meth:`stop_grounding`.
+    """
+
+    def next_combination(
+        self, query_backend: QueryBackend, default_candidate_limit: int
+    ) -> dict[StatementNode, Any] | None:
+        """
+        Grounds :attr:`statements` into their next combination of candidates, against
+        the world as it is now, see :class:`CandidateCombinations`.
+
+        :param query_backend: The backend answering the statements.
+        :param default_candidate_limit: How many candidates a statement without a limit
+            of its own yields.
+        :return: The candidate of each of :attr:`statements`, or None once there is no
+            combination left.
+        """
+        if self._combinations is None:
+            self._combinations = iter(
+                CandidateCombinations(
+                    rankings=[
+                        RankedCandidates(
+                            statement=statement,
+                            query_backend=query_backend,
+                            default_candidate_limit=default_candidate_limit,
+                        )
+                        for statement in self.statements
+                    ]
+                )
+            )
+        combination = next(self._combinations, None)
+        if combination is None:
+            self.stop_grounding()
+            return None
+        return dict(zip(self.statements, combination))
+
+    def stop_grounding(self) -> None:
+        """
+        Releases the combinations and the candidates of :attr:`statements` once no
+        further child will be asked for.
+
+        The next :meth:`next_combination` grounds the statements anew.
+        """
+        self._combinations = None
+        for statement in self.statements:
+            statement.stop_grounding()
+
+    def on_reset(self) -> None:
+        """
+        Differs from :meth:`CompositeNodeChoosingItsChild.on_reset` in also grounding
+        the statements anew once this node starts again.
+        """
+        super().on_reset()
+        self.stop_grounding()
+
+    def cleanup(self) -> None:
+        self.stop_grounding()
+
+    def to_json(self, **kwargs: Any) -> dict[str, Any]:
+        """
+        :return: The JSON representation of the node choosing its child that this is,
+            since the parallel is not sent.
+        """
+        return {
+            **super().to_json(**kwargs),
+            JSONField.TYPE: get_full_class_name(CompositeNodeChoosingItsChild),
+        }
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({', '.join(map(repr, self.statements))})"
