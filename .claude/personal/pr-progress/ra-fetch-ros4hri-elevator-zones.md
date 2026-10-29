@@ -1,27 +1,12 @@
-## ra-fetch-ros4hri-elevator-zones — PR AICOR-Solutions/cognitive_robot_abstract_machine#1 (base: ra-fetch-milestone, author maltehue)
-
-Addressing Tigul's CHANGES_REQUESTED review (12 threads, head de0706436c).
-Plan: /home/jdech/.claude/plans/there-is-a-review-humble-dewdrop.md
-User decisions (2026-10-27): social nav = ROS 2 action via Giskard
-ActionServerTask + monitor; interface pkg in repo (experiments/ros/
-ra_fetch_interfaces, built via symlink into /home/jdech/workspace/ros/src,
-colcon --merge-install); task lives in experiments; areas = Regions +
-InsideRegion; ElevatorDrive = Gazebo-only InputSynchronizer
-(experiments.tiago_arise_gazebo); ElevatorPeople.main fetches live world;
-StillProgressing exempts AwaitingExternalResult (giskardpy, ActionServerTask);
-keep RobotDemonstration.conclude; fixes as new commits, no force-push.
-
-Local commits (not pushed yet): da6f0581f4 areas as Regions; 519d566ef9
-TrackedPersons synchronizer (+TfFrameSynchronizer.untrack); 761eed1274
-ElevatorDrive synchronizer; a34495d8d2 robot annotation; 87cd3ddc76
-Elevator.doorway_pose + Level.under; 6a005845b2 giskardpy stall exemption;
-(amended) BoardElevator action step 6.
-
-Verified: semDT areas/office/ORM/specs/semantic_annotations/worlds (1
-pre-existing fail on HEAD too), input sync, giskardpy statechart+orm,
-experiments tiago_arise_gazebo + test_social_navigation (8).
-NOT verified: experiments tests importing hri_msgs (not installed; user to
-`sudo apt install ros-jazzy-hri-msgs`). CI does not run experiments tests.
-
-Next: run hri_msgs tests once installed; push to aicor-solutions; PR body;
-reply + resolve threads; draft state per notes (PR is maltehue's).
+## ra-fetch-milestone: Tiago says its belief state while using the elevator
+Done:
+- 149ae77cc8 (user commit): `PublishMessageMotion` + `TiagoTopic.TEXT_TO_SPEECH`.
+  Its test file test/coraplex_test/test_designator/test_publish_message_motion.py is
+  still untracked.
+- 2026-10-29, uncommitted: `AbstractRobot.text_to_speech_topic` (Tiago -> tts),
+  `Level.spoken_name`, coraplex `SayAction` (core/speech.py; silent without a topic or
+  ROS node), `PassDoorAction.waiting_announcement`, `ElevatorRideAnnouncement` with 4
+  sentences in `ElevatorNavigation`, `ElevatorBoardingAnnouncement` in the waiting
+  demo. Fixed the unused `tiago_apartment_world` fixture (duplicate Tiago). Tests pass.
+Known: test_elevator_navigation[stretch] fails on the baseline too (time limit).
+Next: commit when the user asks; try on the real Tiago (`ros2 topic echo /tts`).
