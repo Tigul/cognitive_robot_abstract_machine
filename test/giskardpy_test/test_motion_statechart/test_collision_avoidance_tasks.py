@@ -177,7 +177,13 @@ def test_external_collision_avoidance_battle():
         strong = Body(
             name=PrefixedName("strong"),
             collision=ShapeCollection(
-                [Cylinder(width=0.1, height=0.1, color=Color(R=1, G=0, B=0, A=1))]
+                [
+                    Cylinder(
+                        width=0.1,
+                        height=0.1,
+                        color=Color.from_rgba(red=1, green=0, blue=0, opacity=1),
+                    )
+                ]
             ),
         )
         strong_robot_world.add_body(strong)
@@ -188,7 +194,13 @@ def test_external_collision_avoidance_battle():
         weak = Body(
             name=PrefixedName("weak"),
             collision=ShapeCollection(
-                [Cylinder(width=0.1, height=0.1, color=Color(R=0, G=0, B=1, A=1))]
+                [
+                    Cylinder(
+                        width=0.1,
+                        height=0.1,
+                        color=Color.from_rgba(red=0, green=0, blue=1, opacity=1),
+                    )
+                ]
             ),
         )
         weak_robot_world.add_body(weak)
@@ -1551,12 +1563,17 @@ def assert_bodies_keep_distance(
     world: World, bodies: Iterable[Body], minimum_distance: float
 ) -> None:
     """
-    Asserts that every contact of one of ``bodies`` is at least ``minimum_distance``
-    away.
+    Asserts that the collision matrix checks ``bodies`` and that every contact of one of
+    them is at least ``minimum_distance`` away.
+
+    A checked pair without a contact is farther apart than its checking range.
     """
     bodies = set(bodies)
+    assert any(
+        check.body_a in bodies or check.body_b in bodies
+        for check in world.collision_manager.collision_matrix.collision_checks
+    )
     contacts = world.collision_manager.compute_collisions().contacts
-    assert len(contacts) > 0
     for contact in contacts:
         if contact.body_a in bodies or contact.body_b in bodies:
             assert contact.distance >= minimum_distance, (

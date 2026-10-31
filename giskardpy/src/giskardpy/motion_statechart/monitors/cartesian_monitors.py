@@ -3,7 +3,6 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 
-from typing_extensions import Optional
 
 import krrood.symbolic_math.symbolic_math as sm
 from giskardpy.motion_statechart.binding_policy import (
@@ -43,7 +42,7 @@ class RootRelativeGoalMonitor(
     See :class:`GoalBindingPolicy`.
     """
 
-    _forward_kinematics_binding: Optional[ForwardKinematicsBinding] = field(
+    _forward_kinematics_binding: ForwardKinematicsBinding | None = field(
         default=None, init=False, repr=False
     )
     """

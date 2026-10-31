@@ -20,7 +20,38 @@ from giskardpy.motion_statechart.tasks.joint_tasks import (
     JointVelocityLimit,
 )
 from semantic_digital_twin.datastructures.joint_state import JointState
+from semantic_digital_twin.datastructures.robots.gripper_configuration import (
+    GripperConfiguration,
+)
+from semantic_digital_twin.robots.robot_part_mixins import HasTwoFingers
 from semantic_digital_twin.world_description.connections import ActiveConnection1DOF
+
+# %% bringing a gripper into a configuration
+
+
+class MovesGripperToConfiguration(ABC):
+    """
+    A node bringing a gripper into a configuration, built for any configuration the same
+    way, so which kind of node does it can be chosen without knowing what each one
+    needs.
+    """
+
+    @classmethod
+    @abstractmethod
+    def moving_gripper_to(
+        cls,
+        configuration: GripperConfiguration,
+        finger_stall_minimum_time: float | None = None,
+        tolerate_finger_stall: bool = False,
+    ) -> StatechartNode:
+        """
+        :param configuration: The configuration to bring the gripper of its end effector
+            into.
+        :param finger_stall_minimum_time: See :attr:`~giskardpy.motion_statechart.mixins.HasFingerStallToleranceParameters.finger_stall_minimum_time`.
+        :param tolerate_finger_stall: See :attr:`~giskardpy.motion_statechart.mixins.HasFingerStallToleranceParameters.tolerate_finger_stall`.
+        :return: A new node bringing the gripper into `configuration`.
+        """
+
 
 # %% finger goals
 
@@ -28,6 +59,7 @@ from semantic_digital_twin.world_description.connections import ActiveConnection
 @dataclass(eq=False, repr=False, kw_only=True)
 class MoveFingers(
     Parallel,
+    MovesGripperToConfiguration,
     HasJointVelocityLimitParameter,
     HasFingerStallToleranceParameters,
     ABC,
@@ -43,6 +75,34 @@ class MoveFingers(
     """
     The finger goal, together with the speed cap if one was asked for.
     """
+
+    @classmethod
+    def moving_gripper_to(
+        cls,
+        configuration: GripperConfiguration,
+        finger_stall_minimum_time: float | None = None,
+        tolerate_finger_stall: bool = False,
+    ) -> MoveFingers:
+        """
+        :return: A new goal driving the fingers into `configuration` at its finger
+            velocity: to the width its fingertips stand apart in its joint state for a
+            two-finger gripper, to its joint state for any other hand.
+        """
+        end_effector = configuration.end_effector
+        if isinstance(end_effector, HasTwoFingers):
+            return MoveGripper(
+                gripper=end_effector,
+                width=end_effector.separation_at(configuration.joint_state),
+                max_joint_velocity=configuration.finger_velocity,
+                finger_stall_minimum_time=finger_stall_minimum_time,
+                tolerate_finger_stall=tolerate_finger_stall,
+            )
+        return MoveFingersToJointState(
+            goal=configuration.joint_state,
+            max_joint_velocity=configuration.finger_velocity,
+            finger_stall_minimum_time=finger_stall_minimum_time,
+            tolerate_finger_stall=tolerate_finger_stall,
+        )
 
     @property
     @abstractmethod

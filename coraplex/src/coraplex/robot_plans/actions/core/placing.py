@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from typing_extensions import Any, Tuple
+from typing_extensions import Any
 
 from krrood.entity_query_language.factories import (
     variable_from,
@@ -23,6 +23,7 @@ from coraplex.robot_plans.mixins import (
     HasPlaceTuningParameters,
     HasPlacementTargetParameter,
     MovesToolCenterPoint,
+    OperatesGripper,
     ReattachesBranches,
 )
 from semantic_digital_twin.collision_checking.collision_matrix import CollisionRule
@@ -39,6 +40,7 @@ from semantic_digital_twin.spatial_types.spatial_types import Pose
 @dataclass(eq=False, repr=False, kw_only=True)
 class PlaceAction(
     MovesToolCenterPoint,
+    OperatesGripper,
     ReattachesBranches,
     SequentialAction,
     HasGraspableObjectParameter,
@@ -89,10 +91,11 @@ class PlaceAction(
             ),
             Parallel(
                 nodes=[
-                    self.create_finger_goal(
-                        arm.end_effector,
-                        GripperState.OPEN,
-                        max_joint_velocity=self.release_opening_velocity,
+                    self.gripper_goal_type.moving_gripper_to(
+                        arm.end_effector.default_configuration(
+                            GripperState.OPEN,
+                            finger_velocity=self.release_opening_velocity,
+                        )
                     ),
                     # Keeps the gripper in place while it opens, whatever else
                     # moves the robot meanwhile.
@@ -122,7 +125,7 @@ class PlaceAction(
             ),
         ]
 
-    def _holding_arm_and_grasp(self) -> Tuple[Arm, GraspCandidate]:
+    def _holding_arm_and_grasp(self) -> tuple[Arm, GraspCandidate]:
         """
         The arm that holds :attr:`object_designator`, and the grasp it holds it by.
 

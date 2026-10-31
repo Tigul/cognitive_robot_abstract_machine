@@ -17,6 +17,7 @@ from coraplex.robot_plans.mixins import (
     HasPickUpTuningParameters,
     HasReachTuningParameters,
     MovesToolCenterPoint,
+    OperatesGripper,
     ReattachesBranches,
 )
 from semantic_digital_twin.collision_checking.collision_matrix import CollisionRule
@@ -36,6 +37,7 @@ logger = logging.getLogger(__name__)
 @dataclass(eq=False, repr=False, kw_only=True)
 class ReachAction(
     MovesToolCenterPoint,
+    OperatesGripper,
     SequentialAction,
     HasGraspCandidateParameter,
     HasArmParameter,
@@ -80,7 +82,9 @@ class ReachAction(
         ]
         if self.open_gripper_at_pre_pose:
             children.append(
-                self.create_finger_goal(self.arm.end_effector, GripperState.OPEN)
+                self.gripper_goal_type.moving_gripper_to(
+                    self.arm.end_effector.default_configuration(GripperState.OPEN)
+                )
             )
         children.append(
             self.tool_center_point_goal(
@@ -179,6 +183,7 @@ class PickUpAction(
 @dataclass(eq=False, repr=False, kw_only=True)
 class GraspingAction(
     MovesToolCenterPoint,
+    OperatesGripper,
     SequentialAction,
     HasGraspCandidateParameter,
     HasArmParameter,
@@ -217,10 +222,10 @@ class GraspingAction(
                 grasp_detection_threshold=self.grasp_detection_threshold,
             ),
             self.closing_step(
-                self.create_finger_goal(
-                    self.arm.end_effector,
-                    GripperState.CLOSE,
-                    max_joint_velocity=self.grasp_closing_velocity,
+                self.gripper_goal_type.moving_gripper_to(
+                    self.arm.end_effector.default_configuration(
+                        GripperState.CLOSE, finger_velocity=self.grasp_closing_velocity
+                    ),
                     finger_stall_minimum_time=self.finger_stall_minimum_time,
                     tolerate_finger_stall=self.tolerate_finger_stall,
                 )

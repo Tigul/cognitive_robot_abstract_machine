@@ -20,11 +20,10 @@ from coraplex.robot_plans.actions.core.robot_body import (
 from coraplex.robot_plans.mixins import (
     DesignatorParameterMixin,
     HasArmParameter,
-    HasEndEffectorParameter,
     HasGraspableObjectParameter,
     HasGraspApproachParameters,
     HasGraspCandidateParameter,
-    HasGripperStateParameter,
+    HasGripperConfigurationParameter,
     HasNavigationTargetParameter,
     HasPlaceTuningParameters,
     HasPlacementTargetParameter,
@@ -123,11 +122,8 @@ def test_open_action_takes_hold_of_its_handle_by_a_grasp():
     }
 
 
-def test_set_gripper_action_names_the_end_effector_it_sets():
-    assert parameter_mixins(SetGripperAction) == {
-        HasEndEffectorParameter,
-        HasGripperStateParameter,
-    }
+def test_set_gripper_action_takes_the_configuration_it_reaches():
+    assert parameter_mixins(SetGripperAction) == {HasGripperConfigurationParameter}
 
 
 # %% runtime resolution of the inherited field types

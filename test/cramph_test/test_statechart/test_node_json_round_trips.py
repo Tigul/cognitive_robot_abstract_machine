@@ -14,7 +14,6 @@ from cramph.composites import (
     CompositeNodeChoosingItsChild,
     Parallel,
     PausedUntilTrue,
-    StartedWhenTrue,
     PausedWhileTrue,
     RepeatUntil,
     Sequence,
@@ -35,7 +34,6 @@ from cramph.monitors import (
     CountTicks,
     Print,
     Pulse,
-    ThreadedPredicateMonitor,
 )
 from cramph.node import (
     CancelStatechart,
@@ -180,12 +178,6 @@ def _cases() -> list[NodeRoundTripCase]:
             ],
         ),
         NodeRoundTripCase(
-            StartedWhenTrue,
-            lambda world: [
-                StartedWhenTrue(monitor=ConstTrueNode(), monitored_node=ConstTrueNode())
-            ],
-        ),
-        NodeRoundTripCase(
             StoppedWhenTrue,
             lambda world: [
                 StoppedWhenTrue(
@@ -228,7 +220,7 @@ def node_types_needing_a_case() -> set[type[StatechartNode]]:
     return (
         concrete_node_types(cramph)
         - concrete_node_types(nodes_for_testing)
-        - {FunctionCall, ThreadedPredicateMonitor}
+        - {FunctionCall}
     )
 
 

@@ -13,7 +13,7 @@ from coraplex.exceptions import (
     MotionDidNotFinish,
     PlanNotCompiled,
 )
-from coraplex.plans.context_extensions import StatementGrounding
+from coraplex.plans.context_extensions import RobotAccess, StatementGrounding
 from coraplex.plans.failures import (
     CandidateLimitReached,
     EmptyUnderspecified,
@@ -85,7 +85,8 @@ class PlanExecutor(Executor, ABC):
     :class:`~coraplex.plans.plan_transformation.PlanRewriting` with default values are
     added unless one is there; the executor replaces the latter with one offering every
     node to :attr:`robot_adaptations` and :attr:`plan_adaptations` first. A context
-    serves one executor. :meth:`compile` adds what a plan runs with: the collision avoidance if asked for, one
+    serves one executor. :meth:`compile` adds what a plan runs with: the collision
+    avoidance of the robot of :attr:`context` if asked for, one
     :class:`~giskardpy.motion_statechart.graph_node.EndMotion` once every plan node
     succeeded or one of them ended without succeeding, and the stall detection.
     Underspecified actions are grounded while it runs, see
@@ -152,15 +153,16 @@ class PlanExecutor(Executor, ABC):
         if self.debug and self.ros_node is None:
             raise DebuggingWithoutRosNode()
         self.supplied_context_extensions = list(self.context.extensions.values())
+        self.child_chooser = UnderspecifiedChildChooser(
+            executor=self, trial_executor_type=KinematicallySimulatedPlanExecutor
+        )
+        # Raises for a context another executor runs on before anything of it changed.
+        self.context.add_extension(ChildChooserAccess(choosers=[self.child_chooser]))
         rewriting = self.context.get_extension(PlanRewriting)
         if rewriting is not None:
             self.context.extensions[type(rewriting)] = (
                 rewriting.copy_with_preceding_transformations(self.adaptations)
             )
-        self.child_chooser = UnderspecifiedChildChooser(
-            executor=self, trial_executor_type=KinematicallySimulatedPlanExecutor
-        )
-        self.context.add_extension(ChildChooserAccess(choosers=[self.child_chooser]))
         super().__post_init__()
 
     def default_context_extensions(self) -> list[ContextExtension]:
@@ -200,8 +202,9 @@ class PlanExecutor(Executor, ABC):
         # a transformation may have put a plan node below a node holding it
         self.plan_nodes = list(statechart.top_level_nodes)
         if self.collision_avoidance:
-            statechart.add_node(ExternalCollisionAvoidance())
-            statechart.add_node(SelfCollisionAvoidance())
+            robot = self.context.require_extension(RobotAccess).robot
+            statechart.add_node(ExternalCollisionAvoidance(robot=robot))
+            statechart.add_node(SelfCollisionAvoidance(robot=robot))
         self._add_end_of_plan(statechart)
         self._add_stall_detection(statechart)
 

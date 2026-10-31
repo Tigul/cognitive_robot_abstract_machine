@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import timedelta
 
-from typing_extensions import Optional, Any, List
+from typing_extensions import Any
 
 from semantic_digital_twin.collision_checking.collision_matrix import CollisionRule
 from semantic_digital_twin.collision_checking.collision_rules import (
@@ -23,10 +23,11 @@ from coraplex.robot_plans.mixins import (
     HasArmParameter,
     HasEndEffectorParameter,
     HasGripperCollisionParameter,
-    HasGripperStateParameter,
+    HasGripperConfigurationParameter,
     HasTargetPoseParameter,
     HasTorsoStateParameter,
     MovesToolCenterPoint,
+    OperatesGripper,
 )
 from cramph.composites import Sequence
 from cramph.node import StatechartNode
@@ -60,13 +61,13 @@ class MoveTorsoAction(SequentialAction, HasTorsoStateParameter):
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
-class SetGripperAction(GoalAction, HasEndEffectorParameter, HasGripperStateParameter):
+class SetGripperAction(OperatesGripper, GoalAction, HasGripperConfigurationParameter):
     """
-    Set the gripper state of the robot.
+    Moves a gripper to the given configuration.
     """
 
     def create_goal(self) -> StatechartNode:
-        return self.create_finger_goal(self.end_effector, self.motion)
+        return self.gripper_goal_type.moving_gripper_to(self.configuration)
 
 
 @dataclass(eq=False, repr=False, kw_only=True)
@@ -121,7 +122,7 @@ class ParkArmsAction(ParallelAction, HasJointVelocityLimitParameter):
     Park the arms of the robot.
     """
 
-    arms: List[Arm]
+    arms: list[Arm]
     """
     The arms that should be parked.
     """
@@ -198,7 +199,7 @@ class FollowToolCenterPointPathAction(
 
     def validate(
         self,
-        result: Optional[Any] = None,
+        result: Any | None = None,
         max_wait_time: timedelta = timedelta(seconds=2),
     ):
         pass

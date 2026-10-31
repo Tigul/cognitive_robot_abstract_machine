@@ -81,14 +81,14 @@ class CartesianTask(
         """
         :return: The color of the goal debug expression marker (green).
         """
-        return Color(R=0.0, G=1.0, B=0.0, A=1.0)
+        return Color.from_rgba(red=0.0, green=1.0, blue=0.0, opacity=1.0)
 
     @classproperty
     def CURRENT_COLOR(cls) -> Color:
         """
         :return: The color of the current debug expression marker (red).
         """
-        return Color(R=1.0, G=0.0, B=0.0, A=1.0)
+        return Color.from_rgba(red=1.0, green=0.0, blue=0.0, opacity=1.0)
 
     @property
     def goal_binding_root(self) -> KinematicStructureEntity:
@@ -988,8 +988,8 @@ class CartesianVelocityLimit(
 
     def expand(self) -> None:
         """
-        Create the linear and the angular velocity limit, before the nodes this goal
-        was handed.
+        Create the linear and the angular velocity limit, before the nodes this goal was
+        handed.
         """
         limits = [
             CartesianPositionVelocityLimit(

@@ -12,10 +12,15 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+
 from coraplex.robot_plans.actions.base import Action
 from cramph.node import StatechartNode
 from cramph.world_modification_nodes import MoveBranch
 from cramph.composites import Parallel
+from giskardpy.motion_statechart.goals.gripper import (
+    MoveFingers,
+    MovesGripperToConfiguration,
+)
 from giskardpy.motion_statechart.graph_node import MotionStatechartNode
 from giskardpy.motion_statechart.mixins import HasPoseThresholdParameters
 from giskardpy.motion_statechart.tasks.cartesian_tasks import (
@@ -23,7 +28,10 @@ from giskardpy.motion_statechart.tasks.cartesian_tasks import (
     CartesianPositionVelocityLimit,
     CartesianRotationVelocityLimit,
 )
-from semantic_digital_twin.datastructures.definitions import GripperState, TorsoState
+from semantic_digital_twin.datastructures.definitions import TorsoState
+from semantic_digital_twin.datastructures.robots.gripper_configuration import (
+    GripperConfiguration,
+)
 from semantic_digital_twin.grasping.grasp_candidates import GraspCandidate
 from semantic_digital_twin.robots.robot_parts import Arm, Camera, EndEffector
 from semantic_digital_twin.semantic_annotations.mixins import CanBeGrasped
@@ -31,6 +39,7 @@ from semantic_digital_twin.semantic_annotations.semantic_annotations import Tool
 from semantic_digital_twin.spatial_types import HomogeneousTransformationMatrix
 from semantic_digital_twin.spatial_types.spatial_types import Pose, Pose2D
 from semantic_digital_twin.world_description.world_entity import (
+    Body,
     KinematicStructureEntity,
 )
 
@@ -179,14 +188,14 @@ class HasLookTargetParameter(DesignatorParameterMixin):
 
 
 @dataclass(kw_only=True, eq=False)
-class HasGripperStateParameter(DesignatorParameterMixin):
+class HasGripperConfigurationParameter(DesignatorParameterMixin):
     """
-    Mixin for actions that set the gripper to an open or closed state.
+    Mixin for actions that bring a gripper into a configuration.
     """
 
-    motion: GripperState
+    configuration: GripperConfiguration
     """
-    The gripper state the action sets.
+    The configuration the gripper is to reach.
     """
 
 
@@ -423,26 +432,30 @@ class HasGraspApproachParameters(DesignatorParameterMixin):
         """
         if grasp is None or not grasp.graspable.root.has_collision():
             return self.approach_clearance
-        return self._distance_to_boundary(grasp) + self.approach_clearance
+        return (
+            self.distance_to_boundary(grasp.graspable.root, grasp.grasp_pose)
+            + self.approach_clearance
+        )
 
     @staticmethod
-    def _distance_to_boundary(grasp: GraspCandidate) -> float:
+    def distance_to_boundary(body: Body, reference_T_grasp: Pose) -> float:
         """
-        The distance the gripper has to retrace before it leaves the body's bounding
-        box.
+        The distance the gripper has to retrace from a grasp before it leaves the
+        bounding box of `body`.
 
-        :param grasp: The grasp on the object.
+        :param body: The body whose bounding box the gripper has to leave.
+        :param reference_T_grasp: The grasp frame, whose x-axis is the approach.
         :return: The distance in meters, zero when the grasp already lies outside the
             box.
         """
-        body = grasp.graspable.root
         bounding_box = body.collision.as_bounding_box_collection_in_frame(
             body
         ).bounding_box()
 
-        grasp_position = grasp.grasp_pose.to_np()[:3, 3]
+        body_T_grasp = body._world.transform(reference_T_grasp, body).to_np()
+        grasp_position = body_T_grasp[:3, 3]
         # The grasp frame's x-axis is where the gripper comes from, so it retraces -x.
-        retrace_direction = -grasp.grasp_pose.to_np()[:3, 0]
+        retrace_direction = -body_T_grasp[:3, 0]
         intervals = (
             bounding_box.x_interval,
             bounding_box.y_interval,
@@ -583,6 +596,22 @@ class MovesToolCenterPoint(Action, HasPoseThresholdParameters, ABC):
                 )
             )
         return limits
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class OperatesGripper(Action, ABC):
+    """
+    An action that brings a gripper into a configuration, such as opening or closing
+    it.
+    """
+
+    gripper_goal_type: type[MovesGripperToConfiguration] = field(
+        default=MoveFingers, init=False
+    )
+    """
+    The kind of node bringing the gripper into the configurations this action asks for,
+    as set by the plan transformations configuring the action.
+    """
 
 
 @dataclass(eq=False, repr=False, kw_only=True)

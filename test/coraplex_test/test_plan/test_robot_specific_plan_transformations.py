@@ -775,7 +775,9 @@ def test_a_simulated_garmi_drives_its_fingers_with_a_giskard_goal(
     )[0]
 
     action = prepared(
-        SetGripperAction(end_effector=gripper, motion=GripperState.OPEN),
+        SetGripperAction(
+            configuration=gripper.default_configuration(GripperState.OPEN)
+        ),
         simulated_executor(garmi_extensions),
     )
 
