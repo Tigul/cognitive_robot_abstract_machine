@@ -8,7 +8,6 @@ from dataclasses import dataclass, field, fields
 from typing_extensions import (
     TYPE_CHECKING,
     Any,
-    Callable,
 )
 
 from coraplex.datastructures.enums import ActionTrialVisualization
@@ -23,7 +22,6 @@ from cramph.visualization import RvizVisualization
 from cramph.context import StatechartContext
 from cramph.composites import (
     ChildChooser,
-    ChildChooserAccess,
     CompositeNodeChoosingItsChild,
     ControlStructureNode,
     ControlStructureNodeRunningItsChildrenInTurn,
@@ -125,73 +123,63 @@ class CandidateHandOver(PlanChildChooser[StatementNode]):
             rewriting.treat_as_offered(node)
 
 
-@dataclass
-class NoFurtherCandidate(ChildChooser[StatementNode]):
-    """
-    Gives a statement no candidate beyond the one it was handed, so a trial in which a
-    candidate fails fails, rather than grounding the statement anew.
-    """
-
-    def choose_child(self, node: StatementNode) -> StatechartNode | None:
-        return None
-
-
-# %% rebuilding a parallel onto a world
+# %% rebuilding part of a plan onto a world
 
 
 @dataclass
-class BuiltParallel:
+class BuiltSubtree:
     """
-    A parallel rebuilt onto a world, and the candidate each of its statements that was
-    grounded beforehand runs.
+    A node of a plan and everything below it rebuilt onto a world, and the candidate
+    each of its statements that was grounded beforehand runs.
     """
 
-    parallel: Parallel
+    root: StatechartNode
     """
-    The rebuilt parallel.
+    The rebuilt node.
     """
 
     candidates: dict[StatementNode, Action]
     """
-    The candidate each statement of :attr:`parallel` that was grounded beforehand runs.
+    The candidate each statement of :attr:`root` that was grounded beforehand runs.
     """
 
     def hand_over_candidates(self) -> None:
         """
-        Let every statement of :attr:`candidates` run its candidate, once
-        :attr:`parallel` joined a statechart.
+        Let every statement of :attr:`candidates` run its candidate, once :attr:`root`
+        joined a statechart.
         """
         for statement, candidate in self.candidates.items():
             statement.choose_child_with(CandidateHandOver(candidate=candidate))
 
 
 @dataclass
-class ParallelRebuild:
+class SubtreeRebuild:
     """
-    Rebuilds a parallel of a plan onto a world, putting candidates in for its
-    statements.
+    Rebuilds a node of a plan and everything below it onto a world, putting candidates
+    in for its statements.
 
     Every node is built anew from the fields it is constructed with, an action from its
     parameters, see :meth:`~coraplex.robot_plans.actions.base.Action.rebound_to`, a
-    statement as a statement of its own, running the candidate it is handed, if any,
-    and any other node choosing its child as the child it runs now.
+    statement with the candidate it is put in for, see :meth:`build` and
+    :meth:`build_for_trial`, and any other node choosing its child as the child it runs
+    now.
     """
 
-    parallel: Parallel
+    root: StatechartNode
     """
-    The parallel rebuilt.
+    The node rebuilt with everything below it.
     """
 
     candidates: dict[StatementNode, Action]
     """
-    The candidate each statement of :attr:`parallel` runs once rebuilt; a statement
-    without one grounds one itself.
+    The candidate each statement of :attr:`root` runs once rebuilt; a statement without
+    one grounds one itself.
     """
 
     left_out: set[StatechartNode] = field(default_factory=set)
     """
-    The nodes of :attr:`parallel` left out of the rebuilt parallel, with everything
-    below them.
+    The nodes below :attr:`root` left out of the rebuilt one, with everything below
+    them.
     """
 
     _world: World | None = field(default=None, init=False, repr=False)
@@ -199,25 +187,24 @@ class ParallelRebuild:
     The world the current :meth:`build` rebuilds the nodes onto.
     """
 
-    _cuts_branches: bool = field(default=False, init=False, repr=False)
+    _for_trial: bool = field(default=False, init=False, repr=False)
     """
-    Whether the current :meth:`build` ends a branch before its first statement without a
-    candidate.
+    Whether the current rebuild is built for a trial, see :meth:`build_for_trial`.
     """
 
     _handed_over: dict[StatementNode, Action] = field(
         default_factory=dict, init=False, repr=False
     )
     """
-    The candidate each statement rebuilt by the current :meth:`build` runs.
+    The candidate each statement rebuilt by the current :meth:`build` is handed.
     """
 
     _rebuilt: dict[StatechartNode, StatechartNode | None] = field(
         default_factory=dict, init=False, repr=False
     )
     """
-    Every node the current :meth:`build` rebuilt so far, so that a node referred to
-    twice is rebuilt once.
+    Every node the current rebuild rebuilt so far, so that a node referred to twice is
+    rebuilt once.
     """
 
     _cut: bool = field(default=False, init=False, repr=False)
@@ -227,17 +214,18 @@ class ParallelRebuild:
 
     @classmethod
     def remainder_of(
-        cls, parallel: Parallel, statement: StatementNode, proposal: Action
-    ) -> ParallelRebuild:
+        cls, root: StatechartNode, statement: StatementNode, proposal: Action
+    ) -> SubtreeRebuild:
         """
-        :param parallel: A running parallel.
-        :param statement: The statement of `parallel` grounding a candidate on its own.
+        :param root: A running node of a plan.
+        :param statement: The statement grounding a candidate on its own, `root` or a
+            node below it.
         :param proposal: The candidate proposed for `statement`.
-        :return: The rebuild of what is left to run of `parallel`: the nodes that ended
-            are left out, since what they did is in the world already, a statement
-            running a candidate keeps running it, and `statement` runs `proposal`.
+        :return: The rebuild of what is left to run of `root`: the nodes that ended are
+            left out, since what they did is in the world already, a statement running
+            a candidate keeps running it, and `statement` runs `proposal`.
         """
-        descendants = parallel.descendants
+        descendants = root.descendants
         running_candidates = {
             node: node.grounded_nodes[-1]
             for node in descendants
@@ -246,30 +234,47 @@ class ParallelRebuild:
             and not node.latest_child.life_cycle_state.is_terminal
         }
         return cls(
-            parallel=parallel,
+            root=root,
             candidates={**running_candidates, statement: proposal},
             left_out={
                 node for node in descendants if node.life_cycle_state.is_terminal
             },
         )
 
-    def build(self, world: World, cuts_branches: bool) -> BuiltParallel:
+    def build(self, world: World) -> BuiltSubtree:
         """
         :param world: The world the rebuilt nodes refer to.
-        :param cuts_branches: Whether every branch ends before its first statement
-            without a candidate, as it does for a trial, since what follows that
-            statement depends on how it is grounded.
-        :return: :attr:`parallel` rebuilt onto `world`.
+        :return: :attr:`root` rebuilt onto `world` to run, every statement a statement
+            of its own, which grounds a candidate itself once the one it is handed
+            failed.
+        """
+        return BuiltSubtree(
+            root=self._rebuild_onto(world, for_trial=False),
+            candidates=self._handed_over,
+        )
+
+    def build_for_trial(self, world: World) -> StatechartNode:
+        """
+        :param world: The copy the rebuilt nodes are tried in.
+        :return: :attr:`root` rebuilt onto `world` to be tried: a statement runs its
+            candidate in its place, so a failing candidate fails the trial, and every
+            branch ends before its first statement without a candidate, since what
+            follows that statement depends on how it is grounded.
+        """
+        return self._rebuild_onto(world, for_trial=True)
+
+    def _rebuild_onto(self, world: World, for_trial: bool) -> StatechartNode:
+        """
+        :param world: The world the rebuilt nodes refer to.
+        :param for_trial: Whether the rebuild is built for a trial.
+        :return: :attr:`root` rebuilt onto `world`.
         """
         self._world = world
-        self._cuts_branches = cuts_branches
+        self._for_trial = for_trial
         self._handed_over = {}
         self._rebuilt = {}
         self._cut = False
-        return BuiltParallel(
-            parallel=self._rebuild_node(self.parallel),
-            candidates=self._handed_over,
-        )
+        return self._rebuild_node(self.root)
 
     def _rebuild_node(self, node: StatechartNode) -> StatechartNode | None:
         """
@@ -303,16 +308,19 @@ class ParallelRebuild:
             return None
         return type(node)(**arguments)
 
-    def _rebuild_statement(self, statement: StatementNode) -> StatementNode | None:
+    def _rebuild_statement(self, statement: StatementNode) -> StatechartNode | None:
         """
-        :return: A statement of its own grounding the statement of `statement`, running
-            its candidate from :attr:`candidates`, or None if it has none and branches
-            are cut at such a statement.
+        :return: For a trial, the steps of the candidate of `statement` from
+            :attr:`candidates`, see :meth:`PlanChildChooser.steps_of`, or None if it has
+            none; otherwise a statement of its own grounding the statement of
+            `statement`, handed that candidate if it has one.
         """
         candidate = self.candidates.get(statement)
-        if candidate is None and self._cuts_branches:
-            self._cut = True
-            return None
+        if self._for_trial:
+            if candidate is None:
+                self._cut = True
+                return None
+            return PlanChildChooser.steps_of(candidate.rebound_to(self._world))
         rebuilt = StatementNode(statement=statement.statement)
         if candidate is not None:
             self._handed_over[rebuilt] = candidate.rebound_to(self._world)
@@ -372,7 +380,7 @@ class ParallelRebuild:
 
     def __str__(self) -> str:
         candidates = " beside ".join(map(str, self.candidates.values()))
-        return f"{candidates} in {self.parallel.name}"
+        return f"{candidates} in {self.root.name}"
 
 
 @dataclass
@@ -450,61 +458,20 @@ class ActionTrial:
         """
         return self.executor.context.world
 
-    def succeeds(self, action: Action) -> bool:
+    def succeeds(self, rebuild: SubtreeRebuild) -> bool:
         """
-        Run `action` against the copy and restore the copy afterwards.
+        Run what `rebuild` builds for a trial against the copy, see
+        :meth:`SubtreeRebuild.build_for_trial`, and restore the copy afterwards.
 
-        The action is rebuilt from its own parameters, rebound onto the copy, because an
-        action that modifies the model (attaching a grasped body, say) requires the
-        entities it is given to belong to the world being modified, and because a
-        statechart node belongs to one statechart only. It runs as the child of a
-        statement does, see :meth:`PlanChildChooser.steps_of`, so the nodes a plan
-        transformation puts beside it are tried with it.
-
-        :param action: The grounded action to try out.
-        :return: True if `action` runs to completion without raising an
-            :class:`~cramph.exceptions.ExecutionFailure`.
-        """
-
-        def build(world: World, statechart: Statechart) -> None:
-            statechart.add_node(PlanChildChooser.steps_of(action.rebound_to(world)))
-
-        return self._runs_to_completion(build, str(action))
-
-    def parallel_succeeds(self, rebuild: ParallelRebuild) -> bool:
-        """
-        Run the parallel `rebuild` builds against the copy, every branch cut at its
-        first statement without a candidate and the other statements running the
-        candidates they are handed and no other, and restore the copy afterwards.
-
-        :param rebuild: Builds the parallel to try out.
-        :return: True if the parallel runs to completion without raising an
-            :class:`~cramph.exceptions.ExecutionFailure`.
-        """
-
-        def build(world: World, statechart: Statechart) -> None:
-            built = rebuild.build(world, cuts_branches=True)
-            # A parallel is ended by what holds it.
-            statechart.add_node(Sequence(nodes=[built.parallel]))
-            statechart.context.require_extension(ChildChooserAccess).choosers = [
-                NoFurtherCandidate()
-            ]
-            built.hand_over_candidates()
-
-        return self._runs_to_completion(build, str(rebuild))
-
-    def _runs_to_completion(
-        self, build: Callable[[World, Statechart], None], description: str
-    ) -> bool:
-        """
+        It is rebuilt onto the copy because an action that modifies the model (attaching
+        a grasped body, say) requires the entities it is given to belong to the world
+        being modified, and because a statechart node belongs to one statechart only.
         The version to roll back to is read here rather than when the copy is taken, so
         each attempt undoes only its own modifications.
 
-        :param build: Adds what is tried to the statechart it is given, built over the
-            copy it is given.
-        :param description: What is tried, for the log.
-        :return: True if what `build` adds runs to completion against the copy without
-            raising an :class:`~cramph.exceptions.ExecutionFailure`.
+        :param rebuild: Builds what is tried.
+        :return: True if what `rebuild` builds runs to completion without raising an
+            :class:`~cramph.exceptions.ExecutionFailure`.
         """
         world = self._copy()
         version = world.get_world_model_manager().version
@@ -513,12 +480,13 @@ class ActionTrial:
             try:
                 executor = self._trial_executor(world)
                 statechart = Statechart(context=executor.context)
-                build(world, statechart)
+                # A parallel is ended by what holds it.
+                statechart.add_node(Sequence(nodes=[rebuild.build_for_trial(world)]))
                 executor.compile(statechart)
                 executor.execute()
                 return True
             except ExecutionFailure as failure:
-                logger.info(f"{description} failed its trial: {failure}")
+                logger.info(f"{rebuild} failed its trial: {failure}")
                 return False
             finally:
                 # Undo the model changes before leaving the reset context restores the
@@ -627,8 +595,8 @@ class UnderspecifiedChildChooser(PlanChildChooser[StatementNode]):
 
     A grounded action is tried out first, so one that fails its trial is discarded
     without ever touching the real world, and a bad parameterization cannot poison a
-    later attempt. A statement running in a parallel is tried beside what is left to run
-    of that parallel, see :meth:`ParallelRebuild.remainder_of`.
+    later attempt. It is tried in what is left to run around the statement, see
+    :meth:`SubtreeRebuild.remainder_of`, beside what runs in a parallel with it.
     """
 
     trial: ActionTrial
@@ -643,12 +611,14 @@ class UnderspecifiedChildChooser(PlanChildChooser[StatementNode]):
             None once the statement ran out of actions that succeed their trial.
         """
         grounding = node.context.require_extension(StatementGrounding)
-        parallel = self._parallel_around(node)
+        root = self._remainder_root(node)
         proposal = node.next_candidate(
             grounding.query_backend, grounding.candidates_to_try
         )
         while proposal is not None:
-            if self._succeeds(node, proposal, parallel):
+            if self.trial.succeeds(
+                SubtreeRebuild.remainder_of(root, statement=node, proposal=proposal)
+            ):
                 return self.steps_of(proposal)
             proposal = node.next_candidate(
                 grounding.query_backend, grounding.candidates_to_try
@@ -656,34 +626,22 @@ class UnderspecifiedChildChooser(PlanChildChooser[StatementNode]):
         node.stop_grounding()
         return None
 
-    def _succeeds(
-        self, node: StatementNode, proposal: Action, parallel: Parallel | None
-    ) -> bool:
-        """
-        :return: Whether `proposal` for `node` succeeds its trial, beside what is left to
-            run of `parallel`, or on its own if `node` runs in no parallel.
-        """
-        if parallel is None:
-            return self.trial.succeeds(proposal)
-        return self.trial.parallel_succeeds(
-            ParallelRebuild.remainder_of(parallel, statement=node, proposal=proposal)
-        )
-
     @staticmethod
-    def _parallel_around(node: StatementNode) -> Parallel | None:
+    def _remainder_root(node: StatementNode) -> StatechartNode:
         """
-        :return: The outermost parallel above `node` with no action in between, which
-            holds everything that runs beside it, or None if there is none. A parallel
-            that is an action, and one above an action, are left out, because a trial
-            builds an action anew from its parameters, which grounds what it runs anew.
+        :return: The node holding everything that runs beside `node`: the outermost
+            parallel above it with no action in between, or `node` itself if there is
+            none. A parallel that is an action, and one above an action, are left out,
+            because a trial builds an action anew from its parameters, which grounds
+            what it runs anew.
         """
-        around = None
+        root = node
         for ancestor in node.path:
             if isinstance(ancestor, Action):
-                return around
+                return root
             if isinstance(ancestor, Parallel):
-                around = ancestor
-        return around
+                root = ancestor
+        return root
 
     def cleanup(self) -> None:
         """
@@ -698,7 +656,7 @@ class UnderspecifiedParallelChildChooser(PlanChildChooser[UnderspecifiedParallel
     Grounds the statements of every
     :class:`~cramph.composites.UnderspecifiedParallel` together, into the first
     combination of their candidates whose trial succeeds as the whole parallel, and runs
-    the parallel with them, see :class:`ParallelRebuild`.
+    the parallel with them, see :class:`SubtreeRebuild`.
 
     It chooses once per run of the node: a statement whose child failed grounds a
     candidate of its own, see :class:`UnderspecifiedChildChooser`, so a branch that
@@ -710,7 +668,7 @@ class UnderspecifiedParallelChildChooser(PlanChildChooser[UnderspecifiedParallel
     The trial every combination is tried against.
     """
 
-    _built: dict[UnderspecifiedParallel, BuiltParallel] = field(
+    _built: dict[UnderspecifiedParallel, BuiltSubtree] = field(
         default_factory=dict, init=False, repr=False
     )
     """
@@ -731,11 +689,11 @@ class UnderspecifiedParallelChildChooser(PlanChildChooser[UnderspecifiedParallel
             grounding.query_backend, grounding.candidates_to_try
         )
         while combination is not None:
-            grounded = ParallelRebuild(parallel=node.parallel, candidates=combination)
-            if self.trial.parallel_succeeds(grounded):
-                built = grounded.build(node.context.world, cuts_branches=False)
+            grounded = SubtreeRebuild(root=node.parallel, candidates=combination)
+            if self.trial.succeeds(grounded):
+                built = grounded.build(node.context.world)
                 self._built[node] = built
-                return Sequence(nodes=[built.parallel])
+                return Sequence(nodes=[built.root])
             combination = node.next_combination(
                 grounding.query_backend, grounding.candidates_to_try
             )

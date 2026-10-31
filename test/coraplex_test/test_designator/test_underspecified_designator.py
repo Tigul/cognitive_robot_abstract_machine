@@ -37,6 +37,7 @@ from cramph.threaded_nodes import FunctionCall
 from cramph.state_history import StateHistory, StateHistoryObserver
 from coraplex.plans.underspecified import (
     ActionTrial,
+    SubtreeRebuild,
     UnderspecifiedChildChooser,
 )
 from krrood.entity_query_language.query.match import Match
@@ -310,6 +311,33 @@ class ClaimSlotAction(SequentialAction):
                 probe_key=self.probe_key,
                 fail_on_attempt_number=self.fail_on_attempt_number,
             ),
+        ]
+
+
+@dataclass(eq=False, repr=False, kw_only=True)
+class ClaimSlotThroughAStatementAction(SequentialAction):
+    """
+    Claims a slot through a statement among its steps, as an action leaves part of
+    what it does to be grounded once that part starts.
+    """
+
+    slot: int
+    """
+    The index of the slot this action claims.
+    """
+
+    slot_dof_ids: tuple[UUID, ...]
+    """
+    Ids of the degrees of freedom that stand for the slots.
+    """
+
+    def create_steps(self) -> list[StatechartNode]:
+        return [
+            StatementNode(
+                statement=a(ClaimSlotAction)(
+                    slot=self.slot, slot_dof_ids=self.slot_dof_ids
+                )
+            )
         ]
 
 
@@ -965,7 +993,7 @@ def test_a_trial_tries_an_action_that_already_belongs_to_a_plan(
         executor=executor, trial_executor_type=KinematicallySimulatedPlanExecutor
     )
 
-    assert trial.succeeds(action)
+    assert trial.succeeds(SubtreeRebuild(root=action, candidates={}))
     trial.discard()
 
 
@@ -1207,6 +1235,39 @@ def test_nodes_beside_statements_are_part_of_their_trial(
     ]
     assert statement.grounded_nodes[0].slot == 1
     assert len(statement.chosen_children) == 1
+
+
+def test_a_candidate_grounding_a_statement_of_its_own_is_tried_beside_the_others(
+    apartment_world_pr2_copy_with_context,
+):
+    """
+    The candidate leaves the slot it claims to a statement among its steps, which its
+    trial grounds as running it does.
+    """
+    world, robot, extensions = apartment_world_pr2_copy_with_context
+    slot_dof_ids = _slot_dof_ids(world)
+    plan = Sequence(
+        nodes=[
+            Parallel(
+                nodes=[
+                    a(ClaimSlotThroughAStatementAction)(
+                        slot=variable_from([0]), slot_dof_ids=slot_dof_ids
+                    ),
+                    ClaimSlot(slot=1, slot_dof_ids=slot_dof_ids),
+                ]
+            )
+        ]
+    )
+
+    run_plan(plan, extensions)
+
+    [statement] = [
+        node
+        for node in _grounded_parallel_of(plan).nodes
+        if isinstance(node, StatementNode)
+    ]
+    assert len(statement.chosen_children) == 1
+    assert world.state[slot_dof_ids[0]].position == SlotPosition.CLAIMED
 
 
 # %% a branch failing while its parallel runs
