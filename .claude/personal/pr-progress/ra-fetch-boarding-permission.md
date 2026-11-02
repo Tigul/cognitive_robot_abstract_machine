@@ -1,16 +1,12 @@
 ## ra-fetch-boarding-permission: Tiago is sent to a room by a MOVE_TO intent and asks to board
-Plan: /home/jdech/.claude/plans/moonlit-chasing-hollerith.md (approved 2026-11-02). Base: ra-fetch-milestone.
-Setup done: hri_actions_msgs (apt); std_skills, chatbot_msgs, communication_skills built from
-source in ~/workspace/ros (colcon --merge-install).
-Done (uncommitted, in working tree): ActionServerTask reset fix + tests; Elevator.humans_in_cabin/
-humans_waiting_on; AriseOfficeRoom.spoken_name + find_room_by_spoken_name; NavigateToRoomAction._ride_elevator;
-experiments/tiago_room_request_demo (in-chart AskToBoardTask, BoardingPermissionRequest, RoomRequests, demo);
-tests pass in kinematic simulation.
-BLOCKED on a user decision: in REAL runs charts execute on the Giskard server (GiskardExecutable._execute_real)
-and ControlLoop aborts on any world model change (WorldModelModifiedDuringMotionError). TrackedPersons adds/removes
-Humans with published model changes, so a person appearing during a motion aborts it. Proposed: move the ask/wait
-out of the chart into an ExecutionBoundaryNode run client-side, and keep tracked humans local
-(modify_world(publish_changes=False)) - needs checking state sync of unpublished DOFs.
-Open cleanups: docstrings on test helpers and RoomRequests._hear, remove BoardingPermissionRequest.action_name,
-unused arise_office params in tests.
-Next: get the decision, then finish, commit, draft PR (base ra-fetch-milestone).
+Plan: /home/jdech/.claude/plans/moonlit-chasing-hollerith.md (approved 2026-11-02), then changed with the user's OK:
+asking runs in the demo process between motions (ExecutionBoundaryNode), not in the chart; tracked people stay out of the world.
+Done 2026-11-02, commit fb37e94a7a, draft PR AICOR-Solutions#5 (base ra-fetch-milestone):
+experiments/tiago_room_request_demo (RoomRequests, PersonsAtElevator, AskToBoardAction, demo),
+NavigateToRoomAction._ride_elevator, spoken room names. Kinematic simulation tests pass.
+Setup: hri_actions_msgs (apt); std_skills, chatbot_msgs, communication_skills built from source in ~/workspace/ros.
+Known: ra_fetch_elevator_people 2 failures ('x' field must be float), module unchanged here. Not run on Gazebo or the real robot.
+Fallback the user named for further sync issues: consider merging cram2/main (1268 commits behind, 18 conflicting
+files). At 1e92e8dfd3 the Giskard ControlLoop still raises on external model changes, so a merge alone won't fix that path.
+Not in this PR: ActionServerTask doesn't clear _result on reset (a retried task reuses its old answer); offered to the user as a separate PR.
+Next: try on Gazebo when the user wants; mark ready only when told.
