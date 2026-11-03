@@ -13,3 +13,5 @@ Not in this PR: ActionServerTask doesn't clear _result on reset (a retried task 
 Probed (no code changed), so boarding still ignores people: paths are computed at plan start; the cabin floor blocks the planner
 (needs obstacle_height_clearance > 0.021); 0.6 m wide people block the cabin centre; no path gives None and _path then fails; no reaction during a leg.
 Next: agree on boarding with run-time planned paths (people as planner obstacles, kept out of the world), then build it; try on Gazebo; mark ready only when told.
+2026-11-03: /skill/say is communication_skills/action/Say on the robot (not a topic). SayAction and RoomRequests now send a goal without waiting (SendGoalOnStart, SendActionGoalMotion); robot property renamed text_to_speech_action, TiagoAction.TEXT_TO_SPEECH. Uncommitted, tested in simulation only with a local server. communication_skills stays optional: SayAction stays silent with a warning when missing, so the speech tests skip in CI.
+Open: PublishMessageMotion/PublishOnStart now only used by tests, ask whether to remove.
