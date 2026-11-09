@@ -1,0 +1,7 @@
+## fix/giskard-releases-action-endpoints: withdraw Giskard's action server and client on close
+Draft PR: https://github.com/cram2/cognitive_robot_abstract_machine/pull/912 (label bug-fix). Based on cram2/main 8574ddfd0a, pushed to origin (Tigul) as 04e3bf3b73.
+Why: rclpy's destroy_node keeps action endpoints alive. A closed in-process Giskard (GiskardTester, for example TestControlLoopPacing) left a stale giskard/command server, and a later process-boundary test on the same xdist worker hung forever. This hung the experiments CI of #879.
+Done 2026-11-09: ActionServerHandler.close, MyActionClient.close (MyActionClient is now a dataclass), wired into Giskard.close_world_model_ros_interface and GiskardClientExecutor.close. send_goal raises GoalRequestNotAnsweredError after goal_response_timeout (30 s). UnexpectedGoalStatusError replaces a bare Exception. Tests in test_closing_action_endpoints.py and test_action_client.py.
+Verified: benchmark + real_stretch_demo_test pass (hung on main); giskardpy test_ros2_stuff + test_ros2_tools 352 passed. test_collision_matrix_tool's 2 failures also happen on main (mocked clock).
+Open for review: the 30 s default for goal_response_timeout was chosen by Claude to match ClientWorldUpdates.timeout, not confirmed by the user. The name MyActionClient breaks the naming rules, but renaming it is an API change, so it was left alone.
+Next: once merged, merge main into fix/carry-binds-held-body (#879) and rerun its CI. Mark ready only when told.
