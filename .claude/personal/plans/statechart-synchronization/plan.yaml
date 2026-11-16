@@ -1,0 +1,235 @@
+schema_version: 1
+id: statechart-synchronization
+title: "Synchronize statecharts across processes and frameworks"
+description: >
+  Give cramph statecharts full synchronization, modelled on semantic digital
+  twin's world synchronization: model updates that add or remove nodes and
+  change their structure, and state updates that carry the life cycle and
+  observation states of the nodes. Designed so that several frameworks share
+  one statechart, each ticking the nodes it owns in its own tick loop
+  (Giskard for motion, later a perception framework), and so that the
+  bookkeeping of the message stream is shared with the world synchronizer.
+  Every item is a pull request into cram2/main from the Tigul fork.
+default_repository: cram2/cognitive_robot_abstract_machine
+
+waves:
+  - id: foundation
+    name: "Foundation"
+    description: >
+      Independent groundwork: the shared stream layer in krrood, and a
+      statechart that records its structure changes and can hold nodes of
+      classes it cannot import.
+  - id: state
+    name: "State updates and ownership"
+    description: >
+      State updates keyed by node id, and an owner for every node.
+  - id: transport
+    name: "Synchronizer and the first two peers"
+    description: >
+      A statechart synchronizer on a topic, with Giskard and the plan
+      executor as its first two peers instead of the action feedback payloads.
+  - id: multi-framework
+    name: "More frameworks on one statechart"
+    description: >
+      What a third framework with its own tick loop needs, starting with the
+      perception framework.
+  - id: consolidation
+    name: "Consolidation"
+    description: >
+      Optional: one generic modification log for the world and the
+      statechart, if the two end up alike.
+
+tracks:
+  - id: stream-layer
+    name: "Shared stream layer"
+    wave: foundation
+    description: "krrood, ROS-free, used by semantic digital twin and cramph."
+  - id: statechart-structure
+    name: "Statechart structure changes"
+    wave: foundation
+    description: "cramph only, parallel to the stream layer."
+  - id: statechart-state
+    name: "Statechart states and ownership"
+    wave: state
+  - id: synchronizer
+    name: "Synchronizer"
+    wave: transport
+  - id: peers
+    name: "Peers with their own tick loop"
+    wave: multi-framework
+  - id: generalization
+    name: "Generic modification log"
+    wave: consolidation
+
+items:
+  - id: stream-bookkeeping-in-krrood
+    title: "Move the message stream bookkeeping into krrood"
+    branch: null
+    pull_request_number: null
+    track: stream-layer
+    depends_on: []
+    status: not started
+    notes: >
+      Move MetaData, StreamPosition, the Message base with its sequence
+      number, and the per-publisher received/applied bookkeeping with lost
+      message detection (has_applied, record_applied, _notice_lost_messages)
+      out of semantic_digital_twin.adapters.ros into a ROS-free krrood module.
+      Add the positions in other streams a message requires, which replaces
+      giskardpy's PUBLISHED_POSITION / required_position code later. The world
+      synchronizer behaves as before. Also refresh
+      semantic_digital_twin/doc/world_synchronization.rst, which still names
+      StateSynchronizer, ModelSynchronizer and _atomic_modifications.
+      Labels: maintenance, plus api-break if MetaData.world_id becomes an
+      origin id, since that changes the serialized format (open decision).
+
+  - id: statechart-modification-records
+    title: "Record statechart structure changes as modifications, by node id"
+    branch: null
+    pull_request_number: null
+    track: statechart-structure
+    depends_on: []
+    status: not started
+    notes: >
+      Atomic modifications below expansion, so replaying never expands again:
+      register a node, set a transition condition, set a composite's children,
+      restore chosen children, remove nodes, request a reset, request a
+      rebuild. Each names nodes by _node_id. The outermost modify() block
+      closes a modification block, as modify_world() does for the world.
+      Composite children lists are changed directly in about 8 places and
+      need one choke point. Replaces the append-only nodes_from_to_json diff
+      in the feedback and in ReportedStatechart. Test first: inserting into a
+      Sequence rewires the start condition of the existing next sibling
+      (composites.py _wire_children), which nodes_from_to_json does not
+      write, so a copy keeps the old condition (found by reading, not yet
+      proven by a test). Labels: api-break (feedback payload format).
+
+  - id: unknown-node-stand-ins
+    title: "Deserialize nodes of classes a process cannot import as stand-ins"
+    branch: null
+    pull_request_number: null
+    track: statechart-structure
+    depends_on: []
+    status: not started
+    notes: >
+      Giskard cannot import perception node classes and the other way round.
+      A node whose class is unknown deserializes as a stand-in that keeps its
+      id, name, conditions and children, like the nodes
+      create_structure_copy builds. Only the owner holds the real class.
+
+  - id: id-keyed-state-updates
+    title: "State updates keyed by node id, naming the model position they belong to"
+    branch: null
+    pull_request_number: null
+    track: statechart-state
+    depends_on: [stream-bookkeeping-in-krrood, statechart-modification-records]
+    status: not started
+    notes: >
+      Indices are local to each copy, because peers add nodes concurrently
+      and _renumber renumbers on removal. StatechartStateUpdate copies arrays
+      by index today; it becomes a message keyed by node id that names the
+      structure position it belongs to and carries only the nodes that
+      changed. Each update is still appended to state_history.
+
+  - id: node-ownership
+    title: "Give every node a tick owner and a structure owner"
+    branch: null
+    pull_request_number: null
+    track: statechart-state
+    depends_on: [id-keyed-state-updates]
+    status: not started
+    notes: >
+      Tick owner: evaluates the node's transitions and observation, runs its
+      callbacks, and is the only one publishing its state. Structure owner:
+      may change a composite node's children. They can differ, as with child
+      choices today (ticked on Giskard, chosen on the client). Default tick
+      owner: the peer whose context provides the node's
+      required_context_extensions. Open decision: does the plan executor own
+      the structure of everything it sent, or does each framework own the
+      subtrees it ticks?
+
+  - id: statechart-synchronizer
+    title: "Synchronizer generic over the model it synchronizes, and a statechart synchronizer"
+    branch: null
+    pull_request_number: null
+    track: synchronizer
+    depends_on: [stream-bookkeeping-in-krrood, statechart-modification-records, id-keyed-state-updates]
+    status: not started
+    notes: >
+      The ROS Synchronizer depends on the world at four points only: the
+      lock, the deserialization kwargs, the publication order and the origin
+      id. Put those behind an interface the world and the statechart
+      implement; WorldSynchronizer keeps working unchanged. The statechart
+      synchronizer uses one topic per statechart id. Open decision: where it
+      lives, since ROS is a soft dependency of cramph (giskardpy middleware,
+      a cramph tool module nothing else imports, or its own package).
+
+  - id: giskard-and-executor-as-peers
+    title: "Giskard and the plan executor synchronize as peers"
+    branch: null
+    pull_request_number: null
+    track: synchronizer
+    depends_on: [statechart-synchronizer, node-ownership, unknown-node-stand-ins]
+    status: not started
+    notes: >
+      Replace the states and joined nodes in the action feedback with the
+      synchronizer. Child choices become structure changes by the structure
+      owner, ordered by the stream instead of first_node_index. Failure
+      handling strategies that insert nodes work on Giskard, so the "only
+      works in a locally ticked statechart" warnings in failure_handling.py
+      go. The action stays for handing the statechart over and for the
+      result. The statechart inspector follows the topic. Labels: api-break.
+
+  - id: partitioned-ticking
+    title: "Each peer ticks only the nodes it owns"
+    branch: null
+    pull_request_number: null
+    track: peers
+    depends_on: [giskard-and-executor-as-peers]
+    status: not started
+    notes: >
+      The perception framework runs its own tick loop (user, 2026-11-16), so
+      it is a full peer. Each peer compiles and ticks the nodes it owns and
+      reads the mirrored states of other peers' nodes as inputs. Settling
+      within one tick (pass_limit) then only holds among a peer's own nodes;
+      across peers a change arrives with the next message. Open decision:
+      restrict conditions across peers to life cycle states, which are
+      discrete, rather than observations, which can flicker.
+
+  - id: peer-liveness-and-cancellation
+    title: "Notice a peer that left, and cancel across peers"
+    branch: null
+    pull_request_number: null
+    track: peers
+    depends_on: [partitioned-ticking]
+    status: deferred
+    notes: >
+      Deferred until a third framework actually joins. What happens to the
+      nodes of a peer that left (fail them, end the statechart), and how a
+      CancelStatechart reaches every peer.
+
+  - id: merged-history-clock
+    title: "Merge the state histories of all peers on a common clock"
+    branch: null
+    pull_request_number: null
+    track: peers
+    depends_on: [partitioned-ticking]
+    status: deferred
+    notes: >
+      Deferred until a third framework actually joins. Each peer counts its
+      own ticks, so a combined history and Gantt chart need a common clock
+      such as ROS time.
+
+  - id: generic-modification-log
+    title: "One generic modification log for the world and the statechart"
+    branch: null
+    pull_request_number: null
+    track: generalization
+    depends_on: [statechart-modification-records]
+    status: deferred
+    notes: >
+      Only if the two logs end up alike: lift Modification (apply/revert),
+      modification blocks and the nested modification context into krrood
+      and port the World onto it. The world's version is tied to its lock,
+      forward kinematics compilation, delete_orphaned_dofs and the
+      memoization cache, so this is a broad semantic digital twin change that
+      needs its code owners.
