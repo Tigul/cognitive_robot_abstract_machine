@@ -1,0 +1,7 @@
+## statechart-sync/stream-bookkeeping: move the message stream bookkeeping into krrood
+Draft PR: https://github.com/cram2/cognitive_robot_abstract_machine/pull/1000 (labels api-break, new-feature). Based on cram2/main 70ac07b6a9, pushed to origin (Tigul) as 116dce8496. First item of plan statechart-synchronization (stream-bookkeeping-in-krrood).
+Done 2026-11-17: krrood.message_stream (MessageOrigin with model_id, StreamPosition, Message, MessageField, PublicationProgress, StreamPublisher/StreamReceiver mixins, DivergedFromPublisherError(position)); SDT Synchronizer inherits the mixins; ReceivedMessage.position; giskardpy and tests migrated; world_synchronization.rst refreshed.
+Decided (user, 2026-11-17): MetaData -> MessageOrigin, world_id -> model_id, no alias. Plan file stays untracked (statechart_synchronization_plan.md in the checkout, excluded in .git/info/exclude).
+Left out: required positions in other streams (nothing reads them yet), comes with the first PR that uses them.
+Tests: krrood 125, SDT synchronizer 119 (+1 skip), giskardpy ORM + motion goal 11, all of test_ros2_stuff 354 (+1 skip). ORM regenerated; giskardpy ORM no longer has MetaData/StreamPosition tables (schema change, in the description).
+Next: user discusses the api-break with the krrood, semantic digital twin and giskardpy code owners or in the Cramgineers channel before requesting review. Mark ready only when told.

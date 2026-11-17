@@ -64,11 +64,11 @@ tracks:
 items:
   - id: stream-bookkeeping-in-krrood
     title: "Move the message stream bookkeeping into krrood"
-    branch: null
-    pull_request_number: null
+    branch: statechart-sync/stream-bookkeeping
+    pull_request_number: 1000
     track: stream-layer
     depends_on: []
-    status: not started
+    status: in_progress
     notes: >
       Move MetaData, StreamPosition, the Message base with its sequence
       number, and the per-publisher received/applied bookkeeping with lost
@@ -79,8 +79,10 @@ items:
       synchronizer behaves as before. Also refresh
       semantic_digital_twin/doc/world_synchronization.rst, which still names
       StateSynchronizer, ModelSynchronizer and _atomic_modifications.
-      Labels: maintenance, plus api-break if MetaData.world_id becomes an
-      origin id, since that changes the serialized format (open decision).
+      Decided 2026-11-17 (user): MetaData becomes krrood MessageOrigin and
+      world_id becomes model_id, with no alias. The required positions in
+      other streams were left out of this PR, since nothing reads them yet;
+      they come with the first PR that does. Labels: api-break, new-feature.
 
   - id: statechart-modification-records
     title: "Record statechart structure changes as modifications, by node id"
