@@ -86,11 +86,11 @@ items:
 
   - id: statechart-modification-records
     title: "Record statechart structure changes as modifications, by node id"
-    branch: null
-    pull_request_number: null
+    branch: statechart-sync/modification-records
+    pull_request_number: 1004
     track: statechart-structure
     depends_on: []
-    status: not started
+    status: in_progress
     notes: >
       Atomic modifications below expansion, so replaying never expands again:
       register a node, set a transition condition, set a composite's children,
@@ -104,6 +104,12 @@ items:
       (composites.py _wire_children), which nodes_from_to_json does not
       write, so a copy keeps the old condition (found by reading, not yet
       proven by a test). Labels: api-break (feedback payload format).
+      Decided 2026-11-17 (user): record as changes happen (not a diff), with
+      one method to change children (CompositeNode.set_children, no list
+      wrapper), and cramph only in this PR; moving the feedback,
+      ReportedStatechart and child choices onto the blocks is a follow-up PR
+      that carries the api-break. #1004 is new-feature only. The gap was
+      proven by a test that failed against nodes_from_to_json.
 
   - id: unknown-node-stand-ins
     title: "Deserialize nodes of classes a process cannot import as stand-ins"

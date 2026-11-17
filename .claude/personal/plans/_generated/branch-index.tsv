@@ -9,3 +9,4 @@ reattach-statechart-node	statechart-unification
 persistent-motion-state-chart	statechart-unification
 retire-plan-wrapper	statechart-unification
 statechart-sync/stream-bookkeeping	statechart-synchronization
+statechart-sync/modification-records	statechart-synchronization
