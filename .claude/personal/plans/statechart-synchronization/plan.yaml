@@ -68,8 +68,10 @@ items:
     pull_request_number: 1000
     track: stream-layer
     depends_on: []
-    status: in_progress
+    status: done
     notes: >
+      Merged 2026-11-19 (cram2#1000). Main then moved krrood.synchronization
+      into the domain model domain_models/krrood_synchronization (5402d9c92c).
       Move MetaData, StreamPosition, the Message base with its sequence
       number, and the per-publisher received/applied bookkeeping with lost
       message detection (has_applied, record_applied, _notice_lost_messages)
@@ -110,19 +112,27 @@ items:
       ReportedStatechart and child choices onto the blocks is a follow-up PR
       that carries the api-break. #1004 is new-feature only. The gap was
       proven by a test that failed against nodes_from_to_json.
+      2026-11-19: ready for review, changes requested by ichumuh; replay bugs
+      fixed (93f1b833c0); a raising modify() block is never rolled back and
+      breaks the statechart unless it raised before recording a change
+      (88fe358672, 024231b4a7); merged cram2/main and added the module
+      docstrings CI's krrood check asked for (8b581df0e6). Open: ichumuh's
+      thread on change_blocks growing forever; api-break discussion.
 
   - id: unknown-node-stand-ins
     title: "Deserialize nodes of classes a process cannot import as stand-ins"
-    branch: null
+    branch: statechart-sync/unknown-node-stand-ins
     pull_request_number: null
     track: statechart-structure
     depends_on: []
-    status: not started
+    status: in_progress
     notes: >
       Giskard cannot import perception node classes and the other way round.
       A node whose class is unknown deserializes as a stand-in that keeps its
       id, name, conditions and children, like the nodes
       create_structure_copy builds. Only the owner holds the real class.
+      Started 2026-11-19, stacked on statechart-sync/change-block-feedback
+      (#1030), whose create_structure_counterpart keeps node ids.
 
   - id: id-keyed-state-updates
     title: "State updates keyed by node id, naming the model position they belong to"

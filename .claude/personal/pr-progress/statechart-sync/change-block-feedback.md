@@ -8,3 +8,4 @@ Tests: cramph 909 (+2 skip); giskardpy test_motion_statechart 489; test_ros2_stu
 Draft PR on cram2: https://github.com/cram2/cognitive_robot_abstract_machine/pull/1030 (labels api-break, new-feature, bug-fix), stacked on #1004. Tigul#17 left open.
 Not verified: giskardpy tests after the merge, ORM regeneration, full test_ros2_stuff (all need causal-learn / a clean ROS graph).
 Next: user discusses the api-break (feedback payload, structure copy ids) with the cramph and giskardpy code owners or in Cramgineers before requesting review; rerun giskardpy suites once causal-learn is installed and the orphaned ur_control launch is gone. Mark ready only when told.
+2026-11-19 (later): merged the updated #1004 branch as e740ed454a and pushed. cramph 919 passed/2 skipped, giskardpy test_motion_statechart 609, ROS feedback/child choice/state/world/motion server tests 113 passed. krrood check clean. Next item unknown-node-stand-ins stacks on this branch.
