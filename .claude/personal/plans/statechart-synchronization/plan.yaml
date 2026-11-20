@@ -122,7 +122,7 @@ items:
   - id: unknown-node-stand-ins
     title: "Deserialize nodes of classes a process cannot import as stand-ins"
     branch: statechart-sync/unknown-node-stand-ins
-    pull_request_number: null
+    pull_request_number: 1037
     track: statechart-structure
     depends_on: []
     status: in_progress
@@ -133,6 +133,14 @@ items:
       create_structure_copy builds. Only the owner holds the real class.
       Started 2026-11-19, stacked on statechart-sync/change-block-feedback
       (#1030), whose create_structure_counterpart keeps node ids.
+      Decided 2026-11-20 (user): a receiver must not import foreign node
+      classes even where it could (circular / unwanted framework
+      dependencies), so stand-ins are decided by the framework the document
+      names, not by import failures; no inheritance from the parent yet.
+      Draft PR #1037 (new-feature): StatechartNode.ticking_framework, nodes
+      written as their stand-in document carrying the real one, read with
+      ReadingFramework. Assigning frameworks and inheritance stay with
+      node-ownership.
 
   - id: id-keyed-state-updates
     title: "State updates keyed by node id, naming the model position they belong to"
