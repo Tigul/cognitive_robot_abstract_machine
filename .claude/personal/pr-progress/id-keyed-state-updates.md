@@ -1,0 +1,7 @@
+## statechart-sync/id-keyed-state-updates: report the node states of a running goal by node id
+Draft PR https://github.com/cram2/cognitive_robot_abstract_machine/pull/1057 (labels api-break, new-feature), worktree ~/workspace/cram-id-keyed-state-updates, based on cram2/main 0b1a51249b, pushed to origin (Tigul) as f9839b5d2f.
+2026-11-24 done: cramph ReportedNodeStates + apply_to (writes by node id, records history, raises ReportedNodeNotInStatechartError); Statechart.get_node_by_id; feedback/result key node_states; child requests/choices by node id; giskardpy state_updates.py and StateUpdateAheadOfStatechartError removed; ORM schema changes (StatechartStateUpdateDAO gone, ReportedNodeStatesDAO new, node_index -> node_id).
+Decisions taken in-session (user said "start directly"): full state per report, not deltas (feedback may drop; no loss detection yet); no structure position (nothing can check it yet); no krrood_synchronization dependency in cramph.
+Tests: cramph 926/2 skipped; ROS state_updates 2, child_choices 6, child_choice_exchange 21, motion_server 63, world_updates 16, giskard_client_executor 12, integration_universal_robot 3 (first run hung 15 min, rerun 39 s, cause unknown); giskardpy motion statechart 609; coraplex test_plan_statechart 16.
+Not run: other robot integration suites, rest of test_ros2_stuff.
+Next: user reviews the design choices; discuss the api-break with the cramph/giskardpy code owners or in Cramgineers before review. Mark ready only when told.
