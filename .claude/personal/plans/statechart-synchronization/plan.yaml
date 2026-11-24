@@ -92,8 +92,10 @@ items:
     pull_request_number: 1004
     track: statechart-structure
     depends_on: []
-    status: in_progress
+    status: done
     notes: >
+      Merged 2026-11-24 (cram2#1004), and its follow-up cram2#1030, which moved
+      the feedback, ReportedStatechart and child choices onto the change blocks.
       Atomic modifications below expansion, so replaying never expands again:
       register a node, set a transition condition, set a composite's children,
       restore chosen children, remove nodes, request a reset, request a
@@ -141,6 +143,9 @@ items:
       written as their stand-in document carrying the real one, read with
       ReadingFramework. Assigning frameworks and inheritance stay with
       node-ownership.
+      2026-11-24: ready for review (ichumuh, maltehue); the api-break workflow
+      labelled it api-break. Open: Tigul's review question why ticking_framework
+      is written by hand instead of serialized as a field.
 
   - id: id-keyed-state-updates
     title: "State updates keyed by node id, naming the model position they belong to"
