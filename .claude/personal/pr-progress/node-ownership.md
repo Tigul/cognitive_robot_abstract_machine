@@ -1,0 +1,6 @@
+## statechart-sync/node-ownership: tick owner and structure owner for every node
+Draft PR https://github.com/cram2/cognitive_robot_abstract_machine/pull/1058 (labels api-break, new-feature), worktree ~/workspace/cram-node-ownership, stacked on #1037 (origin/statechart-sync/unknown-node-stand-ins 31fecfc96a), pushed to origin (Tigul) as b541e753e1.
+2026-11-24 decisions (user): structure owner per composite, default = tick owner; tick owner explicit + inherited from parent; scope = model + local enforcement.
+Done: StatechartNode.tick_owner; CompositeNode.structuring_framework + structure_owner; StatechartContext.framework_name; set_children checks (skips nodes joined since the latest block, replay goes through _hold_children); documents write inherited owners; ChildrenOwnedByAnotherFrameworkError. ORM: StatechartContextDAO gains framework_name.
+Tests: cramph 943/2 skipped; giskardpy motion statechart + orm 611; coraplex test_plan + failure handling 265/1 skipped; ROS state_updates 7, child_choices 6, child_choice_exchange 21, motion_server 63, world_updates 16. Not run: robot integration suites.
+Next: user reviews; once #1037 merges, merge main into this branch. Mark ready only when told.

@@ -162,8 +162,11 @@ items:
       (first_node_index stays). Chosen in-session: full state per report, not
       deltas (action feedback can drop messages and nothing detects a loss
       yet); no structure position yet (the client executor does not apply
-      Giskard's change blocks); a plain cramph dataclass, so cramph does not
-      depend on krrood_synchronization.
+      Giskard's change blocks). 2026-11-24, user: cramph may depend on
+      krrood_synchronization; ReportedNodeStates is now a Message,
+      NodeStatesPublisher numbers reports, NodeStatesReceiver skips a report
+      older than one it took over (feedback overtaken by the result); cramph
+      isolation rule in agent_rules.py names krrood_synchronization (c0adf31541).
       Indices are local to each copy, because peers add nodes concurrently
       and _renumber renumbers on removal. StatechartStateUpdate copies arrays
       by index today; it becomes a message keyed by node id that names the
@@ -172,12 +175,23 @@ items:
 
   - id: node-ownership
     title: "Give every node a tick owner and a structure owner"
-    branch: null
-    pull_request_number: null
+    branch: statechart-sync/node-ownership
+    pull_request_number: 1058
     track: statechart-state
     depends_on: [id-keyed-state-updates]
-    status: not started
+    status: in_progress
     notes: >
+      Decided 2026-11-24 (user): structure owner per composite, defaulting to
+      its tick owner; tick owner explicit (ticking_framework) and inherited
+      from the parent; this PR is the model plus local enforcement, stacked on
+      #1037. Draft PR #1058 (api-break, new-feature): tick_owner,
+      CompositeNode.structuring_framework / structure_owner,
+      StatechartContext.framework_name, set_children raises
+      ChildrenOwnedByAnotherFrameworkError except for a node that joined since
+      the latest block and for replayed ChildrenChange (_hold_children).
+      Open: no framework names itself yet; child choices on Giskard become a
+      client structure change in giskard-and-executor-as-peers; ReadingFramework
+      vs context.framework_name could be unified.
       Tick owner: evaluates the node's transitions and observation, runs its
       callbacks, and is the only one publishing its state. Structure owner:
       may change a composite node's children. They can differ, as with child
