@@ -149,12 +149,21 @@ items:
 
   - id: id-keyed-state-updates
     title: "State updates keyed by node id, naming the model position they belong to"
-    branch: null
-    pull_request_number: null
+    branch: statechart-sync/id-keyed-state-updates
+    pull_request_number: 1057
     track: statechart-state
     depends_on: [stream-bookkeeping-in-krrood, statechart-modification-records]
-    status: not started
+    status: in_progress
     notes: >
+      Draft PR #1057 (2026-11-24, api-break + new-feature): cramph
+      ReportedNodeStates (tick, node ids, three value lists) replaces
+      giskardpy StatechartStateUpdate; feedback/result key node_states;
+      waiting_for_child, ChildRequest and ChildChoiceMessage by node id
+      (first_node_index stays). Chosen in-session: full state per report, not
+      deltas (action feedback can drop messages and nothing detects a loss
+      yet); no structure position yet (the client executor does not apply
+      Giskard's change blocks); a plain cramph dataclass, so cramph does not
+      depend on krrood_synchronization.
       Indices are local to each copy, because peers add nodes concurrently
       and _renumber renumbers on removal. StatechartStateUpdate copies arrays
       by index today; it becomes a message keyed by node id that names the
