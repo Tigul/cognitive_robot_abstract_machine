@@ -7,3 +7,4 @@
 - Bring every touched class and method in line with AGENTS.md while porting it, and ask before departing from a rule.
 - Bug fixes go in their own PRs with the bug label, one root cause each; features carry new-feature, and api-break where they rename or change documented behaviour.
 - A test that needs ROS, Gazebo or the real Tiago is skipped in CI and paired with a mocked test.
+- From door-leaf on, a door's root is its fixed frame and door.leaf the body that moves; code reaching for a door's geometry or motion uses door.leaf.
