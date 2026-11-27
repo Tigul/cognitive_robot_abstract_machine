@@ -143,11 +143,12 @@ items:
       already do after the merge.
   - id: elevator-regions-and-levels
     title: "Elevator cabin and waiting areas, levels and room kinds"
-    branch: null
-    pull_request_number: null
+    branch: elevator-regions-and-levels
+    pull_request_number: 20
     track: models
+    session: local Claude Code session 9c9277b9-3a82-4543-b0ac-85249ce69ede
     depends_on: [door-leaf]
-    status: not started
+    status: in progress
     recommended_model: opus
     notes: >
       Elevator cabin_area, waiting_areas, doorway_pose, pose_in_front_of_doors,
