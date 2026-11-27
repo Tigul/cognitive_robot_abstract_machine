@@ -1,15 +1,12 @@
 ## door-leaf (Tigul#19, plan ra-fetch-upstream)
 
 Plan:
-- Port the frame + leaf door from ra-fetch-milestone (dbc7f9449d, own-leaf rule from 17f4a9d95d) onto main's API (ScrewAxisConnection, HasParts.add(part=...)).
-- Update tests that assert the old meaning of door.root (api-break), then run semDT, coraplex, giskardpy door tests.
+- Port the frame + leaf door from ra-fetch-milestone onto main's API; update old-contract tests (api-break).
 
 Done:
-- test_door_frame.py (10 tests, incl. own-leaf rule and validate_position_range); all pass.
-- Door.leaf/moving_body/entity_holding/from_leaf, frame + leaf specification; HasMovableJoint.moving_body; HasParts.entity_holding (PartWholeRelationship no longer exists on main); DegreeOfFreedomLimits.validate_position_range; DoorLeafNotFoundError.
-- Callers: kitchen_environment, building_floor, robocasa loader (Door.from_leaf), sage-10k schema; test_sage10k colours the leaf.
-- Old-contract tests updated in test_factories, test_specifications, test_semantic_annotations, test_annotation_mass: 455 pass. coraplex/giskardpy/sage door tests: 67 pass.
-- Env: ~/envs/cram2 resynced to main's split krrood (uv sync --inexact); ORM regenerated.
+- Implementation and tests committed (db31f66be4) and pushed; PR description updated with the migration (door.root is the frame; geometry on door.leaf / body "<name>_leaf").
+- Whole semantic_digital_twin_test package passes; coraplex/giskardpy/sage door tests pass.
+- Decisions: entity_holding lives on HasParts (PartWholeRelationship is gone on main); robocasa doors use Door.from_leaf like the milestone.
 
 Next:
-- Remaining semDT test dirs (running), commit, push, update the PR description.
+- User reviews the draft PR on the fork; then promote to cram2 with /stacked-pr-maintenance and set api-break + new-feature there.
