@@ -1,0 +1,224 @@
+schema_version: 1
+id: ra-fetch-upstream
+title: "Upstream the RA-FETCH milestone features to cram2 main"
+description: >
+  Split what the ra-fetch-milestone branch built for Tiago passing doors, riding
+  elevators and taking room requests into focused pull requests and land them on
+  cram2/main. Each item is a branch off main on the Tigul fork, reviewed there
+  first and then promoted to cram2 with /stacked-pr-maintenance. The source of
+  every item is ra-fetch-milestone (AICOR-Solutions and Tigul, in sync).
+default_repository: Tigul/cognitive_robot_abstract_machine
+tracking_issue: 18
+
+waves:
+  - id: framework
+    name: "Framework"
+    description: "semantic_digital_twin, cramph and giskardpy pieces that stand on their own."
+  - id: models
+    name: "Building and robot model"
+    description: "Elevator regions, levels, room kinds and the Tiago model."
+  - id: behaviour
+    name: "Behaviour"
+    description: "coraplex actions built on the framework and models."
+  - id: maps-and-demos
+    name: "Maps and demos"
+    description: "The office maps and the experiments demos that use everything above."
+
+tracks:
+  - id: semdt-framework
+    name: "semantic_digital_twin framework"
+    wave: framework
+  - id: motion-framework
+    name: "cramph and giskardpy framework"
+    wave: framework
+  - id: models
+    name: "Models"
+    wave: models
+  - id: actions
+    name: "coraplex actions"
+    wave: behaviour
+  - id: maps
+    name: "Office maps"
+    wave: maps-and-demos
+  - id: demos
+    name: "Demos"
+    wave: maps-and-demos
+
+items:
+  - id: door-leaf
+    title: "Separate a door's moving leaf from its fixed passageway"
+    branch: null
+    pull_request_number: null
+    track: semdt-framework
+    depends_on: []
+    status: not started
+    recommended_model: opus
+    notes: >
+      Door.leaf, Door.from_leaf, moving_body, entity_holding;
+      HasMovableJoint.moving_body, PartWholeRelationship.entity_holding;
+      DegreeOfFreedomLimits.validate_position_range; callers in
+      kitchen_environment, building_floor, robocasa and sage-10k move from
+      door.root to door.leaf. api-break: door.root changes meaning; the PR
+      description states the migration. Tests: test_door_frame, test_factories.
+  - id: lidar-readings
+    title: "Query lidar hit points and distances, and show readings in RViz"
+    branch: null
+    pull_request_number: null
+    track: semdt-framework
+    depends_on: []
+    status: not started
+    recommended_model: sonnet
+    notes: >
+      LidarReading.root_P_hit_points and distances_to_segment, has_reading on the
+      lidar sensor and its ROS adapter, LidarVisualizationMarkerPublisher. The
+      laser scan converter turning out-of-range values into inf is a bug fix:
+      split it into its own PR with the bug label if it stands alone.
+  - id: ros-sync-fixes
+    title: "Keep ROS synchronization correct when bodies move between parents"
+    branch: null
+    pull_request_number: null
+    track: semdt-framework
+    depends_on: []
+    status: not started
+    recommended_model: sonnet
+    notes: >
+      Bug fixes, bug label, one root cause per PR, so this may become several
+      PRs: odometry follows a base moved under another parent
+      (input_synchronization); tf input synchronizer untrack(); the world
+      synchronizer ignores state of degrees of freedom it removed. Check first
+      whether cram2 #1022 / #973 already cover any of it.
+  - id: motion-survives-world-modification
+    title: "Apply another process's world model modification once the robot is at rest"
+    branch: null
+    pull_request_number: null
+    track: motion-framework
+    depends_on: []
+    status: not started
+    recommended_model: opus
+    notes: >
+      StatechartCompiler.run_once_held_still (cramph), world_updates
+      has_pending_model_modification / has_pending_reload /
+      apply_model_modifications, control_loop and child_choices (giskardpy),
+      statecharts.md. Only a full reload still ends the motion. api-break:
+      has_pending_model_change renamed, documented behaviour changes. Touches
+      the area of the statechart-synchronization plan: check for overlap.
+  - id: action-server-and-localization-nodes
+    title: "Statechart nodes that await a ROS 2 action result and relocalize the robot"
+    branch: null
+    pull_request_number: null
+    track: motion-framework
+    depends_on: []
+    status: not started
+    recommended_model: sonnet
+    notes: >
+      AwaitActionResult (goal built at start, waiting for the server counts as
+      progress, ros_tasks change), LoadMap and PublishInitialPose in
+      ros2_nodes/localization.py. Tests: test_await_action_result,
+      test_localization_nodes.
+  - id: passage-clear-monitor
+    title: "Monitor that a doorway is clear with the lidar"
+    branch: null
+    pull_request_number: null
+    track: motion-framework
+    depends_on: [lidar-readings]
+    status: not started
+    recommended_model: sonnet
+    notes: >
+      PassageClear in sensor_monitors.py: stays clear once seen clear while
+      driving through. Uses LidarReading.distances_to_segment. Tests:
+      test_sensor_monitors.
+  - id: diff-drive-base-goal
+    title: "Drive a differential drive base to its goal without reversing on arcs"
+    branch: null
+    pull_request_number: null
+    track: motion-framework
+    depends_on: []
+    status: not started
+    recommended_model: sonnet
+    notes: >
+      base_pose_goals: no reversing on arcs, last step only turns to the goal
+      orientation; progress monitor timeout 5 s to 15 s (ask the developer why
+      15 before upstreaming). Compare with what cram2 main's base pose goals
+      already do after the merge.
+  - id: elevator-regions-and-levels
+    title: "Elevator cabin and waiting areas, levels and room kinds"
+    branch: null
+    pull_request_number: null
+    track: models
+    depends_on: [door-leaf]
+    status: not started
+    recommended_model: opus
+    notes: >
+      Elevator cabin_area, waiting_areas, doorway_pose, pose_in_front_of_doors,
+      waiting_area_scale; HasPlanarFreeSpace split from HasSupportingSurface;
+      Level.holding/under/spoken_name, Floor.surface_boxes/extent/under,
+      Room.floor_centre; Hallway, ElevatorLobby, StorageRoom, BathroomCabin,
+      Bathroom.cabins. Tests: test_elevator_areas, test_semantic_annotations.
+  - id: tiago-robot-model
+    title: "Tiago topics, actions and Giskard configs for the real robot"
+    branch: null
+    pull_request_number: null
+    track: models
+    depends_on: []
+    status: not started
+    recommended_model: sonnet
+    notes: >
+      TiagoTopic, TiagoAction, topic_name on the base and lidar,
+      AbstractRobot.text_to_speech_action; giskardpy tiago configs,
+      tiago_standalone, tiago_velocity, WorldWithTiagoConfig, 0.2 m/s base
+      limits. cram2 #1053 already added a TiagoVelocityInterface in configs.py:
+      reconcile instead of duplicating.
+  - id: say-action
+    title: "Let a robot speak through its say skill action"
+    branch: null
+    pull_request_number: null
+    track: actions
+    depends_on: [action-server-and-localization-nodes, tiago-robot-model]
+    status: not started
+    recommended_model: haiku
+    notes: >
+      coraplex speech.py: SaySkillInterface, Speak (an AwaitActionResult),
+      SayAction. Tests: test_say_action, test_text_to_speech_action.
+  - id: door-and-elevator-actions
+    title: "Pass doors and ride elevators on what the lidar sees"
+    branch: null
+    pull_request_number: null
+    track: actions
+    depends_on: [passage-clear-monitor, diff-drive-base-goal, elevator-regions-and-levels, say-action]
+    status: not started
+    recommended_model: opus
+    notes: >
+      PassDoorAction, reworked ElevatorNavigation with ElevatorRideAnnouncement
+      (asks to open the doors and press the target floor's button),
+      Demonstration.conclude, coraplex doc passing_doors.md. Tests:
+      test_multi_robot_action_designator, test_tiago_door_passing_demo parts
+      that need no experiments package.
+  - id: building-maps
+    title: "ARISE and IAI office maps with elevators on several storeys"
+    branch: null
+    pull_request_number: null
+    track: maps
+    depends_on: [elevator-regions-and-levels]
+    status: not started
+    recommended_model: sonnet
+    notes: >
+      ElevatorBuilding, arise_office.py, the foyer_and_hallway_ground_floor
+      package (IAI office floor plans, storey layout, rectilinear rooms,
+      sliding-door elevator), Inertial.of_solid_box, Color.LIGHT_BEIGE. Large
+      (about 5000 lines): may split ARISE and IAI into two PRs. AICOR-Solutions
+      #8 (IAI office room navigation) is still open into ra-fetch-milestone.
+  - id: ra-fetch-demos
+    title: "Tiago door, elevator, room navigation and room request demos"
+    branch: null
+    pull_request_number: null
+    track: demos
+    depends_on: [ros-sync-fixes, motion-survives-world-modification, door-and-elevator-actions, building-maps]
+    status: not started
+    recommended_model: sonnet
+    notes: >
+      experiments: ra_fetch_interfaces ROS package (BoardElevator.action,
+      TrackedPerson.msg), ra_fetch_elevator_people, tiago_apartment_door_demo,
+      tiago_elevator_demo, tiago_arise_gazebo, tiago_room_navigation_demo,
+      tiago_room_request_demo with README, their tests, .gitignore entry for
+      the ROS CMakeLists.txt. Tests needing ROS or a real robot are skipped in
+      CI.

@@ -1,3 +1,8 @@
+statechart-sync/stream-bookkeeping	statechart-synchronization
+statechart-sync/modification-records	statechart-synchronization
+statechart-sync/unknown-node-stand-ins	statechart-synchronization
+statechart-sync/id-keyed-state-updates	statechart-synchronization
+statechart-sync/node-ownership	statechart-synchronization
 plan-cramp-second-iter	statechart-unification
 statechart-plan-parity	statechart-unification
 action-description-composite-node	statechart-unification
@@ -8,6 +13,3 @@ growable-statechart	statechart-unification
 reattach-statechart-node	statechart-unification
 persistent-motion-state-chart	statechart-unification
 retire-plan-wrapper	statechart-unification
-statechart-sync/stream-bookkeeping	statechart-synchronization
-statechart-sync/modification-records	statechart-synchronization
-statechart-sync/change-block-feedback	statechart-synchronization
