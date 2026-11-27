@@ -738,7 +738,87 @@ class IsStorageSpace(HasRootBody, Generic[THasRootBody], SubClassSafeGeneric):
 
 
 @dataclass(eq=False)
-class HasSupportingSurface(IsStorageSpace, Mixin):
+class HasPlanarFreeSpace(Mixin, ABC):
+    """
+    A semantic annotation with ground a robot can drive on, whose free space a path can
+    be laid out in.
+    """
+
+    @abstractmethod
+    def _ground(self) -> VolumetricBoundingBox:
+        """
+        :return: The extent of the ground in the frame the free space is expressed in;
+            the ground's top is the box's top.
+        """
+
+    def planar_free_space(
+        self,
+        max_height: float = 2.0,
+        tolerance: float = 0.001,
+        bloat_obstacles: float = 0.0,
+        bloat_walls: float = 0.0,
+        semantic_wall_annotation: Wall | None = None,
+        obstacle_height_clearance: float = 0.01,
+    ) -> PlanarGraphOfBoundingBoxes:
+        """
+        Build a graph of the free space above the ground, from the ground's top up to
+        ``max_height``, within the ground's x,y extent.
+
+        :param max_height: The height of the free space above the ground.
+        :param tolerance: The tolerance for the intersection when calculating the
+            connectivity.
+        :param bloat_obstacles: The amount to bloat the obstacles.
+        :param bloat_walls: The amount to bloat wall obstacles.
+        :param semantic_wall_annotation: An optional wall annotation to be considered
+            as an obstacle.
+        :param obstacle_height_clearance: The amount every obstacle bounding box gets
+            expanded by in z, regardless of ``bloat_obstacles``/``bloat_walls``. The
+            free space starts comfortably above that many times over above the ground's
+            top, so the ground itself never registers as an obstacle to it.
+        :return: The graph of the free space above the ground.
+        """
+        from semantic_digital_twin.semantic_annotations.semantic_annotations import (
+            SemanticEnvironmentAnnotation,
+        )
+        from semantic_digital_twin.world_description.graph_of_convex_sets.boxes import (
+            PlanarGraphOfBoundingBoxes,
+        )
+
+        world = self._world
+        ground = self._ground()
+        ground_top = ground.max_z + 2 * obstacle_height_clearance
+        search_space = BoundingBoxCollection(
+            [
+                VolumetricBoundingBox(
+                    ground.min_x,
+                    ground.min_y,
+                    ground_top,
+                    ground.max_x,
+                    ground.max_y,
+                    ground_top + max_height,
+                    ground.origin,
+                )
+            ],
+            ground.origin.reference_frame,
+        )
+
+        semantic_obstacle_annotation = SemanticEnvironmentAnnotation(
+            root=world.root, _world=world
+        )
+
+        return PlanarGraphOfBoundingBoxes.free_space_from_semantic_annotation(
+            search_space=search_space,
+            semantic_obstacle_annotation=semantic_obstacle_annotation,
+            semantic_wall_annotation=semantic_wall_annotation,
+            tolerance=tolerance,
+            bloat_obstacles=bloat_obstacles,
+            bloat_walls=bloat_walls,
+            obstacle_height_clearance=obstacle_height_clearance,
+        )
+
+
+@dataclass(eq=False)
+class HasSupportingSurface(IsStorageSpace, HasPlanarFreeSpace):
     """
     A semantic annotation that represents a supporting surface.
     """
@@ -1103,94 +1183,25 @@ class HasSupportingSurface(IsStorageSpace, Mixin):
             self._world.add_connection(FixedConnection(parent=self.root, child=region))
         return region
 
-    def planar_free_space(
-        self,
-        max_height: float = 2.0,
-        tolerance: float = 0.001,
-        bloat_obstacles: float = 0.0,
-        bloat_walls: float = 0.0,
-        semantic_wall_annotation: Wall | None = None,
-        obstacle_height_clearance: float = 0.01,
-    ) -> PlanarGraphOfBoundingBoxes:
+    def _ground(self) -> VolumetricBoundingBox:
         """
-        Build a graph of the free space above this supporting surface, from the
-        surface's own top up to ``max_height``.
+        The extent of :attr:`supporting_surface`, in the surface's own frame, which lies
+        on its top.
 
-        The search space is derived from :attr:`supporting_surface`'s own area -- its
-        x,y extent bounds the navigable region, and the height range determines which
-        obstacles in the world count as blocking.
+        .. warning:: When :attr:`supporting_surface` is None, the surface is calculated
+            and added to the world, resulting in model updates being published if the
+            synchronizer is running.
 
-        ..warning:: Calling this method when :attr:`supporting_surface` is None will
-            cause the method to calculate the surface and add it to the world, resulting
-            in model updates being published if the synchronizer is running.
-
-        :param max_height: The height of the free space above the surface.
-        :param tolerance: The tolerance for the intersection when calculating the
-            connectivity.
-        :param bloat_obstacles: The amount to bloat the obstacles.
-        :param bloat_walls: The amount to bloat wall obstacles.
-        :param semantic_wall_annotation: An optional wall annotation to be considered
-            as an obstacle.
-        :param obstacle_height_clearance: The amount every obstacle bounding box gets
-            expanded by in z, regardless of ``bloat_obstacles``/``bloat_walls``. The
-            search space starts comfortably above that many times over above the
-            surface's own top, so the surface's own body never registers as an
-            obstacle to the free space built over it.
         :raises NoSupportingSurfaceError: If no surface is attached and none can be
             derived from this annotation's geometry.
-        :return: The graph of the free space above this surface.
         """
-        from semantic_digital_twin.semantic_annotations.semantic_annotations import (
-            SemanticEnvironmentAnnotation,
-        )
-        from semantic_digital_twin.world_description.graph_of_convex_sets.boxes import (
-            PlanarGraphOfBoundingBoxes,
-        )
-
-        world = self._world
         if self.supporting_surface is None:
-            with world.modify_world():
+            with self._world.modify_world():
                 if self.calculate_supporting_surface() is None:
                     raise NoSupportingSurfaceError(self)
-
-        # The surface's own frame lies on its top, so the free space and the paths
-        # through it are expressed relative to what stands on it.
-        origin = HomogeneousTransformationMatrix(
-            reference_frame=self.supporting_surface
-        )
-        surface_box = self.supporting_surface.area.as_bounding_box_collection_at_origin(
-            origin
+        return self.supporting_surface.area.as_bounding_box_collection_at_origin(
+            HomogeneousTransformationMatrix(reference_frame=self.supporting_surface)
         ).bounding_box()
-
-        surface_top = surface_box.max_z + 2 * obstacle_height_clearance
-        search_space = BoundingBoxCollection(
-            [
-                VolumetricBoundingBox(
-                    surface_box.min_x,
-                    surface_box.min_y,
-                    surface_top,
-                    surface_box.max_x,
-                    surface_box.max_y,
-                    surface_top + max_height,
-                    origin,
-                )
-            ],
-            self.supporting_surface,
-        )
-
-        semantic_obstacle_annotation = SemanticEnvironmentAnnotation(
-            root=world.root, _world=world
-        )
-
-        return PlanarGraphOfBoundingBoxes.free_space_from_semantic_annotation(
-            search_space=search_space,
-            semantic_obstacle_annotation=semantic_obstacle_annotation,
-            semantic_wall_annotation=semantic_wall_annotation,
-            tolerance=tolerance,
-            bloat_obstacles=bloat_obstacles,
-            bloat_walls=bloat_walls,
-            obstacle_height_clearance=obstacle_height_clearance,
-        )
 
 
 @dataclass(eq=False)
