@@ -1,1 +1,2 @@
 fork_repository = "Tigul/cognitive_robot_abstract_machine"
+upstream_repository = "cram2/cognitive_robot_abstract_machine"
