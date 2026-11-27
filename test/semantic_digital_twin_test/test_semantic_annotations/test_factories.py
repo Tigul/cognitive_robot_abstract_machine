@@ -138,7 +138,7 @@ class TestFactories(unittest.TestCase):
             )
         [queried_door] = world.get_semantic_annotations_by_type(Door)
         self.assertEqual(returned_door, queried_door)
-        self.assertEqual(world.root, queried_door.movable_joint.parent)
+        self.assertEqual(queried_door.root, queried_door.movable_joint.parent)
         assert queried_door.movable_joint.behaves_like_a_revolute_connection
         [queried_drawer] = world.get_semantic_annotations_by_type(Drawer)
         self.assertEqual(returned_drawer, queried_drawer)
@@ -207,10 +207,11 @@ class TestFactories(unittest.TestCase):
         assert set(world.kinematic_structure_entities) == {
             world.root,
             door.root,
+            door.leaf,
             door.entry_way.root,
         }
         assert door.movable_joint.behaves_like_a_revolute_connection
-        assert door.movable_joint.parent == world.root
+        assert door.movable_joint.parent == door.root
 
     def test_bottle_cap_on_screw_factory(self):
         world = World.create_with_root_body("root")
@@ -248,13 +249,13 @@ class TestFactories(unittest.TestCase):
                 name="handle",
                 world=world,
             )
-        assert len(world.kinematic_structure_entities) == 4
+        assert len(world.kinematic_structure_entities) == 5
 
         assert root == handle.root.parent_kinematic_structure_entity
         with world.modify_world():
             door.add(part=handle)
 
-        assert door.root == handle.root.parent_kinematic_structure_entity
+        assert door.leaf == handle.root.parent_kinematic_structure_entity
         assert door.handle == handle
 
     def test_case_factory(self):
@@ -397,7 +398,7 @@ class TestFactories(unittest.TestCase):
             aperture = Aperture.create_with_new_region_in_world_from_body(
                 name="wall",
                 world=world,
-                body=door.root,
+                body=door.leaf,
             )
         semantic_aperture_annotations = world.get_semantic_annotations_by_type(Aperture)
         self.assertEqual(len(semantic_aperture_annotations), 2)
@@ -420,7 +421,7 @@ class TestFactories(unittest.TestCase):
             aperture = Aperture.create_with_new_region_in_world_from_body(
                 name="wall",
                 world=world,
-                body=door.root,
+                body=door.leaf,
             )
             wall.add(part=aperture)
 
@@ -499,7 +500,7 @@ class TestFactories(unittest.TestCase):
                 world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(y=0.4),
             )
             door.add(part=handle)
-        world_T_door = door.root.global_transform
+        world_T_door = door.leaf.global_transform
         world_T_hinge = world_T_door @ door.calculate_self_T_movable_joint(Vector3.Z())
         limits = DegreeOfFreedomLimits.from_position_range_and_speed(
             lower_position=0.0, upper_position=np.pi / 2
@@ -517,12 +518,12 @@ class TestFactories(unittest.TestCase):
         assert joint.dof.limits.upper.position == limits.upper.position
         assert specification.connection_T_child is None
         np.testing.assert_allclose(
-            door.root.global_transform.to_np(), world_T_door.to_np(), atol=1e-12
+            door.leaf.global_transform.to_np(), world_T_door.to_np(), atol=1e-12
         )
         joint.position = np.pi / 2
         world.notify_state_change()
         np.testing.assert_allclose(
-            door.root.global_transform.to_np(),
+            door.leaf.global_transform.to_np(),
             (
                 world_T_hinge
                 @ HomogeneousTransformationMatrix.from_xyz_rpy(yaw=np.pi / 2)
@@ -1102,8 +1103,8 @@ class TestFactories(unittest.TestCase):
             door = Door.create_with_new_body_in_world(
                 name="door", world=world, scale=Scale(0.03, 1, 2)
             )
-        collision = door.root.collision
-        self.assertIs(collision, door.root.visual)
+        collision = door.leaf.collision
+        self.assertIs(collision, door.leaf.visual)
         self.assertEqual(len(collision), 1)
         np.testing.assert_allclose(
             collision.combined_mesh.bounds,
@@ -1243,7 +1244,7 @@ def test_add_routes_handle_as_child():
         door.add(part=handle)
 
     assert door.handle == handle
-    assert door.root == handle.root.parent_kinematic_structure_entity
+    assert door.leaf == handle.root.parent_kinematic_structure_entity
 
 
 def test_add_routes_plural_drawer_and_door():
@@ -1283,7 +1284,7 @@ def test_add_routes_aperture_with_cut():
             name="door", scale=Scale(0.03, 1, 2), world=world
         )
         aperture = Aperture.create_with_new_region_in_world_from_body(
-            name="aperture", world=world, body=door.root
+            name="aperture", world=world, body=door.leaf
         )
         wall.add(part=aperture)
 
@@ -1531,7 +1532,7 @@ def test_a_door_on_a_horizontal_hinge_swings_about_the_edge_opposite_its_handle(
     top edge, opposite the handle, as the hinge turns.
     """
     world, door = door_with_handle_at(y=0.4, z=0.0)
-    world_T_door = door.root.global_transform
+    world_T_door = door.leaf.global_transform
     world_T_hinge = world_T_door @ door.calculate_self_T_movable_joint(Vector3.Y())
 
     joint = door.mount_on_movable_joint(
@@ -1541,12 +1542,12 @@ def test_a_door_on_a_horizontal_hinge_swings_about_the_edge_opposite_its_handle(
     )
 
     np.testing.assert_allclose(
-        door.root.global_transform.to_np(), world_T_door.to_np(), atol=1e-12
+        door.leaf.global_transform.to_np(), world_T_door.to_np(), atol=1e-12
     )
     joint.position = 0.5
     world.notify_state_change()
     np.testing.assert_allclose(
-        door.root.global_transform.to_np(),
+        door.leaf.global_transform.to_np(),
         (
             world_T_hinge
             @ HomogeneousTransformationMatrix.from_xyz_rpy(pitch=0.5)
@@ -1629,7 +1630,7 @@ def test_mounting_a_door_again_replaces_its_joint_and_keeps_it_in_place():
     with as many connections and the door where it was.
     """
     world, door = door_with_handle_at(y=0.4, z=0.0)
-    world_T_door = door.root.global_transform
+    world_T_door = door.leaf.global_transform
     first = door.mount_on_movable_joint(
         ScrewAxisConnectionSpecification(
             screw_axis=ScrewAxisConnection.create_revolute_screw_axis(axis=Vector3.Z())
@@ -1644,14 +1645,14 @@ def test_mounting_a_door_again_replaces_its_joint_and_keeps_it_in_place():
     )
 
     assert second is not first
-    assert door.root.parent_connection is second
+    assert door.leaf.parent_connection is second
     assert door.movable_joint is second
     assert len(world.connections) == connection_count
     np.testing.assert_allclose(
         second.screw_axis.unit_direction.to_np()[:3], [0.0, 1.0, 0.0]
     )
     np.testing.assert_allclose(
-        door.root.global_transform.to_np(), world_T_door.to_np(), atol=1e-12
+        door.leaf.global_transform.to_np(), world_T_door.to_np(), atol=1e-12
     )
 
 

@@ -639,7 +639,7 @@ class Sage10kDoor(Sage10kWithID):
             )
             annotation.type_description = self.door_type
 
-        body = annotation.root
+        body = annotation.leaf
         door_mesh = body.collision.combined_mesh
 
         door_mesh = Mesh.project_texture_coordinates(
@@ -682,8 +682,8 @@ class Sage10kDoor(Sage10kWithID):
 
         door_T_handle = HomogeneousTransformationMatrix.from_xyz_rpy(
             y=0.1,
-            x=door.root.collision.min_point.x,
-            reference_frame=door.root,
+            x=door.leaf.collision.min_point.x,
+            reference_frame=door.leaf,
         )
 
         door_T_world = world.transform(door_T_handle, world.root)
@@ -697,8 +697,8 @@ class Sage10kDoor(Sage10kWithID):
         if is_handle_in_room and self.opens_inward:
             door_T_handle = HomogeneousTransformationMatrix.from_xyz_rpy(
                 y=0.1,
-                x=door.root.collision.max_point.x,
-                reference_frame=door.root,
+                x=door.leaf.collision.max_point.x,
+                reference_frame=door.leaf,
                 yaw=np.pi,
             )
 
