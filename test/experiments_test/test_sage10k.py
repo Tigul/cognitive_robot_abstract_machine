@@ -53,7 +53,7 @@ def wall_door_handle_world():
             scale=Scale(0.11, 1, 2),
             world_root_T_self=HomogeneousTransformationMatrix.from_xyz_rpy(z=1.0),
         )
-        door.root.visual.dye_shapes(Color.from_rgba(red=0.55, green=0.27, blue=0.07))
+        door.leaf.visual.dye_shapes(Color.from_rgba(red=0.55, green=0.27, blue=0.07))
 
     with world.modify_world():
         wall.add(part=door.entry_way)

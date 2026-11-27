@@ -1102,7 +1102,7 @@ class KitchenEnvironment(WorldSource):
                     z=fridge_door_height,
                 ),
             )
-            for shape in fridge_door.root.visual.shapes:
+            for shape in fridge_door.leaf.visual.shapes:
                 shape.color = Color.WHITE()
             refrigerator.add(part=fridge_door)
 
@@ -1369,7 +1369,7 @@ class KitchenEnvironment(WorldSource):
                     z=module_1_door_height,
                 ),
             )
-            for shape in module_1_door.root.visual.shapes:
+            for shape in module_1_door.leaf.visual.shapes:
                 shape.color = Color.WHITE()
             module_1_cabinet.add(part=module_1_door)
 
@@ -1446,7 +1446,7 @@ class KitchenEnvironment(WorldSource):
                     z=module_2_door_height,
                 ),
             )
-            for shape in module_2_door.root.visual.shapes:
+            for shape in module_2_door.leaf.visual.shapes:
                 shape.color = Color.WHITE()
             dishwasher.add(part=module_2_door)
 
@@ -1762,7 +1762,7 @@ class KitchenEnvironment(WorldSource):
                     z=center_cabinet_door_height,
                 ),
             )
-            for shape in oven_cabinet_door.root.visual.shapes:
+            for shape in oven_cabinet_door.leaf.visual.shapes:
                 shape.color = Color.WHITE()
             tower.add(part=oven_cabinet_door)
 
@@ -1885,7 +1885,7 @@ class KitchenEnvironment(WorldSource):
                 ),
                 scale=Scale(x=0.02, y=center_width, z=center_oven_height),
             )
-            for shape in oven_door.root.visual.shapes:
+            for shape in oven_door.leaf.visual.shapes:
                 shape.color = Color.WHITE()
             oven.add(part=oven_door)
 
@@ -2234,7 +2234,7 @@ class KitchenEnvironment(WorldSource):
                     ),
                     scale=cupboard_door_scale,
                 )
-                for shape in door.root.visual.shapes:
+                for shape in door.leaf.visual.shapes:
                     shape.color = Color.WHITE()
                 cupboard.add(part=door)
 

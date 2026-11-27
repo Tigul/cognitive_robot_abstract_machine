@@ -18,6 +18,9 @@ from semantic_digital_twin.semantic_annotations.part_whole.relationship_marker i
 from semantic_digital_twin.semantic_annotations.semantic_relationship import (
     HasSemanticRelationships,
 )
+from semantic_digital_twin.world_description.world_entity import (
+    KinematicStructureEntity,
+)
 from semantic_digital_twin.world_description.world_modification import (
     synchronized_attribute_modification,
 )
@@ -36,6 +39,15 @@ class HasParts(HasRootKinematicStructureEntity, HasSemanticRelationships, Mixin)
     :meth:`add` routes a part to the field whose element type matches it and lets the
     part mount itself (:meth:`HasRootKinematicStructureEntity._mount_strategy`).
     """
+
+    def entity_holding(
+        self, part: HasRootKinematicStructureEntity
+    ) -> KinematicStructureEntity:
+        """
+        :param part: A part of this annotation.
+        :return: The entity of this annotation the part is mounted on.
+        """
+        return self.root
 
     @synchronized_attribute_modification
     def add(
